@@ -1,0 +1,233 @@
+paths:
+  data: data
+  cache: data/cache
+  json:  data/json
+  logs:  data/logs
+  temp:  data/temp
+  icons:  data/icons
+  
+surface_mapping:
+  asphalt: asphalt
+  concrete: asphalt
+  paved: asphalt
+  unpaved: gravel
+  gravel: gravel
+  dirt: gravel
+  sand: gravel
+  grass: gravel
+
+slope_color_scheme:
+  asphalt:
+    - threshold: 5
+      color: "#00FF00"  # green
+    - threshold: 10
+      color: "#FFFF00"  # yellow
+    - threshold: 100
+      color: "#FF0000"  # red
+  gravel:
+    - threshold: 3
+      color: "#0000FF"  # blue
+    - threshold: 7
+      color: "#800080"  # purple
+    - threshold: 100
+      color: "#000000"  # black
+  unknown:
+    - threshold: 100
+      color: "#808080"  # gray
+
+map_features:
+  Restroom:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#000000"
+      border_width: "2"
+      text_color: "#000000"
+      background_color: "#FFFF00"
+
+    OSM_key:
+      - amenity: toilets
+        name: False
+        icon: restroom
+        group: Toilets
+      - amenity: shower
+        name: False
+        icon: shower
+        group: Toilets
+
+  Water:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#0000FF"
+
+    # - water_source: well
+    #   name: False
+    #   icon: faucet-drip
+    OSM_key:
+      - amenity: water_point
+        name: False
+        icon: faucet-drip
+        group: Water
+      - amenity: drinking_water
+        name: False
+        icon: faucet-drip
+        group: Water
+
+  Restaurant or Bar:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#00FF00"
+
+    OSM_key:
+      - amenity: bar
+        icon: martini-glass-citrus
+      - amenity: biergarten
+        icon: beer-mug
+      - amenity: cafe
+        icon: mug-hot
+      - amenity: fast_food
+        icon: burger-lettuce
+      - amenity: food_court
+        icon: utensils
+      - amenity: ice_cream
+        icon: ice-cream
+      - amenity: pub
+        icon: beer
+      - amenity: restaurant
+        icon: utensils
+
+  Gears shop:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#FF0000"
+
+    OSM_key:
+      - shop: bicycle
+        icon: bicycle
+      - shop: outdoor
+        icon: hiking
+      - shop: sports
+        icon: football-ball
+
+  Laundry:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#FFC0CB"
+
+    OSM_key:
+      - shop: laundry
+        icon: tshirt
+
+  Food shop:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#00FF00"
+
+    OSM_key:
+      - shop: alcohol
+        icon: wine-bottle
+      - shop: bakery
+        icon: bread-slice
+      - shop: beverages
+        icon: glass-martini-alt
+      - shop: brewing_supplies
+        icon: beer
+      - shop: butcher
+        icon: drumstick-bite
+      - shop: cheese
+        icon: cheese
+      - shop: chocolate
+        icon: candy-cane
+      - shop: coffee
+        icon: coffee
+      - shop: confectionery
+        icon: candy-cane
+      - shop: convenience
+        icon: store
+      - shop: dairy
+        icon: cheese
+      - shop: deli
+        icon: hamburger
+      - shop: farm
+        icon: tractor
+      - shop: food
+        icon: apple-alt
+      - shop: frozen_food
+        icon: snowflake
+      - shop: greengrocer
+        icon: carrot
+      - shop: health_food
+        icon: seedling
+      - shop: ice_cream
+        icon: ice-cream
+      - shop: nuts
+        icon: nut-free
+      - shop: pasta
+        icon: pen-alt
+      - shop: pastry
+        icon: croissant
+      - shop: seafood
+        icon: fish
+      - shop: spices
+        icon: mortar-pestle
+      - shop: tea
+        icon: mug-hot
+      - shop: tortilla
+        icon: bread-slice
+      - shop: water
+        icon: tint
+      - shop: wine
+        icon: wine-glass
+      - shop: supermarket
+        icon: cart-shopping
+
+  Shelter:
+    icon_prototype:
+      icon_shape: "circle-dot"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#000000"
+
+    OSM_key:
+      - amenity: shelter
+        name: False
+        icon: people-roof
+
+  Sleeping place:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#000000"
+
+    OSM_key:
+      - tourism: hostel
+        icon: hotel
+      - tourism: camp_site
+        icon: tents
+      - tourism: alpine_hut
+        icon: people-roof
+      - tourism: chalet
+        icon: people-roof
+      - tourism: guest_house
+        icon: hotel
+      - tourism: motel
+        icon: hotel
+      - tourism: hotel
+        icon: hotel
