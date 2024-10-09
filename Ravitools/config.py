@@ -1,4 +1,5 @@
 import yaml
+import os
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
@@ -18,11 +19,24 @@ class Config:
             with open(config_path, 'r') as config_file:
                 cls._instance.config = yaml.safe_load(config_file)
             
+            # Create necessary folders as defined in the config
+            cls._instance.paths = cls._instance._create_directories()
+
             # Process OSM elements and mappings
             cls._instance.osm_elements = cls._instance._extract_osm_elements()
             cls._instance.osm_key_mapping = cls._instance._build_osm_key_mapping()
             
         return cls._instance
+
+    def _create_directories(self):
+        """Create directories as defined in the 'paths' section of the config.yaml file."""
+        paths = self.config.get('paths', {})
+        for path_name, path_value in paths.items():
+            if not os.path.exists(path_value):
+                os.makedirs(path_value, exist_ok=True)
+                print(f"Directory created: {path_value}")
+                
+        return paths
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value by key."""

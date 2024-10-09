@@ -37,9 +37,11 @@ class GPXParser:
             for segment in track.segments:
                 path.extend((point.latitude, point.longitude) for point in segment.points)
 
-        simplified_path = GPXParser._simplify_path(path, simplify_distance)
-        logging.info(f"Simplified GPX path from {len(path)} to {len(simplified_path)} points")
-        return simplified_path
+        return path
+
+        # simplified_path = GPXParser._simplify_path(path, simplify_distance)
+        # logging.info(f"Simplified GPX path from {len(path)} to {len(simplified_path)} points")
+        # return simplified_path
 
     @staticmethod
     def _simplify_path(path: List[Tuple[float, float]], distance: float) -> List[Tuple[float, float]]:

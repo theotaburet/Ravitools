@@ -1,4 +1,5 @@
 import argparse
+import os
 import logging
 from Ravitools.config import Config
 from Ravitools.utils import GPXParser
@@ -20,11 +21,17 @@ def main():
     parser.add_argument("--log", default="info", choices=['debug', 'info', 'warning', 'error'], help="Logging level")
     args = parser.parse_args()
 
-    # Set up logging
-    logging.basicConfig(level=getattr(logging, args.log.upper()),
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
     config = Config(args.config)
+
+    # Set up logging
+    log_file = os.path.join(config.paths["logs"], f'{os.path.splitext(os.path.basename(args.gpx_file))[0]}.log') # Log file path, btw which is the basename of the gpx_file
+    logging.basicConfig(level=getattr(logging, args.log.upper()),
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                        handlers=[
+                            logging.FileHandler(log_file),  # Log to file
+                            logging.StreamHandler()         # Log to console
+                        ])
+
     overpass_client = OverpassClient(config)
     data_processor = DataProcessor(config)
     map_generator = MapGenerator(config)
@@ -34,7 +41,7 @@ def main():
 
     # Query Overpass API
     raw_data = overpass_client.query_amenities(gpx_path, args.radius)
-
+    
     # Process data
     #pois = data_processor.process_amenities(raw_data)
 
