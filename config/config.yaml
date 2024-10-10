@@ -35,7 +35,7 @@ slope_color_scheme:
     - threshold: 100
       color: "#808080"  # gray
 
-map_features:
+OSM_POI_configuration:
   Restroom:
     icon_prototype:
       icon_shape: "circle"

@@ -1,16 +1,65 @@
-import hashlib
+from dataclasses import asdict, dataclass, field
+from typing import Dict, Any, List, Tuple, Optional, TypedDict
+from pathlib import Path
+
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, List, Tuple, Optional, TypedDict
 import json
-import os
-from dataclasses import dataclass
-from typing import List, Tuple, Optional
-import gpxpy
-from tqdm import tqdm
 import logging
-from math import radians, sin, cos, sqrt, atan2
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class GPXProcessingResult:
+    """
+    Data structure to hold the results of GPX path smoothing and processing.
+    
+    Attributes:
+        original_points (int): The number of points in the original GPX file.
+        smoothed_points (int): The number of points after smoothing.
+        original_path (List[Tuple[float, float]]): The original list of (latitude, longitude) points.
+        smoothed_path (List[Tuple[float, float]]): The resampled and smoothed list of points.
+        total_distance (float): The total distance of the path in meters.
+    """
+    original_points: int
+    smoothed_points: int
+    original_path: List[Tuple[float, float]]
+    smoothed_path: List[Tuple[float, float]]
+    total_distance: float
+
+class IconPrototype(TypedDict):
+    """Type definition for icon prototype configuration."""
+    icon_shape: str
+    border_color: str
+    border_width: str
+    text_color: str
+    background_color: str
+
+class OSMKeyConfig(TypedDict):
+    """Type definition for OSM key configuration."""
+    name: bool
+    icon: str
+    group: Optional[str]
+
+class FeatureConfig(TypedDict):
+    """Type definition for feature configuration."""
+    icon_prototype: IconPrototype
+    OSM_key: List[Dict[str, Any]]
+
+@dataclass
+class OSMMapping:
+    """Data class for OSM mapping information."""
+    map_feature: str
+    icon_prototype: IconPrototype
+    name: bool
+    icon: str
+    group: Optional[str]
 
 @dataclass
 class POI:
-    """Data class representing a Point of Interest."""
+    """Represents a Point of Interest."""
     lat: float
     lon: float
     type: str
@@ -18,53 +67,38 @@ class POI:
     icon: str
     color: str
     description: Optional[str]
+    tags: Dict[str, Any] = field(default_factory=dict)
 
-class GPXParser:
-    """
-    Parser for GPX files.
-    
-    Design Pattern: Static Factory Method (parse method creates and returns objects)
-    """
-    @staticmethod
-    def parse(gpx_file: str, simplify_distance: float = 100) -> List[Tuple[float, float]]:
-        """Parse a GPX file and return a simplified list of coordinates."""
-        logging.info(f"Parsing GPX file: {gpx_file}")
-        with open(gpx_file, 'r') as gpx_file:
-            gpx = gpxpy.parse(gpx_file)
-        
-        path = []
-        for track in gpx.tracks:
-            for segment in track.segments:
-                path.extend((point.latitude, point.longitude) for point in segment.points)
+@dataclass
+class POICollection:
+    """Collection of POIs with metadata."""
+    pois: List[POI]
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    config_hash: str = ""
 
-        return path
+    def save(self, filepath: Path) -> None:
+        """Save the POI collection to a JSON file."""
+        data = asdict(self)
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"Saved {len(self.pois)} POIs to {filepath}")
 
-        # simplified_path = GPXParser._simplify_path(path, simplify_distance)
-        # logging.info(f"Simplified GPX path from {len(path)} to {len(simplified_path)} points")
-        # return simplified_path
-
-    @staticmethod
-    def _simplify_path(path: List[Tuple[float, float]], distance: float) -> List[Tuple[float, float]]:
-        """Simplify a path by removing points that are too close together."""
-        if not path:
-            return []
-
-        simplified = [path[0]]
-        for point in path[1:]:
-            if GPXParser._haversine(simplified[-1], point) >= distance:
-                simplified.append(point)
-        return simplified
-
-    @staticmethod
-    def _haversine(point1: Tuple[float, float], point2: Tuple[float, float]) -> float:
-        """Calculate the great-circle distance between two points on Earth."""
-        lat1, lon1 = map(radians, point1)
-        lat2, lon2 = map(radians, point2)
-        
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        
-        return 6371 * c * 1000  # Earth radius in meters
+    @classmethod
+    def load(cls, filepath: Path) -> 'POICollection':
+        """Load a POI collection from a JSON file."""
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            pois = [POI(**poi_data) for poi_data in data['pois']]
+            return cls(
+                pois=pois,
+                created_at=data['created_at'],
+                config_hash=data['config_hash']
+            )
+        except FileNotFoundError:
+            logger.error(f"File not found: {filepath}")
+            raise
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON in file: {filepath}")
+            raise

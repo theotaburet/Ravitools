@@ -16,7 +16,7 @@ class MapGenerator:
 
     def create_map(self, gpx_path: List[Tuple[float, float]], pois: List[POI]) -> folium.Map:
         """Create a Folium map with the GPX path and POIs."""
-        logging.info("Generating map")
+        logger.info("Generating map")
         center = self._calculate_center(gpx_path)
         map_obj = folium.Map(location=center, zoom_start=10)
         self._add_gpx_path(map_obj, gpx_path)
@@ -33,12 +33,12 @@ class MapGenerator:
 
     def _add_gpx_path(self, map_obj: folium.Map, gpx_path: List[Tuple[float, float]]):
         """Add the GPX path to the map."""
-        logging.info("Adding GPX path to map")
+        logger.info("Adding GPX path to map")
         folium.PolyLine(gpx_path, weight=3, color='blue', opacity=0.8).add_to(map_obj)
 
     def _add_pois(self, map_obj: folium.Map, pois: List[POI]):
         """Add POIs to the map."""
-        logging.info("Adding POIs to map")
+        logger.info("Adding POIs to map")
         for poi in tqdm(pois, desc="Adding POIs to map"):
             icon = folium.Icon(
                 color=poi.color,

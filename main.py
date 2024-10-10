@@ -2,10 +2,10 @@ import argparse
 import os
 import logging
 from Ravitools.config import Config
-from Ravitools.utils import GPXParser
 from Ravitools.overpass_client import OverpassClient
 from Ravitools.data_processor import DataProcessor
 from Ravitools.map_generator import MapGenerator
+from Ravitools.gpx_smoother import GPXSmoother
 
 def main():
     """
@@ -37,13 +37,16 @@ def main():
     map_generator = MapGenerator(config)
 
     # Load GPX file
-    gpx_path = GPXParser.parse(args.gpx_file)
+    #gpx_latlon = GPXParser.parse(args.gpx_file)
+    point_spacing = (0.5*args.radius)*(1-0.25)
+    GPX_processing_result = GPXSmoother.smooth(args.gpx_file, point_spacing)
 
     # Query Overpass API
-    raw_data = overpass_client.query_amenities(gpx_path, args.radius)
-    
+    overpass_queryresult = overpass_client.query_amenities(GPX_processing_result.smoothed_path, args.radius*(1+0.25))
+
+    print(type(overpass_queryresult))
     # Process data
-    #pois = data_processor.process_amenities(raw_data)
+    pois = data_processor.process_amenities(overpass_queryresult)
 
     # Generate map
     #map_obj = map_generator.create_map(gpx_path, pois)

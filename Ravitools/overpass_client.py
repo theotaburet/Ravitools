@@ -13,6 +13,8 @@ from typing import Union, List
 from typing import Dict, Any, List, Tuple, Optional
 from .config import Config
 
+logger = logging.getLogger(__name__)
+
 class QueryResult:
     def __init__(self, raw_data: bytes):
         self.raw_data = raw_data
@@ -141,11 +143,11 @@ class OverpassClient:
         cached_data = self._get_cached_data(cache_key)
         
         if cached_data:
-            logging.info("Using cached Overpass API results")
+            logger.info("Using cached Overpass API results")
             return cached_data
         
         overpass_query = self._build_query(path, radius)
-        logging.info("Querying Overpass API")
+        logger.info("Querying Overpass API")
 
         overpass_instance = OverpassExtended()
 
@@ -181,26 +183,29 @@ class OverpassClient:
         """Build the Overpass API query string."""
         path_latlon = ','.join([f'{str(lat)},{str(lon)}' for (lat, lon) in path])
         
-        # Access OSM elements directly from the config object
-        map_features = self.config.osm_elements
+        # Group OSM keys and values from the configuration
+        osm_groups = {}
         
-        # Build the Overpass API query for each key and its values
+        # Iterate through all feature configurations
+        for feature_name, feature_config in self.config.osm_macro_group.items():
+            for osm_key_config in feature_config.get('OSM_key', []):
+                # Each OSM key config is a dictionary with one key-value pair
+                for osm_key, osm_value in osm_key_config.items():
+                    if osm_key not in osm_groups:
+                        osm_groups[osm_key] = set()
+                    osm_groups[osm_key].add(osm_value)
+        
+        # Build queries for each OSM key and its values
         queries = []
-        
-        for osm_key, values in map_features.items():
-            if isinstance(values, list):
-                # Join the values with '|', so it creates a query like "amenity~"hospital|school|restaurant"
-                values_str = '|'.join(values)
-                queries.append(f'nwr["{osm_key}"~"{values_str}"](around:{radius}, {path_latlon});')
-        
-        # Combine all queries into one Overpass query
-        query_str = '\n'.join(queries)
+        for osm_key, values in osm_groups.items():
+            values_str = '|'.join(str(v) for v in values)
+            queries.append(f'nwr["{osm_key}"~"{values_str}"](around:{radius}, {path_latlon});')
         
         # Final Overpass API query string
         return f"""
         [out:json];
         (
-        {query_str}
+        {' '.join(queries)}
         );
         out center;
         """
