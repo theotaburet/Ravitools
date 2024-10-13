@@ -107,21 +107,19 @@ class DataProcessor:
             if not (lat and lon):
                 return None
 
-            # Try to match the element with our configuration
-            for category, config in self.config.osm_poi_config.items():
-                for osm_key in config['OSM_key']:
-                    key, value = next(iter(osm_key.items()))  # Get the first key-value pair
-                    if key in tags and (value == tags[key] or value == "*"):
-                        return POI(
-                            lat=lat,
-                            lon=lon,
-                            type=category,
-                            name=tags.get('name') if osm_key.get('name', True) else None,
-                            icon=osm_key.get('icon', 'info'),
-                            color=config['icon_prototype']['background_color'].lstrip('#'),
-                            description=self._create_description(tags, osm_key),
-                            tags=tags
-                        )
+            # Try to match the element with our configuration using osm_key_mapping
+            for (key, value), config in self.config.osm_key_mapping.items():
+                if key in tags and (value == tags[key] or value == "*"):
+                    return POI(
+                        lat=lat,
+                        lon=lon,
+                        type=config['map_feature'],
+                        name=tags.get('name') if config.get('name', True) else None,
+                        icon=config.get('icon', 'info'),
+                        color=config['icon_prototype']['background_color'].lstrip('#'),
+                        description=self._create_description(tags, config),
+                        tags=tags
+                    )
             return None
         except Exception as e:
             logger.error(f"Error creating POI from element: {e}")

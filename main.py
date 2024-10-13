@@ -44,7 +44,6 @@ def main():
     # Query Overpass API
     overpass_queryresult = overpass_client.query_amenities(GPX_processing_result.smoothed_path, args.radius*(1+0.25))
 
-    print(type(overpass_queryresult))
     # Process data
     pois = data_processor.process_amenities(overpass_queryresult)
 
