@@ -155,7 +155,8 @@ class OverpassClient:
         result = overpass_instance.query_to_json(overpass_query)
         
         self._cache_data(cache_key, result)
-        return result
+        
+        return self._get_cached_data(cache_key)
 
     def _generate_cache_key(self, path: List[Tuple[float, float]], radius: float) -> str:
         """Generate a unique cache key based on the path, configuration, and current date."""

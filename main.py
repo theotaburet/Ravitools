@@ -45,14 +45,18 @@ def main():
     overpass_queryresult = overpass_client.query_amenities(GPX_processing_result.smoothed_path, args.radius*(1+0.25))
 
     # Process data
-    pois = data_processor.process_amenities(overpass_queryresult)
+    pois, feature_groups = data_processor.process_amenities(overpass_queryresult)
 
-    # Generate map
-    #map_obj = map_generator.create_map(gpx_path, pois)
+    # Then create map using the feature groups
+    generator = MapGenerator(config)
+    map_obj = generator.create_map(
+        feature_groups=feature_groups,
+        gpx_paths=[args.gpx_file],
+        show_heatmap=False
+    )
 
-    # Save map to file
-    #map_obj.save(args.output)
-    #logging.info(f"Map saved to {args.output}")
+    # Save the map
+    generator.save_map(map_obj, 'output_map.html')
 
 if __name__ == "__main__":
     main()

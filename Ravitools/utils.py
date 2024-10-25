@@ -37,16 +37,16 @@ class IconPrototype(TypedDict):
     text_color: str
     background_color: str
 
-class OSMKeyConfig(TypedDict):
-    """Type definition for OSM key configuration."""
-    name: bool
-    icon: str
-    group: Optional[str]
+# class OSMKeyConfig(TypedDict):
+#     """Type definition for OSM key configuration."""
+#     name: bool
+#     icon: str
+#     group: Optional[str]
 
-class FeatureConfig(TypedDict):
-    """Type definition for feature configuration."""
-    icon_prototype: IconPrototype
-    OSM_key: List[Dict[str, Any]]
+# class FeatureConfig(TypedDict):
+#     """Type definition for feature configuration."""
+#     icon_prototype: IconPrototype
+#     OSM_key: List[Dict[str, Any]]
 
 @dataclass
 class OSMMapping:
@@ -65,7 +65,11 @@ class POI:
     type: str
     name: Optional[str]
     icon: str
-    color: str
+    icon_shape: str
+    border_color: str
+    border_width: str
+    text_color: str
+    background_color: str
     description: Optional[str]
     tags: Dict[str, Any] = field(default_factory=dict)
 

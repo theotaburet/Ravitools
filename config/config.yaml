@@ -101,7 +101,7 @@ OSM_POI_configuration:
       - amenity: restaurant
         icon: utensils
 
-  Gears shop:
+  Gears:
     icon_prototype:
       icon_shape: "circle"
       border_color: "#FFFFFF"
@@ -116,6 +116,18 @@ OSM_POI_configuration:
         icon: hiking
       - shop: sports
         icon: football-ball
+
+  DIY:
+    icon_prototype:
+      icon_shape: "circle"
+      border_color: "#FFFFFF"
+      border_width: "2"
+      text_color: "#FFFFFF"
+      background_color: "#FF0000"
+
+    OSM_key:
+      - amenity: bicycle_repair_station
+        icon: wrench
 
   Laundry:
     icon_prototype:

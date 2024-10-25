@@ -5,6 +5,12 @@ This module processes raw OpenStreetMap data into structured POI objects and Fol
 It handles the raw data from the Overpass API and converts it into usable POI objects.
 """
 
+import os
+from pathlib import Path
+from dataclasses import asdict
+from datetime import datetime
+import json
+
 import json
 import logging
 from typing import Dict, Any, Tuple, Optional, List
@@ -55,32 +61,60 @@ class DataProcessor:
             Tuple containing:
                 - POICollection: Collection of processed POI objects
                 - Dict[str, folium.FeatureGroup]: Dictionary of feature groups by category
-        
-        Raises:
-            ValueError: If the raw data format is not as expected
         """
         logger.info("Processing amenities")
         pois: List[POI] = []
-        
+
         try:
             # Process each element in the query_result dictionary
-            for element in tqdm(query_result.get('elements', []), desc="Processing POIs"):
+            for element in tqdm(query_result['elements'], desc="Processing POIs"):
                 poi = self._create_poi(element)
                 if poi:
-                    pois.append(poi)
-                    self._add_to_feature_group(poi)
-
+                    processed_poi = self._process_poi(poi)  # Process the POI before saving
+                    pois.append(processed_poi)
+                    self._add_to_feature_group(processed_poi)
+            
+            # Create POICollection
             poi_collection = POICollection(pois=pois, config_hash=self.config.config_hash)
             logger.info(f"Processed {len(pois)} POIs")
+
+            # Save all processed POIs to a single JSON file
+            self._save_poi_collection(poi_collection)
             
             return poi_collection, self.feature_groups
-            
-        except ValueError as e:
-            logger.error(f"Failed to process the raw data: {e}")
-            raise
+        
         except Exception as e:
             logger.error(f"An error occurred while processing amenities: {e}")
             raise
+
+    def _add_to_feature_group(self, poi: POI) -> None:
+        """Add a POI to the appropriate feature group."""
+        try:
+            if poi.type not in self.feature_groups:
+                logger.warning(f"No feature group found for POI type: {poi.type}")
+                return
+
+            icon = folium.plugins.BeautifyIcon(
+                #color='black',
+                #icon_color=f"#{poi.color}",
+                icon=poi.icon,
+                icon_shape=f"{poi.icon_shape}",
+                border_color=f"#{poi.border_color}",
+                border_width=f"{poi.border_width}",
+                text_color=f"#{poi.text_color}",
+                background_color=f"#{poi.background_color}",
+                prefix='fa'
+            )
+            
+            marker = folium.Marker(
+                location=[poi.lat, poi.lon],
+                popup=folium.Popup(poi.description, max_width=300),
+                icon=icon
+            )
+            
+            self.feature_groups[poi.type].add_child(marker)
+        except Exception as e:
+            logger.error(f"Error adding POI to feature group: {e}")
 
     def _create_poi(self, element: Dict[str, Any]) -> Optional[POI]:
         """
@@ -114,9 +148,13 @@ class DataProcessor:
                         lat=lat,
                         lon=lon,
                         type=config['map_feature'],
-                        name=tags.get('name') if config.get('name', True) else None,
+                        name=tags.get('name') if tags.get('name') else config['map_feature'],
                         icon=config.get('icon', 'info'),
-                        color=config['icon_prototype']['background_color'].lstrip('#'),
+                        icon_shape=config['icon_prototype']['icon_shape'],
+                        border_color=config['icon_prototype']['border_color'].lstrip('#'),
+                        border_width=config['icon_prototype']['border_width'],
+                        text_color=config['icon_prototype']['text_color'].lstrip('#'),
+                        background_color=config['icon_prototype']['background_color'].lstrip('#'),
                         description=self._create_description(tags, config),
                         tags=tags
                     )
@@ -142,26 +180,44 @@ class DataProcessor:
             logger.error(f"Error creating description: {e}")
             return "No description available"
 
-    def _add_to_feature_group(self, poi: POI) -> None:
-        """Add a POI to the appropriate feature group."""
-        try:
-            if poi.type not in self.feature_groups:
-                logger.warning(f"No feature group found for POI type: {poi.type}")
-                return
+    def _process_poi(self, poi: POI) -> POI:
+        """
+        Process a POI by applying NLP or any necessary preprocessing.
+        
+        Args:
+            poi (POI): The original POI object.
+        
+        Returns:
+            POI: The processed POI object.
+        """
+        # This is where you can plug in an NLP or LLM processor to enhance the POI's details.
+        # For now, we'll just demonstrate basic name and description parsing.
+        if poi.name:
+            poi.name = poi.name.title()  # Example of processing name: title-casing it
+        if poi.description:
+            # Example processing: Add a note to the description (or use NLP here)
+            poi.description += "<br><strong>Note:</strong> Processed with NLP"
+        
+        return poi
 
-            icon = folium.Icon(
-                color='white',
-                icon_color=f"#{poi.color}",
-                icon=poi.icon,
-                prefix='fa'
-            )
+    def _save_poi_collection(self, poi_collection: POICollection) -> None:
+        """
+        Save the POICollection to a single JSON file in the folder defined by the configuration.
+        
+        Args:
+            poi_collection (POICollection): The POICollection object to be saved.
+        """
+        try:
+            # Ensure the directory exists
+            poi_folder = self.config.paths.get('json')
+            os.makedirs(poi_folder, exist_ok=True)
+
+            # Define the path to the JSON file where all POIs will be stored
+            json_file_path = Path(poi_folder) / "processed_pois.json"
             
-            marker = folium.Marker(
-                location=[poi.lat, poi.lon],
-                popup=folium.Popup(poi.description, max_width=300),
-                icon=icon
-            )
+            # Use the POICollection's built-in save method
+            poi_collection.save(json_file_path)
             
-            self.feature_groups[poi.type].add_child(marker)
+            logger.info(f"Saved POI collection to {json_file_path}")
         except Exception as e:
-            logger.error(f"Error adding POI to feature group: {e}")
+            logger.error(f"Failed to save POI collection: {e}")
