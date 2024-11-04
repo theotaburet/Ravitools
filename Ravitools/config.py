@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 import yaml
@@ -38,6 +39,31 @@ class Config:
         self.osm_macro_group = self.config.get('OSM_POI_configuration', {})
         self.osm_key_mapping = self._build_osm_key_mapping()
         self.config_hash = self._generate_config_hash()
+        self.icons_folder = self.get_nested('font-awesome', 'path')
+        
+        # Transfer .svg files from icons_folder to paths['icons']
+        self._transfer_svg_files()
+
+    def _transfer_svg_files(self) -> None:
+        """Transfer .svg files from icons_folder to paths['icons'] directory with a progress bar."""
+        if not self.icons_folder or not os.path.isdir(self.icons_folder):
+            logger.warning("Icons folder does not exist or is not a directory.")
+            return
+        
+        icons_dest = self.paths.get('icons')
+        if not icons_dest:
+            logger.warning("Destination icons path not set in configuration.")
+            return
+
+        svg_files = list(Path(self.icons_folder).glob("*.svg"))  # Get all .svg files in icons_folder
+
+        # Display progress bar with tqdm
+        for svg_file in tqdm(svg_files, desc="Transferring .svg files", unit="file"):
+            try:
+                shutil.copy(svg_file, icons_dest)
+                logger.info(f"Copied {svg_file} to {icons_dest}")
+            except Exception as e:
+                logger.error(f"Failed to copy {svg_file} to {icons_dest}: {e}")
 
     def _generate_config_hash(self) -> str:
         """Generate a hash of the configuration for tracking changes."""

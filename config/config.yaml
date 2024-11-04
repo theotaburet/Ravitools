@@ -5,6 +5,9 @@ paths:
   logs:  data/logs
   temp:  data/temp
   icons:  data/icons
+
+font-awesome:
+  path: /Users/ttaburet/Downloads/fontawesome-free-6.6.0-desktop/svgs/solid
   
 surface_mapping:
   asphalt: asphalt
