@@ -91,13 +91,13 @@ OSM_POI_configuration:
       - amenity: cafe
         icon: mug-hot
       - amenity: fast_food
-        icon: burger-lettuce
+        icon: burger
       - amenity: food_court
         icon: utensils
       - amenity: ice_cream
         icon: ice-cream
       - amenity: pub
-        icon: beer
+        icon: beer-mug-empty
       - amenity: restaurant
         icon: utensils
 
@@ -115,7 +115,7 @@ OSM_POI_configuration:
       - shop: outdoor
         icon: hiking
       - shop: sports
-        icon: football-ball
+        icon: football
 
   DIY:
     icon_prototype:
@@ -139,7 +139,7 @@ OSM_POI_configuration:
 
     OSM_key:
       - shop: laundry
-        icon: tshirt
+        icon: shirt
 
   Food shop:
     icon_prototype:
@@ -173,7 +173,7 @@ OSM_POI_configuration:
       - shop: dairy
         icon: cheese
       - shop: deli
-        icon: hamburger
+        icon: burger
       - shop: farm
         icon: tractor
       - shop: food
@@ -191,7 +191,7 @@ OSM_POI_configuration:
       - shop: pasta
         icon: pen-alt
       - shop: pastry
-        icon: croissant
+        icon: cookie-bite
       - shop: seafood
         icon: fish
       - shop: spices

@@ -51,12 +51,19 @@ def main():
     generator = MapGenerator(config)
     map_obj = generator.create_map(
         feature_groups=feature_groups,
-        gpx_paths=[args.gpx_file],
-        show_heatmap=False
+        gpx_paths=[args.gpx_file]
     )
 
     # Save the map
-    generator.save_map(map_obj, 'output_map.html')
+    generator.save_map('output_map.html')
 
+
+    # Export to KMZ with styled icons
+    generator.export_to_kml(
+        feature_groups=feature_groups,
+        gpx_paths=[args.gpx_file],
+        output_path='output_map.kmz'
+    )
+    
 if __name__ == "__main__":
     main()

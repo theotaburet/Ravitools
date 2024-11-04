@@ -10,8 +10,6 @@ from pathlib import Path
 from dataclasses import asdict
 from datetime import datetime
 import json
-
-import json
 import logging
 from typing import Dict, Any, Tuple, Optional, List
 import folium
@@ -95,8 +93,6 @@ class DataProcessor:
                 return
 
             icon = folium.plugins.BeautifyIcon(
-                #color='black',
-                #icon_color=f"#{poi.color}",
                 icon=poi.icon,
                 icon_shape=f"{poi.icon_shape}",
                 border_color=f"#{poi.border_color}",
@@ -106,11 +102,23 @@ class DataProcessor:
                 prefix='fa'
             )
             
+            # Create the popup content preserving the original POI structure
+            popup_content = f"""
+            <strong>Name:</strong> {poi.name}<br>
+            {poi.description}
+            """
+            
             marker = folium.Marker(
                 location=[poi.lat, poi.lon],
-                popup=folium.Popup(poi.description, max_width=300),
+                popup=folium.Popup(popup_content, max_width=300),
                 icon=icon
             )
+            
+            # Store the original POI data in the marker's options for later retrieval
+            marker.options['poi_data'] = {
+                'name': poi.name,
+                'description': poi.description
+            }
             
             self.feature_groups[poi.type].add_child(marker)
         except Exception as e:
@@ -221,3 +229,4 @@ class DataProcessor:
             logger.info(f"Saved POI collection to {json_file_path}")
         except Exception as e:
             logger.error(f"Failed to save POI collection: {e}")
+
