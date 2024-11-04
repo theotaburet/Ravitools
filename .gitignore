@@ -4,6 +4,7 @@
 *.gpx
 *.html
 *.txt
+*.kmz
 
 #Icons
 *.svg
