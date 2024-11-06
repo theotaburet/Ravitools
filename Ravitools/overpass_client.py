@@ -155,7 +155,7 @@ class OverpassClient:
         result = overpass_instance.query_to_json(overpass_query)
         
         self._cache_data(cache_key, result)
-        
+
         return self._get_cached_data(cache_key)
 
     def _generate_cache_key(self, path: List[Tuple[float, float]], radius: float) -> str:
@@ -190,11 +190,18 @@ class OverpassClient:
         # Iterate through all feature configurations
         for feature_name, feature_config in self.config.osm_macro_group.items():
             for osm_key_config in feature_config.get('OSM_key', []):
-                # Each OSM key config is a dictionary with one key-value pair
-                for osm_key, osm_value in osm_key_config.items():
-                    if osm_key not in osm_groups:
-                        osm_groups[osm_key] = set()
-                    osm_groups[osm_key].add(osm_value)
+                # # Each OSM key config is a dictionary with one key-value pair
+                # for osm_key, osm_value in osm_key_config.items():
+                #     if osm_key not in osm_groups:
+                #         osm_groups[osm_key] = set()
+                #     osm_groups[osm_key].add(osm_value)
+
+                # Each OSM key config is a dictionary with one key-value pair, so we get the first item
+                osm_key, osm_value = next(iter(osm_key_config.items()))
+                
+                if osm_key not in osm_groups:
+                    osm_groups[osm_key] = set()
+                osm_groups[osm_key].add(osm_value)
         
         # Build queries for each OSM key and its values
         queries = []

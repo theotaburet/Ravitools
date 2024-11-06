@@ -230,3 +230,41 @@ class DataProcessor:
         except Exception as e:
             logger.error(f"Failed to save POI collection: {e}")
 
+    def _add_to_feature_group(self, poi: POI) -> None:
+        """Add a POI to the appropriate feature group."""
+        try:
+            if poi.type not in self.feature_groups:
+                logger.warning(f"No feature group found for POI type: {poi.type}")
+                return
+
+            icon = folium.plugins.BeautifyIcon(
+                icon=poi.icon,
+                icon_shape=f"{poi.icon_shape}",
+                border_color=f"#{poi.border_color}",
+                border_width=f"{poi.border_width}",
+                text_color=f"#{poi.text_color}",
+                background_color=f"#{poi.background_color}",
+                prefix='fa'
+            )
+            
+            # Create the popup content preserving the original POI structure
+            popup_content = f"""
+            <strong>Name:</strong> {poi.name}<br>
+            {poi.description}
+            """
+            
+            marker = folium.Marker(
+                location=[poi.lat, poi.lon],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=icon
+            )
+            
+            # Store the original POI data in the marker's options for later retrieval
+            marker.options['poi_data'] = {
+                'name': poi.name,
+                'description': poi.description
+            }
+            
+            self.feature_groups[poi.type].add_child(marker)
+        except Exception as e:
+            logger.error(f"Error adding POI to feature group: {e}")
