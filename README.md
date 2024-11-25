@@ -30,7 +30,7 @@ Ravitools is currently in the prototype stage, but a stable version is coming so
    git clone https://github.com/username/ravitools.git
 
 ## Project structure
-
+```
 Ravitools/
 ├── app/
 │   ├── __init__.py
@@ -44,3 +44,4 @@ Ravitools/
 │   └── utils.py          # OLD utils
 ├── config.yaml           # Configuration file
 └── run.py               # Script to run the application
+```
