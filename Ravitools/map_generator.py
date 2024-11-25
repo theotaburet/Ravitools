@@ -300,12 +300,12 @@ class MapGenerator:
                     self._process_marker(child, folder, icon_files, icon_format, icon_size, temp_folder)
 
     def _process_marker(self,
-                       marker: folium.Marker,
-                       folder: simplekml.Folder,
-                       icon_files: Set[Path],
-                       icon_format: IconFormat,
-                       icon_size: Tuple[int, int],
-                       temp_folder: Path) -> None:
+                   marker: folium.Marker,
+                   folder: simplekml.Folder,
+                   icon_files: Set[Path],
+                   icon_format: IconFormat,
+                   icon_size: Tuple[int, int],
+                   temp_folder: Path) -> None:
         """Process a single marker for KML export."""
         name, description = self._extract_marker_content(marker)
         icon_style = IconStyle.from_folium_icon(marker.icon.options)
@@ -313,6 +313,9 @@ class MapGenerator:
         
         if icon_path:
             icon_files.add(icon_path)
+            icon_href = f'icons/{icon_path.name}'
+        else:
+            icon_href = None
         
         point = folder.newpoint(
             name=name,
@@ -320,9 +323,9 @@ class MapGenerator:
             coords=[(marker.location[1], marker.location[0])]
         )
         
-        if icon_path:
+        if icon_href:
             style = simplekml.Style()
-            style.iconstyle.icon.href = icon_path.name
+            style.iconstyle.icon.href = icon_href
             style.iconstyle.scale = 1.0
             point.style = style
 
@@ -386,18 +389,18 @@ class MapGenerator:
             return None
 
     def _save_kmz(self, 
-                 kml: simplekml.Kml, 
-                 icon_files: Set[Path], 
-                 output_path: Path,
-                 temp_folder: Path) -> None:
+                kml: simplekml.Kml, 
+                icon_files: Set[Path], 
+                output_path: Path,
+                temp_folder: Path) -> None:
         """Save KML and icons as a KMZ file."""
-        temp_kml = temp_folder / 'doc.kml'
+        temp_kml = temp_folder / f'{output_path.stem}.kml'
         kml.save(str(temp_kml))
         
         with zipfile.ZipFile(output_path, 'w') as kmz:
-            kmz.write(temp_kml, 'doc.kml')
+            kmz.write(temp_kml, f'{output_path.stem}.kml')
             for icon_file in icon_files:
-                kmz.write(icon_file, icon_file.name)
+                kmz.write(icon_file, Path('icons')/icon_file.name)
 
     def _calculate_center_from_feature_groups(
             self, 

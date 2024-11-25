@@ -49,16 +49,24 @@ class Config:
         if not self.icons_folder or not os.path.isdir(self.icons_folder):
             logger.warning("Icons folder does not exist or is not a directory.")
             return
-        
+
         icons_dest = self.paths.get('icons')
         if not icons_dest:
             logger.warning("Destination icons path not set in configuration.")
             return
 
         svg_files = list(Path(self.icons_folder).glob("*.svg"))  # Get all .svg files in icons_folder
+        dest_svg_files = list(Path(icons_dest).glob("*.svg"))  # Get all .svg files in destination directory
+
+        # Create a set of existing SVG files in the destination directory
+        existing_svg_files = {p.name for p in dest_svg_files}
 
         # Display progress bar with tqdm
         for svg_file in tqdm(svg_files, desc="Transferring .svg files", unit="file"):
+            if svg_file.name in existing_svg_files:
+                logger.info(f"{svg_file.name} already exists in {icons_dest}, skipping.")
+                continue
+
             try:
                 shutil.copy(svg_file, icons_dest)
                 logger.info(f"Copied {svg_file} to {icons_dest}")
