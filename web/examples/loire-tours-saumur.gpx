@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Ravitools validation"
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Loire Valley - Tours to Saumur</name>
+    <desc>Classic Loire à Vélo segment, ~80km, flat, well-serviced</desc>
+  </metadata>
+  <trk>
+    <name>Loire Valley - Tours to Saumur</name>
+    <trkseg>
+      <!-- Tours center -->
+      <trkpt lat="47.3941" lon="0.6848"><ele>49</ele></trkpt>
+      <trkpt lat="47.3890" lon="0.6720"><ele>48</ele></trkpt>
+      <!-- Heading west along the Loire -->
+      <trkpt lat="47.3850" lon="0.6550"><ele>47</ele></trkpt>
+      <trkpt lat="47.3810" lon="0.6380"><ele>46</ele></trkpt>
+      <trkpt lat="47.3780" lon="0.6200"><ele>45</ele></trkpt>
+      <!-- Savonnières -->
+      <trkpt lat="47.3620" lon="0.5510"><ele>44</ele></trkpt>
+      <trkpt lat="47.3550" lon="0.5200"><ele>43</ele></trkpt>
+      <!-- Villandry area -->
+      <trkpt lat="47.3400" lon="0.5100"><ele>42</ele></trkpt>
+      <trkpt lat="47.3300" lon="0.4950"><ele>41</ele></trkpt>
+      <!-- Langeais -->
+      <trkpt lat="47.3250" lon="0.4050"><ele>40</ele></trkpt>
+      <trkpt lat="47.3230" lon="0.3800"><ele>39</ele></trkpt>
+      <!-- Saint-Patrice -->
+      <trkpt lat="47.2900" lon="0.2900"><ele>38</ele></trkpt>
+      <trkpt lat="47.2700" lon="0.2500"><ele>37</ele></trkpt>
+      <!-- Bourgueil -->
+      <trkpt lat="47.2800" lon="0.1700"><ele>36</ele></trkpt>
+      <trkpt lat="47.2600" lon="0.1300"><ele>35</ele></trkpt>
+      <!-- Candes-Saint-Martin -->
+      <trkpt lat="47.2100" lon="0.0800"><ele>34</ele></trkpt>
+      <trkpt lat="47.2000" lon="0.0600"><ele>33</ele></trkpt>
+      <!-- Montsoreau -->
+      <trkpt lat="47.2150" lon="0.0560"><ele>33</ele></trkpt>
+      <trkpt lat="47.2200" lon="0.0400"><ele>34</ele></trkpt>
+      <!-- Saumur approach -->
+      <trkpt lat="47.2400" lon="-0.0100"><ele>35</ele></trkpt>
+      <trkpt lat="47.2500" lon="-0.0400"><ele>36</ele></trkpt>
+      <trkpt lat="47.2570" lon="-0.0600"><ele>36</ele></trkpt>
+      <!-- Saumur center -->
+      <trkpt lat="47.2600" lon="-0.0710"><ele>37</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

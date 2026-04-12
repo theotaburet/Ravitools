@@ -1,0 +1,186 @@
+// ---------------------------------------------------------------------------
+// Domain types for Ravitools
+// Extracted from the Python reference (config.yaml, utils.py, data_processor)
+// ---------------------------------------------------------------------------
+
+/** A single point on a GPX trace */
+export interface TracePoint {
+  lat: number;
+  lon: number;
+  ele?: number;
+  time?: string;
+}
+
+/** Result of GPX parsing & simplification */
+export interface TraceData {
+  /** Original parsed points */
+  original: TracePoint[];
+  /** Simplified/resampled points used for Overpass queries */
+  simplified: TracePoint[];
+  /** Total distance in meters */
+  totalDistanceM: number;
+  /** Name from GPX metadata if available */
+  name?: string;
+}
+
+/** V1 POI categories – matches config.yaml OSM_POI_configuration keys */
+export type PoiCategory =
+  | "Water"
+  | "Sleeping place"
+  | "Restroom"
+  | "Shelter"
+  | "Food shop"
+  | "Restaurant or Bar"
+  | "Gears"
+  | "DIY"
+  | "Laundry"
+  | "Medical"
+  | "Bank & ATM"
+  | "Post office"
+  | "Viewpoint"
+  | "Tourist info"
+  | "Charging"
+  | "Picnic"
+  | "Pharmacy"
+  | "Wifi";
+
+/** An OSM tag matcher from config.yaml */
+export interface OsmTagMatcher {
+  key: string; // e.g. "amenity"
+  value: string; // e.g. "drinking_water"
+  icon: string; // Font Awesome icon name
+  group?: string;
+}
+
+/** Style for a POI category */
+export interface PoiStyle {
+  iconShape: string;
+  borderColor: string;
+  borderWidth: string;
+  textColor: string;
+  backgroundColor: string;
+}
+
+/** Configuration for a single POI category */
+export interface PoiCategoryConfig {
+  category: PoiCategory;
+  style: PoiStyle;
+  tags: OsmTagMatcher[];
+  /** Whether this category is enabled by default (essential vs optional) */
+  defaultEnabled?: boolean;
+}
+
+/** A processed Point of Interest */
+export interface POI {
+  id: string;
+  lat: number;
+  lon: number;
+  category: PoiCategory;
+  /** Display name */
+  name: string;
+  /** Icon identifier */
+  icon: string;
+  /** Distance to nearest point on the trace (meters) */
+  distanceToTrace: number;
+  /** Raw OSM tags */
+  tags: Record<string, string>;
+  /** Style from category config */
+  style: PoiStyle;
+  /** OSM element ID for dedup */
+  osmId?: number;
+  osmType?: "node" | "way" | "relation";
+}
+
+/** Processing pipeline state */
+export type PipelineStage =
+  | "idle"
+  | "parsing"
+  | "simplifying"
+  | "querying"
+  | "processing"
+  | "done"
+  | "error";
+
+// ---------------------------------------------------------------------------
+// Enrichment types
+// ---------------------------------------------------------------------------
+
+/** A single search snippet from SearXNG */
+export interface SearchSnippet {
+  title: string;
+  url: string;
+  content: string; // text excerpt
+  engine: string; // "google", "bing", "duckduckgo"...
+}
+
+/** Status of enrichment for a single POI */
+export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done" | "error" | "skipped";
+
+/** Enriched data attached to a POI after LLM synthesis */
+export interface EnrichedData {
+  /** Average rating (1-5 scale, null if unknown) */
+  rating: number | null;
+  /** Number of reviews aggregated */
+  reviewCount: number | null;
+  /** Opening hours as human-readable string */
+  hours: string | null;
+  /** Short summary of reviews/vibe (2-3 sentences max) */
+  summary: string | null;
+  /** Type/cuisine/specialty (e.g. "Italian restaurant", "mountain bike shop") */
+  specialty: string | null;
+  /** Price level (1-4 scale like Google Maps, null if unknown) */
+  priceLevel: number | null;
+  /** Direct Google Maps link */
+  googleMapsUrl: string;
+  /** Source URLs that contributed to this enrichment */
+  sourceUrls: string[];
+  /** Raw search snippets before LLM synthesis */
+  rawSnippets: SearchSnippet[];
+  /** When was this enrichment performed */
+  enrichedAt: string; // ISO timestamp
+  /** Enrichment status */
+  status: EnrichmentStatus;
+  /** Error message if enrichment failed */
+  error?: string;
+  /** City/locality resolved via reverse geocoding */
+  locality: string | null;
+}
+
+/** Overall enrichment job state */
+export type EnrichmentJobStage =
+  | "idle"
+  | "loading-model" // downloading/initializing WebLLM
+  | "running" // batch in progress
+  | "done"
+  | "error";
+
+/** Enrichment job progress */
+export interface EnrichmentJobState {
+  stage: EnrichmentJobStage;
+  /** Total POIs to enrich */
+  total: number;
+  /** POIs completed (done or error or skipped) */
+  completed: number;
+  /** Current POI being processed */
+  currentPoiName: string | null;
+  /** LLM model loading progress (0-1) */
+  modelLoadProgress: number;
+  /** Whether WebGPU is available */
+  webGpuAvailable: boolean;
+  /** Error message */
+  error: string | null;
+}
+
+/** Application state */
+export interface AppState {
+  stage: PipelineStage;
+  trace: TraceData | null;
+  pois: POI[];
+  activeCategories: Set<PoiCategory>;
+  error: string | null;
+  progress: string;
+  /** Enrichment data keyed by POI id */
+  enrichments: Map<string, EnrichedData>;
+  /** Enrichment job state */
+  enrichmentJob: EnrichmentJobState;
+}

@@ -1,0 +1,86 @@
+// ---------------------------------------------------------------------------
+// Export panel (neobrutalist)
+// Two sections: GPS devices + Smartphone offline apps
+// ---------------------------------------------------------------------------
+
+import type { POI, TraceData } from "../types";
+import {
+  exportToGpx,
+  exportToKml,
+  exportToGeoJson,
+  exportToOsmAndGpx,
+  exportToKmz,
+} from "../lib/export";
+
+interface Props {
+  pois: POI[];
+  trace: TraceData | null;
+}
+
+export function ExportPanel({ pois, trace }: Props) {
+  if (pois.length === 0) return null;
+
+  const baseName = trace?.name
+    ? `ravitools-${trace.name.replace(/\s+/g, "-").toLowerCase()}`
+    : "ravitools-pois";
+
+  return (
+    <div className="export-panel">
+      <h3>Export for GPS</h3>
+      <p className="text-xs text-muted font-mono mb-3">
+        {pois.length} POIs ready
+      </p>
+
+      {/* GPS device exports */}
+      <div className="flex flex-col gap-2">
+        <button
+          className="neo-btn-lime w-full"
+          onClick={() => exportToGpx(pois, trace, baseName)}
+        >
+          .GPX (Garmin, Wahoo...)
+        </button>
+        <button
+          className="neo-btn-secondary w-full"
+          onClick={() => exportToKml(pois, trace, baseName)}
+        >
+          .KML (Google Earth)
+        </button>
+        <button
+          className="neo-btn-secondary w-full"
+          onClick={() => exportToGeoJson(pois, baseName)}
+        >
+          .GeoJSON
+        </button>
+      </div>
+
+      {/* Smartphone offline apps */}
+      <div className="export-divider" />
+      <h3>Export for Smartphone</h3>
+      <p className="text-xs text-muted font-mono mb-3">
+        Offline maps apps (OsmAnd, Organic Maps, Guru Maps)
+      </p>
+      <div className="flex flex-col gap-2">
+        <button
+          className="neo-btn-pink w-full"
+          onClick={() => exportToOsmAndGpx(pois, trace, baseName)}
+        >
+          .GPX OsmAnd (icons + colors)
+        </button>
+        <button
+          className="neo-btn-secondary w-full"
+          onClick={() => exportToKmz(pois, trace, baseName)}
+        >
+          .KMZ (Organic Maps, Guru Maps)
+        </button>
+      </div>
+
+      <p className="text-xs text-muted mt-3 leading-snug">
+        <strong>OsmAnd GPX</strong> includes custom icons and colors per
+        category. Other apps import it as standard GPX.
+        <br />
+        <strong>KMZ</strong> groups POIs by category in folders — best for
+        Organic Maps and Guru Maps.
+      </p>
+    </div>
+  );
+}

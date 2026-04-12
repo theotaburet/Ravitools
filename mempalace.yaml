@@ -1,0 +1,30 @@
+wing: ravitools
+rooms:
+- name: configuration
+  description: Files from config/
+  keywords:
+  - configuration
+  - config
+- name: scripts
+  description: Files from utils/
+  keywords:
+  - scripts
+  - utils
+- name: exceptions
+  description: Files from exceptions/
+  keywords:
+  - exceptions
+  - exceptions
+- name: schemas
+  description: Files from schemas/
+  keywords:
+  - schemas
+  - schemas
+- name: backend
+  description: Files from services/
+  keywords:
+  - backend
+  - services
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Ravitools validation"
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Paris urban - Bastille to Bois de Vincennes</name>
+    <desc>Short urban ride ~10km, dense POI coverage, tests deduplication</desc>
+  </metadata>
+  <trk>
+    <name>Paris urban test</name>
+    <trkseg>
+      <!-- Place de la Bastille -->
+      <trkpt lat="48.8531" lon="2.3691"><ele>33</ele></trkpt>
+      <trkpt lat="48.8490" lon="2.3730"><ele>34</ele></trkpt>
+      <!-- Gare de Lyon area -->
+      <trkpt lat="48.8443" lon="2.3739"><ele>35</ele></trkpt>
+      <trkpt lat="48.8410" lon="2.3800"><ele>34</ele></trkpt>
+      <!-- Bercy -->
+      <trkpt lat="48.8380" lon="2.3870"><ele>33</ele></trkpt>
+      <trkpt lat="48.8350" lon="2.3950"><ele>33</ele></trkpt>
+      <!-- Charenton -->
+      <trkpt lat="48.8300" lon="2.4050"><ele>34</ele></trkpt>
+      <trkpt lat="48.8280" lon="2.4150"><ele>35</ele></trkpt>
+      <!-- Bois de Vincennes -->
+      <trkpt lat="48.8310" lon="2.4280"><ele>43</ele></trkpt>
+      <trkpt lat="48.8350" lon="2.4380"><ele>47</ele></trkpt>
+      <trkpt lat="48.8400" lon="2.4500"><ele>50</ele></trkpt>
+      <trkpt lat="48.8430" lon="2.4600"><ele>48</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

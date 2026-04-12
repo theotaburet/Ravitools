@@ -1,15 +1,24 @@
-# Project related file
+# Project specific
+.tools/
+.mempalace/
+web/*/node_modules/
+web/*/.cache/
 *.log
-*.json
+
+# Allow critical project files despite broad ignores below
+!package.json
+!package-lock.json
+!tsconfig.json
+*.tsbuildinfo
+
+# Broad ignores from legacy Python project (keep conservative)
 *.gpx
-*.html
-*.txt
+!web/examples/*.gpx
 *.kmz
 
 #Icons
 *.svg
 *.otf
-*.yml
 
 
 # Byte-compiled / optimized / DLL files
