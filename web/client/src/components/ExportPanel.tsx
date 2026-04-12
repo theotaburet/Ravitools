@@ -3,7 +3,7 @@
 // Two sections: GPS devices + Smartphone offline apps
 // ---------------------------------------------------------------------------
 
-import type { POI, TraceData } from "../types";
+import type { POI, TraceData, EnrichedData } from "../types";
 import {
   exportToGpx,
   exportToKml,
@@ -15,9 +15,10 @@ import {
 interface Props {
   pois: POI[];
   trace: TraceData | null;
+  enrichments?: Map<string, EnrichedData>;
 }
 
-export function ExportPanel({ pois, trace }: Props) {
+export function ExportPanel({ pois, trace, enrichments }: Props) {
   if (pois.length === 0) return null;
 
   const baseName = trace?.name
@@ -29,25 +30,26 @@ export function ExportPanel({ pois, trace }: Props) {
       <h3>Export for GPS</h3>
       <p className="text-xs text-muted font-mono mb-3">
         {pois.length} POIs ready
+        {enrichments && enrichments.size > 0 && ` (${enrichments.size} enriched)`}
       </p>
 
       {/* GPS device exports */}
       <div className="flex flex-col gap-2">
         <button
           className="neo-btn-lime w-full"
-          onClick={() => exportToGpx(pois, trace, baseName)}
+          onClick={() => exportToGpx(pois, trace, baseName, enrichments)}
         >
           .GPX (Garmin, Wahoo...)
         </button>
         <button
           className="neo-btn-secondary w-full"
-          onClick={() => exportToKml(pois, trace, baseName)}
+          onClick={() => exportToKml(pois, trace, baseName, enrichments)}
         >
           .KML (Google Earth)
         </button>
         <button
           className="neo-btn-secondary w-full"
-          onClick={() => exportToGeoJson(pois, baseName)}
+          onClick={() => exportToGeoJson(pois, baseName, enrichments)}
         >
           .GeoJSON
         </button>
@@ -62,13 +64,13 @@ export function ExportPanel({ pois, trace }: Props) {
       <div className="flex flex-col gap-2">
         <button
           className="neo-btn-pink w-full"
-          onClick={() => exportToOsmAndGpx(pois, trace, baseName)}
+          onClick={() => exportToOsmAndGpx(pois, trace, baseName, enrichments)}
         >
           .GPX OsmAnd (icons + colors)
         </button>
         <button
           className="neo-btn-secondary w-full"
-          onClick={() => exportToKmz(pois, trace, baseName)}
+          onClick={() => exportToKmz(pois, trace, baseName, enrichments)}
         >
           .KMZ (Organic Maps, Guru Maps)
         </button>
@@ -80,6 +82,13 @@ export function ExportPanel({ pois, trace }: Props) {
         <br />
         <strong>KMZ</strong> groups POIs by category in folders — best for
         Organic Maps and Guru Maps.
+        {enrichments && enrichments.size > 0 && (
+          <>
+            <br />
+            <strong>Enriched data</strong> (ratings, hours, reviews) is included
+            in export descriptions.
+          </>
+        )}
       </p>
     </div>
   );

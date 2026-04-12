@@ -61,6 +61,8 @@ Environment=NODE_ENV=production
 Environment=CACHE_TTL=86400
 Environment=RATE_LIMIT_MAX=10
 Environment=CORS_ORIGIN=https://yourdomain.com
+Environment=SEARXNG_URL=http://localhost:8080
+Environment=NOMINATIM_URL=https://nominatim.openstreetmap.org
 
 [Install]
 WantedBy=multi-user.target
@@ -129,10 +131,38 @@ curl -I https://yourdomain.com/
 |---|---|---|
 | `PORT` | `3001` | Keep behind nginx |
 | `NODE_ENV` | `production` | Disables pretty logging |
-| `CACHE_TTL` | `86400` | 24h, adjust if data freshness matters |
-| `RATE_LIMIT_MAX` | `10` | Per minute per IP |
+| `CACHE_TTL` | `86400` | 24h, Overpass cache |
+| `RATE_LIMIT_MAX` | `10` | Per minute per IP (Overpass) |
 | `CORS_ORIGIN` | `https://yourdomain.com` | Lock down in prod |
 | `OVERPASS_URL` | default | Or a private Overpass instance |
+| `SEARXNG_URL` | `http://localhost:8080` | SearXNG instance for POI enrichment |
+| `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Reverse geocoding for enrichment |
+| `SEARCH_CACHE_TTL` | `604800` | 7 days, search results cache |
+| `GEOCODE_CACHE_TTL` | `2592000` | 30 days, geocode results cache |
+
+## 7. SearXNG (optional, for POI enrichment)
+
+The enrichment feature requires a SearXNG instance for web search. Without it, enrichment will fail gracefully (POIs are still usable without enrichment).
+
+```bash
+# Quick setup with Docker
+docker run -d \
+  --name searxng \
+  -p 8080:8080 \
+  -e SEARXNG_SECRET=$(openssl rand -hex 32) \
+  searxng/searxng:latest
+```
+
+Ensure SearXNG has JSON format enabled in its settings (`settings.yml`):
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+The server will proxy search requests to `SEARXNG_URL` (default `http://localhost:8080`).
 
 ## Monitoring
 

@@ -1,12 +1,12 @@
 # POI Categories & OSM Tags
 
-This document lists all V1 POI categories, their OSM tag matchers, and design rationale.
+This document lists all 18 POI categories, their OSM tag matchers, and design rationale.
 
 ## Source of truth
 
-The category definitions live in `web/client/src/lib/poi-config.ts`, ported from the Python project's `config/config.yaml`.
+The category definitions live in `web/client/src/lib/poi-config.ts`, ported from the Python project's `config/config.yaml` and extended with optional categories.
 
-## Categories
+## Essential categories (enabled by default)
 
 ### Water
 
@@ -59,7 +59,29 @@ Includes bus shelters, picnic shelters, etc. Useful for rain/wind protection.
 | `shop` | `greengrocer` | |
 | `shop` | `farm` | Farm shop / direct sale |
 | `shop` | `food` | Generic food shop |
-| ... | ... | 20+ more food shop types |
+| `shop` | `deli` | |
+| `shop` | `cheese` | |
+| `shop` | `pastry` | |
+| `shop` | `seafood` | |
+| `shop` | `alcohol` | |
+| `shop` | `beverages` | |
+| `shop` | `frozen_food` | |
+| `shop` | `health_food` | |
+| `shop` | `water` | |
+| `shop` | `wine` | |
+| `shop` | `coffee` | |
+| `shop` | `tea` | |
+| `shop` | `chocolate` | |
+| `shop` | `confectionery` | |
+| `shop` | `dairy` | |
+| `shop` | `ice_cream` | |
+| `shop` | `nuts` | |
+| `shop` | `pasta` | |
+| `shop` | `spices` | |
+| `shop` | `brewing_supplies` | |
+| `shop` | `tortilla` | |
+
+28 food shop types covering European diversity.
 
 ### Restaurant or Bar
 
@@ -90,11 +112,115 @@ Includes bus shelters, picnic shelters, etc. Useful for rain/wind protection.
 
 Public repair stations with tools and pump. Very valuable for bikepackers.
 
+Color: `#E65100` (distinct from Gears `#CC0000`).
+
 ### Laundry
 
 | OSM key | OSM value |
 |---|---|
 | `shop` | `laundry` |
+
+## Optional categories (disabled by default, user opts in)
+
+### Medical
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `hospital` |
+| `amenity` | `clinic` |
+| `amenity` | `doctors` |
+| `amenity` | `dentist` |
+| `amenity` | `veterinary` |
+
+### Pharmacy
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `pharmacy` |
+
+### Bank & ATM
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `atm` |
+| `amenity` | `bank` |
+| `amenity` | `bureau_de_change` |
+
+### Post office
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `post_office` |
+| `amenity` | `post_box` |
+
+### Viewpoint
+
+| OSM key | OSM value |
+|---|---|
+| `tourism` | `viewpoint` |
+| `tourism` | `attraction` |
+| `tourism` | `museum` |
+| `historic` | `castle` |
+| `historic` | `monument` |
+| `historic` | `memorial` |
+| `historic` | `ruins` |
+
+### Tourist info
+
+| OSM key | OSM value |
+|---|---|
+| `tourism` | `information` |
+| `information` | `office` |
+
+### Charging
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `charging_station` |
+| `amenity` | `device_charging_station` |
+
+For e-bike batteries and device charging.
+
+### Picnic
+
+| OSM key | OSM value |
+|---|---|
+| `tourism` | `picnic_site` |
+| `leisure` | `picnic_table` |
+| `amenity` | `bbq` |
+
+### Wifi
+
+| OSM key | OSM value |
+|---|---|
+| `amenity` | `internet_cafe` |
+| `internet_access` | `wlan` |
+| `amenity` | `library` |
+
+Libraries often provide free wifi and power outlets.
+
+## Category colors
+
+| Category | Color | Background |
+|---|---|---|
+| Water | `#0066CC` | Blue |
+| Sleeping place | `#1A1A2E` | Dark navy |
+| Restroom | `#FFD700` | Gold |
+| Shelter | `#444444` | Dark gray |
+| Food shop | `#228B22` | Forest green |
+| Restaurant or Bar | `#FF6B35` | Orange |
+| Gears | `#CC0000` | Red |
+| DIY | `#E65100` | Deep orange |
+| Laundry | `#FFB6C1` | Light pink |
+| Medical | `#DC2626` | Red |
+| Pharmacy | `#16A34A` | Green |
+| Bank & ATM | `#1D4ED8` | Blue |
+| Post office | `#CA8A04` | Amber |
+| Viewpoint | `#7C3AED` | Purple |
+| Tourist info | `#38BDF8` | Sky blue |
+| Charging | `#FACC15` | Yellow |
+| Picnic | `#059669` | Emerald |
+| Wifi | `#6366F1` | Indigo |
 
 ## Corridor and filtering
 
@@ -105,8 +231,9 @@ Public repair stations with tools and pump. Very valuable for bikepackers.
 ## Adding a new category
 
 1. Add the category name to `PoiCategory` type in `types/index.ts`
-2. Add the config entry to `POI_CATEGORIES` in `lib/poi-config.ts`
-3. Specify OSM tag matchers, icon, and style colors
-4. Rebuild and test
+2. Add the config entry to `POI_CATEGORIES` in `lib/poi-config.ts` (set `defaultEnabled: true` or `false`)
+3. Add OsmAnd mappings in `OSMAND_CATEGORY_ICONS`, `OSMAND_CATEGORY_COLORS`, `OSMAND_CATEGORY_BACKGROUNDS`
+4. Specify OSM tag matchers, icon, and style colors
+5. Rebuild and test
 
 No server changes needed – all matching happens client-side.

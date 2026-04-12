@@ -4,21 +4,11 @@
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useRef } from "react";
-import type { AppState, POI, PoiCategory, TraceData, EnrichmentJobState } from "../types";
+import type { AppState, POI, PoiCategory, TraceData } from "../types";
 import { parseGpx } from "../lib/gpx-parser";
 import { queryAllPois } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
-
-const INITIAL_ENRICHMENT_JOB: EnrichmentJobState = {
-  stage: "idle",
-  total: 0,
-  completed: 0,
-  currentPoiName: null,
-  modelLoadProgress: 0,
-  webGpuAvailable: false,
-  error: null,
-};
 
 const INITIAL_STATE: AppState = {
   stage: "idle",
@@ -27,8 +17,6 @@ const INITIAL_STATE: AppState = {
   activeCategories: new Set(DEFAULT_CATEGORIES),
   error: null,
   progress: "",
-  enrichments: new Map(),
-  enrichmentJob: INITIAL_ENRICHMENT_JOB,
 };
 
 export function useRavitools() {

@@ -179,8 +179,4 @@ export interface AppState {
   activeCategories: Set<PoiCategory>;
   error: string | null;
   progress: string;
-  /** Enrichment data keyed by POI id */
-  enrichments: Map<string, EnrichedData>;
-  /** Enrichment job state */
-  enrichmentJob: EnrichmentJobState;
 }

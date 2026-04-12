@@ -3,11 +3,13 @@
 // ---------------------------------------------------------------------------
 
 import { useRavitools } from "./hooks/useRavitools";
+import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
 import { RouteMap } from "./components/RouteMap";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { ExportPanel } from "./components/ExportPanel";
 import { PoiList } from "./components/PoiList";
+import { EnrichmentPanel } from "./components/EnrichmentPanel";
 
 export default function App() {
   const {
@@ -19,6 +21,14 @@ export default function App() {
     setAllCategories,
   } = useRavitools();
 
+  const {
+    job: enrichmentJob,
+    enrichments,
+    startEnrichment,
+    cancelEnrichment,
+    resetEnrichment,
+  } = useEnrichment();
+
   const isProcessing =
     state.stage === "parsing" ||
     state.stage === "simplifying" ||
@@ -26,6 +36,11 @@ export default function App() {
     state.stage === "processing";
 
   const hasPois = state.pois.length > 0;
+
+  const handleReset = () => {
+    reset();
+    resetEnrichment();
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -74,31 +89,52 @@ export default function App() {
                 <span className="font-black uppercase">Error:</span>{" "}
                 {state.error}
               </p>
-              <button className="neo-btn-sm neo-btn-secondary" onClick={reset}>
+              <button className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
                 Try again
               </button>
             </div>
           )}
 
+          {/* Enrichment panel – shown when POIs are found */}
+          {state.stage === "done" && (
+            <EnrichmentPanel
+              job={enrichmentJob}
+              poiCount={filteredPois.length}
+              enrichedCount={enrichments.size}
+              onStart={() => startEnrichment(filteredPois)}
+              onCancel={cancelEnrichment}
+            />
+          )}
+
           {/* Export */}
           {state.stage === "done" && (
-            <ExportPanel pois={filteredPois} trace={state.trace} />
+            <ExportPanel
+              pois={filteredPois}
+              trace={state.trace}
+              enrichments={enrichments}
+            />
           )}
 
           {/* Reset button */}
           {state.stage === "done" && (
-            <button className="neo-btn-secondary w-full" onClick={reset}>
+            <button className="neo-btn-secondary w-full" onClick={handleReset}>
               Load another GPX
             </button>
           )}
 
           {/* POI list */}
-          {state.stage === "done" && <PoiList pois={filteredPois} />}
+          {state.stage === "done" && (
+            <PoiList pois={filteredPois} enrichments={enrichments} />
+          )}
         </aside>
 
         {/* Map */}
         <main className="map-container">
-          <RouteMap trace={state.trace} pois={filteredPois} />
+          <RouteMap
+            trace={state.trace}
+            pois={filteredPois}
+            enrichments={enrichments}
+          />
         </main>
       </div>
     </div>
