@@ -2,16 +2,9 @@
 .git/
 .gitignore
 
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-
-# Virtual environments
-.venv/
-venv/
-env/
+# Node.js
+node_modules/
+web/*/node_modules/
 
 # IDE
 .idea/
@@ -21,14 +14,18 @@ env/
 .DS_Store
 Thumbs.db
 
-# Output & cache
-output/
-cache/
+# Project tools
+.tools/
+.mempalace/
+.agents/
+
+# Output files
 *.gpx
 *.log
 *.kmz
 
-# Docs
-_readme/
-stages/
-*.md
+# Docs & support (not needed on VPS)
+tasks/
+skills/
+shared/
+_config/

@@ -107,7 +107,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 5. **No GPX storage**: the GPX file is read in-browser and never sent to the server. Privacy by design.
 
-6. **Config as code**: POI categories and tag matchers are defined in `lib/poi-config.ts`, a direct TypeScript port of `config/config.yaml`. Changes to categories are a code change, not a runtime config change.
+6. **Config as code**: POI categories and tag matchers are defined in `lib/poi-config.ts`. Changes to categories are a code change, not a runtime config change.
 
 7. **In-browser LLM**: enrichment synthesis runs via WebLLM (Qwen2.5-1.5B-Instruct q4f16, ~1.6 GB VRAM). No external LLM API needed. Requires WebGPU (Chrome/Edge/Safari). Firefox fallback: raw snippets without synthesis.
 

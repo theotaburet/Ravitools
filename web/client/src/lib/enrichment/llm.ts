@@ -112,8 +112,8 @@ function buildSystemPrompt(): string {
 
 Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
 {
-  "rating": <number 1-5 or null if unknown>,
-  "reviewCount": <number or null>,
+  "rating": <number 1-5 or null if not mentioned in snippets>,
+  "reviewCount": <number or null if not mentioned>,
   "hours": <string or null, e.g. "Mon-Fri 8:00-19:00, Sat 9:00-13:00">,
   "summary": <string, 2-3 sentences max, useful for a cyclist, or null>,
   "specialty": <string, type/cuisine/specialty, or null>,
@@ -121,11 +121,13 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
 }
 
 Rules:
-- Extract ONLY what the snippets actually say. Do NOT invent.
-- If a field cannot be determined from snippets, use null.
+- Extract ONLY what the snippets actually say. Do NOT invent or guess.
+- If a field cannot be determined from snippets, ALWAYS use null. Never guess.
+- For rating: only extract if an explicit rating (e.g. "4.2/5", "4 stars") is mentioned. Do not estimate from sentiment.
+- For reviewCount: only extract if an explicit count is mentioned (e.g. "238 reviews"). Do not estimate.
 - Summary should mention: vibe, quality, cyclist-friendliness if mentioned.
 - Keep the language of the snippets (French, English, Italian, etc.).
-- Be concise.`;
+- Be concise. Prefer null over uncertain data.`;
 }
 
 /**

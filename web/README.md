@@ -1,13 +1,18 @@
 # Ravitools
 
-**Trouve des POIs utiles le long de ton itinéraire vélo, exporte-les sur ton smartphone.**
+**Resume les lieux utiles le long d'un itineraire velo, avant et pendant le trajet, puis exporte-les offline.**
 
-Ravitools enrichit des traces GPX avec des POI OpenStreetMap utiles pour le voyage à vélo et le bikepacking, puis exporte des résultats consultables hors ligne sur GPS ou en visualisation web.
+Ravitools enrichit des traces GPX avec des POI OpenStreetMap utiles pour le voyage a velo et le bikepacking, puis exporte des resultats consultables hors ligne sur GPS, smartphone ou carte web.
+
+Le but n'est pas de montrer "tous les POI autour". Le but est de sortir un resume exploitable des lieux utiles le long du chemin prevu: eau, nourriture, couchage, toilettes, abri, reparation, etc.
+
+L'enrichissement ajoute une seconde couche: quand OSM est trop pauvre, Ravitools va chercher des signaux web utiles comme les horaires, une note moyenne, quelques indices de qualite et un resume court du lieu.
 
 ---
 
 ## Table des matières
 
+- [Cas d'usage](#cas-dusage)
 - [Architecture](#architecture)
 - [Lancer en local](#lancer-en-local)
 - [Pipeline de traitement](#pipeline-de-traitement)
@@ -19,6 +24,29 @@ Ravitools enrichit des traces GPX avec des POI OpenStreetMap utiles pour le voya
 - [Variables d'environnement](#variables-denvironnement)
 - [Analyse UX/UI](#analyse-uxui)
 - [Limitations connues et prochaines étapes](#limitations-connues-et-prochaines-étapes)
+
+---
+
+## Cas d'usage
+
+### Avant le depart
+
+- charger un GPX prepare dans Komoot, BRouter, Ride with GPS ou ailleurs
+- voir rapidement quels services utiles existent vraiment le long du trace
+- filtrer les categories selon le besoin du voyage
+- exporter le resultat dans un format offline pour GPS ou smartphone
+
+### Pendant le trajet
+
+- ouvrir un export sur smartphone ou GPS sans dependre du reseau
+- retrouver rapidement un point d'eau, une boulangerie, un camping, un abri ou une reparation velo
+- lire un resume court du lieu si des donnees enrichies sont disponibles
+
+### Pourquoi ce produit existe
+
+- OSM est excellent pour la geographie et les categories, mais souvent pauvre pour les infos pratiques d'usage
+- Google Maps et autres sources ont beaucoup plus de contexte, mais trop de bruit et pas de workflow offline propre pour un itineraire velo
+- Ravitools combine les deux: precision geographique d'OSM + signal web utile + export offline
 
 ---
 
@@ -94,7 +122,7 @@ Ravitools enrichit des traces GPX avec des POI OpenStreetMap utiles pour le voya
         └────────────┘ └──────────┘ └─────────────┘
 ```
 
-**Principe fondamental** : le GPX ne quitte jamais le navigateur. Le serveur ne voit que les requêtes Overpass (coordonnées de la trace simplifiée) et les requêtes search/geocode. Privacy by design.
+**Principe fondamental** : le GPX ne quitte jamais le navigateur. Le serveur ne voit que les requetes Overpass construites a partir de la trace simplifiee, puis les requetes search/geocode. Privacy by design.
 
 ---
 
@@ -254,7 +282,20 @@ Le GPX OsmAnd reste lisible par toutes les apps — les extensions `osmand:` son
 
 ## Enrichissement
 
-L'enrichissement ajoute des données réelles aux POIs : note, horaires, avis, spécialité, niveau de prix, et un lien Google Maps.
+L'enrichissement ajoute des donnees reelles aux POIs quand OSM seul ne suffit plus: note, horaires, resume, specialite, niveau de prix et lien Google Maps.
+
+Ce que l'implementation actuelle sait faire:
+
+- retrouver une localite via reverse geocoding
+- lancer une recherche web contextualisee autour du POI
+- extraire un petit lot de snippets utiles
+- produire une synthese structuree locale si WebGPU est disponible
+- injecter ces infos dans l'UI et les exports
+
+Ce qu'elle ne fait pas encore explicitement aujourd'hui:
+
+- traduire systematiquement le resume dans la langue de l'utilisateur
+- donner un niveau de confiance visible sur chaque information extraite
 
 ### Pipeline d'enrichissement
 
@@ -263,14 +304,24 @@ Pour chaque POI :
 2. **Recherche web** (SearXNG via `POST /api/search`) → snippets Google Maps, avis, horaires
 3. **Synthèse LLM** (WebLLM, Qwen2.5-1.5B-Instruct q4f16) → extraction structurée des données
 
-### Caractéristiques
+### Caracteristiques
 
-- **Tourne dans le navigateur** (sauf search/geocode proxiés par le serveur)
-- **WebGPU requis** pour le LLM — Firefox ne supporte pas WebGPU par défaut → fallback : snippets bruts sans synthèse
-- **Modèle** : ~1.6 GB VRAM, téléchargé une fois et caché par le navigateur
-- **Traitement batch** : tous les POIs sont enrichis en arrière-plan après le pipeline principal
-- **Résultat** : lien Google Maps, note, horaires, résumé, spécialité, niveau de prix par POI
-- **Les données enrichies apparaissent** dans la liste POI, les popups carte, et les 5 formats d'export
+- **Tourne dans le navigateur** sauf les appels proxiés vers search et geocode
+- **WebGPU requis** pour la synthese LLM. Sans WebGPU, l'app garde les snippets bruts sans synthese structurée
+- **Modele** : ~1.6 GB VRAM, telecharge une fois et mis en cache par le navigateur
+- **Traitement batch** : tous les POIs sont enrichis en arriere-plan apres le pipeline principal
+- **Resultat** : lien Google Maps, note, horaires, resume, specialite, niveau de prix par POI
+- **Les donnees enrichies apparaissent** dans la liste POI, les popups carte, et les 5 formats d'export
+- **Langue** : la synthese conserve actuellement la langue des snippets source, elle ne traduit pas encore automatiquement
+
+### Semantique des notes et avis
+
+La note affichee (1-5) et le nombre d'avis sont **extraits** des snippets de recherche, pas calcules par Ravitools. Concretement:
+
+- Si un snippet mentionne "4.2/5 (238 avis)", le LLM extrait `rating: 4.2` et `reviewCount: 238`
+- Si aucun snippet ne mentionne de note explicite, le champ est `null` et rien n'est affiche
+- Le LLM est instruite de ne **jamais inventer** une note a partir du sentiment des avis
+- C'est une extraction, pas une agregation multi-sources
 
 ---
 
@@ -405,6 +456,8 @@ Le serveur se configure entièrement par variables d'env (pas de fichier `.env` 
 
 **Pas de persistance d'état.** Si l'utilisateur rafraîchit la page, tout est perdu. Pour un outil de planification de voyage, pouvoir sauvegarder/reprendre une session (même juste en localStorage) serait important.
 
+**L'enrichissement n'est pas encore aligne avec la promesse multilingue.** Le LLM garde la langue des snippets source. Si tu pars en Espagne sans parler espagnol, l'outil n'apporte pas encore la traduction promise, sauf si les snippets trouvent deja des sources FR/EN.
+
 **Le design neobrutalist est distinctif mais peut fatiguer.** Les bordures 3px noires partout + les ombres solides créent beaucoup de "poids visuel". Sur une utilisation prolongée (planification d'un voyage de 2 semaines), ça peut devenir oppressant. La palette de fond `#fffdf5` est un bon choix (doux), mais les contrastes restent durs. C'est un choix assumé — juste être conscient que certains utilisateurs trouveront ça "agressif".
 
 **Pas de mode sombre.** Pour un outil qu'on consulterait le soir sous la tente avant l'étape du lendemain, c'est un manque.
@@ -417,8 +470,9 @@ Le serveur se configure entièrement par variables d'env (pas de fichier `.env` 
 | 2 | Clusters de markers sur zones denses | Moyen |
 | 3 | Slider "distance le long de la trace" pour filtrer les POIs par segment | Moyen |
 | 4 | Persistance session (localStorage) | Moyen |
-| 5 | Sidebar redimensionnable / escamotable | Moyen |
-| 6 | Mode sombre | Moyen-élevé |
+| 5 | Resume multilingue configurable (FR/EN) | Moyen |
+| 6 | Sidebar redimensionnable / escamotable | Moyen |
+| 7 | Mode sombre | Moyen-élevé |
 
 ---
 

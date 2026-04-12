@@ -8,9 +8,8 @@ Le coeur metier est: trouver des POI vraiment utiles le long d'un itineraire, pa
 
 ## Regles globales
 
-- Garder ce fichier court. Tout ce qui devient trop specifique doit aller dans `skills/`, `shared/`, `stages/` ou `tasks/`.
+- Garder ce fichier court. Tout ce qui devient trop specifique doit aller dans `skills/`, `shared/` ou `tasks/`.
 - Travailler avec un contexte minimal: charger seulement les fichiers utiles a la tache en cours.
-- Pour les taches larges, suivre les stages ICM du depot plutot que de tout faire dans une seule session.
 - Ne pas introduire de `CLAUDE.md` dans ce projet. La source d'instructions agentiques partagees est `AGENTS.md`.
 - Preferer des changements minimaux, verifiables et orientes usage reel.
 
@@ -58,32 +57,27 @@ Status: in-progress | done | blocked
 
 ## Sources prioritaires
 
-### Web (source principale)
 - `web/client/src/types/index.ts`
 - `web/client/src/lib/poi-config.ts`
 - `web/client/src/lib/overpass.ts`
 - `web/client/src/lib/poi-processor.ts`
 - `web/client/src/lib/export.ts`
+- `web/client/src/lib/enrichment/`
 - `web/client/src/hooks/useRavitools.ts`
+- `web/client/src/hooks/useEnrichment.ts`
 - `web/server/src/index.ts`
 - `web/README.md`
-
-### Python legacy (lecture seule)
-- `config/config.yaml`
-- `CONTEXT.md`
 
 ## Verification minimale
 
 - Type check: `cd web/client && npx tsc --noEmit`
 - Tests: `cd web/client && npm test`
 - Build prod: `cd web/client && npm run build`
-- Syntaxe Python (legacy): `python -m compileall main.py services utils config app_frontend.py`
 - Si une modif touche la logique POI: verifier la requete OSM, le filtrage, l'export et le resultat sur un vrai GPX si possible.
 
 ## Token Saving
 
 - Ne pas relire tout le depot si la tache est locale.
-- Utiliser `stages/` pour separer exploration, architecture, implementation et validation.
 - Utiliser `skills/` pour les workflows repetables plutot que de gonfler `AGENTS.md`.
 - Utiliser `tasks/` pour le suivi operationnel des sessions de travail.
 
@@ -102,9 +96,10 @@ Commandes utiles:
 ## Contraintes connues
 
 - `MemPalace` doit tourner avec le venv Python 3.12 du repo, pas avec Python 3.14.
-- `config.yaml` a la racine est un doublon legacy; la reference principale est `config/config.yaml`.
 - Tailwind v4 ne supporte pas `@apply` sur des classes custom definies dans le meme fichier CSS — utiliser du CSS pur.
 - `DOMParser` n'existe pas en Node — les tests qui parsent du GPX ont besoin de `// @vitest-environment jsdom`.
 - Le GPX ne quitte jamais le navigateur (privacy by design).
 - Les fichiers GPX d'exemple sont dans `web/examples/`.
 - COROS DURA ne supporte pas les POI custom (fichiers `.csm` = Garmin IMG renommes, format de rendu non documente).
+- Le chunk WebLLM fait ~6MB (runtime WASM). Dynamic import code-split mais Vite le bundle quand meme. Cosmetique.
+- Firefox n'a pas WebGPU par defaut — l'enrichissement LLM necessite Chrome/Edge/Safari.

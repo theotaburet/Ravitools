@@ -2,12 +2,12 @@
 
 ## Quand utiliser ce skill
 
-Utiliser ce workflow pour comparer une architecture Python existante avec une cible TypeScript/web publique.
+Utiliser ce workflow pour evaluer l'architecture web actuelle et identifier les axes d'amelioration.
 
 ## Procedure
 
-1. Partir du stage `01-discovery` puis lire `02-architecture`.
-2. Evaluer ce qui peut aller dans le navigateur.
-3. Evaluer ce qui doit rester sur VPS.
-4. Comparer le cout, la complexite, la robustesse Overpass et l'usage GPS.
+1. Lire `web/docs/architecture.md` pour comprendre l'etat actuel.
+2. Evaluer ce qui tourne dans le navigateur vs sur le VPS.
+3. Identifier les goulots d'etranglement (Overpass, enrichissement, rendering).
+4. Comparer le cout, la complexite, la robustesse et l'experience utilisateur.
 5. Sortir une recommandation concrete, pas une liste vague.

@@ -118,17 +118,17 @@ export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done"
 
 /** Enriched data attached to a POI after LLM synthesis */
 export interface EnrichedData {
-  /** Average rating (1-5 scale, null if unknown) */
+  /** Rating extracted from search snippets (1-5 scale, null if not found). Not an aggregation — reflects whatever rating sources mention. */
   rating: number | null;
-  /** Number of reviews aggregated */
+  /** Review count extracted from search snippets (null if not found). Reflects source-reported count, not our own aggregation. */
   reviewCount: number | null;
-  /** Opening hours as human-readable string */
+  /** Opening hours as human-readable string, extracted from snippets */
   hours: string | null;
-  /** Short summary of reviews/vibe (2-3 sentences max) */
+  /** Short summary of the place (2-3 sentences max), synthesized from snippets */
   summary: string | null;
   /** Type/cuisine/specialty (e.g. "Italian restaurant", "mountain bike shop") */
   specialty: string | null;
-  /** Price level (1-4 scale like Google Maps, null if unknown) */
+  /** Price level (1-4 scale, null if unknown). Extracted from snippets, not verified. */
   priceLevel: number | null;
   /** Direct Google Maps link */
   googleMapsUrl: string;

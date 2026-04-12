@@ -4,7 +4,7 @@ This document lists all 18 POI categories, their OSM tag matchers, and design ra
 
 ## Source of truth
 
-The category definitions live in `web/client/src/lib/poi-config.ts`, ported from the Python project's `config/config.yaml` and extended with optional categories.
+The category definitions live in `web/client/src/lib/poi-config.ts`.
 
 ## Essential categories (enabled by default)
 
