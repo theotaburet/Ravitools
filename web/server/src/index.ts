@@ -12,6 +12,8 @@ import pino from "pino";
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const OVERPASS_URL =
   process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
+const OVERPASS_FALLBACK_URL =
+  process.env.OVERPASS_FALLBACK_URL || "https://overpass.kumi.systems/api/interpreter";
 const SEARXNG_URL =
   process.env.SEARXNG_URL || "http://localhost:8080";
 const NOMINATIM_URL =
@@ -194,27 +196,36 @@ app.post("/overpass", limiter, async (req, res) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180_000);
 
-    let overpassRes: Response;
-    try {
-      overpassRes = await fetch(OVERPASS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
+    const overpassUrls = [OVERPASS_URL, OVERPASS_FALLBACK_URL];
+
+    let overpassRes: Response | undefined;
+    let usedUrl = "";
+    for (const url of overpassUrls) {
+      try {
+        usedUrl = url;
+        overpassRes = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal,
+        });
+        if (overpassRes.ok) break;
+      } catch {
+        log.warn({ url }, "Overpass fetch failed, trying next");
+      }
     }
 
-    if (!overpassRes.ok) {
-      const body = await overpassRes.text();
+    clearTimeout(timeout);
+
+    if (!overpassRes || !overpassRes.ok) {
+      const body = overpassRes ? await overpassRes.text() : "All Overpass instances failed";
       log.warn(
-        { status: overpassRes.status },
+        { status: overpassRes?.status, usedUrl },
         "Overpass returned non-OK status",
       );
-      res.status(overpassRes.status).json({
+      res.status(overpassRes?.status || 502).json({
         error: "Overpass API error",
-        status: overpassRes.status,
+        status: overpassRes?.status,
         detail: body.slice(0, 500),
       });
       return;
