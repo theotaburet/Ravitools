@@ -38,6 +38,26 @@ export function useRavitools() {
     setState(INITIAL_STATE);
   }, []);
 
+  // Restore state from a saved session
+  const restoreState = useCallback(
+    (restored: {
+      trace: TraceData | null;
+      pois: POI[];
+      activeCategories: Set<PoiCategory>;
+    }) => {
+      setState((prev) => ({
+        ...prev,
+        stage: "done" as const,
+        trace: restored.trace,
+        pois: restored.pois,
+        activeCategories: restored.activeCategories,
+        progress: `Restored ${restored.pois.length} POIs from previous session`,
+        error: null,
+      }));
+    },
+    [],
+  );
+
   // Toggle category filter
   const toggleCategory = useCallback((cat: PoiCategory) => {
     setState((prev) => {
@@ -135,6 +155,7 @@ export function useRavitools() {
     filteredPois,
     processFile,
     reset,
+    restoreState,
     toggleCategory,
     setAllCategories,
   };

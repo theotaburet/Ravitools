@@ -1,6 +1,6 @@
 # Task: Phase D — WS5 list↔map interaction, WS6 remove ceiling, WS7 session persistence
 Started: 2026-04-13
-Status: in-progress
+Status: done
 
 ## Steps
 
@@ -22,16 +22,21 @@ Status: in-progress
 - [x] Build passes, 157 tests pass
 
 ### WS7: Session persistence
-- [ ] Define persistence schema (categories, trace metadata, POIs, enrichments, language)
-- [ ] Serialization/deserialization helper in web/client/src/lib/
-- [ ] Save to localStorage after pipeline completion
-- [ ] Restore on app load
-- [ ] Versioned format for schema evolution
-- [ ] "Resume previous session" / "Clear session" UI
-- [ ] Tests for serialization, restoration, version invalidation
+- [x] Define persistence schema (categories, trace metadata, POIs, enrichments, language)
+- [x] Serialization/deserialization helper in web/client/src/lib/session.ts
+- [x] Save to localStorage after pipeline completion (App.tsx auto-save on stage=done)
+- [x] Restore on app load (restoreState in useRavitools, restoreEnrichments in useEnrichment)
+- [x] Versioned format for schema evolution (SCHEMA_VERSION = 1, version gate in loadSession)
+- [x] "Resume previous session" / "Clear session" UI (session-prompt in App.tsx)
+- [x] Reset clears both in-memory and persisted state
+- [x] Tests for serialization, restoration, version invalidation (9 tests, all passing)
+- [x] Fix Node v25 localStorage blocker (in-memory storage polyfill in test)
 
 ## Decisions
-- (none yet)
+- Node v25.6.0 has a broken globalThis.localStorage (setItem is undefined). Tests use an in-memory Storage polyfill.
+- Session is saved automatically when pipeline reaches stage=done. No manual save button needed.
+- Schema version gate: if persisted version != SCHEMA_VERSION, data is cleared and user starts fresh.
+- Set/Map serialization: Set→array, Map→[key,value][] for JSON compat; reconstructed on load.
 
 ## Blockers
 - None

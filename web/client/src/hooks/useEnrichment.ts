@@ -178,11 +178,30 @@ export function useEnrichment() {
     setEnrichments(new Map());
   }, []);
 
+  /**
+   * Restore enrichments from a saved session (no model load, no batch).
+   */
+  const restoreEnrichments = useCallback(
+    (saved: Map<string, EnrichedData>) => {
+      setEnrichments(saved);
+      if (saved.size > 0) {
+        setJob((prev) => ({
+          ...prev,
+          stage: "done",
+          total: saved.size,
+          completed: saved.size,
+        }));
+      }
+    },
+    [],
+  );
+
   return {
     job,
     enrichments,
     startEnrichment,
     cancelEnrichment,
     resetEnrichment,
+    restoreEnrichments,
   };
 }

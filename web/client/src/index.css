@@ -676,6 +676,28 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+   Session resume prompt
+   --------------------------------------------------------------------------- */
+
+.session-prompt {
+  border: 3px solid #000;
+  background: var(--color-lime);
+  box-shadow: 4px 4px 0 var(--color-shadow);
+  padding: 1rem;
+}
+
+.session-prompt-text {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.session-prompt-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
    Responsive
    --------------------------------------------------------------------------- */
 

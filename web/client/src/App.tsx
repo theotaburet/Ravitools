@@ -2,7 +2,7 @@
 // App – main application component (neobrutalist Tailwind)
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRavitools } from "./hooks/useRavitools";
 import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
@@ -11,6 +11,7 @@ import { CategoryFilter } from "./components/CategoryFilter";
 import { ExportPanel } from "./components/ExportPanel";
 import { PoiList } from "./components/PoiList";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
+import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
 import type { TargetLanguage } from "./types";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
     filteredPois,
     processFile,
     reset,
+    restoreState,
     toggleCategory,
     setAllCategories,
   } = useRavitools();
@@ -29,11 +31,43 @@ export default function App() {
     startEnrichment,
     cancelEnrichment,
     resetEnrichment,
+    restoreEnrichments,
   } = useEnrichment();
 
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("en");
   const [enrichAll, setEnrichAll] = useState(false);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const restoredRef = useRef(false);
+
+  // On mount: check for saved session
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    if (hasSession()) {
+      setShowResumePrompt(true);
+    }
+  }, []);
+
+  const handleResume = useCallback(() => {
+    const session = loadSession();
+    if (session) {
+      restoreState({
+        trace: session.trace,
+        pois: session.pois,
+        activeCategories: session.activeCategories,
+      });
+      restoreEnrichments(session.enrichments);
+      setTargetLanguage(session.targetLanguage);
+      setEnrichAll(session.enrichAll);
+    }
+    setShowResumePrompt(false);
+  }, [restoreState, restoreEnrichments]);
+
+  const handleDismissResume = useCallback(() => {
+    clearSession();
+    setShowResumePrompt(false);
+  }, []);
 
   // Clear selection when the selected POI leaves the filtered set
   useEffect(() => {
@@ -41,6 +75,19 @@ export default function App() {
       setSelectedPoiId(null);
     }
   }, [filteredPois, selectedPoiId]);
+
+  // Auto-save session when pipeline is done and we have POIs
+  useEffect(() => {
+    if (state.stage !== "done" || state.pois.length === 0) return;
+    saveSession({
+      activeCategories: state.activeCategories,
+      trace: state.trace,
+      pois: state.pois,
+      enrichments,
+      targetLanguage,
+      enrichAll,
+    });
+  }, [state.stage, state.pois, state.activeCategories, state.trace, enrichments, targetLanguage, enrichAll]);
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -54,6 +101,7 @@ export default function App() {
     reset();
     resetEnrichment();
     setSelectedPoiId(null);
+    clearSession();
   }, [reset, resetEnrichment]);
 
   return (
@@ -72,6 +120,23 @@ export default function App() {
       <div className="app-layout">
         {/* Sidebar */}
         <aside className="sidebar">
+          {/* Resume prompt */}
+          {showResumePrompt && (
+            <div className="session-prompt">
+              <p className="session-prompt-text">
+                You have a saved session. Resume where you left off?
+              </p>
+              <div className="session-prompt-actions">
+                <button className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
+                  Resume
+                </button>
+                <button className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
+                  Start fresh
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Category selector – always visible */}
           <CategoryFilter
             activeCategories={state.activeCategories}
@@ -82,7 +147,7 @@ export default function App() {
           />
 
           {/* Upload area */}
-          {(state.stage === "idle" || state.stage === "error") && (
+          {(state.stage === "idle" || state.stage === "error") && !showResumePrompt && (
             <GpxUpload onFile={processFile} disabled={isProcessing} />
           )}
 

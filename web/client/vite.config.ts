@@ -19,6 +19,7 @@ export default defineConfig({
     sourcemap: true,
   },
   test: {
+    environment: "jsdom",
     exclude: ["e2e/**", "node_modules/**"],
   },
 });

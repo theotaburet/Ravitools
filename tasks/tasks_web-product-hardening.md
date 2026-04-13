@@ -84,15 +84,15 @@ Status: done
 
 ### 7. Add session persistence for before-ride planning
 
-- [ ] Define exactly what should persist: selected categories, imported route metadata, found POIs, enrichment results, export-ready state, language choice
-- [ ] Add a serialization layer for app state in a dedicated helper under `web/client/src/lib/`
-- [ ] Persist only data safe and useful to keep locally; avoid unnecessary duplication of raw blobs
-- [ ] Save state to `localStorage` after successful pipeline completion
-- [ ] Restore state on app load in `web/client/src/App.tsx` or a dedicated hook
-- [ ] Add a versioned persistence format to survive schema evolution
-- [ ] Add a visible `resume previous session` or `clear saved session` affordance in the UI
-- [ ] Ensure reset clears both in-memory and persisted state when the user asks for a fresh start
-- [ ] Add tests for serialization, restoration, and version invalidation
+- [x] Define exactly what should persist: selected categories, imported route metadata, found POIs, enrichment results, export-ready state, language choice
+- [x] Add a serialization layer for app state in a dedicated helper under `web/client/src/lib/`
+- [x] Persist only data safe and useful to keep locally; avoid unnecessary duplication of raw blobs
+- [x] Save state to `localStorage` after successful pipeline completion
+- [x] Restore state on app load in `web/client/src/App.tsx` or a dedicated hook
+- [x] Add a versioned persistence format to survive schema evolution
+- [x] Add a visible `resume previous session` or `clear saved session` affordance in the UI
+- [x] Ensure reset clears both in-memory and persisted state when the user asks for a fresh start
+- [x] Add tests for serialization, restoration, and version invalidation
 
 ### 8. Make enrichment outputs more trustworthy
 
@@ -127,7 +127,7 @@ Status: done
 - [x] Phase A: repo cleanup + review semantics + doc truthfulness
 - [x] Phase B: selective enrichment + target-language summaries
 - [x] Phase C: throughput improvements + trust/confidence metadata
-- [ ] Phase D: list/map interaction + remove 200-item cap + session persistence
+- [x] Phase D: list/map interaction + remove 200-item cap + session persistence
 - [ ] Phase E: server test coverage and production hardening
 
 ## Decisions
