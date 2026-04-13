@@ -405,10 +405,12 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Start
+// Start (only when run directly, not when imported for testing)
 // ---------------------------------------------------------------------------
-app.listen(PORT, () => {
-  log.info({ port: PORT, overpass: OVERPASS_URL }, "Ravitools proxy started");
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    log.info({ port: PORT, overpass: OVERPASS_URL }, "Ravitools proxy started");
+  });
+}
 
 export default app;

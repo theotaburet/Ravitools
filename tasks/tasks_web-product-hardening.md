@@ -115,12 +115,12 @@ Status: done
 
 ### 10. Server-side reliability and test coverage
 
-- [ ] Add server tests for `/overpass`, `/search`, and `/geocode`
-- [ ] Test cache-hit and cache-miss behavior for all 3 proxy flows
-- [ ] Test timeout handling and upstream error propagation
-- [ ] Test query/body validation and oversize request rejection
-- [ ] Verify CORS, rate-limit, and content-type behavior in edge cases
-- [ ] Decide whether the in-memory cache is enough for production or if a persistent cache is needed
+- [x] Add server tests for `/overpass`, `/search`, and `/geocode`
+- [x] Test cache-hit and cache-miss behavior for all 3 proxy flows
+- [x] Test timeout handling and upstream error propagation
+- [x] Test query/body validation and oversize request rejection
+- [x] Verify CORS, rate-limit, and content-type behavior in edge cases
+- [x] Decide whether the in-memory cache is enough for production or if a persistent cache is needed
 
 ## Sequencing
 
@@ -128,7 +128,7 @@ Status: done
 - [x] Phase B: selective enrichment + target-language summaries
 - [x] Phase C: throughput improvements + trust/confidence metadata
 - [x] Phase D: list/map interaction + remove 200-item cap + session persistence
-- [ ] Phase E: server test coverage and production hardening
+- [x] Phase E: server test coverage and production hardening
 
 ## Decisions
 - The highest product leverage is not more categories; it is better enrichment quality, better trust, and better usability before and during the ride.
