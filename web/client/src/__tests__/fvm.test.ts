@@ -1,0 +1,952 @@
+// ---------------------------------------------------------------------------
+// Feature Validation Matrix (FVM) tests – sections A through N
+// Baseline tests on existing code before enrichment-graal changes.
+// Only covers items NOT already tested in existing test files.
+// ---------------------------------------------------------------------------
+// @vitest-environment jsdom
+
+import { describe, it, expect } from "vitest";
+import type { POI, EnrichedData, SearchSnippet, EnrichmentStructuredContent } from "../types";
+import { ENRICHMENT_LENGTH_TARGETS, ENRICHMENT_DISPLAY_ORDER } from "../types";
+import {
+  classifySourcePlatform,
+  getOfficialWebsiteUrl,
+  buildSearchQuery,
+} from "../lib/enrichment/search";
+import { buildStructuredContent, buildEssentialsText } from "../lib/enrichment/structured";
+import { parseLlmOutput } from "../lib/enrichment/llm";
+import { computeConfidence, isGenericPoiName } from "../lib/enrichment/enricher";
+import {
+  ENRICHMENT_CONTRACTS,
+  getEnrichmentContract,
+  getEnrichabilityPolicy,
+} from "../lib/poi-config";
+import { buildGpxString, buildKmlString, buildGeoJsonObject } from "../lib/export";
+
+// ---------------------------------------------------------------------------
+// Shared POI factory
+// ---------------------------------------------------------------------------
+
+function makePoi(overrides: Partial<POI> = {}): POI {
+  return {
+    id: "fvm-poi-1",
+    lat: 45.7640,
+    lon: 4.8357,
+    category: "Restaurant or Bar",
+    name: "Chez Marcel",
+    icon: "utensils",
+    distanceToTrace: 200,
+    alongTraceDistance: 12000,
+    tags: { amenity: "restaurant", cuisine: "french" },
+    style: {
+      iconShape: "circle",
+      borderColor: "#FFFFFF",
+      borderWidth: "2",
+      textColor: "#FFFFFF",
+      backgroundColor: "#FF6B35",
+    },
+    ...overrides,
+  };
+}
+
+function makeSnippets(count: number, opts?: Partial<SearchSnippet>): SearchSnippet[] {
+  return Array.from({ length: count }, (_, i) => ({
+    title: opts?.title ?? `Result ${i}`,
+    url: opts?.url ?? `https://example-${i}.com`,
+    content: opts?.content ?? `Content for result ${i}`,
+    engine: opts?.engine ?? ["google", "bing", "duckduckgo"][i % 3],
+    ...opts,
+  }));
+}
+
+function makeBaseEnrichment(overrides: Partial<EnrichedData> = {}): EnrichedData {
+  return {
+    rating: null,
+    reviewCount: null,
+    hours: null,
+    summary: null,
+    translatedSummary: null,
+    specialty: null,
+    priceLevel: null,
+    googleMapsUrl: "https://www.google.com/maps/search/test",
+    sourceUrls: [],
+    rawSnippets: [],
+    enrichedAt: "2026-04-13T00:00:00Z",
+    status: "done",
+    locality: null,
+    sourceCount: 0,
+    sourceEngines: [],
+    confidence: 0,
+    ...overrides,
+  };
+}
+
+// ===========================================================================
+// A. Source Discovery
+// ===========================================================================
+
+describe("FVM-A: Source Discovery", () => {
+  it("A1: Restaurant query includes review platform bias", () => {
+    const poi = makePoi({ category: "Restaurant or Bar" });
+    const query = buildSearchQuery(poi, "Lyon");
+    expect(query).toContain("google maps");
+    expect(query).toContain("tripadvisor");
+    expect(query).toContain("yelp");
+  });
+
+  it("A2: Food shop query includes resupply-relevant terms", () => {
+    const poi = makePoi({
+      category: "Food shop",
+      name: "Carrefour Contact",
+      tags: { shop: "supermarket" },
+    });
+    const query = buildSearchQuery(poi, "Valence");
+    expect(query).toContain('"Carrefour Contact"');
+    expect(query).toContain("Valence");
+    // Should contain review/hours bias
+    expect(query).toContain("avis OR review OR horaires");
+  });
+
+  it("A3: Sleeping place query includes booking platforms", () => {
+    const poi = makePoi({
+      category: "Sleeping place",
+      name: "Camping du Lac",
+      tags: { tourism: "camp_site" },
+    });
+    const query = buildSearchQuery(poi, null);
+    expect(query).toContain("booking");
+    expect(query).toContain("hotels.com");
+  });
+
+  it("A4: Gears query uses POI name for bike shop search", () => {
+    const poi = makePoi({
+      category: "Gears",
+      name: "Cycles Dupont",
+      tags: { shop: "bicycle" },
+    });
+    const query = buildSearchQuery(poi, "Grenoble");
+    expect(query).toContain('"Cycles Dupont"');
+    expect(query).toContain("Grenoble");
+  });
+
+  it("A5: unnamed POI uses tag-based fallback", () => {
+    const poi = makePoi({
+      name: "",
+      tags: { amenity: "restaurant" },
+    });
+    const query = buildSearchQuery(poi, null);
+    expect(query).toContain("restaurant");
+    expect(query).not.toContain('""'); // no empty quoted name
+  });
+
+  it("A5b: 'Unknown' named POI uses tag-based fallback", () => {
+    const poi = makePoi({
+      name: "Unknown",
+      tags: { shop: "bicycle" },
+    });
+    const query = buildSearchQuery(poi, null);
+    expect(query).toContain("bicycle");
+  });
+
+  it("A5c: non-Sleeping place does NOT include booking platforms", () => {
+    const poi = makePoi({
+      category: "Restaurant or Bar",
+      name: "Le Comptoir",
+    });
+    const query = buildSearchQuery(poi, null);
+    expect(query).not.toContain("booking OR");
+  });
+});
+
+// ===========================================================================
+// B. Source Parsing And Classification
+// ===========================================================================
+
+describe("FVM-B: Source Parsing And Classification", () => {
+  it("B1: classifies Google Maps URL", () => {
+    expect(classifySourcePlatform("https://www.google.com/maps/place/test")).toBe("google_maps");
+    expect(classifySourcePlatform("https://maps.google.fr/maps?q=test")).toBe("google_maps");
+  });
+
+  it("B2: classifies Yelp URL", () => {
+    expect(classifySourcePlatform("https://www.yelp.com/biz/chez-marcel")).toBe("yelp");
+    expect(classifySourcePlatform("https://www.yelp.fr/biz/test")).toBe("yelp");
+  });
+
+  it("B3: classifies TripAdvisor URL", () => {
+    expect(classifySourcePlatform("https://www.tripadvisor.com/Restaurant-test")).toBe("tripadvisor");
+    expect(classifySourcePlatform("https://www.tripadvisor.fr/Hotel-test")).toBe("tripadvisor");
+  });
+
+  it("B4: classifies Facebook URL", () => {
+    expect(classifySourcePlatform("https://www.facebook.com/chezmarcel")).toBe("facebook");
+    expect(classifySourcePlatform("https://m.facebook.com/pages/test")).toBe("facebook");
+  });
+
+  it("B5: classifies Instagram URL", () => {
+    expect(classifySourcePlatform("https://www.instagram.com/chezmarcel/")).toBe("instagram");
+  });
+
+  it("B6: classifies Booking.com URL", () => {
+    expect(classifySourcePlatform("https://www.booking.com/hotel/fr/test.html")).toBe("booking");
+  });
+
+  it("B7: classifies Hotels.com URL", () => {
+    expect(classifySourcePlatform("https://www.hotels.com/ho12345")).toBe("hotels_com");
+    expect(classifySourcePlatform("https://fr.hotels.com/test")).toBe("hotels_com");
+  });
+
+  it("B8: classifies unknown domains as 'other'", () => {
+    expect(classifySourcePlatform("https://www.pagesjaunes.fr/test")).toBe("other");
+    expect(classifySourcePlatform("https://random-blog.com/review")).toBe("other");
+    expect(classifySourcePlatform("https://en.wikipedia.org/wiki/test")).toBe("other");
+  });
+
+  it("B8b: handles malformed URLs gracefully", () => {
+    expect(classifySourcePlatform("not-a-url")).toBe("other");
+    expect(classifySourcePlatform("")).toBe("other");
+  });
+});
+
+// ===========================================================================
+// C. Official Website
+// ===========================================================================
+
+describe("FVM-C: Official Website", () => {
+  it("C1: detects website tag", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://chez-marcel.fr" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr");
+  });
+
+  it("C2: detects contact:website tag", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", "contact:website": "https://chez-marcel.fr" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr");
+  });
+
+  it("C3: normalizes bare domain without scheme", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "chez-marcel.fr" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr");
+  });
+
+  it("C3b: normalizes domain with path", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "chez-marcel.fr/menu" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr/menu");
+  });
+
+  it("C3c: preserves http:// URLs as-is", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "http://old-site.com" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("http://old-site.com");
+  });
+
+  it("C4: returns null when no website tag exists", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("C4b: returns null for empty website tag", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("C4c: returns null for whitespace-only website tag", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "   " } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("C7: official website enriches sourceRollup when present", () => {
+    const poi = makePoi();
+    const enrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const websitePreview = {
+      url: "https://chez-marcel.fr",
+      finalUrl: "https://chez-marcel.fr",
+      title: "Chez Marcel - Restaurant Lyon",
+      description: "Fine French dining in Lyon since 1952",
+      excerpt: null,
+      fetchedAt: "2026-04-13T00:00:00Z",
+    };
+    const structured = buildStructuredContent(poi, enrichment, [], websitePreview, "fr");
+    const officialDigest = structured.sourceRollup.find((d) => d.platform === "official_website");
+    expect(officialDigest).toBeDefined();
+    expect(officialDigest!.brief).toContain("Fine French dining");
+  });
+
+  it("C8: official website does not clobber review platform sources", () => {
+    const poi = makePoi();
+    const enrichment = { rating: 4.2, reviewCount: 50, hours: "12-14, 19-22", specialty: "French", summary: "Great", translatedSummary: null, priceLevel: 2, locality: "Lyon" };
+    const snippets: SearchSnippet[] = [
+      { title: "Google review", url: "https://www.google.com/maps/place/chez-marcel", content: "Excellent restaurant", engine: "google" },
+      { title: "TripAdvisor", url: "https://www.tripadvisor.fr/restaurant/chez-marcel", content: "Very good", engine: "google" },
+    ];
+    const websitePreview = {
+      url: "https://chez-marcel.fr",
+      finalUrl: "https://chez-marcel.fr",
+      title: "Chez Marcel",
+      description: "Our restaurant",
+      excerpt: null,
+      fetchedAt: "2026-04-13T00:00:00Z",
+    };
+    const structured = buildStructuredContent(poi, enrichment, snippets, websitePreview, "fr");
+    // Should have Google Maps, TripAdvisor, AND official_website — not replace them
+    const platforms = structured.sourceRollup.map((d) => d.platform);
+    expect(platforms).toContain("google_maps");
+    expect(platforms).toContain("tripadvisor");
+    expect(platforms).toContain("official_website");
+  });
+});
+
+// ===========================================================================
+// D. Structured Output Core
+// ===========================================================================
+
+describe("FVM-D: Structured Output Core", () => {
+  const richEnrichment = {
+    rating: 4.3,
+    reviewCount: 120,
+    hours: "Mon-Sat 12:00-14:00, 19:00-22:00",
+    specialty: "French bistro",
+    summary: "Excellent bistro with cyclist-friendly terrace and generous portions.",
+    translatedSummary: "Excellent bistrot avec terrasse accueillante pour les cyclistes.",
+    priceLevel: 2,
+    locality: "Lyon",
+  };
+
+  const snippets: SearchSnippet[] = [
+    { title: "Google Review", url: "https://www.google.com/maps/place/test", content: "Great food and service", engine: "google" },
+    { title: "TripAdvisor", url: "https://www.tripadvisor.fr/test", content: "Lovely terrace for cyclists", engine: "bing" },
+    { title: "Yelp review", url: "https://www.yelp.fr/biz/test", content: "Good value French bistro", engine: "duckduckgo" },
+  ];
+
+  it("D1: produces a headline for a rich case", () => {
+    const poi = makePoi();
+    const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
+    expect(structured.headline).not.toBeNull();
+    expect(structured.headline!.length).toBeGreaterThan(10);
+    expect(structured.headline!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.headlineList);
+  });
+
+  it("D2: produces an operationalSummary for a rich case", () => {
+    const poi = makePoi();
+    const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
+    expect(structured.operationalSummary).not.toBeNull();
+    expect(structured.operationalSummary!.length).toBeGreaterThan(10);
+    expect(structured.operationalSummary!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.operationalSummary);
+  });
+
+  it("D3: produces ordered practicalities", () => {
+    const poi = makePoi();
+    const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
+    expect(structured.practicalities.length).toBeGreaterThan(0);
+    expect(structured.practicalities.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.practicalitiesMax);
+    // Should contain Type and Rating
+    expect(structured.practicalities.some((p) => p.includes("French bistro"))).toBe(true);
+    expect(structured.practicalities.some((p) => p.includes("4.3"))).toBe(true);
+  });
+
+  it("D4: produces cautions when info is missing", () => {
+    const poi = makePoi();
+    const poorEnrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const structured = buildStructuredContent(poi, poorEnrichment, [], null, "en");
+    expect(structured.cautions.length).toBeGreaterThan(0);
+    expect(structured.cautions.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.cautionsMax);
+  });
+
+  it("D5: produces stable sourceRollup from snippets", () => {
+    const poi = makePoi();
+    const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "en");
+    expect(structured.sourceRollup.length).toBeGreaterThan(0);
+    // Each digest has a platform and brief
+    for (const digest of structured.sourceRollup) {
+      expect(digest.platform).toBeTruthy();
+      expect(digest.brief.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("D6: buildEssentialsText composes from structured", () => {
+    const poi = makePoi();
+    const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "en");
+    const essentials = buildEssentialsText(structured);
+    expect(essentials).not.toBeNull();
+    expect(essentials!.length).toBeGreaterThan(10);
+    expect(essentials!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.essentialsExport);
+  });
+
+  it("D7: buildEssentialsText remains concise and within limits", () => {
+    const structured: EnrichmentStructuredContent = {
+      headline: "A".repeat(300),
+      operationalSummary: "B".repeat(200),
+      practicalities: ["Fact 1", "Fact 2", "Fact 3", "Fact 4", "Fact 5"],
+      sourceRollup: [],
+      cautions: ["Caution 1", "Caution 2"],
+      unknowns: ["Unknown 1"],
+    };
+    const essentials = buildEssentialsText(structured);
+    expect(essentials).not.toBeNull();
+    expect(essentials!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.essentialsExport);
+  });
+
+  it("D8: unknowns are included in structured output", () => {
+    const poi = makePoi();
+    // Specialty is null but sources exist -> should trigger an unknown
+    const partialEnrichment = { rating: 4.0, reviewCount: 10, hours: "9-17", specialty: null, summary: "Good", translatedSummary: null, priceLevel: null, locality: null };
+    const structured = buildStructuredContent(poi, partialEnrichment, snippets, null, "en");
+    expect(structured.unknowns.length).toBeGreaterThan(0);
+    expect(structured.unknowns.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.unknownsMax);
+  });
+
+  it("D9: empty snippets produce a fallback headline", () => {
+    const poi = makePoi();
+    const emptyEnrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
+    expect(structured.headline).not.toBeNull();
+    // Should be the category-inferred lead
+    expect(structured.headline).toContain("Chez Marcel");
+    expect(structured.headline).toContain("food stop");
+  });
+});
+
+// ===========================================================================
+// E. Category-Specific Structured Rules (contracts exist)
+// ===========================================================================
+
+describe("FVM-E: Category-Specific Contracts", () => {
+  it("E1: contracts exist for all 4 full categories", () => {
+    expect(getEnrichmentContract("Restaurant or Bar")).not.toBeNull();
+    expect(getEnrichmentContract("Food shop")).not.toBeNull();
+    expect(getEnrichmentContract("Sleeping place")).not.toBeNull();
+    expect(getEnrichmentContract("Gears")).not.toBeNull();
+  });
+
+  it("E2: contracts do not exist for non-full categories", () => {
+    expect(getEnrichmentContract("Water")).toBeNull();
+    expect(getEnrichmentContract("Restroom")).toBeNull();
+    expect(getEnrichmentContract("DIY")).toBeNull();
+    expect(getEnrichmentContract("Laundry")).toBeNull();
+  });
+
+  it("E3: each contract has non-empty priorities", () => {
+    for (const [, contract] of Object.entries(ENRICHMENT_CONTRACTS)) {
+      if (!contract) continue;
+      expect(contract.priorities.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("E4: each contract has banned patterns", () => {
+    for (const [, contract] of Object.entries(ENRICHMENT_CONTRACTS)) {
+      if (!contract) continue;
+      expect(contract.bannedPatterns.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("E5: each contract has weak source formulations", () => {
+    for (const [, contract] of Object.entries(ENRICHMENT_CONTRACTS)) {
+      if (!contract) continue;
+      expect(contract.weakSourceFormulations.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("E6: each contract has silence conditions", () => {
+    for (const [, contract] of Object.entries(ENRICHMENT_CONTRACTS)) {
+      if (!contract) continue;
+      expect(contract.silenceConditions.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("E7: Sleeping place contract mentions booking-related signals", () => {
+    const contract = getEnrichmentContract("Sleeping place")!;
+    const allText = [...contract.priorities, ...contract.valuableSignals].join(" ").toLowerCase();
+    expect(allText).toContain("booking");
+  });
+
+  it("E8: Gears contract mentions repair-related signals", () => {
+    const contract = getEnrichmentContract("Gears")!;
+    const allText = [...contract.priorities, ...contract.valuableSignals].join(" ").toLowerCase();
+    expect(allText).toContain("repair");
+  });
+
+  it("E9: Restaurant contract bans marketing language", () => {
+    const contract = getEnrichmentContract("Restaurant or Bar")!;
+    const bannedText = contract.bannedPatterns.join(" ").toLowerCase();
+    expect(bannedText).toContain("marketing");
+  });
+
+  it("E10: Food shop contract prioritizes opening hours", () => {
+    const contract = getEnrichmentContract("Food shop")!;
+    const priorityText = contract.priorities.join(" ").toLowerCase();
+    expect(priorityText).toContain("hours");
+  });
+
+  it("E11: each full category degrades with no sources (cautions appear)", () => {
+    for (const category of ["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"] as const) {
+      const poi = makePoi({ category, name: `Test ${category}` });
+      const emptyEnrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+      const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
+      expect(structured.cautions.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ===========================================================================
+// F. LLM Output Contract (extends existing parseLlmOutput tests)
+// ===========================================================================
+
+describe("FVM-F: LLM Output Contract", () => {
+  it("F1: parseLlmOutput accepts full valid JSON with sourceDigests", () => {
+    const input = JSON.stringify({
+      rating: 4.5,
+      reviewCount: 200,
+      hours: "Mon-Sat 9:00-18:00",
+      summary: "Great bike shop with repair service.",
+      translatedSummary: "Super magasin velo avec atelier.",
+      specialty: "Bike shop and repair",
+      priceLevel: 3,
+      essentials: "Cycles Dupont is a reliable bike shop near the route.",
+      sourceDigests: [
+        { platform: "google_maps", brief: "Well-reviewed bike shop", url: "https://google.com/maps/test" },
+        { platform: "yelp", brief: "Fast repair service", url: "https://yelp.com/biz/test" },
+      ],
+    });
+    const result = parseLlmOutput(input);
+    expect(result).not.toBeNull();
+    expect(result!.rating).toBe(4.5);
+    expect(result!.sourceDigests).toHaveLength(2);
+    expect(result!.sourceDigests[0].platform).toBe("google_maps");
+    expect(result!.essentials).toContain("Cycles Dupont");
+  });
+
+  it("F2: parseLlmOutput strips markdown and extracts JSON", () => {
+    const json = JSON.stringify({
+      rating: 3.0,
+      reviewCount: null,
+      hours: null,
+      summary: "Decent.",
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      essentials: null,
+      sourceDigests: [],
+    });
+    const input = "Here is the information:\n```json\n" + json + "\n```\nHope this helps!";
+    const result = parseLlmOutput(input);
+    expect(result).not.toBeNull();
+    expect(result!.rating).toBe(3.0);
+  });
+
+  it("F3: parseLlmOutput rejects completely invalid output", () => {
+    expect(parseLlmOutput("I cannot find any information about this place.")).toBeNull();
+    expect(parseLlmOutput("")).toBeNull();
+    expect(parseLlmOutput("Sorry, I don't have enough data.")).toBeNull();
+  });
+
+  it("F4: parseLlmOutput clamps rating to 1-5 range", () => {
+    const tooHigh = JSON.stringify({ rating: 10 });
+    expect(parseLlmOutput(tooHigh)!.rating).toBeNull();
+    const tooLow = JSON.stringify({ rating: 0 });
+    expect(parseLlmOutput(tooLow)!.rating).toBeNull();
+    const valid = JSON.stringify({ rating: 4.5 });
+    expect(parseLlmOutput(valid)!.rating).toBe(4.5);
+  });
+
+  it("F5: parseLlmOutput filters empty sourceDigest briefs", () => {
+    const input = JSON.stringify({
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      summary: "Test",
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      essentials: null,
+      sourceDigests: [
+        { platform: "google_maps", brief: "", url: null },
+        { platform: "yelp", brief: "Good reviews", url: "https://yelp.com/test" },
+      ],
+    });
+    const result = parseLlmOutput(input);
+    expect(result!.sourceDigests).toHaveLength(1);
+    expect(result!.sourceDigests[0].platform).toBe("yelp");
+  });
+
+  it("F6: parseLlmOutput truncates essentials to 700 chars", () => {
+    const longEssentials = "X".repeat(800);
+    const input = JSON.stringify({
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      essentials: longEssentials,
+      sourceDigests: [],
+    });
+    const result = parseLlmOutput(input);
+    expect(result!.essentials!.length).toBe(700);
+  });
+});
+
+// ===========================================================================
+// G. Confidence And Coverage
+// ===========================================================================
+
+describe("FVM-G: Confidence And Coverage", () => {
+  const baseEnrichment = {
+    rating: null,
+    reviewCount: null,
+    hours: null,
+    summary: null,
+    specialty: null,
+  };
+
+  it("G1: confidence increases with more useful sources (below saturation)", () => {
+    // sourceFactor = min(snippets/7, 0.7) — saturates at ~5 snippets (5/7 ≈ 0.71 → capped 0.7)
+    const score1 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
+    const score2 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(2) });
+    const score4 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4) });
+    expect(score2).toBeGreaterThan(score1);
+    expect(score4).toBeGreaterThan(score2);
+  });
+
+  it("G1b: confidence saturates beyond snippet cap (monotonic non-decreasing)", () => {
+    const score5 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(5) });
+    const score7 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(7) });
+    const score10 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(10) });
+    expect(score7).toBeGreaterThanOrEqual(score5);
+    expect(score10).toBeGreaterThanOrEqual(score7);
+  });
+
+  it("G2: confidence increases with engine diversity", () => {
+    const sameEngine = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: Array.from({ length: 4 }, () => ({ engine: "google" })),
+    });
+    const diverseEngines = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: [
+        { engine: "google" },
+        { engine: "bing" },
+        { engine: "duckduckgo" },
+        { engine: "brave" },
+      ],
+    });
+    expect(diverseEngines).toBeGreaterThan(sameEngine);
+  });
+
+  it("G3: confidence drops without structured fields", () => {
+    const withFields = computeConfidence({
+      rating: 4.0,
+      reviewCount: 50,
+      hours: "9-17",
+      summary: "Good place",
+      specialty: "Cafe",
+      rawSnippets: makeSnippets(3),
+    });
+    const withoutFields = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(3),
+    });
+    expect(withFields).toBeGreaterThan(withoutFields);
+  });
+
+  it("G4: confidence is exactly 0 without snippets", () => {
+    expect(computeConfidence({ ...baseEnrichment, rawSnippets: [] })).toBe(0);
+  });
+
+  it("G5: confidence never exceeds 1.0 even with maximum inputs", () => {
+    const maxScore = computeConfidence({
+      rating: 5.0,
+      reviewCount: 1000,
+      hours: "24/7",
+      summary: "Perfect in every way",
+      specialty: "Everything",
+      rawSnippets: makeSnippets(20),
+    });
+    expect(maxScore).toBeLessThanOrEqual(1.0);
+    expect(maxScore).toBeGreaterThan(0.5);
+  });
+});
+
+// ===========================================================================
+// H. Contradictions And Missing Data
+// ===========================================================================
+
+describe("FVM-H: Contradictions And Missing Data", () => {
+  it("H1: missing hours produces explicit caution", () => {
+    const poi = makePoi();
+    const enrichment = { rating: 4.0, reviewCount: 20, hours: null, specialty: "Bistro", summary: "Good", translatedSummary: null, priceLevel: null, locality: null };
+    const snippets = makeSnippets(2);
+    const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
+    const hoursCaution = structured.cautions.find((c) => c.toLowerCase().includes("hour"));
+    expect(hoursCaution).toBeDefined();
+  });
+
+  it("H2: missing rating produces explicit caution", () => {
+    const poi = makePoi();
+    const enrichment = { rating: null, reviewCount: null, hours: "9-17", specialty: "Cafe", summary: "Decent", translatedSummary: null, priceLevel: null, locality: null };
+    const snippets = makeSnippets(2);
+    const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
+    const ratingCaution = structured.cautions.find((c) => c.toLowerCase().includes("rating"));
+    expect(ratingCaution).toBeDefined();
+  });
+
+  it("H3: rating without review count produces a caution", () => {
+    const poi = makePoi();
+    const enrichment = { rating: 4.5, reviewCount: null, hours: "10-20", specialty: null, summary: "Nice", translatedSummary: null, priceLevel: null, locality: null };
+    const snippets = makeSnippets(3);
+    const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
+    const volumeCaution = structured.cautions.find((c) => c.toLowerCase().includes("volume") || c.toLowerCase().includes("review"));
+    expect(volumeCaution).toBeDefined();
+  });
+
+  it("H4: no sourceRollup produces a caution about missing platforms", () => {
+    const poi = makePoi();
+    const enrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const structured = buildStructuredContent(poi, enrichment, [], null, "en");
+    const platformCaution = structured.cautions.find((c) => c.toLowerCase().includes("platform") || c.toLowerCase().includes("review"));
+    expect(platformCaution).toBeDefined();
+  });
+
+  it("H5: no official website does not produce false positive signal", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant" } });
+    // No website tag => getOfficialWebsiteUrl returns null
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+    // Building structured without website should not mention official_website in rollup
+    const enrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const structured = buildStructuredContent(poi, enrichment, [], null, "en");
+    const officialDigest = structured.sourceRollup.find((d) => d.platform === "official_website");
+    expect(officialDigest).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// I. Pipeline Integration (isGenericPoiName)
+// ===========================================================================
+
+describe("FVM-I: Pipeline Integration helpers", () => {
+  it("I1: isGenericPoiName detects empty/unnamed", () => {
+    expect(isGenericPoiName("")).toBe(true);
+    expect(isGenericPoiName(null)).toBe(true);
+    expect(isGenericPoiName(undefined)).toBe(true);
+    expect(isGenericPoiName("Unknown")).toBe(true);
+    expect(isGenericPoiName("unnamed")).toBe(true);
+  });
+
+  it("I2: isGenericPoiName detects common generic names", () => {
+    expect(isGenericPoiName("Toilets")).toBe(true);
+    expect(isGenericPoiName("drinking water")).toBe(true);
+    expect(isGenericPoiName("Shelter")).toBe(true);
+    expect(isGenericPoiName("Picnic")).toBe(true);
+    expect(isGenericPoiName("WC")).toBe(true);
+  });
+
+  it("I3: isGenericPoiName detects French generic names", () => {
+    expect(isGenericPoiName("toilettes")).toBe(true);
+    expect(isGenericPoiName("eau potable")).toBe(true);
+    expect(isGenericPoiName("fontaine")).toBe(true);
+    expect(isGenericPoiName("abri")).toBe(true);
+  });
+
+  it("I4: isGenericPoiName accepts real business names", () => {
+    expect(isGenericPoiName("Le Petit Zinc")).toBe(false);
+    expect(isGenericPoiName("Carrefour Contact")).toBe(false);
+    expect(isGenericPoiName("Camping du Lac")).toBe(false);
+    expect(isGenericPoiName("Cycles Dupont")).toBe(false);
+  });
+
+  it("I5: enrichability policy is skip for skip categories", () => {
+    expect(getEnrichabilityPolicy("Water")).toBe("skip");
+    expect(getEnrichabilityPolicy("Restroom")).toBe("skip");
+    expect(getEnrichabilityPolicy("Shelter")).toBe("skip");
+    expect(getEnrichabilityPolicy("Picnic")).toBe("skip");
+  });
+
+  it("I6: enrichability policy is full for full categories", () => {
+    expect(getEnrichabilityPolicy("Restaurant or Bar")).toBe("full");
+    expect(getEnrichabilityPolicy("Food shop")).toBe("full");
+    expect(getEnrichabilityPolicy("Sleeping place")).toBe("full");
+    expect(getEnrichabilityPolicy("Gears")).toBe("full");
+  });
+});
+
+// ===========================================================================
+// K. Export Validation
+// ===========================================================================
+
+describe("FVM-K: Export Validation", () => {
+  const enrichedStructured: EnrichmentStructuredContent = {
+    headline: "Excellent bistro with cyclist-friendly terrace.",
+    operationalSummary: "Best read as French bistro. Hours available. Reputation signals present.",
+    practicalities: ["Type: French bistro", "Reported rating: 4.3/5 (120 reviews)", "Hours: Mon-Sat 12-14, 19-22"],
+    sourceRollup: [
+      { platform: "google_maps", brief: "Google Maps: Well-reviewed bistro", url: "https://google.com/maps/test" },
+      { platform: "tripadvisor", brief: "Tripadvisor: Great terrace", url: "https://tripadvisor.fr/test" },
+    ],
+    cautions: ["Price information could not be confirmed."],
+    unknowns: ["Bike parking availability unclear."],
+  };
+
+  const enrichment = makeBaseEnrichment({
+    rating: 4.3,
+    reviewCount: 120,
+    hours: "Mon-Sat 12:00-14:00, 19:00-22:00",
+    summary: "Great bistro for cyclists.",
+    translatedSummary: null,
+    specialty: "French bistro",
+    priceLevel: 2,
+    locality: "Lyon",
+    sourceCount: 3,
+    sourceEngines: ["google", "bing"],
+    confidence: 0.65,
+    essentials: "Excellent bistro with cyclist-friendly terrace.",
+    structured: enrichedStructured,
+  });
+
+  const poi = makePoi();
+  const enrichments = new Map([["fvm-poi-1", enrichment]]);
+
+  it("K1: GPX includes structured.headline", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("Excellent bistro with cyclist-friendly terrace.");
+  });
+
+  it("K2: GPX includes structured.operationalSummary", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("Best read as French bistro");
+  });
+
+  it("K3: GPX includes structured.practicalities", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("Type: French bistro");
+    expect(gpx).toContain("4.3/5");
+  });
+
+  it("K4: GPX includes structured.cautions", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("Price information could not be confirmed.");
+  });
+
+  it("K5: GPX includes sourceRollup", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("google_maps");
+    expect(gpx).toContain("Well-reviewed bistro");
+  });
+
+  it("K5b: GPX includes unknowns", () => {
+    const gpx = buildGpxString([poi], [], enrichments);
+    expect(gpx).toContain("Bike parking availability unclear.");
+  });
+
+  it("K6: KML includes the same structured bricks", () => {
+    const kml = buildKmlString([poi], [], enrichments);
+    expect(kml).toContain("Excellent bistro with cyclist-friendly terrace.");
+    expect(kml).toContain("Best read as French bistro");
+    expect(kml).toContain("Type: French bistro");
+    expect(kml).toContain("Price information could not be confirmed.");
+    expect(kml).toContain("Bike parking availability unclear.");
+  });
+
+  it("K7: GeoJSON exposes enrichment_essentials", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_essentials).toBe("Excellent bistro with cyclist-friendly terrace.");
+  });
+
+  it("K8: GeoJSON exposes enrichment_structured_headline", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_headline).toBe("Excellent bistro with cyclist-friendly terrace.");
+  });
+
+  it("K9: GeoJSON exposes enrichment_structured_operationalSummary", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_operationalSummary).toContain("Best read as French bistro");
+  });
+
+  it("K10: GeoJSON exposes enrichment_structured_practicalities", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_practicalities).toContain("French bistro");
+    expect(props.enrichment_structured_practicalities).toContain("4.3");
+  });
+
+  it("K11: GeoJSON exposes enrichment_structured_cautions", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_cautions).toContain("Price information could not be confirmed.");
+  });
+
+  it("K12: GeoJSON exposes enrichment_structured_sourceRollup", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_sourceRollup).toContain("google_maps");
+    expect(props.enrichment_structured_sourceRollup).toContain("Well-reviewed bistro");
+  });
+
+  it("K13: GeoJSON exposes enrichment_structured_unknowns", () => {
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_structured_unknowns).toContain("Bike parking availability unclear.");
+  });
+});
+
+// ===========================================================================
+// N. Perf And Stability Checks (structural, not load)
+// ===========================================================================
+
+describe("FVM-N: Stability Checks", () => {
+  it("N1: ENRICHMENT_DISPLAY_ORDER covers all structured fields", () => {
+    const expectedFields = ["headline", "operationalSummary", "practicalities", "cautions", "unknowns", "sourceRollup"];
+    for (const field of expectedFields) {
+      expect((ENRICHMENT_DISPLAY_ORDER as readonly string[]).includes(field)).toBe(true);
+    }
+  });
+
+  it("N2: ENRICHMENT_LENGTH_TARGETS has sensible values", () => {
+    expect(ENRICHMENT_LENGTH_TARGETS.headlineMobile).toBeGreaterThan(50);
+    expect(ENRICHMENT_LENGTH_TARGETS.headlineList).toBeGreaterThan(ENRICHMENT_LENGTH_TARGETS.headlineMobile);
+    expect(ENRICHMENT_LENGTH_TARGETS.essentialsExport).toBeGreaterThan(ENRICHMENT_LENGTH_TARGETS.headlineList);
+    expect(ENRICHMENT_LENGTH_TARGETS.practicalitiesMax).toBeGreaterThanOrEqual(3);
+    expect(ENRICHMENT_LENGTH_TARGETS.cautionsMax).toBeGreaterThanOrEqual(2);
+    expect(ENRICHMENT_LENGTH_TARGETS.unknownsMax).toBeGreaterThanOrEqual(1);
+  });
+
+  it("N3: buildStructuredContent handles empty inputs gracefully", () => {
+    const poi = makePoi();
+    const emptyEnrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    // Should not throw
+    const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
+    expect(structured).toBeDefined();
+    expect(structured.headline).not.toBeNull();
+    expect(structured.practicalities).toEqual(expect.any(Array));
+    expect(structured.cautions).toEqual(expect.any(Array));
+    expect(structured.unknowns).toEqual(expect.any(Array));
+    expect(structured.sourceRollup).toEqual(expect.any(Array));
+  });
+
+  it("N4: buildEssentialsText handles empty structured gracefully", () => {
+    const emptyStructured: EnrichmentStructuredContent = {
+      headline: null,
+      operationalSummary: null,
+      practicalities: [],
+      sourceRollup: [],
+      cautions: [],
+      unknowns: [],
+    };
+    const essentials = buildEssentialsText(emptyStructured);
+    // Should return null for completely empty input, not throw
+    expect(essentials).toBeNull();
+  });
+
+  it("N5: duplicate snippets in buildStructuredContent produce deduplicated sourceRollup", () => {
+    const poi = makePoi();
+    const enrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
+    const dupeSnippets: SearchSnippet[] = [
+      { title: "Same source", url: "https://www.google.com/maps/place/test", content: "Review 1", engine: "google" },
+      { title: "Same source again", url: "https://www.google.com/maps/place/test2", content: "Review 2", engine: "google" },
+    ];
+    const structured = buildStructuredContent(poi, enrichment, dupeSnippets, null, "en");
+    // Both are from google_maps platform -> should be grouped into one digest
+    const googleDigests = structured.sourceRollup.filter((d) => d.platform === "google_maps");
+    expect(googleDigests).toHaveLength(1);
+  });
+});
