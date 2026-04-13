@@ -4,7 +4,7 @@
 // Extended with optional categories for bikepacking
 // ---------------------------------------------------------------------------
 
-import type { PoiCategory, PoiCategoryConfig, EnrichabilityPolicy } from "../types";
+import type { PoiCategory, PoiCategoryConfig, EnrichabilityPolicy, EnrichmentCategoryContract } from "../types";
 
 export const POI_CATEGORIES: PoiCategoryConfig[] = [
   // -----------------------------------------------------------------------
@@ -576,6 +576,181 @@ export function countEnrichable(pois: { category: PoiCategory }[]): number {
 /** Count how many POIs in a list get full enrichment */
 export function countFullEnrichable(pois: { category: PoiCategory }[]): number {
   return pois.filter((p) => getEnrichabilityPolicy(p.category) === "full").length;
+}
+
+// ---------------------------------------------------------------------------
+// Category-level enrichment contracts
+// Defines what each "full" enrichment category must produce, what matters,
+// what must NOT be said, and how to handle weak/contradictory sources.
+// These contracts guide both the LLM prompt and the deterministic builder.
+// ---------------------------------------------------------------------------
+
+const RESTAURANT_CONTRACT: EnrichmentCategoryContract = {
+  category: "Restaurant or Bar",
+  priorities: [
+    "Cuisine type and standout dish if mentioned",
+    "Reputation signal (rating + volume, not just a number)",
+    "Opening hours or known closure days",
+    "Cyclist-practical info: terrace, large portions, water refill, bike parking",
+    "Price bracket if inferable",
+  ],
+  valuableSignals: [
+    "Explicit rating with review count from Google/TripAdvisor/Yelp",
+    "Mentions of cyclist/hiker friendliness",
+    "Specific closure days (e.g. 'fermé le lundi')",
+    "Payment methods (cash only, CB)",
+    "Terrace / outdoor seating",
+    "Take-away option",
+  ],
+  bannedPatterns: [
+    "Invented menu items not in sources",
+    "Generic praise ('excellent restaurant', 'great food') without source backing",
+    "Star ratings without source attribution",
+    "Assumed hours from similar places",
+    "Marketing language ('don't miss', 'must try', 'hidden gem')",
+  ],
+  weakSourceFormulations: [
+    "Limited online presence; verify hours on arrival.",
+    "Few reviews available; reliability cannot be assessed from web sources alone.",
+    "Listed on Google Maps but no review platform coverage found.",
+  ],
+  contradictionFormulations: [
+    "Sources disagree on opening hours — verify locally.",
+    "Rating varies between platforms ({platform_a}: {rating_a}, {platform_b}: {rating_b}).",
+  ],
+  silenceConditions: [
+    "Only a Google Maps pin exists with zero reviews and no website",
+    "All snippets are from aggregator sites with no original content",
+  ],
+};
+
+const FOOD_SHOP_CONTRACT: EnrichmentCategoryContract = {
+  category: "Food shop",
+  priorities: [
+    "Shop type (supermarket, bakery, convenience, farm shop, etc.)",
+    "Opening hours — critical for resupply timing",
+    "Whether it is a chain or independent (resupply reliability signal)",
+    "Size/range: small village shop vs full supermarket",
+    "Sunday/holiday opening if detectable",
+  ],
+  valuableSignals: [
+    "Chain name (Carrefour, Spar, Intermarche, Lidl, etc.)",
+    "Explicit opening hours, especially Sunday and lunch break",
+    "ATM on-site or nearby",
+    "Water refill possible",
+    "Local products / farm-direct mention",
+    "Bread baked on-site",
+  ],
+  bannedPatterns: [
+    "Assumed product range from shop type",
+    "Generic statements ('well-stocked', 'nice selection') without source",
+    "Invented hours from chain typical schedules",
+    "Price comparisons not in sources",
+  ],
+  weakSourceFormulations: [
+    "Listed on maps but no online reviews; verify hours and stock on-site.",
+    "Appears to be a small independent shop — hours and availability may vary.",
+  ],
+  contradictionFormulations: [
+    "Hours vary between sources — listed as {hours_a} on Google, {hours_b} on the official site.",
+  ],
+  silenceConditions: [
+    "Only an OSM node with a shop tag and no web footprint at all",
+    "All snippets are duplicates from a single directory listing",
+  ],
+};
+
+const SLEEPING_PLACE_CONTRACT: EnrichmentCategoryContract = {
+  category: "Sleeping place",
+  priorities: [
+    "Accommodation type (campsite, hostel, hotel, gite, bivouac, alpine hut)",
+    "Booking requirement vs walk-in possibility",
+    "Price range or explicit tariff if mentioned",
+    "Check-in / reception hours if known",
+    "Cyclist-specific amenities (bike storage, drying room, tools, laundry)",
+    "Seasonal availability (summer-only, closed in winter)",
+  ],
+  valuableSignals: [
+    "Explicit price or price range from booking platforms",
+    "Booking.com / Hostelworld / camping platform listing",
+    "Mentions of bike-friendly labels (Accueil Velo, Cyclists Welcome)",
+    "Kitchen / cooking facilities for self-caterers",
+    "Wild camping tolerance notes",
+    "Proximity to water/food resupply",
+    "Altitude or exposed location (alpine hut context)",
+    "Shower and hot water availability",
+  ],
+  bannedPatterns: [
+    "Assumed prices from similar establishments",
+    "Invented amenity lists",
+    "Marketing copy ('paradise for cyclists', 'stunning views')",
+    "Star classification not in sources",
+    "Assumed booking requirements",
+  ],
+  weakSourceFormulations: [
+    "Limited info online — contact directly to confirm availability and price.",
+    "Listed on OSM but not found on major booking platforms.",
+    "Few reviews; condition and reliability unclear from web sources.",
+  ],
+  contradictionFormulations: [
+    "Price varies between sources ({source_a}: {price_a}, {source_b}: {price_b}).",
+    "Some sources list this as seasonal; verify opening period.",
+  ],
+  silenceConditions: [
+    "Only an OSM node with tourism=camp_site and no web presence",
+    "All snippets are from real-estate or unrelated sites",
+  ],
+};
+
+const GEARS_CONTRACT: EnrichmentCategoryContract = {
+  category: "Gears",
+  priorities: [
+    "Shop type: bike shop, outdoor gear, sports general",
+    "Whether bike repair service is offered",
+    "Opening hours — critical for a rider in need",
+    "Brands or specialty (road, MTB, touring, e-bike)",
+    "Walk-in repair vs appointment only",
+  ],
+  valuableSignals: [
+    "Explicit repair service mention",
+    "Spare parts availability (tubes, tires, chains, brake pads)",
+    "E-bike charging or battery service",
+    "Rental availability",
+    "Workshop wait time or 'while you wait' service",
+    "Known closure days",
+    "Mentions on cycling forums or community recommendations",
+  ],
+  bannedPatterns: [
+    "Assumed repair capability from shop type",
+    "Generic gear lists not in sources",
+    "Assumed brand availability",
+    "Marketing language ('best bike shop', 'expert mechanics')",
+  ],
+  weakSourceFormulations: [
+    "Listed as a bike/sports shop but limited online info — call ahead for repair availability.",
+    "Google listing exists but no reviews; capability unclear.",
+  ],
+  contradictionFormulations: [
+    "Sources disagree on repair service availability — verify in person.",
+    "Hours listed on Google ({hours_google}) differ from the website ({hours_site}).",
+  ],
+  silenceConditions: [
+    "Only an OSM node with shop=bicycle and zero web footprint",
+    "All snippets are from generic business directories with no original detail",
+  ],
+};
+
+/** All category contracts for full-enrichment categories, indexed by PoiCategory */
+export const ENRICHMENT_CONTRACTS: Partial<Record<PoiCategory, EnrichmentCategoryContract>> = {
+  "Restaurant or Bar": RESTAURANT_CONTRACT,
+  "Food shop": FOOD_SHOP_CONTRACT,
+  "Sleeping place": SLEEPING_PLACE_CONTRACT,
+  Gears: GEARS_CONTRACT,
+};
+
+/** Get the enrichment contract for a category (null if not a full-enrichment category) */
+export function getEnrichmentContract(category: PoiCategory): EnrichmentCategoryContract | null {
+  return ENRICHMENT_CONTRACTS[category] ?? null;
 }
 
 /** Resolve the best OsmAnd icon for a POI based on its tags, with category fallback */
