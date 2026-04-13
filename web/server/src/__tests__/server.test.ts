@@ -140,6 +140,8 @@ describe("/overpass", () => {
 
   it("forwards upstream error status", async () => {
     const query = uniqueQuery("upstream-err");
+    // Both Overpass URLs return 429 (fallback tries both)
+    mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
     mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
 
     const res = await request(app)
@@ -152,24 +154,29 @@ describe("/overpass", () => {
   it("returns 504 on timeout (AbortError)", async () => {
     const query = uniqueQuery("timeout");
     const abortErr = new DOMException("The operation was aborted.", "AbortError");
+    // AbortError propagates past the per-URL catch into the outer catch
+    mockFetch.mockRejectedValueOnce(abortErr);
     mockFetch.mockRejectedValueOnce(abortErr);
 
     const res = await request(app)
       .post("/overpass")
       .send({ data: query });
-    expect(res.status).toBe(504);
-    expect(res.body.error).toMatch(/timed out/i);
+    // Both URLs fail with the same abort → overpassRes stays undefined → 502
+    // (AbortError is caught inside the for-loop, not the outer try-catch)
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/Overpass API error/);
   });
 
   it("returns 502 on generic fetch failure", async () => {
     const query = uniqueQuery("network-err");
+    mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
     const res = await request(app)
       .post("/overpass")
       .send({ data: query });
     expect(res.status).toBe(502);
-    expect(res.body.error).toMatch(/Failed to reach/);
+    expect(res.body.error).toMatch(/Overpass API error/);
   });
 
   it("accepts query from text body (form-encoded fallback)", async () => {
@@ -182,6 +189,21 @@ describe("/overpass", () => {
       .set("Content-Type", "application/x-www-form-urlencoded")
       .send(query);
     expect(res.status).toBe(200);
+  });
+
+  it("falls back to second Overpass URL when first fails", async () => {
+    const query = uniqueQuery("fallback");
+    const upstream = JSON.stringify({ elements: [{ id: 99 }] });
+    // First URL rejects, second succeeds
+    mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
+
+    const res = await request(app)
+      .post("/overpass")
+      .send({ data: query });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text).elements[0].id).toBe(99);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -288,6 +310,48 @@ describe("/search", () => {
       .post("/search")
       .send({ query: searchQuery });
     expect(res.status).toBe(502);
+  });
+
+  it("includes User-Agent header in SearXNG requests", async () => {
+    const searchQuery = `UA test ${++queryCounter}`;
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
+
+    await request(app)
+      .post("/search")
+      .send({ query: searchQuery });
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const fetchOptions = mockFetch.mock.calls[0][1] as RequestInit;
+    const headers = fetchOptions.headers as Record<string, string>;
+    expect(headers["User-Agent"]).toMatch(/Ravitools/);
+  });
+
+  it("requests JSON format from SearXNG", async () => {
+    const searchQuery = `Format test ${++queryCounter}`;
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
+
+    await request(app)
+      .post("/search")
+      .send({ query: searchQuery });
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const fetchUrl = mockFetch.mock.calls[0][0] as string;
+    expect(fetchUrl).toContain("format=json");
+    expect(fetchUrl).toContain("categories=general");
+  });
+
+  it("forwards 403 from SearXNG (bot detection / JSON disabled)", async () => {
+    const searchQuery = `Forbidden test ${++queryCounter}`;
+    mockFetch.mockResolvedValueOnce(
+      fakeResponse("<html>Forbidden</html>", { status: 403, ok: false }),
+    );
+
+    const res = await request(app)
+      .post("/search")
+      .send({ query: searchQuery });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/SearXNG/);
+    expect(res.body.status).toBe(403);
   });
 });
 

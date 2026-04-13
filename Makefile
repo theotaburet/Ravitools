@@ -50,8 +50,12 @@ client-stop:
 searxng:
 	@if docker info >/dev/null 2>&1; then \
 		docker rm -f searxng >/dev/null 2>&1 || true; \
-		docker run -d -p 8888:8080 --rm --name searxng searxng/searxng; \
-		echo "SearXNG started on http://localhost:8888"; \
+		docker run -d -p 8888:8080 --rm --name searxng \
+			-v "$(CURDIR)/searxng/settings.yml:/etc/searxng/settings.yml:ro" \
+			-v "$(CURDIR)/searxng/limiter.toml:/etc/searxng/limiter.toml:ro" \
+			-e SEARXNG_BASE_URL=http://localhost:8888 \
+			searxng/searxng; \
+		echo "SearXNG started on http://localhost:8888 (JSON API enabled, limiter off)"; \
 	else \
 		echo "Docker not running. Please start Docker Desktop and retry 'make searxng'"; \
 	fi

@@ -1,0 +1,19 @@
+# SearXNG settings for Ravitools
+# Enables JSON API format and relaxes limiter for local/server usage.
+# Mount this file at /etc/searxng/settings.yml in the container.
+
+use_default_settings: true
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  # Allow JSON API access without requiring a secret key
+  secret_key: "ravitools-local-dev"
+  limiter: false
+  image_proxy: false
+  # Bind to all interfaces inside container
+  bind_address: "0.0.0.0"
+  port: 8080

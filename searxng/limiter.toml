@@ -1,0 +1,11 @@
+# SearXNG limiter config for Ravitools
+# Disabled — the Express proxy already rate-limits (60 req/min).
+# Mount this file at /etc/searxng/limiter.toml in the container.
+
+[botdetection.ip_limit]
+# Disable IP-based rate limiting (handled by Express)
+link_token = false
+
+[botdetection.ip_lists]
+# No blocked IPs
+block_ip = []

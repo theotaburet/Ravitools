@@ -302,6 +302,7 @@ app.post("/search", enrichLimiter, async (req, res) => {
         method: "GET",
         headers: {
           Accept: "application/json",
+          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
         },
         signal: controller.signal,
       });
