@@ -186,6 +186,10 @@ export interface EnrichmentStructuredContent {
   cautions: string[];
   /** Key unknowns that could matter to the traveler */
   unknowns: string[];
+  /** Explicit source divergences detected across platforms */
+  divergences: string[];
+  /** Which facts were confirmed by official website vs review platforms only */
+  sourceConfirmation: "official" | "reviews-only" | "both" | "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -252,8 +256,10 @@ export const ENRICHMENT_DISPLAY_ORDER = [
   "operationalSummary",
   "practicalities",
   "cautions",
+  "divergences",
   "unknowns",
   "sourceRollup",
+  "sourceConfirmation",
 ] as const;
 
 /** Minimal fetched preview of an official website */

@@ -378,6 +378,8 @@ describe("FVM-D: Structured Output Core", () => {
       sourceRollup: [],
       cautions: ["Caution 1", "Caution 2"],
       unknowns: ["Unknown 1"],
+      divergences: [],
+      sourceConfirmation: "none",
     };
     const essentials = buildEssentialsText(structured);
     expect(essentials).not.toBeNull();
@@ -697,12 +699,15 @@ describe("FVM-H: Contradictions And Missing Data", () => {
     expect(volumeCaution).toBeDefined();
   });
 
-  it("H4: no sourceRollup produces a caution about missing platforms", () => {
+  it("H4: no sourceRollup produces a caution about weak coverage", () => {
     const poi = makePoi();
     const enrichment = { rating: null, reviewCount: null, hours: null, specialty: null, summary: null, translatedSummary: null, priceLevel: null, locality: null };
     const structured = buildStructuredContent(poi, enrichment, [], null, "en");
-    const platformCaution = structured.cautions.find((c) => c.toLowerCase().includes("platform") || c.toLowerCase().includes("review"));
-    expect(platformCaution).toBeDefined();
+    // With contract-aware cautions, the first caution uses the category's weak source formulation
+    expect(structured.cautions.length).toBeGreaterThan(0);
+    const firstCaution = structured.cautions[0].toLowerCase();
+    // Should warn about limited coverage, regardless of exact wording
+    expect(firstCaution).toMatch(/limited|no identifiable|few reviews|no.*platform/);
   });
 
   it("H5: no official website does not produce false positive signal", () => {
@@ -782,6 +787,8 @@ describe("FVM-K: Export Validation", () => {
     ],
     cautions: ["Price information could not be confirmed."],
     unknowns: ["Bike parking availability unclear."],
+    divergences: [],
+    sourceConfirmation: "both",
   };
 
   const enrichment = makeBaseEnrichment({
@@ -895,7 +902,7 @@ describe("FVM-K: Export Validation", () => {
 
 describe("FVM-N: Stability Checks", () => {
   it("N1: ENRICHMENT_DISPLAY_ORDER covers all structured fields", () => {
-    const expectedFields = ["headline", "operationalSummary", "practicalities", "cautions", "unknowns", "sourceRollup"];
+    const expectedFields = ["headline", "operationalSummary", "practicalities", "cautions", "divergences", "unknowns", "sourceRollup", "sourceConfirmation"];
     for (const field of expectedFields) {
       expect((ENRICHMENT_DISPLAY_ORDER as readonly string[]).includes(field)).toBe(true);
     }
@@ -931,6 +938,8 @@ describe("FVM-N: Stability Checks", () => {
       sourceRollup: [],
       cautions: [],
       unknowns: [],
+      divergences: [],
+      sourceConfirmation: "none",
     };
     const essentials = buildEssentialsText(emptyStructured);
     // Should return null for completely empty input, not throw
