@@ -7,7 +7,7 @@
 import { useState, useCallback, useRef } from "react";
 import type { AppState, POI, PoiCategory, TraceData, RouteProcessingSettings } from "../types";
 import { parseGpx } from "../lib/gpx-parser";
-import { queryAllPois, type OverpassElement } from "../lib/overpass";
+import { queryAllPois, type OverpassElement, type QueryAllPoisResult } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { dlog } from "../lib/debug-log";
@@ -24,6 +24,8 @@ const INITIAL_STATE: AppState = {
   routeSettings: DEFAULT_ROUTE_SETTINGS,
   error: null,
   progress: "",
+  progressRatio: null,
+  warning: null,
 };
 
 export function useRavitools() {
@@ -180,19 +182,23 @@ export function useRavitools() {
         update({
           stage: "querying",
           progress: `Querying OpenStreetMap for ${selectedCategories.length} categories...`,
+          progressRatio: 0,
+          warning: null,
         });
 
         const endQuery = log.time("Overpass querying");
-        const rawElements = await queryAllPois(
+        const queryResult: QueryAllPoisResult = await queryAllPois(
           allSimplified,
           1000,
           selectedCategories,
           (done, total) => {
             update({
               progress: `Querying Overpass... (${done}/${total} chunks)`,
+              progressRatio: total > 0 ? done / total : null,
             });
           },
         );
+        const rawElements = queryResult.elements;
         endQuery();
 
         if (ctrl.signal.aborted) return;
@@ -222,10 +228,17 @@ export function useRavitools() {
 
         if (ctrl.signal.aborted) return;
 
+        // Build warning if some chunks failed
+        const chunkWarning = queryResult.failedChunks > 0
+          ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+          : null;
+
         update({
           stage: "done",
           pois,
           progress: `Found ${pois.length} POIs along your route${traces.length > 1 ? "s" : ""}`,
+          progressRatio: null,
+          warning: chunkWarning,
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
@@ -234,7 +247,7 @@ export function useRavitools() {
         log.error(`Pipeline error: ${message}`);
         // Keep traces visible on the map so the user can see what was loaded
         // and retry without re-uploading. Stage goes to "error" but traces persist.
-        update({ stage: "error", error: message, progress: "" });
+        update({ stage: "error", error: message, progress: "", progressRatio: null });
       }
     },
     [update],
@@ -261,20 +274,24 @@ export function useRavitools() {
         stage: "querying",
         error: null,
         progress: `Retrying Overpass query for ${selectedCategories.length} categories...`,
+        progressRatio: 0,
+        warning: null,
       });
 
       log.info("Retrying Overpass query", { traces: currentTraces.length, simplifiedPoints: allSimplified.length });
 
-      const rawElements = await queryAllPois(
+      const queryResult: QueryAllPoisResult = await queryAllPois(
         allSimplified,
         1000,
         selectedCategories,
         (done, total) => {
           update({
             progress: `Querying Overpass... (${done}/${total} chunks)`,
+            progressRatio: total > 0 ? done / total : null,
           });
         },
       );
+      const rawElements = queryResult.elements;
 
       if (ctrl.signal.aborted) return;
 
@@ -294,16 +311,23 @@ export function useRavitools() {
 
       if (ctrl.signal.aborted) return;
 
+      // Build warning if some chunks failed
+      const chunkWarning = queryResult.failedChunks > 0
+        ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+        : null;
+
       update({
         stage: "done",
         pois,
         progress: `Found ${pois.length} POIs along your route${currentTraces.length > 1 ? "s" : ""}`,
+        progressRatio: null,
+        warning: chunkWarning,
       });
     } catch (err) {
       if (ctrl.signal.aborted) return;
       const message = err instanceof Error ? err.message : "Unknown error occurred";
       log.error(`Retry failed: ${message}`);
-      update({ stage: "error", error: message, progress: "" });
+      update({ stage: "error", error: message, progress: "", progressRatio: null });
     }
   }, [state, update]);
 

@@ -245,4 +245,8 @@ export interface AppState {
   routeSettings: RouteProcessingSettings;
   error: string | null;
   progress: string;
+  /** Numeric progress ratio 0-1 for progress bar (null = indeterminate) */
+  progressRatio: number | null;
+  /** Non-blocking warning (e.g. partial results due to failed chunks) */
+  warning: string | null;
 }

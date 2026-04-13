@@ -165,7 +165,33 @@ export default function App() {
               className={`status-bar ${state.stage === "error" ? "error" : ""}`}
             >
               {isProcessing && <span className="spinner" />}
-              <span>{state.progress}</span>
+              <div style={{ flex: 1 }}>
+                <span>{state.progress}</span>
+                {state.progressRatio != null && (
+                  <div className="progress-bar-track" style={{ marginTop: "0.5rem" }}>
+                    <div
+                      className="progress-bar-fill"
+                      style={{
+                        width: `${Math.round(state.progressRatio * 100)}%`,
+                        backgroundColor: "var(--color-lime)",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Warning banner (partial results) */}
+          {state.warning && (
+            <div className="warning-box">
+              <p>
+                <span className="font-black uppercase">Warning:</span>{" "}
+                {state.warning}
+              </p>
+              <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                Retry failed chunks
+              </button>
             </div>
           )}
 

@@ -369,6 +369,32 @@ export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES
 // Namespace: osmand:
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Map marker emoji per category
+// Used as DivIcon content on the Leaflet map (no external icon font needed)
+// ---------------------------------------------------------------------------
+
+export const CATEGORY_EMOJI: Record<PoiCategory, string> = {
+  Water: "💧",
+  "Sleeping place": "🏕️",
+  Restroom: "🚻",
+  Shelter: "🏠",
+  "Food shop": "🛒",
+  "Restaurant or Bar": "🍽️",
+  Gears: "🔧",
+  DIY: "🛠️",
+  Laundry: "👕",
+  Medical: "🏥",
+  Pharmacy: "💊",
+  "Bank & ATM": "🏧",
+  "Post office": "📮",
+  Viewpoint: "👁️",
+  "Tourist info": "ℹ️",
+  Charging: "🔌",
+  Picnic: "🌳",
+  Wifi: "📶",
+};
+
 /** OsmAnd icon names follow the pattern "category_value" (underscores). */
 export const OSMAND_CATEGORY_ICONS: Record<PoiCategory, string> = {
   Water: "amenity_drinking_water",

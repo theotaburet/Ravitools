@@ -8,7 +8,7 @@ import {
   MapContainer,
   TileLayer,
   Polyline,
-  CircleMarker,
+  Marker,
   Popup,
   useMap,
 } from "react-leaflet";
@@ -16,6 +16,7 @@ import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
 import type { POI, TraceData, EnrichedData } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
+import { CATEGORY_EMOJI } from "../lib/poi-config";
 
 interface Props {
   traces: TraceData[];
@@ -52,7 +53,7 @@ function FlyToSelected({
   markerRefs,
 }: {
   selectedPoiId: string | null;
-  markerRefs: React.MutableRefObject<Map<string, L.CircleMarker>>;
+  markerRefs: React.MutableRefObject<Map<string, L.Marker>>;
 }) {
   const map = useMap();
 
@@ -74,7 +75,7 @@ function FlyToSelected({
 }
 
 export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
-  const markerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
+  const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
   const center = useMemo<[number, number]>(() => {
@@ -86,7 +87,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
     return [46.5, 2.5];
   }, [traces]);
 
-  const setMarkerRef = useCallback((poiId: string, el: L.CircleMarker | null) => {
+  const setMarkerRef = useCallback((poiId: string, el: L.Marker | null) => {
     if (el) {
       markerRefs.current.set(poiId, el);
     } else {
@@ -146,19 +147,23 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
         const enrichment = enrichments.get(poi.id);
         const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
         const isSelected = selectedPoiId === poi.id;
+        const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
+        const size = isSelected ? 32 : 24;
+
+        const icon = L.divIcon({
+          className: "poi-marker-icon",
+          html: `<div class="poi-marker ${isSelected ? "poi-marker-selected" : ""}" style="background:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+          popupAnchor: [0, -size / 2],
+        });
 
         return (
-          <CircleMarker
+          <Marker
             key={poi.id}
-            ref={(el) => setMarkerRef(poi.id, el as unknown as L.CircleMarker | null)}
-            center={[poi.lat, poi.lon]}
-            radius={isSelected ? 12 : 8}
-            pathOptions={{
-              fillColor: poi.style.backgroundColor,
-              fillOpacity: 1,
-              color: isSelected ? "#3b82f6" : "#1a1a1a",
-              weight: isSelected ? 4 : 2.5,
-            }}
+            ref={(el) => setMarkerRef(poi.id, el as unknown as L.Marker | null)}
+            position={[poi.lat, poi.lon]}
+            icon={icon}
             eventHandlers={{
               click: () => handleMarkerClick(poi.id),
             }}
@@ -261,7 +266,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                 </div>
               </div>
             </Popup>
-          </CircleMarker>
+          </Marker>
         );
       })}
 

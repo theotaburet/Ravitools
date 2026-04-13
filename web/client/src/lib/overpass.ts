@@ -181,9 +181,17 @@ export async function queryOverpass(
   throw lastError ?? new Error("Overpass query failed");
 }
 
+/** Result of queryAllPois — includes chunk failure info for user feedback */
+export interface QueryAllPoisResult {
+  elements: OverpassElement[];
+  failedChunks: number;
+  totalChunks: number;
+}
+
 /**
  * Query Overpass for all categories along a trace, chunking if necessary.
- * Returns raw elements from all chunks, deduplicated by OSM ID.
+ * Returns raw elements from all chunks, deduplicated by OSM ID,
+ * plus chunk failure counts so the caller can warn the user.
  *
  * Sends up to `concurrency` requests in parallel to reduce total latency
  * while staying friendly to the Overpass public API.
@@ -195,7 +203,7 @@ export async function queryAllPois(
   onProgress?: (done: number, total: number) => void,
   maxPointsPerQuery: number = 50,
   concurrency: number = 2,
-): Promise<OverpassElement[]> {
+): Promise<QueryAllPoisResult> {
   const log = dlog("overpass");
   const queries = buildChunkedQueries(
     simplifiedPoints,
@@ -216,6 +224,7 @@ export async function queryAllPois(
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
   let completed = 0;
+  let failedChunks = 0;
 
   const endTotal = log.time(`All ${queries.length} chunks`);
 
@@ -248,6 +257,7 @@ export async function queryAllPois(
         }
         log.debug(`Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`);
       } else {
+        failedChunks++;
         log.error(`Chunk failed: ${r.reason}`);
       }
       completed++;
@@ -258,10 +268,12 @@ export async function queryAllPois(
   }
 
   endTotal();
-  log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks`, {
+  log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks (${failedChunks} failed)`, {
     totalElements: allElements.length,
     totalDeduped: queries.length > 0 ? seenIds.size - allElements.length : 0,
+    failedChunks,
+    totalChunks: queries.length,
   });
 
-  return allElements;
+  return { elements: allElements, failedChunks, totalChunks: queries.length };
 }
