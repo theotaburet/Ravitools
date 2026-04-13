@@ -35,7 +35,15 @@ Le but est de garder des POI exploitables meme si le GPX traverse une grande vil
 
 ## Lancer en local
 
-Serveur:
+**Makefile (recommande):**
+
+```bash
+make all      # Start SearXNG + show instructions
+make client  # Start frontend (http://localhost:5173)
+make server  # Start backend (http://localhost:3001)
+```
+
+**Manuel:**
 
 ```bash
 cd web/server
