@@ -7,7 +7,7 @@
 import { useState, useCallback, useRef } from "react";
 import type { AppState, POI, PoiCategory, TraceData, RouteProcessingSettings } from "../types";
 import { parseGpx } from "../lib/gpx-parser";
-import { queryAllPois, type OverpassElement, type QueryAllPoisResult } from "../lib/overpass";
+import { queryAllPois, type OverpassElement, type QueryAllPoisResult, type QueryProgress } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { dlog } from "../lib/debug-log";
@@ -191,10 +191,11 @@ export function useRavitools() {
           allSimplified,
           1000,
           selectedCategories,
-          (done, total) => {
+          (p: QueryProgress) => {
+            const retryLabel = p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
             update({
-              progress: `Querying Overpass... (${done}/${total} chunks)`,
-              progressRatio: total > 0 ? done / total : null,
+              progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
+              progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
             });
           },
         );
@@ -284,10 +285,11 @@ export function useRavitools() {
         allSimplified,
         1000,
         selectedCategories,
-        (done, total) => {
+        (p: QueryProgress) => {
+          const retryLabel = p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
           update({
-            progress: `Querying Overpass... (${done}/${total} chunks)`,
-            progressRatio: total > 0 ? done / total : null,
+            progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
+            progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
           });
         },
       );

@@ -8,6 +8,7 @@ import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, Enrichability
 import { buildGoogleMapsUrl, searchPoi, reverseGeocode } from "./search";
 import { synthesize, isEngineReady } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
+import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -221,6 +222,7 @@ export async function enrichBatch(
   const total = pois.length;
   let completedCount = 0;
   const startTime = Date.now();
+  const log = dlog("enrichment");
 
   // Helper: compute ETA from current progress
   function computeEta(): number | null {
@@ -236,6 +238,31 @@ export async function enrichBatch(
     results.set(poi.id, enrichment);
     onProgress?.(poi.id, enrichment, completedCount, total);
     completedCount++;
+
+    // Debug log for visibility
+    if (enrichment.status === "done") {
+      log.info(`Enriched "${poi.name}" (${poi.category})`, {
+        status: enrichment.status,
+        sources: enrichment.sourceCount,
+        engines: enrichment.sourceEngines.join(",") || "none",
+        rating: enrichment.rating,
+        confidence: enrichment.confidence,
+        hasLLM: enrichment.summary != null,
+        progress: `${completedCount}/${total}`,
+      });
+    } else if (enrichment.status === "skipped") {
+      log.debug(`Skipped "${poi.name}" (${enrichment.skipReason})`, {
+        status: enrichment.status,
+        reason: enrichment.skipReason,
+        progress: `${completedCount}/${total}`,
+      });
+    } else if (enrichment.status === "error") {
+      log.error(`Failed "${poi.name}": ${enrichment.error}`, {
+        status: enrichment.status,
+        error: enrichment.error,
+        progress: `${completedCount}/${total}`,
+      });
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -287,6 +314,11 @@ export async function enrichBatch(
   // -----------------------------------------------------------------------
   // Stage 1: Geocode + Search — concurrent with stagger
   // -----------------------------------------------------------------------
+  log.info(`Stage 1: geocode+search for ${searchQueue.length} POIs (concurrency=${searchConcurrency}, stagger=${searchStaggerMs}ms)`, {
+    searchQueue: searchQueue.length,
+    skipped: total - searchQueue.length,
+    concurrency: searchConcurrency,
+  });
   onPhaseProgress?.("geocode-search", null);
 
   const searchResults: SearchStageResult[] = [];
@@ -371,6 +403,10 @@ export async function enrichBatch(
   const needSynthesis = searchResults.filter((r) => !r.earlyResult && r.snippets.length > 0);
 
   if (needSynthesis.length > 0) {
+    log.info(`Stage 2: LLM synthesis for ${needSynthesis.length} POIs (serial)`, {
+      needSynthesis: needSynthesis.length,
+      llmReady: isEngineReady(),
+    });
     onPhaseProgress?.("synthesize", computeEta());
 
     for (const item of needSynthesis) {
@@ -440,6 +476,19 @@ export async function enrichBatch(
       }
     }
   }
+
+  // Final summary
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const doneCount = [...results.values()].filter((r) => r.status === "done").length;
+  const skippedCount = [...results.values()].filter((r) => r.status === "skipped").length;
+  const errorCount = [...results.values()].filter((r) => r.status === "error").length;
+  log.info(`Enrichment complete: ${doneCount} done, ${skippedCount} skipped, ${errorCount} errors in ${elapsed}s`, {
+    total: results.size,
+    done: doneCount,
+    skipped: skippedCount,
+    errors: errorCount,
+    elapsedSec: parseFloat(elapsed),
+  });
 
   return results;
 }

@@ -455,18 +455,19 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 2.5px solid #1a1a1a;
+  border: 2.5px solid currentColor;
+  background: rgba(255,255,255,0.85);
   font-size: 13px;
   line-height: 1;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
   cursor: pointer;
   transition: transform 100ms, box-shadow 100ms;
 }
 
 .poi-marker-selected {
-  border-color: #3b82f6;
   border-width: 3px;
-  box-shadow: 3px 3px 0 rgba(59,130,246,0.5);
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.5), 2px 2px 0 rgba(0,0,0,0.3);
   z-index: 1000 !important;
 }
 

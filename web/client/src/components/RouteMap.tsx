@@ -152,7 +152,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
 
         const icon = L.divIcon({
           className: "poi-marker-icon",
-          html: `<div class="poi-marker ${isSelected ? "poi-marker-selected" : ""}" style="background:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
+          html: `<div class="poi-marker ${isSelected ? "poi-marker-selected" : ""}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
           popupAnchor: [0, -size / 2],

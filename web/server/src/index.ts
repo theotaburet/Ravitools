@@ -177,7 +177,7 @@ app.post("/overpass", limiter, async (req, res) => {
     log.info({ queryLength: query.length }, "Forwarding to Overpass");
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const timeout = setTimeout(() => controller.abort(), 180_000);
 
     let overpassRes: Response;
     try {
