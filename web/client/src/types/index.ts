@@ -183,6 +183,12 @@ export type EnrichmentJobStage =
   | "done"
   | "error";
 
+/** Current phase within "running" stage */
+export type EnrichmentPhase =
+  | "geocode-search" // fetching data from Nominatim + SearXNG
+  | "synthesize"     // LLM inference
+  | "idle";          // not actively enriching
+
 /** Enrichment job progress */
 export interface EnrichmentJobState {
   stage: EnrichmentJobStage;
@@ -200,6 +206,10 @@ export interface EnrichmentJobState {
   targetLanguage: TargetLanguage;
   /** Error message */
   error: string | null;
+  /** Current enrichment phase within "running" stage */
+  phase: EnrichmentPhase;
+  /** Estimated time remaining in seconds (null if not enough data) */
+  etaSeconds: number | null;
 }
 
 /** Application state */

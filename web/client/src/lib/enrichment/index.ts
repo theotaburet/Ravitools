@@ -6,4 +6,4 @@ export { buildGoogleMapsUrl, buildGoogleMapsDirectionsUrl, searchPoi, reverseGeo
 export { isWebGpuAvailable, initEngine, isEngineReady, unloadEngine, synthesize } from "./llm";
 export type { LlmSynthesis, ModelLoadProgressCallback } from "./llm";
 export { enrichPoi, enrichBatch, computeConfidence } from "./enricher";
-export type { EnrichmentProgressCallback, EnrichBatchOptions } from "./enricher";
+export type { EnrichmentProgressCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";

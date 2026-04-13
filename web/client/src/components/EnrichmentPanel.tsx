@@ -9,6 +9,14 @@ import { countFullEnrichable, countEnrichable } from "../lib/poi-config";
 
 const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 
+/** Format seconds into a human-readable ETA string */
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `~${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`;
+}
+
 interface Props {
   job: EnrichmentJobState;
   poiCount: number;
@@ -162,12 +170,22 @@ export function EnrichmentPanel({
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="spinner" />
             <span>
-              Enriching... {job.completed}/{job.total}
+              {job.phase === "geocode-search"
+                ? "Searching..."
+                : job.phase === "synthesize"
+                  ? "AI synthesis..."
+                  : "Enriching..."}{" "}
+              {job.completed}/{job.total}
             </span>
           </div>
           {job.currentPoiName && (
             <div className="text-xs text-muted font-mono truncate">
               Current: {job.currentPoiName}
+            </div>
+          )}
+          {job.etaSeconds != null && job.etaSeconds > 0 && (
+            <div className="text-xs text-muted font-mono">
+              ETA: {formatEta(job.etaSeconds)}
             </div>
           )}
           <div className="progress-bar-track">

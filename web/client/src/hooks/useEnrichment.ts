@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useRef } from "react";
-import type { POI, EnrichedData, EnrichmentJobState, TargetLanguage } from "../types";
+import type { POI, EnrichedData, EnrichmentJobState, TargetLanguage, EnrichmentPhase } from "../types";
 import {
   isWebGpuAvailable,
   initEngine,
@@ -25,6 +25,8 @@ const INITIAL_JOB: EnrichmentJobState = {
   webGpuAvailable: false,
   targetLanguage: "en",
   error: null,
+  phase: "idle",
+  etaSeconds: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -102,11 +104,12 @@ export function useEnrichment() {
         if (ctrl.signal.aborted) return;
 
         // Step 2: Batch enrichment
-        updateJob({ stage: "running", modelLoadProgress: 1 });
+        updateJob({ stage: "running", modelLoadProgress: 1, phase: "geocode-search", etaSeconds: null });
 
         await enrichBatch(pois, {
           signal: ctrl.signal,
-          delayBetweenPois: 1500,
+          searchConcurrency: 3,
+          searchStaggerMs: 500,
           skipUnnamed: true,
           targetLanguage,
           enrichAll,
@@ -124,6 +127,9 @@ export function useEnrichment() {
               currentPoiName:
                 index + 1 < total ? pois[index + 1]?.name ?? null : null,
             });
+          },
+          onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
+            updateJob({ phase, etaSeconds });
           },
         });
 

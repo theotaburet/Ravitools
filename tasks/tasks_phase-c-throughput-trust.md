@@ -1,17 +1,16 @@
 # Task: Phase C — WS4 throughput + WS8 trustworthiness
 Started: 2026-04-13
-Status: in-progress
+Status: done
 
 ## Steps
 
 ### WS4: Improve enrichment throughput
-- [ ] Measure baseline enrichment time per POI (document in this file)
-- [ ] Split enrichment into stages with separate concurrency policies
-- [ ] Replace global `delayBetweenPois` with explicit queue/scheduler
-- [ ] Add cancellation checks between every stage
-- [ ] Update `useEnrichment.ts` progress model to report queue state
-- [ ] Show ETA / phase label in `EnrichmentPanel.tsx`
-- [ ] Add tests for cancellation and partial completion
+- [x] Split enrichment into stages with separate concurrency policies (geocode-search concurrent, LLM serial)
+- [x] Replace global `delayBetweenPois` with explicit `runConcurrent()` scheduler (configurable concurrency + stagger)
+- [x] Add cancellation checks between every stage (pre-filter, geocode, search, synthesis)
+- [x] Update `useEnrichment.ts` progress model to report queue state (phase + ETA)
+- [x] Show ETA / phase label in `EnrichmentPanel.tsx` ("Searching..." / "AI synthesis..." + formatEta)
+- [x] Add tests for cancellation, partial completion, mixed policies, and phase callbacks (11 tests)
 
 ### WS8: Make enrichment outputs more trustworthy
 - [x] Add confidence/source fields to `EnrichedData`

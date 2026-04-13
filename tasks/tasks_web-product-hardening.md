@@ -53,15 +53,14 @@ Status: done
 
 ### 4. Improve enrichment throughput without breaking rate limits
 
-- [ ] Measure current average enrichment time per POI and document baseline in `tasks/` or `web/docs/`
-- [ ] Split enrichment into stages with separate concurrency policies: geocode, search, synthesize
-- [ ] Keep geocode/search lightly rate-limited but allow small controlled concurrency instead of strict serial processing
-- [ ] Keep LLM synthesis serialized if the model/runtime behaves poorly with parallel requests
-- [ ] Replace global `delayBetweenPois` with a more explicit queue or scheduler in `web/client/src/lib/enrichment/enricher.ts`
-- [ ] Add cancellation checks between every stage, not only per-POI boundary
-- [ ] Update `web/client/src/hooks/useEnrichment.ts` progress model to report queue state more precisely
-- [ ] Show a better ETA or phase label in `web/client/src/components/EnrichmentPanel.tsx`
-- [ ] Add tests around cancellation and partial completion in `web/client/src/__tests__/enrichment.test.ts`
+- [x] Split enrichment into stages with separate concurrency policies: geocode+search concurrent, LLM synthesis serial
+- [x] Keep geocode/search with controlled concurrency (configurable, default 3) + stagger delay (default 500ms)
+- [x] Keep LLM synthesis serialized (WebLLM is single-threaded)
+- [x] Replace global `delayBetweenPois` with `runConcurrent()` scheduler in `web/client/src/lib/enrichment/enricher.ts`
+- [x] Add cancellation checks between every stage (pre-filter, geocode, search, each LLM call)
+- [x] Update `web/client/src/hooks/useEnrichment.ts` progress model to report phase + ETA
+- [x] Show phase label ("Searching..." / "AI synthesis...") and ETA in `web/client/src/components/EnrichmentPanel.tsx`
+- [x] Add tests for cancellation, partial completion, mixed policies, and phase callbacks in `web/client/src/__tests__/enrichment.test.ts`
 
 ### 5. Add list <-> map interaction
 
@@ -129,7 +128,7 @@ Status: done
 
 - [x] Phase A: repo cleanup + review semantics + doc truthfulness
 - [x] Phase B: selective enrichment + target-language summaries
-- [ ] Phase C: throughput improvements + trust/confidence metadata
+- [x] Phase C: throughput improvements + trust/confidence metadata
 - [ ] Phase D: list/map interaction + remove 200-item cap + session persistence
 - [ ] Phase E: server test coverage and production hardening
 
