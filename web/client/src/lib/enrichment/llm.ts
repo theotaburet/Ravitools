@@ -134,7 +134,8 @@ Rules:
 - "summary" must stay in the original language of the snippets (French, English, Italian, etc.).
 - "translatedSummary" must be written in ${langName}. If the snippets are already in ${langName}, copy the summary as-is.
 - Summary should mention: vibe, quality, cyclist-friendliness if mentioned.
-- Be concise. Prefer null over uncertain data.`;
+- Be concise. Prefer null over uncertain data.
+- When snippets are vague or contradictory, say so explicitly (e.g. "Limited information available", "Sources disagree"). Never fill gaps with plausible-sounding invented detail.`;
 }
 
 /**

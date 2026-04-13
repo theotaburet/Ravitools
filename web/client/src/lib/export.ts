@@ -188,6 +188,9 @@ export function buildGeoJsonObject(
             enrichment_priceLevel: enrichment.priceLevel,
             enrichment_googleMapsUrl: enrichment.googleMapsUrl,
             enrichment_locality: enrichment.locality,
+            enrichment_sourceCount: enrichment.sourceCount,
+            enrichment_sourceEngines: enrichment.sourceEngines.join(","),
+            enrichment_confidence: enrichment.confidence,
           }
         : {};
 
@@ -387,6 +390,8 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
     const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
     if (displaySummary) parts.push(displaySummary);
     if (enrichment.locality) parts.push(`Location: ${enrichment.locality}`);
+    if (enrichment.sourceCount > 0) parts.push(`Sources: ${enrichment.sourceCount}`);
+    if (enrichment.confidence > 0) parts.push(`Confidence: ${Math.round(enrichment.confidence * 100)}%`);
     if (enrichment.googleMapsUrl) parts.push(`Google Maps: ${enrichment.googleMapsUrl}`);
   } else {
     // Fallback to raw OSM tags
@@ -416,6 +421,8 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
     const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
     if (displaySummary) parts.push(`<i>${displaySummary}</i>`);
     if (enrichment.locality) parts.push(`<b>Location:</b> ${enrichment.locality}`);
+    if (enrichment.sourceCount > 0) parts.push(`<b>Sources:</b> ${enrichment.sourceCount}`);
+    if (enrichment.confidence > 0) parts.push(`<b>Confidence:</b> ${Math.round(enrichment.confidence * 100)}%`);
     if (enrichment.googleMapsUrl) parts.push(`<a href="${enrichment.googleMapsUrl}">Google Maps</a>`);
   } else {
     if (poi.tags.opening_hours)

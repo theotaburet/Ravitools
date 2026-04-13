@@ -167,6 +167,12 @@ export interface EnrichedData {
   skipReason?: SkipReason;
   /** City/locality resolved via reverse geocoding */
   locality: string | null;
+  /** Number of distinct search snippets used (0 = no data) */
+  sourceCount: number;
+  /** Names of search engines that contributed snippets */
+  sourceEngines: string[];
+  /** Confidence score 0-1 based on source count, agreement, and structured field presence */
+  confidence: number;
 }
 
 /** Overall enrichment job state */

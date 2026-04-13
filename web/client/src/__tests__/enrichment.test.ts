@@ -168,6 +168,9 @@ describe("export with enrichments", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: "Tours",
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -202,6 +205,9 @@ describe("export with enrichments", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: null,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -232,6 +238,9 @@ describe("export with enrichments", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: "Paris",
+          sourceCount: 3,
+          sourceEngines: ["google", "bing"],
+          confidence: 0.55,
         },
       ],
     ]);
@@ -247,6 +256,9 @@ describe("export with enrichments", () => {
     expect(props.enrichment_priceLevel).toBe(1);
     expect(props.enrichment_locality).toBe("Paris");
     expect(props.enrichment_googleMapsUrl).toBe("https://maps.google.com");
+    expect(props.enrichment_sourceCount).toBe(3);
+    expect(props.enrichment_sourceEngines).toBe("google,bing");
+    expect(props.enrichment_confidence).toBe(0.55);
   });
 
   it("GeoJSON export works without enrichments", async () => {
@@ -301,6 +313,9 @@ describe("export with translated summary", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: "Tours",
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -330,6 +345,9 @@ describe("export with translated summary", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: null,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -358,6 +376,9 @@ describe("export with translated summary", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: null,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -388,6 +409,9 @@ describe("export with translated summary", () => {
           enrichedAt: "2026-04-12T00:00:00Z",
           status: "done" as const,
           locality: null,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
         },
       ],
     ]);
@@ -508,8 +532,194 @@ describe("EnrichedData skipReason field", () => {
       status: "skipped",
       skipReason: "low-value-category",
       locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
     };
     expect(data.status).toBe("skipped");
     expect(data.skipReason).toBe("low-value-category");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Confidence scoring
+// ---------------------------------------------------------------------------
+
+describe("computeConfidence", () => {
+  const baseEnrichment = {
+    rating: null,
+    reviewCount: null,
+    hours: null,
+    summary: null,
+    specialty: null,
+  };
+
+  function makeSnippets(count: number, engines: string[] = ["google"]): { engine: string }[] {
+    const result: { engine: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      result.push({ engine: engines[i % engines.length] });
+    }
+    return result;
+  }
+
+  it("returns 0 for no snippets", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    expect(computeConfidence({ ...baseEnrichment, rawSnippets: [] })).toBe(0);
+  });
+
+  it("returns > 0 for at least one snippet", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const score = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
+    expect(score).toBeGreaterThan(0);
+  });
+
+  it("increases with more snippets", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const score1 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
+    const score3 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
+    const score5 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(5) });
+    expect(score3).toBeGreaterThan(score1);
+    expect(score5).toBeGreaterThan(score3);
+  });
+
+  it("increases with engine diversity", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const singleEngine = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4, ["google"]) });
+    const multiEngine = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4, ["google", "bing"]) });
+    expect(multiEngine).toBeGreaterThan(singleEngine);
+  });
+
+  it("increases with structured fields present", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const noFields = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
+    const withFields = computeConfidence({
+      rating: 4.2,
+      reviewCount: 50,
+      hours: "9-17",
+      summary: "Good place",
+      specialty: "Cafe",
+      rawSnippets: makeSnippets(3),
+    });
+    expect(withFields).toBeGreaterThan(noFields);
+  });
+
+  it("never exceeds 1.0", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const maxScore = computeConfidence({
+      rating: 4.5,
+      reviewCount: 200,
+      hours: "24/7",
+      summary: "Great place",
+      specialty: "Restaurant",
+      rawSnippets: makeSnippets(20, ["google", "bing", "duckduckgo"]),
+    });
+    expect(maxScore).toBeLessThanOrEqual(1.0);
+  });
+
+  it("returns a number with at most 2 decimal places", async () => {
+    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const score = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
+    expect(score).toBe(Math.round(score * 100) / 100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Source metadata in exports
+// ---------------------------------------------------------------------------
+
+describe("export with source metadata", () => {
+  it("GPX text description includes Sources and Confidence", async () => {
+    const { buildGpxString } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: 4.0,
+          reviewCount: null,
+          hours: null,
+          summary: "A nice bistro.",
+          translatedSummary: null,
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: ["https://a.com", "https://b.com", "https://c.com"],
+          rawSnippets: [],
+          enrichedAt: "2026-04-13T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+          sourceCount: 3,
+          sourceEngines: ["google", "bing"],
+          confidence: 0.55,
+        },
+      ],
+    ]);
+    const gpx = buildGpxString([poi], null, enrichments);
+    expect(gpx).toContain("Sources: 3");
+    expect(gpx).toContain("Confidence: 55%");
+  });
+
+  it("KML HTML description includes Sources and Confidence", async () => {
+    const { buildKmlString } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: null,
+          reviewCount: null,
+          hours: null,
+          summary: "Ok place.",
+          translatedSummary: null,
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: ["https://a.com"],
+          rawSnippets: [],
+          enrichedAt: "2026-04-13T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+          sourceCount: 1,
+          sourceEngines: ["duckduckgo"],
+          confidence: 0.24,
+        },
+      ],
+    ]);
+    const kml = buildKmlString([poi], null, enrichments);
+    expect(kml).toContain("<b>Sources:</b> 1");
+    expect(kml).toContain("<b>Confidence:</b> 24%");
+  });
+
+  it("GeoJSON export includes sourceCount, sourceEngines, confidence", async () => {
+    const { buildGeoJsonObject } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: null,
+          reviewCount: null,
+          hours: null,
+          summary: null,
+          translatedSummary: null,
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: [],
+          rawSnippets: [],
+          enrichedAt: "2026-04-13T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+          sourceCount: 5,
+          sourceEngines: ["google", "bing", "duckduckgo"],
+          confidence: 0.82,
+        },
+      ],
+    ]);
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_sourceCount).toBe(5);
+    expect(props.enrichment_sourceEngines).toBe("google,bing,duckduckgo");
+    expect(props.enrichment_confidence).toBe(0.82);
   });
 });

@@ -79,6 +79,9 @@ export async function enrichPoi(
       status: "skipped",
       skipReason: "low-value-category",
       locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
     };
   }
 
@@ -106,6 +109,9 @@ export async function enrichPoi(
         enrichedAt: new Date().toISOString(),
         status: "done",
         locality,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
       };
     }
 
@@ -131,6 +137,9 @@ export async function enrichPoi(
         status: "skipped",
         skipReason: "no-results",
         locality,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
       };
     }
 
@@ -142,7 +151,7 @@ export async function enrichPoi(
       const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage);
 
       if (synthesis) {
-        return {
+        const result = {
           rating: synthesis.rating,
           reviewCount: synthesis.reviewCount,
           hours: synthesis.hours,
@@ -154,14 +163,19 @@ export async function enrichPoi(
           sourceUrls,
           rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
-          status: "done",
+          status: "done" as const,
           locality,
+          sourceCount: snippets.length,
+          sourceEngines: extractEngines(snippets),
+          confidence: 0,
         };
+        result.confidence = computeConfidence(result);
+        return result;
       }
     }
 
     // No LLM or synthesis failed — return raw snippets without synthesis
-    return {
+    const noLlmResult = {
       rating: null,
       reviewCount: null,
       hours: null,
@@ -173,9 +187,14 @@ export async function enrichPoi(
       sourceUrls,
       rawSnippets: snippets,
       enrichedAt: new Date().toISOString(),
-      status: "done",
+      status: "done" as const,
       locality,
+      sourceCount: snippets.length,
+      sourceEngines: extractEngines(snippets),
+      confidence: 0,
     };
+    noLlmResult.confidence = computeConfidence(noLlmResult);
+    return noLlmResult;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return {
@@ -193,6 +212,9 @@ export async function enrichPoi(
       status: "error",
       error: message,
       locality,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
     };
   }
 }
@@ -246,6 +268,9 @@ export async function enrichBatch(
         status: "skipped",
         skipReason: "unnamed",
         locality: null,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
       };
       results.set(poi.id, skippedData);
       onProgress?.(poi.id, skippedData, i, total);
@@ -275,4 +300,44 @@ export async function enrichBatch(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Compute a lightweight confidence score (0-1) for an enrichment result.
+ * Based on: source count, engine diversity, and structured field presence.
+ */
+export function computeConfidence(enrichment: {
+  rawSnippets: { engine: string }[];
+  rating: number | null;
+  reviewCount: number | null;
+  hours: string | null;
+  summary: string | null;
+  specialty: string | null;
+}): number {
+  const snippetCount = enrichment.rawSnippets.length;
+  if (snippetCount === 0) return 0;
+
+  // Source count factor: 1 snippet = 0.2, 3 = 0.5, 5+ = 0.7
+  const sourceFactor = Math.min(snippetCount / 7, 0.7);
+
+  // Engine diversity factor: multiple engines = higher confidence
+  const engines = new Set(enrichment.rawSnippets.map((s) => s.engine));
+  const diversityFactor = Math.min(engines.size * 0.1, 0.15);
+
+  // Structured field presence factor: each non-null field adds 0.03
+  let fieldFactor = 0;
+  if (enrichment.rating != null) fieldFactor += 0.03;
+  if (enrichment.reviewCount != null) fieldFactor += 0.03;
+  if (enrichment.hours != null) fieldFactor += 0.03;
+  if (enrichment.summary != null) fieldFactor += 0.03;
+  if (enrichment.specialty != null) fieldFactor += 0.03;
+  // Cap field factor at 0.15
+  fieldFactor = Math.min(fieldFactor, 0.15);
+
+  return Math.min(Math.round((sourceFactor + diversityFactor + fieldFactor) * 100) / 100, 1);
+}
+
+/** Extract unique engine names from snippets */
+function extractEngines(snippets: { engine: string }[]): string[] {
+  return [...new Set(snippets.map((s) => s.engine))];
 }

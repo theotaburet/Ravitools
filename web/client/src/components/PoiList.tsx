@@ -2,6 +2,7 @@
 // POI list component (neobrutalist) – with enrichment data
 // ---------------------------------------------------------------------------
 
+import { useState } from "react";
 import type { POI, EnrichedData, SkipReason } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 
@@ -14,13 +15,32 @@ const SKIP_REASON_LABELS: Record<SkipReason, string> = {
   "cancelled": "Cancelled",
 };
 
+/** Format confidence as a label */
+function confidenceLabel(c: number): string {
+  if (c >= 0.6) return "high";
+  if (c >= 0.3) return "medium";
+  if (c > 0) return "low";
+  return "none";
+}
+
 interface Props {
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
 }
 
 export function PoiList({ pois, enrichments }: Props) {
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+
   if (pois.length === 0) return null;
+
+  const toggleSources = (poiId: string) => {
+    setExpandedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(poiId)) next.delete(poiId);
+      else next.add(poiId);
+      return next;
+    });
+  };
 
   return (
     <div className="neo-box overflow-hidden">
@@ -31,6 +51,7 @@ export function PoiList({ pois, enrichments }: Props) {
         {pois.slice(0, 200).map((poi) => {
           const enrichment = enrichments.get(poi.id);
           const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
+          const showSources = expandedSources.has(poi.id);
 
           return (
             <div key={poi.id} className="poi-list-item">
@@ -78,6 +99,40 @@ export function PoiList({ pois, enrichments }: Props) {
                     {(enrichment.translatedSummary || enrichment.summary) && (
                       <div className="poi-enrichment-summary">
                         {enrichment.translatedSummary ?? enrichment.summary}
+                      </div>
+                    )}
+
+                    {/* Confidence + sources */}
+                    {enrichment.sourceCount > 0 && (
+                      <div className="poi-confidence-row">
+                        <span className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}>
+                          {confidenceLabel(enrichment.confidence)}
+                        </span>
+                        <button
+                          className="poi-sources-toggle"
+                          onClick={() => toggleSources(poi.id)}
+                        >
+                          {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                          {" "}
+                          {showSources ? "▲" : "▼"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Sources disclosure */}
+                    {showSources && enrichment.sourceUrls.length > 0 && (
+                      <div className="poi-sources-list">
+                        {enrichment.sourceUrls.map((url, idx) => (
+                          <a
+                            key={idx}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="poi-source-link"
+                          >
+                            {new URL(url).hostname}
+                          </a>
+                        ))}
                       </div>
                     )}
                   </>

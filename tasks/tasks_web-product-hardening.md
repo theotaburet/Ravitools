@@ -99,14 +99,14 @@ Status: done
 
 ### 8. Make enrichment outputs more trustworthy
 
-- [ ] Extend `EnrichedData` in `web/client/src/types/index.ts` with traceability fields: snippet count, source engines, confidence, skip reason
-- [ ] Compute a lightweight confidence score in `web/client/src/lib/enrichment/enricher.ts` based on source count, source agreement, and presence of structured fields
-- [ ] Surface `n sources` and confidence in `web/client/src/components/PoiList.tsx`
-- [ ] Surface the same confidence and source count in `web/client/src/components/RouteMap.tsx`
-- [ ] Add a `view sources` disclosure in list and/or popup UI
-- [ ] Include confidence metadata and source URLs in exports from `web/client/src/lib/export.ts`
-- [ ] Update the prompt in `web/client/src/lib/enrichment/llm.ts` so the model prefers explicit uncertainty over invented detail
-- [ ] Add tests that verify confidence and source metadata are preserved in exports and UI shaping
+- [x] Extend `EnrichedData` in `web/client/src/types/index.ts` with traceability fields: snippet count, source engines, confidence, skip reason
+- [x] Compute a lightweight confidence score in `web/client/src/lib/enrichment/enricher.ts` based on source count, source agreement, and presence of structured fields
+- [x] Surface `n sources` and confidence in `web/client/src/components/PoiList.tsx`
+- [x] Surface the same confidence and source count in `web/client/src/components/RouteMap.tsx`
+- [x] Add a `view sources` disclosure in list and/or popup UI
+- [x] Include confidence metadata and source URLs in exports from `web/client/src/lib/export.ts`
+- [x] Update the prompt in `web/client/src/lib/enrichment/llm.ts` so the model prefers explicit uncertainty over invented detail
+- [x] Add tests that verify confidence and source metadata are preserved in exports and UI shaping
 
 ### 9. Clarify review aggregation semantics
 

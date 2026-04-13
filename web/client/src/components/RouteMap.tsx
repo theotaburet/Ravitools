@@ -141,6 +141,14 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
                         {enrichment.translatedSummary ?? enrichment.summary}
                       </div>
                     )}
+                    {enrichment.sourceCount > 0 && (
+                      <div style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}>
+                        {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                        {enrichment.sourceEngines.length > 0 && (
+                          <> ({enrichment.sourceEngines.join(", ")})</>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
