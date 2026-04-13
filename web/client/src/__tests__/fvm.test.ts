@@ -12,6 +12,10 @@ import {
   classifySourcePlatform,
   getOfficialWebsiteUrl,
   buildSearchQuery,
+  isRejectedOfficialDomain,
+  isOfficialDomainSnippet,
+  normalizeUrlForDedup,
+  cleanPoiNameForSearch,
 } from "../lib/enrichment/search";
 import { buildStructuredContent, buildEssentialsText } from "../lib/enrichment/structured";
 import { parseLlmOutput } from "../lib/enrichment/llm";
@@ -103,8 +107,10 @@ describe("FVM-A: Source Discovery", () => {
     const query = buildSearchQuery(poi, "Valence");
     expect(query).toContain('"Carrefour Contact"');
     expect(query).toContain("Valence");
-    // Should contain review/hours bias
-    expect(query).toContain("avis OR review OR horaires");
+    // Should contain review/hours bias (per-category: Food shop)
+    expect(query).toContain("horaires");
+    expect(query).toContain("avis");
+    expect(query).toContain("review");
   });
 
   it("A3: Sleeping place query includes booking platforms", () => {
@@ -957,5 +963,192 @@ describe("FVM-N: Stability Checks", () => {
     // Both are from google_maps platform -> should be grouped into one digest
     const googleDigests = structured.sourceRollup.filter((d) => d.platform === "google_maps");
     expect(googleDigests).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// WS5: Official Website Hardening
+// ===========================================================================
+
+describe("FVM-WS5: Official Website Hardening", () => {
+  it("WS5-1: rejects Facebook URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.facebook.com/chezmarcel" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-2: rejects Instagram URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://instagram.com/chezmarcel" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-3: rejects TripAdvisor URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.tripadvisor.fr/restaurant/test" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-4: rejects Booking.com URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.booking.com/hotel/test" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-5: rejects PagesJaunes URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.pagesjaunes.fr/test" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-6: rejects YouTube URL as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.youtube.com/@chezmarcel" } });
+    expect(getOfficialWebsiteUrl(poi)).toBeNull();
+  });
+
+  it("WS5-7: accepts real domain as official website", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://chez-marcel.fr" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr");
+  });
+
+  it("WS5-8: falls back to contact:website when website is social", () => {
+    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://facebook.com/test", "contact:website": "https://real-site.fr" } });
+    expect(getOfficialWebsiteUrl(poi)).toBe("https://real-site.fr");
+  });
+
+  it("WS5-9: isRejectedOfficialDomain handles subdomains", () => {
+    expect(isRejectedOfficialDomain("https://m.facebook.com/page")).toBe(true);
+    expect(isRejectedOfficialDomain("https://fr.tripadvisor.com/test")).toBe(true);
+    expect(isRejectedOfficialDomain("https://not-facebook.com/page")).toBe(false);
+  });
+
+  it("WS5-10: isRejectedOfficialDomain handles malformed URLs", () => {
+    expect(isRejectedOfficialDomain("not-a-url")).toBe(false);
+    expect(isRejectedOfficialDomain("")).toBe(false);
+  });
+
+  it("WS5-11: isOfficialDomainSnippet matches same domain", () => {
+    expect(isOfficialDomainSnippet("https://chez-marcel.fr/menu", "https://chez-marcel.fr")).toBe(true);
+    expect(isOfficialDomainSnippet("https://www.chez-marcel.fr/about", "https://chez-marcel.fr")).toBe(true);
+  });
+
+  it("WS5-12: isOfficialDomainSnippet rejects different domain", () => {
+    expect(isOfficialDomainSnippet("https://google.com/maps/test", "https://chez-marcel.fr")).toBe(false);
+  });
+
+  it("WS5-13: isOfficialDomainSnippet returns false when no official URL", () => {
+    expect(isOfficialDomainSnippet("https://chez-marcel.fr", null)).toBe(false);
+  });
+});
+
+// ===========================================================================
+// WS6: Per-Category Search Query Tuning
+// ===========================================================================
+
+describe("FVM-WS6: Per-Category Search Query Tuning", () => {
+  it("WS6-1: Restaurant query has tripadvisor and menu keywords", () => {
+    const poi = makePoi({ category: "Restaurant or Bar" });
+    const query = buildSearchQuery(poi, "Lyon");
+    expect(query).toContain("tripadvisor");
+    expect(query).toContain("menu");
+  });
+
+  it("WS6-2: Food shop query has ouverture keyword", () => {
+    const poi = makePoi({ category: "Food shop", name: "Carrefour", tags: { shop: "supermarket" } });
+    const query = buildSearchQuery(poi, "Valence");
+    expect(query).toContain("ouverture");
+  });
+
+  it("WS6-3: Sleeping place query has tarif and reservation keywords", () => {
+    const poi = makePoi({ category: "Sleeping place", name: "Hotel du Parc", tags: { tourism: "hotel" } });
+    const query = buildSearchQuery(poi, null);
+    expect(query).toContain("tarif");
+    expect(query).toContain("reservation");
+  });
+
+  it("WS6-4: Gears query has réparation and atelier keywords", () => {
+    const poi = makePoi({ category: "Gears", name: "VeloBike", tags: { shop: "bicycle" } });
+    const query = buildSearchQuery(poi, "Grenoble");
+    expect(query).toContain("réparation");
+    expect(query).toContain("atelier");
+  });
+
+  it("WS6-5: unknown category falls back to default bias", () => {
+    const poi = makePoi({ category: "DIY" as any, name: "Brico Depot", tags: { shop: "doityourself" } });
+    const query = buildSearchQuery(poi, "Toulouse");
+    // Default bias should have generic review keywords
+    expect(query).toContain("avis");
+    expect(query).toContain("review");
+  });
+
+  it("WS6-6: cleanPoiNameForSearch removes parenthetical annotations", () => {
+    expect(cleanPoiNameForSearch("Le Zinc (closed)")).toBe("Le Zinc");
+    expect(cleanPoiNameForSearch("Carrefour (temporarily closed)")).toBe("Carrefour");
+  });
+
+  it("WS6-7: cleanPoiNameForSearch removes trailing closure annotations", () => {
+    expect(cleanPoiNameForSearch("Le Zinc - fermé")).toBe("Le Zinc");
+    expect(cleanPoiNameForSearch("Boulangerie – temporarily closed")).toBe("Boulangerie");
+  });
+
+  it("WS6-8: cleanPoiNameForSearch handles empty input", () => {
+    expect(cleanPoiNameForSearch("")).toBe("");
+    expect(cleanPoiNameForSearch("  ")).toBe("");
+  });
+
+  it("WS6-9: cleanPoiNameForSearch preserves normal names", () => {
+    expect(cleanPoiNameForSearch("Chez Marcel")).toBe("Chez Marcel");
+    expect(cleanPoiNameForSearch("Le Petit Zinc")).toBe("Le Petit Zinc");
+  });
+});
+
+// ===========================================================================
+// WS7: URL Normalization & Dedup
+// ===========================================================================
+
+describe("FVM-WS7: URL Normalization & Dedup", () => {
+  it("WS7-1: strips utm tracking params", () => {
+    const url = "https://example.com/page?utm_source=google&utm_medium=cpc&id=42";
+    const normalized = normalizeUrlForDedup(url);
+    expect(normalized).not.toContain("utm_source");
+    expect(normalized).not.toContain("utm_medium");
+    expect(normalized).toContain("id=42");
+  });
+
+  it("WS7-2: strips fbclid and gclid", () => {
+    const url = "https://example.com/page?fbclid=abc123&gclid=def456";
+    const normalized = normalizeUrlForDedup(url);
+    expect(normalized).not.toContain("fbclid");
+    expect(normalized).not.toContain("gclid");
+  });
+
+  it("WS7-3: normalizes www. prefix", () => {
+    const url1 = normalizeUrlForDedup("https://www.example.com/page");
+    const url2 = normalizeUrlForDedup("https://example.com/page");
+    expect(url1).toBe(url2);
+  });
+
+  it("WS7-4: normalizes m. prefix", () => {
+    const url1 = normalizeUrlForDedup("https://m.example.com/page");
+    const url2 = normalizeUrlForDedup("https://example.com/page");
+    expect(url1).toBe(url2);
+  });
+
+  it("WS7-5: strips trailing slash", () => {
+    const url1 = normalizeUrlForDedup("https://example.com/page/");
+    const url2 = normalizeUrlForDedup("https://example.com/page");
+    expect(url1).toBe(url2);
+  });
+
+  it("WS7-6: preserves root path slash", () => {
+    const normalized = normalizeUrlForDedup("https://example.com/");
+    // Root path should still have / (it's the minimum path)
+    expect(normalized).toContain("example.com");
+  });
+
+  it("WS7-7: handles malformed URLs gracefully", () => {
+    expect(normalizeUrlForDedup("not-a-url")).toBe("not-a-url");
+    expect(normalizeUrlForDedup("")).toBe("");
+  });
+
+  it("WS7-8: same page with/without tracking are equal after normalization", () => {
+    const clean = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel");
+    const tracked = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel?utm_source=google&ref=search");
+    expect(clean).toBe(tracked);
   });
 });
