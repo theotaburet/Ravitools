@@ -73,6 +73,14 @@ export function EnrichmentPanel({
         </div>
       )}
 
+      {/* SearXNG status */}
+      {!job.searxngAvailable && (
+        <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
+          SearXNG unavailable — search enrichment disabled.
+          Start SearXNG: <code>docker run -d -p 8888:8080 --rm searxng/searxng</code>
+        </div>
+      )}
+
       {/* Language selector */}
       {!isRunning && (
         <div className="flex items-center gap-2 mb-3">
@@ -117,6 +125,8 @@ export function EnrichmentPanel({
           <button
             className="neo-btn-primary w-full"
             onClick={onStart}
+            disabled={!job.searxngAvailable}
+            title={!job.searxngAvailable ? "Start SearXNG to enable enrichment" : undefined}
           >
             Enrich {enrichAll ? `all ${poiCount}` : `${poiCount}`} POIs
           </button>
@@ -132,6 +142,7 @@ export function EnrichmentPanel({
           <button
             className="neo-btn-primary w-full"
             onClick={onStart}
+            disabled={!job.searxngAvailable}
           >
             Re-enrich all ({poiCount})
           </button>
@@ -252,6 +263,7 @@ export function EnrichmentPanel({
           <button
             className="neo-btn-sm neo-btn-secondary"
             onClick={onStart}
+            disabled={!job.searxngAvailable}
           >
             Re-enrich all
           </button>

@@ -3,7 +3,7 @@
 // Manages: model loading → batch enrichment → progress → results
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { POI, EnrichedData, EnrichmentJobState, TargetLanguage, EnrichmentPhase } from "../types";
 import {
   isWebGpuAvailable,
@@ -11,6 +11,8 @@ import {
   unloadEngine,
   enrichBatch,
 } from "../lib/enrichment";
+
+const API_BASE = "/api";
 
 // ---------------------------------------------------------------------------
 // Initial state
@@ -25,6 +27,7 @@ const INITIAL_JOB: EnrichmentJobState = {
   currentPoiName: null,
   modelLoadProgress: 0,
   webGpuAvailable: false,
+  searxngAvailable: false,
   targetLanguage: "en",
   error: null,
   phase: "idle",
@@ -50,6 +53,19 @@ export function useEnrichment() {
       setJob((prev) => ({ ...prev, ...partial })),
     [],
   );
+
+  useEffect(() => {
+    fetch(`${API_BASE}/health`)
+      .then((res) => res.json())
+      .then((data) => {
+        updateJob({
+          searxngAvailable: data.services?.searxng === "ok",
+        });
+      })
+      .catch(() => {
+        updateJob({ searxngAvailable: false });
+      });
+  }, [updateJob]);
 
   /**
    * Start enrichment for a list of POIs.

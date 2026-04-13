@@ -217,6 +217,8 @@ export interface EnrichmentJobState {
   modelLoadProgress: number;
   /** Whether WebGPU is available */
   webGpuAvailable: boolean;
+  /** Whether SearXNG search service is available */
+  searxngAvailable: boolean;
   /** Target language for synthesis output */
   targetLanguage: TargetLanguage;
   /** Error message */

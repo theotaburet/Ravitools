@@ -101,11 +101,26 @@ const enrichLimiter = rateLimit({
 // ---------------------------------------------------------------------------
 // Health check
 // ---------------------------------------------------------------------------
-app.get("/health", (_req, res) => {
+app.get("/health", async (_req, res) => {
+  const services: Record<string, "ok" | "error"> = {};
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    await fetch(`${SEARXNG_URL}/health`, { signal: controller.signal });
+    services.searxng = "ok";
+  } catch {
+    services.searxng = "error";
+  } finally {
+    clearTimeout(timeout);
+  }
+
   res.json({
     status: "ok",
     cache_keys: cache.keys().length,
     uptime: process.uptime(),
+    services,
   });
 });
 

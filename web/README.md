@@ -98,6 +98,16 @@ web/
 - `client/src/lib/enrichment/`
 - `server/src/index.ts`
 
+## SearXNG (requis pour l'enrichissement)
+
+L'enrichissement utilise SearXNG pour la recherche web. Lancez-le avant de lancer l'enrichissement:
+
+```bash
+docker run -d -p 8888:8080 --rm -e SEARXNG_BASE_URL=http://localhost:8888 searxng/searxng
+```
+
+Le client verifie automatiquement la Disponibilite de SearXNG au chargement. Si indisponible, le bouton d'enrichissement est desactive avec un message d'erreur.
+
 ## Enrichissement
 
 L'enrichissement ajoute des infos d'usage quand OSM seul ne suffit pas: horaires, note, resume, specialite, niveau de prix, lien Google Maps.
