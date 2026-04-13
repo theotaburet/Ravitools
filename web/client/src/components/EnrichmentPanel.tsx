@@ -3,12 +3,17 @@
 // Neobrutalist design: progress bar, model download, batch trigger
 // ---------------------------------------------------------------------------
 
-import type { EnrichmentJobState } from "../types";
+import type { EnrichmentJobState, TargetLanguage } from "../types";
+import { TARGET_LANGUAGE_LABELS } from "../types";
+
+const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 
 interface Props {
   job: EnrichmentJobState;
   poiCount: number;
   enrichedCount: number;
+  targetLanguage: TargetLanguage;
+  onLanguageChange: (lang: TargetLanguage) => void;
   onStart: () => void;
   onCancel: () => void;
 }
@@ -17,6 +22,8 @@ export function EnrichmentPanel({
   job,
   poiCount,
   enrichedCount,
+  targetLanguage,
+  onLanguageChange,
   onStart,
   onCancel,
 }: Props) {
@@ -50,6 +57,24 @@ export function EnrichmentPanel({
         <div className="enrichment-notice">
           No WebGPU — raw search snippets only (no AI synthesis).
           Use Chrome/Edge for full experience.
+        </div>
+      )}
+
+      {/* Language selector */}
+      {!isRunning && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-mono text-muted">Summary language:</span>
+          <div className="flex gap-1">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang}
+                className={`neo-btn-sm ${lang === targetLanguage ? "neo-btn-primary" : "neo-btn-secondary"}`}
+                onClick={() => onLanguageChange(lang)}
+              >
+                {TARGET_LANGUAGE_LABELS[lang]}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

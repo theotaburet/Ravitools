@@ -12,30 +12,30 @@ Status: done
 
 ### 1. Remove legacy and simplify repo entry points
 
-- [ ] Delete Python legacy entry points no longer considered source of truth: `main.py`, `run.py`, `app_frontend.py`
-- [ ] Delete legacy support directories if unused after validation: `services/`, `utils/`, `exceptions/`, `schemas/`, `config/`
-- [ ] Remove historical root files if obsolete: `requirements.txt`, `config.yaml`, `CONTEXT.md`, `TODO.md`
-- [ ] Search the repo for references to deleted legacy files and remove or update them
-- [ ] Update `README.md` so the repo tells only the web-product story
-- [ ] Update `AGENTS.md` to remove references that imply Python is still a maintained path
-- [ ] Verify no npm, docs, agent instructions, or scripts still point to legacy files
+- [x] Delete Python legacy entry points no longer considered source of truth: `main.py`, `run.py`, `app_frontend.py`
+- [x] Delete legacy support directories if unused after validation: `services/`, `utils/`, `exceptions/`, `schemas/`, `config/`
+- [x] Remove historical root files if obsolete: `requirements.txt`, `config.yaml`, `CONTEXT.md`, `TODO.md`
+- [x] Search the repo for references to deleted legacy files and remove or update them
+- [x] Update `README.md` so the repo tells only the web-product story
+- [x] Update `AGENTS.md` to remove references that imply Python is still a maintained path
+- [x] Verify no npm, docs, agent instructions, or scripts still point to legacy files
 
 ### 2. Add target-language summaries for enrichment
 
-- [ ] Add a target language concept to enrichment state in `web/client/src/types/index.ts`
-- [ ] Decide supported values for V1: `fr` and `en`
-- [ ] Extend `EnrichedData` with fields that separate source-language content from user-facing translated summary
-- [ ] Add UI control to choose output language in `web/client/src/components/EnrichmentPanel.tsx`
-- [ ] Persist the language choice in local state first, then localStorage if session persistence is implemented
-- [ ] Update `web/client/src/hooks/useEnrichment.ts` so `startEnrichment()` accepts the selected target language
-- [ ] Extend `web/client/src/lib/enrichment/llm.ts` system prompt to request output in a target language instead of preserving snippet language
-- [ ] Keep source snippets untouched in original language for traceability
-- [ ] Ensure fallback behavior is explicit when WebGPU is unavailable: raw snippets only, no translated synthesis
-- [ ] Update `web/client/src/components/PoiList.tsx` to display translated summary when available
-- [ ] Update `web/client/src/components/RouteMap.tsx` popup rendering to display translated summary when available
-- [ ] Update `web/client/src/lib/export.ts` to include target-language summary in exports while preserving source URLs
-- [ ] Add tests for language selection and output shaping in `web/client/src/__tests__/enrichment.test.ts`
-- [ ] Add tests for exported translated summaries in `web/client/src/__tests__/export.test.ts`
+- [x] Add a target language concept to enrichment state in `web/client/src/types/index.ts`
+- [x] Decide supported values for V1: `fr` and `en`
+- [x] Extend `EnrichedData` with fields that separate source-language content from user-facing translated summary
+- [x] Add UI control to choose output language in `web/client/src/components/EnrichmentPanel.tsx`
+- [x] Persist the language choice in local state first, then localStorage if session persistence is implemented
+- [x] Update `web/client/src/hooks/useEnrichment.ts` so `startEnrichment()` accepts the selected target language
+- [x] Extend `web/client/src/lib/enrichment/llm.ts` system prompt to request output in a target language instead of preserving snippet language
+- [x] Keep source snippets untouched in original language for traceability
+- [x] Ensure fallback behavior is explicit when WebGPU is unavailable: raw snippets only, no translated synthesis
+- [x] Update `web/client/src/components/PoiList.tsx` to display translated summary when available
+- [x] Update `web/client/src/components/RouteMap.tsx` popup rendering to display translated summary when available
+- [x] Update `web/client/src/lib/export.ts` to include target-language summary in exports while preserving source URLs
+- [x] Add tests for language selection and output shaping in `web/client/src/__tests__/enrichment.test.ts`
+- [x] Add tests for exported translated summaries in `web/client/src/__tests__/export.test.ts`
 
 ### 3. Make enrichment selective instead of uniformly applied
 
@@ -110,11 +110,11 @@ Status: done
 
 ### 9. Clarify review aggregation semantics
 
-- [ ] Decide product semantics for ratings: simple extracted average, source-reported average, or unknown if ambiguous
-- [ ] Do not claim `median` unless it is actually computed from source data
-- [ ] Rename fields or labels in `web/client/src/types/index.ts` and UI if needed to avoid overclaiming
-- [ ] Update UI copy in `web/client/src/components/PoiList.tsx` and `web/client/src/components/RouteMap.tsx` to say exactly what the number means
-- [ ] Update `web/README.md` to reflect the chosen semantics accurately
+- [x] Decide product semantics for ratings: simple extracted average, source-reported average, or unknown if ambiguous
+- [x] Do not claim `median` unless it is actually computed from source data
+- [x] Rename fields or labels in `web/client/src/types/index.ts` and UI if needed to avoid overclaiming
+- [x] Update UI copy in `web/client/src/components/PoiList.tsx` and `web/client/src/components/RouteMap.tsx` to say exactly what the number means
+- [x] Update `web/README.md` to reflect the chosen semantics accurately
 
 ### 10. Server-side reliability and test coverage
 
@@ -127,7 +127,7 @@ Status: done
 
 ## Sequencing
 
-- [ ] Phase A: repo cleanup + review semantics + doc truthfulness
+- [x] Phase A: repo cleanup + review semantics + doc truthfulness
 - [ ] Phase B: selective enrichment + target-language summaries
 - [ ] Phase C: throughput improvements + trust/confidence metadata
 - [ ] Phase D: list/map interaction + remove 200-item cap + session persistence

@@ -130,7 +130,7 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
                         {enrichment.hours}
                       </div>
                     )}
-                    {enrichment.summary && (
+                    {(enrichment.translatedSummary || enrichment.summary) && (
                       <div
                         style={{
                           marginTop: "0.25rem",
@@ -138,7 +138,7 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
                           lineHeight: "1.3",
                         }}
                       >
-                        {enrichment.summary}
+                        {enrichment.translatedSummary ?? enrichment.summary}
                       </div>
                     )}
                   </div>

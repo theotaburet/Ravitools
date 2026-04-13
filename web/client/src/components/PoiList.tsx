@@ -66,9 +66,9 @@ export function PoiList({ pois, enrichments }: Props) {
                         {enrichment.hours}
                       </div>
                     )}
-                    {enrichment.summary && (
+                    {(enrichment.translatedSummary || enrichment.summary) && (
                       <div className="poi-enrichment-summary">
-                        {enrichment.summary}
+                        {enrichment.translatedSummary ?? enrichment.summary}
                       </div>
                     )}
                   </>

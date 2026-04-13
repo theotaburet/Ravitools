@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useRef } from "react";
-import type { POI, EnrichedData, EnrichmentJobState } from "../types";
+import type { POI, EnrichedData, EnrichmentJobState, TargetLanguage } from "../types";
 import {
   isWebGpuAvailable,
   initEngine,
@@ -23,6 +23,7 @@ const INITIAL_JOB: EnrichmentJobState = {
   currentPoiName: null,
   modelLoadProgress: 0,
   webGpuAvailable: false,
+  targetLanguage: "en",
   error: null,
 };
 
@@ -51,9 +52,10 @@ export function useEnrichment() {
    * 1. Load WebLLM model (if WebGPU available)
    * 2. Run batch enrichment (search + geocode + LLM per POI)
    * 3. Update enrichments map incrementally
+   * @param targetLanguage - language for LLM synthesis output (default: "en")
    */
   const startEnrichment = useCallback(
-    async (pois: POI[]) => {
+    async (pois: POI[], targetLanguage: TargetLanguage = "en") => {
       // Cancel any running job
       abortRef.current?.abort();
       const ctrl = new AbortController();
@@ -71,6 +73,7 @@ export function useEnrichment() {
             currentPoiName: null,
             modelLoadProgress: 0,
             webGpuAvailable: true,
+            targetLanguage,
             error: null,
           });
 
@@ -90,6 +93,7 @@ export function useEnrichment() {
             currentPoiName: null,
             modelLoadProgress: 1,
             webGpuAvailable: false,
+            targetLanguage,
             error: null,
           });
         }
@@ -103,6 +107,7 @@ export function useEnrichment() {
           signal: ctrl.signal,
           delayBetweenPois: 1500,
           skipUnnamed: true,
+          targetLanguage,
           onProgress: (poiId, enrichment, index, total) => {
             // Update enrichments map incrementally
             setEnrichments((prev) => {

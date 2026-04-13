@@ -153,6 +153,7 @@ describe("export with enrichments", () => {
           reviewCount: 87,
           hours: "Mon-Fri 12:00-14:00, 19:00-22:00",
           summary: "Excellent French bistro, cyclist-friendly terrace.",
+          translatedSummary: null,
           specialty: "French bistro",
           priceLevel: 2,
           googleMapsUrl: "https://www.google.com/maps/search/Le+Petit+Zinc",
@@ -186,6 +187,7 @@ describe("export with enrichments", () => {
           reviewCount: 42,
           hours: null,
           summary: "Good place to eat.",
+          translatedSummary: null,
           specialty: "Italian",
           priceLevel: null,
           googleMapsUrl: "https://www.google.com/maps/search/test",
@@ -215,6 +217,7 @@ describe("export with enrichments", () => {
           reviewCount: 100,
           hours: "24/7",
           summary: "Always open.",
+          translatedSummary: "Toujours ouvert.",
           specialty: "Cafe",
           priceLevel: 1,
           googleMapsUrl: "https://maps.google.com",
@@ -233,6 +236,7 @@ describe("export with enrichments", () => {
     expect(props.enrichment_reviewCount).toBe(100);
     expect(props.enrichment_hours).toBe("24/7");
     expect(props.enrichment_summary).toBe("Always open.");
+    expect(props.enrichment_translatedSummary).toBe("Toujours ouvert.");
     expect(props.enrichment_specialty).toBe("Cafe");
     expect(props.enrichment_priceLevel).toBe(1);
     expect(props.enrichment_locality).toBe("Paris");
@@ -255,5 +259,135 @@ describe("export with enrichments", () => {
     const gpx = buildGpxString([poi], null);
     expect(gpx).toContain("Le Petit Zinc");
     expect(gpx).toContain("Restaurant or Bar");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Target language and translated summary
+// ---------------------------------------------------------------------------
+
+describe("target language types", () => {
+  it("TARGET_LANGUAGE_LABELS has entries for all supported languages", async () => {
+    const { TARGET_LANGUAGE_LABELS } = await import("../types");
+    expect(TARGET_LANGUAGE_LABELS.fr).toBe("Français");
+    expect(TARGET_LANGUAGE_LABELS.en).toBe("English");
+  });
+});
+
+describe("export with translated summary", () => {
+  it("GPX export prefers translatedSummary over summary", async () => {
+    const { buildGpxString } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: 4.0,
+          reviewCount: 50,
+          hours: null,
+          summary: "Excellent bistrot avec terrasse.",
+          translatedSummary: "Excellent bistro with terrace.",
+          specialty: "French",
+          priceLevel: 2,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: [],
+          rawSnippets: [],
+          enrichedAt: "2026-04-12T00:00:00Z",
+          status: "done" as const,
+          locality: "Tours",
+        },
+      ],
+    ]);
+
+    const gpx = buildGpxString([poi], null, enrichments);
+    expect(gpx).toContain("Excellent bistro with terrace.");
+    expect(gpx).not.toContain("Excellent bistrot avec terrasse.");
+  });
+
+  it("GPX export falls back to summary when translatedSummary is null", async () => {
+    const { buildGpxString } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: null,
+          reviewCount: null,
+          hours: null,
+          summary: "Un bon endroit.",
+          translatedSummary: null,
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: [],
+          rawSnippets: [],
+          enrichedAt: "2026-04-12T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+        },
+      ],
+    ]);
+
+    const gpx = buildGpxString([poi], null, enrichments);
+    expect(gpx).toContain("Un bon endroit.");
+  });
+
+  it("GeoJSON export includes both summary and translatedSummary", async () => {
+    const { buildGeoJsonObject } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: null,
+          reviewCount: null,
+          hours: null,
+          summary: "Original language summary.",
+          translatedSummary: "Résumé en français.",
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: [],
+          rawSnippets: [],
+          enrichedAt: "2026-04-12T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+        },
+      ],
+    ]);
+
+    const geojson = buildGeoJsonObject([poi], enrichments);
+    const props = geojson.features[0].properties!;
+    expect(props.enrichment_summary).toBe("Original language summary.");
+    expect(props.enrichment_translatedSummary).toBe("Résumé en français.");
+  });
+
+  it("KML export prefers translatedSummary over summary in HTML description", async () => {
+    const { buildKmlString } = await import("../lib/export");
+    const poi = makePoi();
+    const enrichments = new Map([
+      [
+        "test-poi-1",
+        {
+          rating: null,
+          reviewCount: null,
+          hours: null,
+          summary: "Buon ristorante italiano.",
+          translatedSummary: "Good Italian restaurant.",
+          specialty: null,
+          priceLevel: null,
+          googleMapsUrl: "https://maps.google.com",
+          sourceUrls: [],
+          rawSnippets: [],
+          enrichedAt: "2026-04-12T00:00:00Z",
+          status: "done" as const,
+          locality: null,
+        },
+      ],
+    ]);
+
+    const kml = buildKmlString([poi], null, enrichments);
+    expect(kml).toContain("Good Italian restaurant.");
+    expect(kml).not.toContain("Buon ristorante italiano.");
   });
 });

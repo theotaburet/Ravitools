@@ -2,6 +2,7 @@
 // App – main application component (neobrutalist Tailwind)
 // ---------------------------------------------------------------------------
 
+import { useState } from "react";
 import { useRavitools } from "./hooks/useRavitools";
 import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
@@ -10,6 +11,7 @@ import { CategoryFilter } from "./components/CategoryFilter";
 import { ExportPanel } from "./components/ExportPanel";
 import { PoiList } from "./components/PoiList";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
+import type { TargetLanguage } from "./types";
 
 export default function App() {
   const {
@@ -28,6 +30,8 @@ export default function App() {
     cancelEnrichment,
     resetEnrichment,
   } = useEnrichment();
+
+  const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("en");
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -101,7 +105,9 @@ export default function App() {
               job={enrichmentJob}
               poiCount={filteredPois.length}
               enrichedCount={enrichments.size}
-              onStart={() => startEnrichment(filteredPois)}
+              targetLanguage={targetLanguage}
+              onLanguageChange={setTargetLanguage}
+              onStart={() => startEnrichment(filteredPois, targetLanguage)}
               onCancel={cancelEnrichment}
             />
           )}

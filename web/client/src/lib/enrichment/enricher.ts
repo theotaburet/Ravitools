@@ -3,7 +3,7 @@
 // For each POI: reverse geocode → search → LLM synthesis → EnrichedData
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData, EnrichmentStatus } from "../../types";
+import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage } from "../../types";
 import { buildGoogleMapsUrl, searchPoi, reverseGeocode } from "./search";
 import { synthesize, isEngineReady } from "./llm";
 
@@ -29,6 +29,8 @@ export interface EnrichBatchOptions {
   delayBetweenPois?: number;
   /** Skip POIs whose name is "Unknown" or empty */
   skipUnnamed?: boolean;
+  /** Target language for LLM synthesis output (default: "en") */
+  targetLanguage?: TargetLanguage;
   /** Callback after each POI completes */
   onProgress?: EnrichmentProgressCallback;
 }
@@ -46,9 +48,11 @@ export async function enrichPoi(
   options: {
     apiBase?: string;
     signal?: AbortSignal;
+    targetLanguage?: TargetLanguage;
   } = {},
 ): Promise<EnrichedData> {
   const apiBase = options.apiBase ?? "/api";
+  const targetLanguage = options.targetLanguage ?? "en";
   const googleMapsUrl = buildGoogleMapsUrl(poi);
 
   let status: EnrichmentStatus = "pending";
@@ -69,6 +73,7 @@ export async function enrichPoi(
         reviewCount: null,
         hours: null,
         summary: null,
+        translatedSummary: null,
         specialty: null,
         priceLevel: null,
         googleMapsUrl,
@@ -85,7 +90,7 @@ export async function enrichPoi(
     const sourceUrls = snippets.map((s) => s.url);
 
     if (isEngineReady()) {
-      const synthesis = await synthesize(poi.name, poi.category, snippets);
+      const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage);
 
       if (synthesis) {
         return {
@@ -93,6 +98,7 @@ export async function enrichPoi(
           reviewCount: synthesis.reviewCount,
           hours: synthesis.hours,
           summary: synthesis.summary,
+          translatedSummary: synthesis.translatedSummary,
           specialty: synthesis.specialty,
           priceLevel: synthesis.priceLevel,
           googleMapsUrl,
@@ -111,6 +117,7 @@ export async function enrichPoi(
       reviewCount: null,
       hours: null,
       summary: null,
+      translatedSummary: null,
       specialty: null,
       priceLevel: null,
       googleMapsUrl,
@@ -127,6 +134,7 @@ export async function enrichPoi(
       reviewCount: null,
       hours: null,
       summary: null,
+      translatedSummary: null,
       specialty: null,
       priceLevel: null,
       googleMapsUrl,
@@ -158,6 +166,7 @@ export async function enrichBatch(
     signal,
     delayBetweenPois = 1500,
     skipUnnamed = true,
+    targetLanguage = "en",
     onProgress,
   } = options;
 
@@ -176,6 +185,7 @@ export async function enrichBatch(
         reviewCount: null,
         hours: null,
         summary: null,
+        translatedSummary: null,
         specialty: null,
         priceLevel: null,
         googleMapsUrl: buildGoogleMapsUrl(poi),
@@ -190,7 +200,7 @@ export async function enrichBatch(
       continue;
     }
 
-    const enrichment = await enrichPoi(poi, { apiBase, signal });
+    const enrichment = await enrichPoi(poi, { apiBase, signal, targetLanguage });
     results.set(poi.id, enrichment);
     onProgress?.(poi.id, enrichment, i, total);
 

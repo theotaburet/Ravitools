@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
 // Domain types for Ravitools
-// Extracted from the Python reference (config.yaml, utils.py, data_processor)
 // ---------------------------------------------------------------------------
 
 /** A single point on a GPX trace */
@@ -105,6 +104,15 @@ export type PipelineStage =
 // Enrichment types
 // ---------------------------------------------------------------------------
 
+/** Supported output languages for enrichment synthesis */
+export type TargetLanguage = "fr" | "en";
+
+/** Human-readable labels for target languages */
+export const TARGET_LANGUAGE_LABELS: Record<TargetLanguage, string> = {
+  fr: "Français",
+  en: "English",
+};
+
 /** A single search snippet from SearXNG */
 export interface SearchSnippet {
   title: string;
@@ -124,8 +132,10 @@ export interface EnrichedData {
   reviewCount: number | null;
   /** Opening hours as human-readable string, extracted from snippets */
   hours: string | null;
-  /** Short summary of the place (2-3 sentences max), synthesized from snippets */
+  /** Short summary of the place (2-3 sentences max), synthesized from snippets in source language */
   summary: string | null;
+  /** Summary translated/rewritten in the user's target language. Null when no LLM or language matches source. */
+  translatedSummary: string | null;
   /** Type/cuisine/specialty (e.g. "Italian restaurant", "mountain bike shop") */
   specialty: string | null;
   /** Price level (1-4 scale, null if unknown). Extracted from snippets, not verified. */
@@ -167,6 +177,8 @@ export interface EnrichmentJobState {
   modelLoadProgress: number;
   /** Whether WebGPU is available */
   webGpuAvailable: boolean;
+  /** Target language for synthesis output */
+  targetLanguage: TargetLanguage;
   /** Error message */
   error: string | null;
 }

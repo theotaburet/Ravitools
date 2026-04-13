@@ -4,7 +4,7 @@
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
-import type { SearchSnippet } from "../../types";
+import type { SearchSnippet, TargetLanguage } from "../../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,7 +15,10 @@ export interface LlmSynthesis {
   rating: number | null;
   reviewCount: number | null;
   hours: string | null;
+  /** Summary in source snippet language */
   summary: string | null;
+  /** Summary rewritten in the user's target language (same as summary if source already matches) */
+  translatedSummary: string | null;
   specialty: string | null;
   priceLevel: number | null;
 }
@@ -106,8 +109,10 @@ export async function unloadEngine(): Promise<void> {
 /**
  * Build the system prompt for POI synthesis.
  * The LLM extracts structured info from raw search snippets.
+ * @param targetLanguage - language for the translatedSummary field
  */
-function buildSystemPrompt(): string {
+function buildSystemPrompt(targetLanguage: TargetLanguage): string {
+  const langName = targetLanguage === "fr" ? "French" : "English";
   return `You are a travel assistant. Given web search snippets about a place, extract useful information for a cyclist.
 
 Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
@@ -115,7 +120,8 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
   "rating": <number 1-5 or null if not mentioned in snippets>,
   "reviewCount": <number or null if not mentioned>,
   "hours": <string or null, e.g. "Mon-Fri 8:00-19:00, Sat 9:00-13:00">,
-  "summary": <string, 2-3 sentences max, useful for a cyclist, or null>,
+  "summary": <string in the original snippet language, 2-3 sentences max, useful for a cyclist, or null>,
+  "translatedSummary": <same summary rewritten in ${langName}, 2-3 sentences max, or null if summary is null>,
   "specialty": <string, type/cuisine/specialty, or null>,
   "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>
 }
@@ -125,8 +131,9 @@ Rules:
 - If a field cannot be determined from snippets, ALWAYS use null. Never guess.
 - For rating: only extract if an explicit rating (e.g. "4.2/5", "4 stars") is mentioned. Do not estimate from sentiment.
 - For reviewCount: only extract if an explicit count is mentioned (e.g. "238 reviews"). Do not estimate.
+- "summary" must stay in the original language of the snippets (French, English, Italian, etc.).
+- "translatedSummary" must be written in ${langName}. If the snippets are already in ${langName}, copy the summary as-is.
 - Summary should mention: vibe, quality, cyclist-friendliness if mentioned.
-- Keep the language of the snippets (French, English, Italian, etc.).
 - Be concise. Prefer null over uncertain data.`;
 }
 
@@ -166,11 +173,13 @@ const TEMPERATURE = 0.1;
 /**
  * Synthesize search snippets into structured enrichment data using the in-browser LLM.
  * Returns null if engine is not ready or synthesis fails.
+ * @param targetLanguage - language for the translatedSummary output
  */
 export async function synthesize(
   poiName: string,
   category: string,
   snippets: SearchSnippet[],
+  targetLanguage: TargetLanguage = "en",
 ): Promise<LlmSynthesis | null> {
   if (!engineReady || !engineInstance) return null;
   if (snippets.length === 0) return null;
@@ -178,7 +187,7 @@ export async function synthesize(
   try {
     const response = await engineInstance.chat.completions.create({
       messages: [
-        { role: "system", content: buildSystemPrompt() },
+        { role: "system", content: buildSystemPrompt(targetLanguage) },
         {
           role: "user",
           content: buildUserPrompt(poiName, category, snippets),
@@ -228,6 +237,9 @@ function parseLlmOutput(text: string): LlmSynthesis | null {
         : null,
       summary: typeof parsed.summary === "string" && parsed.summary.length > 0
         ? parsed.summary.slice(0, 500)
+        : null,
+      translatedSummary: typeof parsed.translatedSummary === "string" && parsed.translatedSummary.length > 0
+        ? parsed.translatedSummary.slice(0, 500)
         : null,
       specialty: typeof parsed.specialty === "string" && parsed.specialty.length > 0
         ? parsed.specialty.slice(0, 100)

@@ -183,6 +183,7 @@ export function buildGeoJsonObject(
             enrichment_reviewCount: enrichment.reviewCount,
             enrichment_hours: enrichment.hours,
             enrichment_summary: enrichment.summary,
+            enrichment_translatedSummary: enrichment.translatedSummary,
             enrichment_specialty: enrichment.specialty,
             enrichment_priceLevel: enrichment.priceLevel,
             enrichment_googleMapsUrl: enrichment.googleMapsUrl,
@@ -382,7 +383,9 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.specialty) parts.push(`Type: ${enrichment.specialty}`);
     if (enrichment.hours) parts.push(`Hours: ${enrichment.hours}`);
     if (enrichment.priceLevel != null) parts.push(`Price: ${"$".repeat(enrichment.priceLevel)}`);
-    if (enrichment.summary) parts.push(enrichment.summary);
+    // Prefer translated summary for user-facing output
+    const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
+    if (displaySummary) parts.push(displaySummary);
     if (enrichment.locality) parts.push(`Location: ${enrichment.locality}`);
     if (enrichment.googleMapsUrl) parts.push(`Google Maps: ${enrichment.googleMapsUrl}`);
   } else {
@@ -409,7 +412,9 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.specialty) parts.push(`<b>Type:</b> ${enrichment.specialty}`);
     if (enrichment.hours) parts.push(`<b>Hours:</b> ${enrichment.hours}`);
     if (enrichment.priceLevel != null) parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
-    if (enrichment.summary) parts.push(`<i>${enrichment.summary}</i>`);
+    // Prefer translated summary for user-facing output
+    const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
+    if (displaySummary) parts.push(`<i>${displaySummary}</i>`);
     if (enrichment.locality) parts.push(`<b>Location:</b> ${enrichment.locality}`);
     if (enrichment.googleMapsUrl) parts.push(`<a href="${enrichment.googleMapsUrl}">Google Maps</a>`);
   } else {
