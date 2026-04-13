@@ -32,6 +32,7 @@ function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "stat
       practicalities: [],
       sourceRollup: [],
       cautions: [],
+      unknowns: [],
     },
   };
 }

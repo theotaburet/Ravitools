@@ -201,6 +201,7 @@ export function buildGeoJsonObject(
             enrichment_structured_operationalSummary: enrichment.structured?.operationalSummary ?? null,
             enrichment_structured_practicalities: enrichment.structured?.practicalities.join(" | ") ?? null,
             enrichment_structured_cautions: enrichment.structured?.cautions.join(" | ") ?? null,
+            enrichment_structured_unknowns: enrichment.structured?.unknowns.join(" | ") ?? null,
             enrichment_structured_sourceRollup: enrichment.structured?.sourceRollup.map((digest) => `${digest.platform}: ${digest.brief}`).join(" | ") ?? null,
           }
         : {};
@@ -543,6 +544,7 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.structured?.operationalSummary) parts.push(enrichment.structured.operationalSummary);
     if (enrichment.structured?.practicalities?.length) parts.push(`Practicalities: ${enrichment.structured.practicalities.join("; ")}`);
     if (enrichment.structured?.cautions?.length) parts.push(`Cautions: ${enrichment.structured.cautions.join(" ")}`);
+    if (enrichment.structured?.unknowns?.length) parts.push(`Unknown: ${enrichment.structured.unknowns.join(" ")}`);
     if (enrichment.structured?.sourceRollup?.length) {
       parts.push(...enrichment.structured.sourceRollup.map((digest) => `Source - ${digest.platform}: ${digest.brief}`));
     }
@@ -591,6 +593,9 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
     }
     if (enrichment.structured?.cautions?.length) {
       parts.push(`<b>Cautions:</b> ${escapeXml(enrichment.structured.cautions.join(" "))}`);
+    }
+    if (enrichment.structured?.unknowns?.length) {
+      parts.push(`<b>Unknown:</b> ${escapeXml(enrichment.structured.unknowns.join(" "))}`);
     }
     if (enrichment.structured?.sourceRollup?.length) {
       parts.push(...enrichment.structured.sourceRollup.map((digest) => `<b>Source - ${escapeXml(digest.platform)}:</b> ${escapeXml(digest.brief)}`));

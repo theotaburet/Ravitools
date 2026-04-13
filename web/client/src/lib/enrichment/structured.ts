@@ -119,6 +119,17 @@ function buildCautions(
   return cautions.slice(0, 3);
 }
 
+function buildUnknowns(
+  enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount" | "specialty">,
+  sourceRollup: EnrichmentSourceDigest[],
+): string[] {
+  const unknowns: string[] = [];
+  if (enrichment.specialty == null && sourceRollup.length > 0) {
+    unknowns.push("Exact type or specialty could not be determined from sources.");
+  }
+  return unknowns.slice(0, 2);
+}
+
 export function buildStructuredContent(
   poi: POI,
   enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "specialty" | "summary" | "translatedSummary" | "priceLevel" | "locality">,
@@ -130,6 +141,7 @@ export function buildStructuredContent(
   const lead = enrichment.translatedSummary ?? enrichment.summary ?? inferCategoryLead(poi);
   const practicalities = buildPracticalities(enrichment, targetLanguage);
   const cautions = buildCautions(enrichment, sourceRollup);
+  const unknowns = buildUnknowns(enrichment, sourceRollup);
 
   const operationalSummaryParts = [
     enrichment.specialty ? `Best read as ${enrichment.specialty}.` : null,
@@ -144,6 +156,7 @@ export function buildStructuredContent(
     practicalities,
     sourceRollup,
     cautions,
+    unknowns,
   };
 }
 
@@ -153,6 +166,7 @@ export function buildEssentialsText(structured: EnrichmentStructuredContent): st
     structured.operationalSummary,
     structured.practicalities.length > 0 ? `Key facts: ${structured.practicalities.join("; ")}.` : null,
     structured.cautions.length > 0 ? `Cautions: ${structured.cautions.join(" ")}` : null,
+    structured.unknowns.length > 0 ? `Unknown: ${structured.unknowns.join(" ")}` : null,
   ];
   const joined = uniqueStrings(parts).join(" ");
   return joined ? shorten(joined, 700) : null;

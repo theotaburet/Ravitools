@@ -184,7 +184,77 @@ export interface EnrichmentStructuredContent {
   sourceRollup: EnrichmentSourceDigest[];
   /** Main caveats, disagreement, or missing info */
   cautions: string[];
+  /** Key unknowns that could matter to the traveler */
+  unknowns: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Category-level enrichment contracts
+// ---------------------------------------------------------------------------
+
+/**
+ * Enrichment depth policy per enrichable category.
+ * Defines what each "full" category is expected to produce, what signals matter,
+ * and what must NOT be said.
+ */
+export interface EnrichmentCategoryContract {
+  /** The POI category this contract applies to */
+  category: PoiCategory;
+  /** What the enrichment output should prioritize, ordered */
+  priorities: string[];
+  /** Signals that matter for this category */
+  valuableSignals: string[];
+  /** What must never appear in the output */
+  bannedPatterns: string[];
+  /** Preferred wording patterns when sources are weak */
+  weakSourceFormulations: string[];
+  /** Preferred wording patterns when sources contradict */
+  contradictionFormulations: string[];
+  /** When to prefer silence over a bad synthesis */
+  silenceConditions: string[];
+}
+
+/**
+ * Length targets for enrichment text fields across display contexts.
+ * Used to keep output readable on all surfaces.
+ */
+export interface EnrichmentLengthTargets {
+  /** Max chars for headline on mobile popup */
+  headlineMobile: number;
+  /** Max chars for headline in list view */
+  headlineList: number;
+  /** Max chars for operationalSummary */
+  operationalSummary: number;
+  /** Max chars for essentials in export (GPX, KML) */
+  essentialsExport: number;
+  /** Max number of practicalities items */
+  practicalitiesMax: number;
+  /** Max number of cautions items */
+  cautionsMax: number;
+  /** Max number of unknowns items */
+  unknownsMax: number;
+}
+
+/** Canonical length targets for all display surfaces */
+export const ENRICHMENT_LENGTH_TARGETS: EnrichmentLengthTargets = {
+  headlineMobile: 200,
+  headlineList: 320,
+  operationalSummary: 240,
+  essentialsExport: 700,
+  practicalitiesMax: 5,
+  cautionsMax: 3,
+  unknownsMax: 2,
+};
+
+/** Canonical information ordering for enrichment output */
+export const ENRICHMENT_DISPLAY_ORDER = [
+  "headline",
+  "operationalSummary",
+  "practicalities",
+  "cautions",
+  "unknowns",
+  "sourceRollup",
+] as const;
 
 /** Minimal fetched preview of an official website */
 export interface WebsitePreview {
