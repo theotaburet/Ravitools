@@ -2,8 +2,17 @@
 // POI list component (neobrutalist) – with enrichment data
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData } from "../types";
+import type { POI, EnrichedData, SkipReason } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
+
+/** Human-readable labels for skip reasons */
+const SKIP_REASON_LABELS: Record<SkipReason, string> = {
+  "unnamed": "Unnamed POI",
+  "low-value-category": "Low-value category",
+  "no-results": "No search results found",
+  "rate-limited": "Rate limited",
+  "cancelled": "Cancelled",
+};
 
 interface Props {
   pois: POI[];
@@ -72,6 +81,13 @@ export function PoiList({ pois, enrichments }: Props) {
                       </div>
                     )}
                   </>
+                )}
+
+                {/* Skip reason */}
+                {enrichment && enrichment.status === "skipped" && enrichment.skipReason && (
+                  <div className="poi-skip-reason">
+                    {SKIP_REASON_LABELS[enrichment.skipReason]}
+                  </div>
                 )}
 
                 {/* Google Maps link – always shown */}

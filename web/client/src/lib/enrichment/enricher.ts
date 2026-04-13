@@ -3,9 +3,10 @@
 // For each POI: reverse geocode → search → LLM synthesis → EnrichedData
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage } from "../../types";
+import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy } from "../../types";
 import { buildGoogleMapsUrl, searchPoi, reverseGeocode } from "./search";
 import { synthesize, isEngineReady } from "./llm";
+import { getEnrichabilityPolicy } from "../poi-config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +32,8 @@ export interface EnrichBatchOptions {
   skipUnnamed?: boolean;
   /** Target language for LLM synthesis output (default: "en") */
   targetLanguage?: TargetLanguage;
+  /** Override enrichability policy: treat all POIs as "full" (default: false) */
+  enrichAll?: boolean;
   /** Callback after each POI completes */
   onProgress?: EnrichmentProgressCallback;
 }
@@ -42,6 +45,7 @@ export interface EnrichBatchOptions {
 /**
  * Enrich a single POI: geocode → search → synthesize.
  * Always returns an EnrichedData, even on partial failure.
+ * Respects enrichability policy unless overridden.
  */
 export async function enrichPoi(
   poi: POI,
@@ -49,11 +53,34 @@ export async function enrichPoi(
     apiBase?: string;
     signal?: AbortSignal;
     targetLanguage?: TargetLanguage;
+    /** Override: force "full" enrichment regardless of category policy */
+    policyOverride?: EnrichabilityPolicy;
   } = {},
 ): Promise<EnrichedData> {
   const apiBase = options.apiBase ?? "/api";
   const targetLanguage = options.targetLanguage ?? "en";
   const googleMapsUrl = buildGoogleMapsUrl(poi);
+  const policy = options.policyOverride ?? getEnrichabilityPolicy(poi.category);
+
+  // --- Policy: skip → no network calls at all ---
+  if (policy === "skip") {
+    return {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      googleMapsUrl,
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: new Date().toISOString(),
+      status: "skipped",
+      skipReason: "low-value-category",
+      locality: null,
+    };
+  }
 
   let status: EnrichmentStatus = "pending";
   let locality: string | null = null;
@@ -62,6 +89,27 @@ export async function enrichPoi(
     // Step 1: Reverse geocode for locality
     status = "searching";
     locality = await reverseGeocode(poi.lat, poi.lon, apiBase, options.signal);
+
+    // --- Policy: minimal → geocode only, no search/LLM ---
+    if (policy === "minimal") {
+      return {
+        rating: null,
+        reviewCount: null,
+        hours: null,
+        summary: null,
+        translatedSummary: null,
+        specialty: null,
+        priceLevel: null,
+        googleMapsUrl,
+        sourceUrls: [],
+        rawSnippets: [],
+        enrichedAt: new Date().toISOString(),
+        status: "done",
+        locality,
+      };
+    }
+
+    // --- Policy: full → geocode + search + LLM ---
 
     // Step 2: Search for snippets
     const snippets = await searchPoi(poi, locality, apiBase, options.signal);
@@ -81,6 +129,7 @@ export async function enrichPoi(
         rawSnippets: [],
         enrichedAt: new Date().toISOString(),
         status: "skipped",
+        skipReason: "no-results",
         locality,
       };
     }
@@ -155,6 +204,7 @@ export async function enrichPoi(
 /**
  * Enrich a batch of POIs sequentially.
  * Sequential to respect SearXNG/Nominatim rate limits.
+ * Respects category enrichability policy unless enrichAll is set.
  * Returns a Map<poiId, EnrichedData>.
  */
 export async function enrichBatch(
@@ -167,6 +217,7 @@ export async function enrichBatch(
     delayBetweenPois = 1500,
     skipUnnamed = true,
     targetLanguage = "en",
+    enrichAll = false,
     onProgress,
   } = options;
 
@@ -193,6 +244,7 @@ export async function enrichBatch(
         rawSnippets: [],
         enrichedAt: new Date().toISOString(),
         status: "skipped",
+        skipReason: "unnamed",
         locality: null,
       };
       results.set(poi.id, skippedData);
@@ -200,12 +252,16 @@ export async function enrichBatch(
       continue;
     }
 
-    const enrichment = await enrichPoi(poi, { apiBase, signal, targetLanguage });
+    // Resolve policy: enrichAll overrides to "full" for all categories
+    const policyOverride = enrichAll ? "full" as EnrichabilityPolicy : undefined;
+
+    const enrichment = await enrichPoi(poi, { apiBase, signal, targetLanguage, policyOverride });
     results.set(poi.id, enrichment);
     onProgress?.(poi.id, enrichment, i, total);
 
-    // Delay between POIs to avoid rate limiting
-    if (i < pois.length - 1 && delayBetweenPois > 0 && !signal?.aborted) {
+    // Delay between POIs that made network calls (not skipped)
+    const effectivePolicy = policyOverride ?? getEnrichabilityPolicy(poi.category);
+    if (i < pois.length - 1 && delayBetweenPois > 0 && !signal?.aborted && effectivePolicy !== "skip") {
       await sleep(delayBetweenPois);
     }
   }

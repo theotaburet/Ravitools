@@ -32,6 +32,7 @@ export default function App() {
   } = useEnrichment();
 
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("en");
+  const [enrichAll, setEnrichAll] = useState(false);
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -107,7 +108,9 @@ export default function App() {
               enrichedCount={enrichments.size}
               targetLanguage={targetLanguage}
               onLanguageChange={setTargetLanguage}
-              onStart={() => startEnrichment(filteredPois, targetLanguage)}
+              enrichAll={enrichAll}
+              onEnrichAllChange={setEnrichAll}
+              onStart={() => startEnrichment(filteredPois, targetLanguage, enrichAll)}
               onCancel={cancelEnrichment}
             />
           )}

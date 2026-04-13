@@ -4,7 +4,7 @@
 // Extended with optional categories for bikepacking
 // ---------------------------------------------------------------------------
 
-import type { PoiCategory, PoiCategoryConfig } from "../types";
+import type { PoiCategory, PoiCategoryConfig, EnrichabilityPolicy } from "../types";
 
 export const POI_CATEGORIES: PoiCategoryConfig[] = [
   // -----------------------------------------------------------------------
@@ -507,6 +507,50 @@ export const OSMAND_TAG_ICONS: Record<string, string> = {
   "amenity=internet_cafe": "amenity_internet_cafe",
   "amenity=library": "amenity_library",
 };
+
+// ---------------------------------------------------------------------------
+// Enrichability policy per category
+// Determines how much enrichment effort each category deserves.
+// - "full": geocode + search + LLM synthesis (high-value places)
+// - "minimal": geocode only (locality), no web search, no LLM
+// - "skip": no network calls at all, just Google Maps link
+// ---------------------------------------------------------------------------
+
+export const ENRICHABILITY_POLICY: Record<PoiCategory, EnrichabilityPolicy> = {
+  "Restaurant or Bar": "full",
+  "Food shop": "full",
+  "Sleeping place": "full",
+  Gears: "full",
+  Laundry: "minimal",
+  DIY: "minimal",
+  Medical: "minimal",
+  Pharmacy: "minimal",
+  "Bank & ATM": "minimal",
+  "Post office": "minimal",
+  "Tourist info": "minimal",
+  Viewpoint: "minimal",
+  Charging: "minimal",
+  Wifi: "minimal",
+  Water: "skip",
+  Restroom: "skip",
+  Shelter: "skip",
+  Picnic: "skip",
+};
+
+/** Get the enrichability policy for a category */
+export function getEnrichabilityPolicy(category: PoiCategory): EnrichabilityPolicy {
+  return ENRICHABILITY_POLICY[category] ?? "skip";
+}
+
+/** Count how many POIs in a list are enrichable (full or minimal, not skip) */
+export function countEnrichable(pois: { category: PoiCategory }[]): number {
+  return pois.filter((p) => getEnrichabilityPolicy(p.category) !== "skip").length;
+}
+
+/** Count how many POIs in a list get full enrichment */
+export function countFullEnrichable(pois: { category: PoiCategory }[]): number {
+  return pois.filter((p) => getEnrichabilityPolicy(p.category) === "full").length;
+}
 
 /** Resolve the best OsmAnd icon for a POI based on its tags, with category fallback */
 export function getOsmAndIcon(poi: { category: PoiCategory; tags: Record<string, string> }): string {

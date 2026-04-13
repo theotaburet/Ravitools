@@ -53,9 +53,10 @@ export function useEnrichment() {
    * 2. Run batch enrichment (search + geocode + LLM per POI)
    * 3. Update enrichments map incrementally
    * @param targetLanguage - language for LLM synthesis output (default: "en")
+   * @param enrichAll - override enrichability policy to "full" for all categories
    */
   const startEnrichment = useCallback(
-    async (pois: POI[], targetLanguage: TargetLanguage = "en") => {
+    async (pois: POI[], targetLanguage: TargetLanguage = "en", enrichAll: boolean = false) => {
       // Cancel any running job
       abortRef.current?.abort();
       const ctrl = new AbortController();
@@ -108,6 +109,7 @@ export function useEnrichment() {
           delayBetweenPois: 1500,
           skipUnnamed: true,
           targetLanguage,
+          enrichAll,
           onProgress: (poiId, enrichment, index, total) => {
             // Update enrichments map incrementally
             setEnrichments((prev) => {

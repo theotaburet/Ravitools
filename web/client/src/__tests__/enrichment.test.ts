@@ -1,15 +1,21 @@
 // ---------------------------------------------------------------------------
-// Tests for enrichment module (search, llm, enricher)
+// Tests for enrichment module (search, llm, enricher, selective enrichment)
 // ---------------------------------------------------------------------------
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { POI } from "../types";
+import type { POI, PoiCategory } from "../types";
 import {
   buildGoogleMapsUrl,
   buildGoogleMapsDirectionsUrl,
   buildSearchQuery,
 } from "../lib/enrichment/search";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
+import {
+  ENRICHABILITY_POLICY,
+  getEnrichabilityPolicy,
+  countEnrichable,
+  countFullEnrichable,
+} from "../lib/poi-config";
 
 // ---------------------------------------------------------------------------
 // Test POI factory
@@ -389,5 +395,121 @@ describe("export with translated summary", () => {
     const kml = buildKmlString([poi], null, enrichments);
     expect(kml).toContain("Good Italian restaurant.");
     expect(kml).not.toContain("Buon ristorante italiano.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Enrichability policy
+// ---------------------------------------------------------------------------
+
+describe("enrichability policy", () => {
+  it("maps all 18 categories to a policy", () => {
+    const allCategories: PoiCategory[] = [
+      "Water", "Sleeping place", "Restroom", "Shelter", "Food shop",
+      "Restaurant or Bar", "Gears", "DIY", "Laundry", "Medical",
+      "Bank & ATM", "Post office", "Viewpoint", "Tourist info",
+      "Charging", "Picnic", "Pharmacy", "Wifi",
+    ];
+    for (const cat of allCategories) {
+      const policy = getEnrichabilityPolicy(cat);
+      expect(["full", "minimal", "skip"]).toContain(policy);
+    }
+  });
+
+  it("marks high-value categories as full", () => {
+    expect(getEnrichabilityPolicy("Restaurant or Bar")).toBe("full");
+    expect(getEnrichabilityPolicy("Food shop")).toBe("full");
+    expect(getEnrichabilityPolicy("Sleeping place")).toBe("full");
+    expect(getEnrichabilityPolicy("Gears")).toBe("full");
+  });
+
+  it("marks low-value categories as skip", () => {
+    expect(getEnrichabilityPolicy("Water")).toBe("skip");
+    expect(getEnrichabilityPolicy("Restroom")).toBe("skip");
+    expect(getEnrichabilityPolicy("Shelter")).toBe("skip");
+    expect(getEnrichabilityPolicy("Picnic")).toBe("skip");
+  });
+
+  it("marks moderate categories as minimal", () => {
+    expect(getEnrichabilityPolicy("DIY")).toBe("minimal");
+    expect(getEnrichabilityPolicy("Medical")).toBe("minimal");
+    expect(getEnrichabilityPolicy("Laundry")).toBe("minimal");
+    expect(getEnrichabilityPolicy("Bank & ATM")).toBe("minimal");
+  });
+});
+
+describe("countEnrichable", () => {
+  it("counts only non-skip POIs", () => {
+    const pois = [
+      { category: "Restaurant or Bar" as PoiCategory },  // full
+      { category: "Water" as PoiCategory },              // skip
+      { category: "DIY" as PoiCategory },                // minimal
+      { category: "Shelter" as PoiCategory },            // skip
+      { category: "Sleeping place" as PoiCategory },     // full
+    ];
+    expect(countEnrichable(pois)).toBe(3);
+  });
+
+  it("returns 0 for all-skip categories", () => {
+    const pois = [
+      { category: "Water" as PoiCategory },
+      { category: "Picnic" as PoiCategory },
+    ];
+    expect(countEnrichable(pois)).toBe(0);
+  });
+
+  it("returns total for all-full categories", () => {
+    const pois = [
+      { category: "Restaurant or Bar" as PoiCategory },
+      { category: "Food shop" as PoiCategory },
+    ];
+    expect(countEnrichable(pois)).toBe(2);
+  });
+});
+
+describe("countFullEnrichable", () => {
+  it("counts only full-policy POIs", () => {
+    const pois = [
+      { category: "Restaurant or Bar" as PoiCategory },  // full
+      { category: "DIY" as PoiCategory },                // minimal
+      { category: "Water" as PoiCategory },              // skip
+      { category: "Food shop" as PoiCategory },          // full
+    ];
+    expect(countFullEnrichable(pois)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Enricher skip reason in EnrichedData
+// ---------------------------------------------------------------------------
+
+describe("EnrichedData skipReason field", () => {
+  it("skipReason type accepts all defined reasons", () => {
+    // This is a compile-time check; if it compiles, the type works
+    const reasons: import("../types").SkipReason[] = [
+      "unnamed", "low-value-category", "no-results", "rate-limited", "cancelled",
+    ];
+    expect(reasons).toHaveLength(5);
+  });
+
+  it("enrichment with skip reason has correct structure", () => {
+    const data: import("../types").EnrichedData = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      googleMapsUrl: "https://maps.google.com",
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: "2026-04-13T00:00:00Z",
+      status: "skipped",
+      skipReason: "low-value-category",
+      locality: null,
+    };
+    expect(data.status).toBe("skipped");
+    expect(data.skipReason).toBe("low-value-category");
   });
 });

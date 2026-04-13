@@ -39,17 +39,17 @@ Status: done
 
 ### 3. Make enrichment selective instead of uniformly applied
 
-- [ ] Define enrichment priority rules by category in `web/client/src/lib/poi-config.ts`
-- [ ] Introduce an explicit enrichability policy, for example: `full`, `minimal`, `skip`
-- [ ] Mark categories like `Restaurant or Bar`, `Food shop`, `Sleeping place`, `Gears` as high-priority candidates
-- [ ] Mark categories like generic water points, shelters, picnic, toilets as lower-value or skip by default
-- [ ] Update `web/client/src/types/index.ts` to represent why an item was skipped (`unnamed`, `low-value-category`, `no-results`, `rate-limited`, etc.)
-- [ ] Update `web/client/src/lib/enrichment/enricher.ts` to skip low-value categories before network calls
-- [ ] Update `web/client/src/lib/enrichment/enricher.ts` to emit structured skip reasons, not just `status: skipped`
-- [ ] Update `web/client/src/components/EnrichmentPanel.tsx` to explain how many POIs are enrichable vs total
-- [ ] Update `web/client/src/components/PoiList.tsx` to show when a POI was intentionally not enriched
-- [ ] Add a user override in `web/client/src/components/EnrichmentPanel.tsx` for `enrich everything` vs `only useful categories`
-- [ ] Add tests covering category-based skipping and progress counts in `web/client/src/__tests__/enrichment.test.ts`
+- [x] Define enrichment priority rules by category in `web/client/src/lib/poi-config.ts`
+- [x] Introduce an explicit enrichability policy, for example: `full`, `minimal`, `skip`
+- [x] Mark categories like `Restaurant or Bar`, `Food shop`, `Sleeping place`, `Gears` as high-priority candidates
+- [x] Mark categories like generic water points, shelters, picnic, toilets as lower-value or skip by default
+- [x] Update `web/client/src/types/index.ts` to represent why an item was skipped (`unnamed`, `low-value-category`, `no-results`, `rate-limited`, etc.)
+- [x] Update `web/client/src/lib/enrichment/enricher.ts` to skip low-value categories before network calls
+- [x] Update `web/client/src/lib/enrichment/enricher.ts` to emit structured skip reasons, not just `status: skipped`
+- [x] Update `web/client/src/components/EnrichmentPanel.tsx` to explain how many POIs are enrichable vs total
+- [x] Update `web/client/src/components/PoiList.tsx` to show when a POI was intentionally not enriched
+- [x] Add a user override in `web/client/src/components/EnrichmentPanel.tsx` for `enrich everything` vs `only useful categories`
+- [x] Add tests covering category-based skipping and progress counts in `web/client/src/__tests__/enrichment.test.ts`
 
 ### 4. Improve enrichment throughput without breaking rate limits
 
@@ -128,7 +128,7 @@ Status: done
 ## Sequencing
 
 - [x] Phase A: repo cleanup + review semantics + doc truthfulness
-- [ ] Phase B: selective enrichment + target-language summaries
+- [x] Phase B: selective enrichment + target-language summaries
 - [ ] Phase C: throughput improvements + trust/confidence metadata
 - [ ] Phase D: list/map interaction + remove 200-item cap + session persistence
 - [ ] Phase E: server test coverage and production hardening

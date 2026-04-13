@@ -3,8 +3,9 @@
 // Neobrutalist design: progress bar, model download, batch trigger
 // ---------------------------------------------------------------------------
 
-import type { EnrichmentJobState, TargetLanguage } from "../types";
+import type { EnrichmentJobState, TargetLanguage, POI } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
+import { countFullEnrichable, countEnrichable } from "../lib/poi-config";
 
 const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 
@@ -14,6 +15,8 @@ interface Props {
   enrichedCount: number;
   targetLanguage: TargetLanguage;
   onLanguageChange: (lang: TargetLanguage) => void;
+  enrichAll: boolean;
+  onEnrichAllChange: (enrichAll: boolean) => void;
   onStart: () => void;
   onCancel: () => void;
 }
@@ -24,6 +27,8 @@ export function EnrichmentPanel({
   enrichedCount,
   targetLanguage,
   onLanguageChange,
+  enrichAll,
+  onEnrichAllChange,
   onStart,
   onCancel,
 }: Props) {
@@ -78,14 +83,36 @@ export function EnrichmentPanel({
         </div>
       )}
 
+      {/* Enrich-all toggle */}
+      {!isRunning && (
+        <label className="flex items-center gap-2 mb-3 cursor-pointer text-xs font-mono">
+          <input
+            type="checkbox"
+            checked={enrichAll}
+            onChange={(e) => onEnrichAllChange(e.target.checked)}
+            className="neo-checkbox"
+          />
+          <span className={enrichAll ? "text-foreground" : "text-muted"}>
+            Enrich everything (slower)
+          </span>
+        </label>
+      )}
+
       {/* Idle state — show trigger button */}
       {job.stage === "idle" && enrichedCount === 0 && (
-        <button
-          className="neo-btn-primary w-full"
-          onClick={onStart}
-        >
-          Enrich {poiCount} POIs
-        </button>
+        <div className="flex flex-col gap-2">
+          {!enrichAll && poiCount > 0 && (
+            <div className="text-xs font-mono text-muted">
+              {poiCount} POIs total — enrichment targets high-value categories
+            </div>
+          )}
+          <button
+            className="neo-btn-primary w-full"
+            onClick={onStart}
+          >
+            Enrich {enrichAll ? `all ${poiCount}` : `${poiCount}`} POIs
+          </button>
+        </div>
       )}
 
       {/* Idle after partial enrichment */}

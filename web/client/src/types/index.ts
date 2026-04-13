@@ -104,6 +104,17 @@ export type PipelineStage =
 // Enrichment types
 // ---------------------------------------------------------------------------
 
+/** Enrichability policy: how much enrichment effort a category deserves */
+export type EnrichabilityPolicy = "full" | "minimal" | "skip";
+
+/** Why enrichment was skipped for a POI */
+export type SkipReason =
+  | "unnamed"
+  | "low-value-category"
+  | "no-results"
+  | "rate-limited"
+  | "cancelled";
+
 /** Supported output languages for enrichment synthesis */
 export type TargetLanguage = "fr" | "en";
 
@@ -152,6 +163,8 @@ export interface EnrichedData {
   status: EnrichmentStatus;
   /** Error message if enrichment failed */
   error?: string;
+  /** Why enrichment was skipped (only set when status === "skipped") */
+  skipReason?: SkipReason;
   /** City/locality resolved via reverse geocoding */
   locality: string | null;
 }
