@@ -18,7 +18,7 @@ import {
   cleanPoiNameForSearch,
 } from "../lib/enrichment/search";
 import { buildStructuredContent, buildEssentialsText } from "../lib/enrichment/structured";
-import { parseLlmOutput } from "../lib/enrichment/llm";
+import { parseLlmOutput, buildSystemPrompt } from "../lib/enrichment/llm";
 import { computeConfidence, isGenericPoiName } from "../lib/enrichment/enricher";
 import {
   ENRICHMENT_CONTRACTS,
@@ -1150,5 +1150,176 @@ describe("FVM-WS7: URL Normalization & Dedup", () => {
     const clean = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel");
     const tracked = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel?utm_source=google&ref=search");
     expect(clean).toBe(tracked);
+  });
+});
+
+// ===========================================================================
+// WS8: Category-Specific LLM Prompt Hardening
+// ===========================================================================
+
+describe("FVM-WS8: Category-Specific LLM Prompts", () => {
+  it("WS8-1: Restaurant prompt includes cuisine and terrace priorities", () => {
+    const prompt = buildSystemPrompt("en", "Restaurant or Bar");
+    expect(prompt).toContain("Cuisine type");
+    expect(prompt).toContain("terrace");
+  });
+
+  it("WS8-2: Restaurant prompt bans marketing language", () => {
+    const prompt = buildSystemPrompt("en", "Restaurant or Bar");
+    expect(prompt).toContain("Marketing language");
+  });
+
+  it("WS8-3: Food shop prompt prioritizes opening hours", () => {
+    const prompt = buildSystemPrompt("en", "Food shop");
+    expect(prompt).toContain("Opening hours");
+    expect(prompt).toContain("resupply");
+  });
+
+  it("WS8-4: Sleeping place prompt includes booking and check-in", () => {
+    const prompt = buildSystemPrompt("en", "Sleeping place");
+    expect(prompt).toContain("Booking requirement");
+    expect(prompt).toContain("Check-in");
+  });
+
+  it("WS8-5: Sleeping place prompt bans invented amenity lists", () => {
+    const prompt = buildSystemPrompt("en", "Sleeping place");
+    expect(prompt).toContain("Invented amenity lists");
+  });
+
+  it("WS8-6: Gears prompt includes repair service priority", () => {
+    const prompt = buildSystemPrompt("en", "Gears");
+    expect(prompt).toContain("bike repair");
+  });
+
+  it("WS8-7: Gears prompt includes valuable signals like spare parts", () => {
+    const prompt = buildSystemPrompt("en", "Gears");
+    expect(prompt).toContain("Spare parts");
+  });
+
+  it("WS8-8: unknown category does not inject contract block", () => {
+    const prompt = buildSystemPrompt("en", "Water");
+    expect(prompt).not.toContain("Category-specific instructions");
+    expect(prompt).not.toContain("Priority fields for essentials");
+  });
+
+  it("WS8-9: no category does not inject contract block", () => {
+    const prompt = buildSystemPrompt("en");
+    expect(prompt).not.toContain("Category-specific instructions");
+  });
+
+  it("WS8-10: French language prompt requests French translatedSummary", () => {
+    const prompt = buildSystemPrompt("fr", "Restaurant or Bar");
+    expect(prompt).toContain("French");
+  });
+
+  it("WS8-11: English language prompt requests English translatedSummary", () => {
+    const prompt = buildSystemPrompt("en", "Restaurant or Bar");
+    expect(prompt).toContain("English");
+  });
+
+  it("WS8-12: contract banned patterns appear in NEVER section", () => {
+    const prompt = buildSystemPrompt("en", "Food shop");
+    expect(prompt).toContain("NEVER include");
+    expect(prompt).toContain("Assumed product range");
+  });
+});
+
+// ===========================================================================
+// WS10: Richer Confidence Formula
+// ===========================================================================
+
+describe("FVM-WS10: Richer Confidence Formula", () => {
+  const baseEnrichment = {
+    rating: null,
+    reviewCount: null,
+    hours: null,
+    summary: null,
+    specialty: null,
+  };
+
+  it("WS10-1: official website boosts confidence", () => {
+    const withoutSite = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(3),
+    });
+    const withSite = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(3),
+      officialWebsite: { url: "https://example.com" },
+    });
+    expect(withSite).toBeGreaterThan(withoutSite);
+  });
+
+  it("WS10-2: longer snippet content increases quality factor", () => {
+    const shortSnippets = [
+      { engine: "google", content: "Short", url: "https://a.com" },
+      { engine: "bing", content: "Also short", url: "https://b.com" },
+    ];
+    const longSnippets = [
+      { engine: "google", content: "A".repeat(200), url: "https://a.com" },
+      { engine: "bing", content: "B".repeat(200), url: "https://b.com" },
+    ];
+    const scoreShort = computeConfidence({ ...baseEnrichment, rawSnippets: shortSnippets });
+    const scoreLong = computeConfidence({ ...baseEnrichment, rawSnippets: longSnippets });
+    expect(scoreLong).toBeGreaterThan(scoreShort);
+  });
+
+  it("WS10-3: snippets from diverse domains increase confidence", () => {
+    const sameDomain = [
+      { engine: "google", content: "Review 1", url: "https://google.com/a" },
+      { engine: "google", content: "Review 2", url: "https://google.com/b" },
+      { engine: "google", content: "Review 3", url: "https://google.com/c" },
+    ];
+    const diverseDomains = [
+      { engine: "google", content: "Review 1", url: "https://google.com/a" },
+      { engine: "google", content: "Review 2", url: "https://yelp.com/b" },
+      { engine: "google", content: "Review 3", url: "https://tripadvisor.com/c" },
+    ];
+    const scoreSame = computeConfidence({ ...baseEnrichment, rawSnippets: sameDomain });
+    const scoreDiverse = computeConfidence({ ...baseEnrichment, rawSnippets: diverseDomains });
+    expect(scoreDiverse).toBeGreaterThan(scoreSame);
+  });
+
+  it("WS10-4: confidence still 0 with no snippets", () => {
+    expect(computeConfidence({ ...baseEnrichment, rawSnippets: [] })).toBe(0);
+  });
+
+  it("WS10-5: all factors combined never exceed 1.0", () => {
+    const maxScore = computeConfidence({
+      rating: 5.0,
+      reviewCount: 1000,
+      hours: "24/7",
+      summary: "Perfect in every way with lots of detail and nuance",
+      specialty: "Everything",
+      rawSnippets: Array.from({ length: 20 }, (_, i) => ({
+        engine: ["google", "bing", "duckduckgo", "brave"][i % 4],
+        content: "X".repeat(300),
+        url: `https://site-${i}.com/page`,
+      })),
+      officialWebsite: { url: "https://official.com" },
+    });
+    expect(maxScore).toBeLessThanOrEqual(1.0);
+    expect(maxScore).toBeGreaterThan(0.7);
+  });
+
+  it("WS10-6: structured fields each add incremental confidence", () => {
+    const base = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(4),
+    });
+    const withRating = computeConfidence({
+      ...baseEnrichment,
+      rating: 4.0,
+      rawSnippets: makeSnippets(4),
+    });
+    const withMore = computeConfidence({
+      ...baseEnrichment,
+      rating: 4.0,
+      hours: "9-17",
+      summary: "Good place",
+      rawSnippets: makeSnippets(4),
+    });
+    expect(withRating).toBeGreaterThan(base);
+    expect(withMore).toBeGreaterThan(withRating);
   });
 });

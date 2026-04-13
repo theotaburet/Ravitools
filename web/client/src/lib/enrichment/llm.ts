@@ -4,8 +4,9 @@
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
-import type { SearchSnippet, TargetLanguage, EnrichmentSourceDigest, WebsitePreview } from "../../types";
+import type { SearchSnippet, TargetLanguage, EnrichmentSourceDigest, WebsitePreview, PoiCategory } from "../../types";
 import { dlog } from "../debug-log";
+import { getEnrichmentContract } from "../poi-config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,16 +107,57 @@ export async function unloadEngine(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Contract-aware prompt sections (WS8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a prompt block from a category contract.
+ * Injected into the system prompt to give the LLM category-specific guidance.
+ * (WS8: category-specific LLM prompt hardening)
+ */
+function buildContractBlock(
+  category: string,
+  priorities: readonly string[],
+  valuableSignals: readonly string[],
+  bannedPatterns: readonly string[],
+): string {
+  const priorityList = priorities.map((p, i) => `  ${i + 1}. ${p}`).join("\n");
+  const signalList = valuableSignals.slice(0, 5).map((s) => `  - ${s}`).join("\n");
+  const bannedList = bannedPatterns.map((b) => `  - ${b}`).join("\n");
+
+  return `
+
+Category-specific instructions for "${category}":
+
+Priority fields for essentials (in this order):
+${priorityList}
+
+Valuable signals to include when found:
+${signalList}
+
+NEVER include in your output:
+${bannedList}`;
+}
+
+// ---------------------------------------------------------------------------
 // Synthesis prompt
 // ---------------------------------------------------------------------------
 
 /**
  * Build the system prompt for POI synthesis.
  * The LLM extracts structured info from raw search snippets.
+ * WS8: category-specific prompt hardening using contracts.
  * @param targetLanguage - language for the translatedSummary field
+ * @param category - POI category for contract-aware prompt sections
+ * Exported for testing (WS8).
  */
-function buildSystemPrompt(targetLanguage: TargetLanguage): string {
+export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: string): string {
   const langName = targetLanguage === "fr" ? "French" : "English";
+
+  // WS8: inject contract-specific instructions if available
+  const contract = category ? getEnrichmentContract(category as PoiCategory) : null;
+  const contractBlock = contract ? buildContractBlock(contract.category, contract.priorities, contract.valuableSignals, contract.bannedPatterns) : "";
+
   return `You are a travel assistant. Given web search snippets about a place, extract useful information for a cyclist.
 
 Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
@@ -151,15 +193,10 @@ Rules:
 - Second sentence: reputation / quality signal from review platforms if present.
 - Third sentence: practical traveler information only (hours, resupply, sleep, bike relevance, official site).
 - Last sentence: strongest caveat or uncertainty if any.
-- For general commerce, output a terse compilation of what the different platforms say.
-- If the place is a hotel or sleeping place and booking platforms are present, include booking-specific sleep context in essentials.
-- For food shops, prioritize resupply usefulness over ambiance.
-- For restaurants/bars, prioritize practicality + reputation over generic atmosphere.
-- For sleeping places, prioritize booking/reliability/check-in/sleep context over marketing wording.
-- For gears, prioritize bike service/product relevance and reliability.
 - Only add a sourceDigests entry when that platform is actually represented in the input.
 - Be concise. Prefer null over uncertain data.
-- When snippets are vague or contradictory, say so explicitly (e.g. "Limited information available", "Sources disagree"). Never fill gaps with plausible-sounding invented detail.`;
+- When snippets are vague or contradictory, say so explicitly (e.g. "Limited information available", "Sources disagree"). Never fill gaps with plausible-sounding invented detail.
+${contractBlock}`;
 }
 
 /**
@@ -221,7 +258,7 @@ export async function synthesize(
     const log = dlog("llm");
     const response = await engineInstance.chat.completions.create({
       messages: [
-        { role: "system", content: buildSystemPrompt(targetLanguage) },
+        { role: "system", content: buildSystemPrompt(targetLanguage, category) },
         {
           role: "user",
           content: buildUserPrompt(poiName, category, snippets, websitePreview),
