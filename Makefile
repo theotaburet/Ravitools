@@ -56,9 +56,15 @@ searxng-stop:
 # All services
 all: searxng
 	@echo ""
+	@echo "All services ready:"
+	@echo "  - Client: http://localhost:5173"
+	@echo "  - Server: http://localhost:3001"
+	@echo "  - SearXNG: http://localhost:8888 (optional, for enrichment)"
+	@echo ""
 	@echo "Now run in separate terminals:"
-	@echo "  make server"
 	@echo "  make client"
+	@echo "  make server"
+	@echo "  (or run make server & make client in background)"
 
 # Stop all services
 stop: searxng-stop

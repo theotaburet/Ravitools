@@ -2,8 +2,10 @@
 // Category filter panel (neobrutalist)
 // Shows essential (default-on) and optional (default-off) categories.
 // Visible both before upload (to choose what to query) and after (to filter).
+// Sticky header + collapsible body to stay accessible in long sidebars.
 // ---------------------------------------------------------------------------
 
+import { useState } from "react";
 import type { PoiCategory, POI } from "../types";
 import { POI_CATEGORIES } from "../lib/poi-config";
 
@@ -31,6 +33,8 @@ export function CategoryFilter({
   pois,
   showCounts = false,
 }: Props) {
+  const [collapsed, setCollapsed] = useState(false);
+
   const counts = new Map<PoiCategory, number>();
   if (showCounts) {
     for (const poi of pois) {
@@ -39,62 +43,78 @@ export function CategoryFilter({
   }
 
   const allOn = activeCategories.size === POI_CATEGORIES.length;
+  const activeCount = activeCategories.size;
 
   return (
-    <div className="neo-box overflow-hidden">
-      <div className="filter-header">
-        <span>{showCounts ? "Filter POIs" : "Categories to search"}</span>
+    <div className="neo-box overflow-hidden filter-panel">
+      <div
+        className="filter-header"
+        onClick={() => setCollapsed((c) => !c)}
+        style={{ cursor: "pointer" }}
+      >
+        <span className="flex items-center gap-2">
+          <span className="filter-collapse-icon">{collapsed ? "+" : "\u2212"}</span>
+          {showCounts ? "Filter POIs" : "Categories to search"}
+          {collapsed && (
+            <span className="filter-collapsed-count">{activeCount}/{POI_CATEGORIES.length}</span>
+          )}
+        </span>
         <button
           className="neo-btn-sm neo-btn-secondary"
-          onClick={() => onSelectAll(!allOn)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectAll(!allOn);
+          }}
         >
           {allOn ? "None" : "All"}
         </button>
       </div>
-      <div className="max-h-[400px] overflow-y-auto">
-        <div className="px-4 py-3 border-b-2 border-black bg-white">
-          <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
-            <span>Max distance to route</span>
-            <span>{maxDistanceM}m</span>
+      {!collapsed && (
+        <div className="filter-body">
+          <div className="px-4 py-3 border-b-2 border-black bg-white">
+            <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
+              <span>Max distance to route</span>
+              <span>{maxDistanceM}m</span>
+            </div>
+            <input
+              type="range"
+              min={300}
+              max={3000}
+              step={100}
+              value={maxDistanceM}
+              onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
+              className="mt-3 w-full"
+            />
+            <p className="mt-2 text-xs text-muted">
+              Narrow for fewer urban POIs, wider for sparse rural routes.
+            </p>
           </div>
-          <input
-            type="range"
-            min={300}
-            max={3000}
-            step={100}
-            value={maxDistanceM}
-            onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
-            className="mt-3 w-full"
-          />
-          <p className="mt-2 text-xs text-muted">
-            Narrow for fewer urban POIs, wider for sparse rural routes.
-          </p>
+
+          {/* Essential categories */}
+          <div className="filter-section-label">Essential</div>
+          {essentialCats.map((cat) => (
+            <CategoryRow
+              key={cat.category}
+              cat={cat}
+              active={activeCategories.has(cat.category)}
+              count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
+              onToggle={onToggle}
+            />
+          ))}
+
+          {/* Optional categories */}
+          <div className="filter-section-label">Optional</div>
+          {optionalCats.map((cat) => (
+            <CategoryRow
+              key={cat.category}
+              cat={cat}
+              active={activeCategories.has(cat.category)}
+              count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
+              onToggle={onToggle}
+            />
+          ))}
         </div>
-
-        {/* Essential categories */}
-        <div className="filter-section-label">Essential</div>
-        {essentialCats.map((cat) => (
-          <CategoryRow
-            key={cat.category}
-            cat={cat}
-            active={activeCategories.has(cat.category)}
-            count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
-            onToggle={onToggle}
-          />
-        ))}
-
-        {/* Optional categories */}
-        <div className="filter-section-label">Optional</div>
-        {optionalCats.map((cat) => (
-          <CategoryRow
-            key={cat.category}
-            cat={cat}
-            active={activeCategories.has(cat.category)}
-            count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
-            onToggle={onToggle}
-          />
-        ))}
-      </div>
+      )}
     </div>
   );
 }

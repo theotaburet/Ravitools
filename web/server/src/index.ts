@@ -15,7 +15,7 @@ const OVERPASS_URL =
 const OVERPASS_FALLBACK_URL =
   process.env.OVERPASS_FALLBACK_URL || "https://overpass.kumi.systems/api/interpreter";
 const SEARXNG_URL =
-  process.env.SEARXNG_URL || "http://localhost:8080";
+  process.env.SEARXNG_URL || "http://localhost:8888";
 const NOMINATIM_URL =
   process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || "86400", 10); // 24h default
