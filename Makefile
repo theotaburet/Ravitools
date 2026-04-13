@@ -1,7 +1,7 @@
 # Ravitools Makefile
 # Usage: make <target>
 
-.PHONY: help install client client-build client-start server server-build server-start searxng all
+.PHONY: help install client client-build client-start server server-build server-start searxng searxng-stop all stop
 
 help:
 	@echo "Ravitools targets:"
@@ -42,11 +42,23 @@ server-start:
 # SearXNG (search engine)
 searxng:
 	@if docker info >/dev/null 2>&1; then \
+		docker rm -f searxng >/dev/null 2>&1 || true; \
 		docker run -d -p 8888:8080 --rm --name searxng searxng/searxng; \
+		echo "SearXNG started on http://localhost:8888"; \
 	else \
 		echo "Docker not running. Please start Docker Desktop and retry 'make searxng'"; \
 	fi
 
+# Stop SearXNG
+searxng-stop:
+	docker rm -f searxng >/dev/null 2>&1 && echo "SearXNG stopped" || echo "SearXNG not running"
+
 # All services
 all: searxng
-	@echo "SearXNG started. Run 'make server' and 'make client' in different terminals."
+	@echo ""
+	@echo "Now run in separate terminals:"
+	@echo "  make server"
+	@echo "  make client"
+
+# Stop all services
+stop: searxng-stop
