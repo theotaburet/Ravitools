@@ -94,6 +94,12 @@ export interface POI {
   osmType?: "node" | "way" | "relation";
 }
 
+/** User-tunable route processing settings */
+export interface RouteProcessingSettings {
+  /** Maximum accepted distance from the route, in meters */
+  maxDistanceM: number;
+}
+
 /** Processing pipeline state */
 export type PipelineStage =
   | "idle"
@@ -236,6 +242,7 @@ export interface AppState {
   traces: TraceData[];
   pois: POI[];
   activeCategories: Set<PoiCategory>;
+  routeSettings: RouteProcessingSettings;
   error: string | null;
   progress: string;
 }

@@ -12,6 +12,8 @@ const PROXY_BASE =
     ((window as unknown as Record<string, unknown>).__RAVITOOLS_API_URL__ as string)) ||
   "/api";
 
+const overpassResultCache = new Map<string, OverpassResponse>();
+
 // ---------------------------------------------------------------------------
 // Query building
 // ---------------------------------------------------------------------------
@@ -115,6 +117,11 @@ export async function queryOverpass(
   query: string,
   retries: number = 3,
 ): Promise<OverpassResponse> {
+  const cached = overpassResultCache.get(query);
+  if (cached) {
+    return cached;
+  }
+
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -148,6 +155,7 @@ export async function queryOverpass(
       }
 
       const data: OverpassResponse = await res.json();
+      overpassResultCache.set(query, data);
       return data;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));

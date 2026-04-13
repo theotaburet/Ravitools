@@ -112,6 +112,7 @@ describe("session persistence", () => {
       enrichments: new Map(),
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     });
     expect(hasSession()).toBe(true);
   });
@@ -129,6 +130,7 @@ describe("session persistence", () => {
       enrichments,
       targetLanguage: "fr",
       enrichAll: true,
+      routeSettings: { maxDistanceM: 900 },
     });
 
     const loaded = loadSession();
@@ -141,6 +143,7 @@ describe("session persistence", () => {
     expect(loaded!.activeCategories.has("Water")).toBe(true);
     expect(loaded!.targetLanguage).toBe("fr");
     expect(loaded!.enrichAll).toBe(true);
+    expect(loaded!.routeSettings.maxDistanceM).toBe(900);
     expect(loaded!.savedAt).toBeTruthy();
   });
 
@@ -152,6 +155,7 @@ describe("session persistence", () => {
       enrichments: new Map(),
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     });
 
     const loaded = loadSession();
@@ -172,6 +176,7 @@ describe("session persistence", () => {
       enrichments,
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     });
 
     const loaded = loadSession();
@@ -187,6 +192,7 @@ describe("session persistence", () => {
       enrichments: new Map(),
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     });
 
     expect(hasSession()).toBe(true);
@@ -212,6 +218,7 @@ describe("session persistence", () => {
       enrichments: [],
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     };
     localStorage.setItem("ravitools_session", JSON.stringify(fakeData));
     expect(loadSession()).toBeNull();
@@ -220,7 +227,7 @@ describe("session persistence", () => {
 
   it("returns null for missing required fields", () => {
     const fakeData = {
-      version: 2,
+      version: 3,
       savedAt: new Date().toISOString(),
       activeCategories: [],
       traces: [],
@@ -248,6 +255,7 @@ describe("session persistence", () => {
       enrichments: new Map(),
       targetLanguage: "en",
       enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
     });
 
     const loaded = loadSession();

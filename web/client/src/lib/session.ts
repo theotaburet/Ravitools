@@ -8,6 +8,7 @@ import type {
   TraceData,
   EnrichedData,
   TargetLanguage,
+  RouteProcessingSettings,
 } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -15,8 +16,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Bump this when the persisted shape changes in a breaking way.
- *  v2: trace → traces (multi-GPX support) */
-const SCHEMA_VERSION = 2;
+ *  v2: trace → traces (multi-GPX support)
+ *  v3: persist route processing settings */
+const SCHEMA_VERSION = 3;
 
 const STORAGE_KEY = "ravitools_session";
 
@@ -38,6 +40,7 @@ interface PersistedSession {
   /** User preferences */
   targetLanguage: TargetLanguage;
   enrichAll: boolean;
+  routeSettings: RouteProcessingSettings;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +54,7 @@ export interface SessionSnapshot {
   enrichments: Map<string, EnrichedData>;
   targetLanguage: TargetLanguage;
   enrichAll: boolean;
+  routeSettings: RouteProcessingSettings;
   savedAt: string;
 }
 
@@ -69,6 +73,7 @@ export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): void {
       enrichments: [...snapshot.enrichments.entries()],
       targetLanguage: snapshot.targetLanguage,
       enrichAll: snapshot.enrichAll,
+      routeSettings: snapshot.routeSettings,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
@@ -106,6 +111,7 @@ export function loadSession(): SessionSnapshot | null {
       enrichments: new Map(data.enrichments),
       targetLanguage: data.targetLanguage ?? "en",
       enrichAll: data.enrichAll ?? false,
+      routeSettings: data.routeSettings ?? { maxDistanceM: 1500 },
       savedAt: data.savedAt,
     };
   } catch {

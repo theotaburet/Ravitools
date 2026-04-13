@@ -11,6 +11,8 @@ interface Props {
   activeCategories: Set<PoiCategory>;
   onToggle: (cat: PoiCategory) => void;
   onSelectAll: (on: boolean) => void;
+  maxDistanceM: number;
+  onMaxDistanceChange: (distanceM: number) => void;
   /** Pass pois only after query is done; empty array before upload */
   pois: POI[];
   /** When true, shows counts next to each category */
@@ -24,6 +26,8 @@ export function CategoryFilter({
   activeCategories,
   onToggle,
   onSelectAll,
+  maxDistanceM,
+  onMaxDistanceChange,
   pois,
   showCounts = false,
 }: Props) {
@@ -48,6 +52,25 @@ export function CategoryFilter({
         </button>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
+        <div className="px-4 py-3 border-b-3 border-black bg-white">
+          <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
+            <span>Max distance to route</span>
+            <span>{maxDistanceM}m</span>
+          </div>
+          <input
+            type="range"
+            min={300}
+            max={3000}
+            step={100}
+            value={maxDistanceM}
+            onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
+            className="mt-3 w-full"
+          />
+          <p className="mt-2 text-xs text-muted">
+            Narrow for fewer urban POIs, wider for sparse rural routes.
+          </p>
+        </div>
+
         {/* Essential categories */}
         <div className="filter-section-label">Essential</div>
         {essentialCats.map((cat) => (

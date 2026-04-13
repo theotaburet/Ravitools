@@ -41,7 +41,7 @@ Status: in-progress | done | blocked
 ```
 
 4. Quand une session est terminee, marquer `Status: done` et mettre a jour la liste.
-5. Ne pas supprimer les fichiers tasks termines — ils servent d'historique.
+5. Deplacer les fichiers tasks termines dans `tasks_archive/` pour garder `tasks/` reserve aux travaux actifs ou futurs.
 6. Si un fichier task est abandonne, marquer `Status: abandoned` avec une explication.
 
 ## Architecture metier actuelle (web)
@@ -79,7 +79,7 @@ Status: in-progress | done | blocked
 
 - Ne pas relire tout le depot si la tache est locale.
 - Utiliser `skills/` pour les workflows repetables plutot que de gonfler `AGENTS.md`.
-- Utiliser `tasks/` pour le suivi operationnel des sessions de travail.
+- Utiliser `tasks/` pour le suivi operationnel actif et `tasks_archive/` pour l'historique.
 
 ## MemPalace
 

@@ -89,6 +89,59 @@ describe("processElements", () => {
     expect(pois[0].name).toBe("Fontaine du Parc");
   });
 
+  it("should not deduplicate nearby restaurants of the same category", () => {
+    const elements: OverpassElement[] = [
+      {
+        type: "node",
+        id: 4101,
+        lat: 48.858,
+        lon: 2.356,
+        tags: { amenity: "restaurant", name: "Chez A" },
+      },
+      {
+        type: "node",
+        id: 4102,
+        lat: 48.8581,
+        lon: 2.3561,
+        tags: { amenity: "restaurant", name: "Chez B" },
+      },
+    ];
+
+    const pois = processElements(elements, [TRACE], 1500, 50);
+    expect(pois.length).toBe(2);
+  });
+
+  it("should use a larger dedup radius for dense mergeable categories", () => {
+    const elements: OverpassElement[] = Array.from({ length: 300 }, (_, index) => ({
+      type: "node" as const,
+      id: 4200 + index,
+      lat: 48.858 + index * 0.0003,
+      lon: 2.356 + index * 0.0003,
+      tags: { amenity: "drinking_water", name: `Water ${index}` },
+    }));
+
+    elements.push(
+      {
+        type: "node",
+        id: 99901,
+        lat: 48.95,
+        lon: 2.45,
+        tags: { amenity: "drinking_water", name: "Dense A" },
+      },
+      {
+        type: "node",
+        id: 99902,
+        lat: 48.9505,
+        lon: 2.45,
+        tags: { amenity: "drinking_water", name: "Dense B" },
+      },
+    );
+
+    const pois = processElements(elements, [TRACE], 20000, 50);
+    expect(pois.some((poi) => poi.name === "Dense A")).toBe(true);
+    expect(pois.some((poi) => poi.name === "Dense B")).toBe(false);
+  });
+
   it("should not deduplicate POIs of different categories", () => {
     const elements: OverpassElement[] = [
       {

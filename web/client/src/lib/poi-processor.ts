@@ -8,6 +8,18 @@ import type { OverpassElement } from "./overpass";
 import { findCategoryForTag } from "./poi-config";
 import { haversine, distanceToTrace } from "./gpx-parser";
 
+const NON_MERGEABLE_CATEGORIES = new Set<PoiCategory>([
+  "Restaurant or Bar",
+  "Food shop",
+  "Sleeping place",
+  "Gears",
+  "Medical",
+  "Pharmacy",
+  "Bank & ATM",
+  "Post office",
+  "Tourist info",
+]);
+
 let nextId = 1;
 function generateId(): string {
   return `poi_${nextId++}`;
@@ -133,18 +145,25 @@ function formatFallbackName(
 function deduplicatePois(pois: POI[], radiusM: number): POI[] {
   const kept: POI[] = [];
   const removed = new Set<number>();
+  const effectiveRadius = computeAdaptiveDedupRadius(pois.length, radiusM);
 
   for (let i = 0; i < pois.length; i++) {
     if (removed.has(i)) continue;
 
     let best = pois[i];
 
+    if (!isMergeableCategory(best.category) || effectiveRadius <= 0) {
+      kept.push(best);
+      continue;
+    }
+
     for (let j = i + 1; j < pois.length; j++) {
       if (removed.has(j)) continue;
       if (pois[i].category !== pois[j].category) continue;
+      if (!isMergeableCategory(pois[j].category)) continue;
 
       const dist = haversine(pois[i], pois[j]);
-      if (dist <= radiusM) {
+      if (dist <= effectiveRadius) {
         // Keep the one with more tags
         if (Object.keys(pois[j].tags).length > Object.keys(best.tags).length) {
           best = pois[j];
@@ -157,4 +176,15 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
   }
 
   return kept;
+}
+
+function isMergeableCategory(category: PoiCategory): boolean {
+  return !NON_MERGEABLE_CATEGORIES.has(category);
+}
+
+function computeAdaptiveDedupRadius(count: number, baseRadiusM: number): number {
+  if (count >= 1200) return Math.max(baseRadiusM, 120);
+  if (count >= 700) return Math.max(baseRadiusM, 80);
+  if (count >= 300) return Math.max(baseRadiusM, 60);
+  return baseRadiusM;
 }

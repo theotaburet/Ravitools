@@ -5,17 +5,22 @@
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useRef } from "react";
-import type { AppState, POI, PoiCategory, TraceData } from "../types";
+import type { AppState, POI, PoiCategory, TraceData, RouteProcessingSettings } from "../types";
 import { parseGpx } from "../lib/gpx-parser";
-import { queryAllPois } from "../lib/overpass";
+import { queryAllPois, type OverpassElement } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
+
+const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
+  maxDistanceM: 1500,
+};
 
 const INITIAL_STATE: AppState = {
   stage: "idle",
   traces: [],
   pois: [],
   activeCategories: new Set(DEFAULT_CATEGORIES),
+  routeSettings: DEFAULT_ROUTE_SETTINGS,
   error: null,
   progress: "",
 };
@@ -23,9 +28,12 @@ const INITIAL_STATE: AppState = {
 export function useRavitools() {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
+  const rawElementsRef = useRef<OverpassElement[]>([]);
   // Keep a ref to activeCategories so processFiles always reads the latest value
   const activeCatsRef = useRef<Set<PoiCategory>>(state.activeCategories);
   activeCatsRef.current = state.activeCategories;
+  const routeSettingsRef = useRef<RouteProcessingSettings>(state.routeSettings);
+  routeSettingsRef.current = state.routeSettings;
 
   const update = useCallback(
     (partial: Partial<AppState>) =>
@@ -36,6 +44,8 @@ export function useRavitools() {
   // Reset
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    rawElementsRef.current = [];
+    routeSettingsRef.current = DEFAULT_ROUTE_SETTINGS;
     setState(INITIAL_STATE);
   }, []);
 
@@ -45,13 +55,16 @@ export function useRavitools() {
       traces: TraceData[];
       pois: POI[];
       activeCategories: Set<PoiCategory>;
+      routeSettings: RouteProcessingSettings;
     }) => {
+      routeSettingsRef.current = restored.routeSettings;
       setState((prev) => ({
         ...prev,
         stage: "done" as const,
         traces: restored.traces,
         pois: restored.pois,
         activeCategories: restored.activeCategories,
+        routeSettings: restored.routeSettings,
         progress: `Restored ${restored.pois.length} POIs from previous session`,
         error: null,
       }));
@@ -75,6 +88,36 @@ export function useRavitools() {
       ...prev,
       activeCategories: on ? new Set(ALL_CATEGORIES) : new Set(),
     }));
+  }, []);
+
+  const setMaxDistance = useCallback((maxDistanceM: number) => {
+    const routeSettings = { maxDistanceM };
+    routeSettingsRef.current = routeSettings;
+
+    setState((prev) => {
+      if (
+        prev.stage !== "done" ||
+        prev.traces.length === 0 ||
+        rawElementsRef.current.length === 0
+      ) {
+        return { ...prev, routeSettings };
+      }
+
+      const allTraceSimplified = prev.traces.map((t) => t.simplified);
+      const pois = processElements(
+        rawElementsRef.current,
+        allTraceSimplified,
+        maxDistanceM,
+        50,
+      );
+
+      return {
+        ...prev,
+        routeSettings,
+        pois,
+        progress: `Found ${pois.length} POIs within ${maxDistanceM}m of your route${prev.traces.length > 1 ? "s" : ""}`,
+      };
+    });
   }, []);
 
   // Filtered POIs based on active categories
@@ -131,7 +174,7 @@ export function useRavitools() {
 
         const rawElements = await queryAllPois(
           allSimplified,
-          1000, // 1km corridor
+          1000,
           selectedCategories,
           (done, total) => {
             update({
@@ -149,7 +192,13 @@ export function useRavitools() {
         });
 
         const allTraceSimplified = traces.map((t) => t.simplified);
-        const pois = processElements(rawElements, allTraceSimplified, 1500, 50);
+        rawElementsRef.current = rawElements;
+        const pois = processElements(
+          rawElements,
+          allTraceSimplified,
+          routeSettingsRef.current.maxDistanceM,
+          50,
+        );
 
         if (ctrl.signal.aborted) return;
 
@@ -176,5 +225,6 @@ export function useRavitools() {
     restoreState,
     toggleCategory,
     setAllCategories,
+    setMaxDistance,
   };
 }

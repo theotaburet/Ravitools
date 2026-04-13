@@ -24,6 +24,7 @@ export default function App() {
     restoreState,
     toggleCategory,
     setAllCategories,
+    setMaxDistance,
   } = useRavitools();
 
   const {
@@ -57,6 +58,7 @@ export default function App() {
         traces: session.traces,
         pois: session.pois,
         activeCategories: session.activeCategories,
+        routeSettings: session.routeSettings,
       });
       restoreEnrichments(session.enrichments);
       setTargetLanguage(session.targetLanguage);
@@ -87,8 +89,9 @@ export default function App() {
       enrichments,
       targetLanguage,
       enrichAll,
+      routeSettings: state.routeSettings,
     });
-  }, [state.stage, state.pois, state.activeCategories, state.traces, enrichments, targetLanguage, enrichAll]);
+  }, [state.stage, state.pois, state.activeCategories, state.traces, state.routeSettings, enrichments, targetLanguage, enrichAll]);
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -145,6 +148,8 @@ export default function App() {
             onSelectAll={setAllCategories}
             pois={state.pois}
             showCounts={hasPois}
+            maxDistanceM={state.routeSettings.maxDistanceM}
+            onMaxDistanceChange={setMaxDistance}
           />
 
           {/* Upload area */}
