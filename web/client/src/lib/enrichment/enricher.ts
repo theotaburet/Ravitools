@@ -236,8 +236,8 @@ export async function enrichBatch(
   // Helper: emit a completed POI
   function emitResult(poi: POI, enrichment: EnrichedData) {
     results.set(poi.id, enrichment);
-    onProgress?.(poi.id, enrichment, completedCount, total);
     completedCount++;
+    onProgress?.(poi.id, enrichment, completedCount, total);
 
     // Debug log for visibility
     if (enrichment.status === "done") {
@@ -265,8 +265,8 @@ export async function enrichBatch(
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Pre-filter: resolve skip/unnamed POIs immediately (no network)
+   // -----------------------------------------------------------------------
+  // Pre-filter: resolve skip/unnamed/generic POIs immediately (no network)
   // -----------------------------------------------------------------------
   const searchQueue: { poi: POI; index: number; policy: EnrichabilityPolicy }[] = [];
 
@@ -274,15 +274,15 @@ export async function enrichBatch(
     if (signal?.aborted) break;
     const poi = pois[i];
 
-    // Skip unnamed
-    if (skipUnnamed && (!poi.name || poi.name === "Unknown")) {
+    // Skip unnamed or generic POI names that won't yield useful search results
+    if (skipUnnamed && isGenericPoiName(poi.name)) {
       const skippedData: EnrichedData = {
         rating: null, reviewCount: null, hours: null, summary: null,
         translatedSummary: null, specialty: null, priceLevel: null,
         googleMapsUrl: buildGoogleMapsUrl(poi),
         sourceUrls: [], rawSnippets: [],
         enrichedAt: new Date().toISOString(),
-        status: "skipped", skipReason: "unnamed", locality: null,
+        status: "skipped", skipReason: "generic-name", locality: null,
         sourceCount: 0, sourceEngines: [], confidence: 0,
       };
       emitResult(poi, skippedData);
@@ -544,6 +544,40 @@ async function runConcurrent<T>(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Generic/descriptive POI names that won't produce useful web search results.
+ * These are typically auto-generated from OSM tags rather than being actual
+ * business names. Matching is case-insensitive.
+ */
+const GENERIC_POI_NAMES = new Set([
+  // Empty / unknown
+  "", "unknown", "unnamed",
+  // Water & sanitation (often OSM tag names, not real names)
+  "toilets", "toilet", "drinking water", "water",
+  "restroom", "restrooms", "wc", "public toilet", "public toilets",
+  // Shelter / picnic
+  "shelter", "picnic", "picnic site", "picnic table", "picnic area",
+  // Generic amenity descriptions
+  "bench", "waste basket", "recycling", "parking",
+  "bicycle parking", "bicycle repair station",
+  // Generic French equivalents
+  "toilettes", "eau potable", "fontaine", "point d'eau",
+  "abri", "aire de pique-nique", "banc",
+  // Generic Spanish/Basque equivalents
+  "fuente", "aseos", "servicios",
+]);
+
+/**
+ * Returns true if the POI name is empty, missing, or a generic/descriptive
+ * name that won't produce useful web search results.
+ */
+export function isGenericPoiName(name: string | undefined | null): boolean {
+  if (!name) return true;
+  const normalized = name.trim().toLowerCase();
+  if (normalized.length === 0) return true;
+  return GENERIC_POI_NAMES.has(normalized);
 }
 
 /**

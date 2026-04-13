@@ -96,61 +96,97 @@ export function buildSearchQuery(
 /**
  * Search for POI information via the server-side SearXNG proxy.
  * Returns cleaned snippets ready for LLM synthesis.
+ * Retries on 429 (rate-limited) and network errors with exponential backoff.
  */
 export async function searchPoi(
   poi: POI,
   locality: string | null,
   apiBase: string = "/api",
   signal?: AbortSignal,
+  maxRetries: number = 3,
 ): Promise<SearchSnippet[]> {
   const query = buildSearchQuery(poi, locality);
+  let lastError: Error | null = null;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) throw new Error("Cancelled");
 
-  // Combine external signal with our timeout
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
-  }
-
-  try {
-    const res = await fetch(`${apiBase}/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, language: "auto" }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      throw new Error(`Search failed: ${res.status} ${res.statusText}`);
+    if (attempt > 0) {
+      // Exponential backoff: 2s, 4s, 8s
+      const delayMs = 2000 * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delayMs));
     }
 
-    const data: SearXNGResponse = await res.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    // Convert to our snippet format, deduplicate, limit
-    const seen = new Set<string>();
-    const snippets: SearchSnippet[] = [];
+    // Combine external signal with our timeout
+    if (signal) {
+      signal.addEventListener("abort", () => controller.abort());
+    }
 
-    for (const result of data.results) {
-      if (snippets.length >= MAX_SNIPPETS) break;
-      if (!result.content?.trim()) continue;
-
-      // Deduplicate by URL
-      if (seen.has(result.url)) continue;
-      seen.add(result.url);
-
-      snippets.push({
-        title: result.title || "",
-        url: result.url,
-        content: result.content.trim(),
-        engine: result.engine || "unknown",
+    try {
+      const res = await fetch(`${apiBase}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, language: "auto" }),
+        signal: controller.signal,
       });
-    }
 
-    return snippets;
-  } finally {
-    clearTimeout(timeout);
+      if (res.status === 429) {
+        lastError = new Error(`Search rate-limited (429)`);
+        continue; // retry with backoff
+      }
+
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        lastError = new Error(`Search server error (${res.status})`);
+        continue; // retry on transient server errors
+      }
+
+      if (!res.ok) {
+        throw new Error(`Search failed: ${res.status} ${res.statusText}`);
+      }
+
+      const data: SearXNGResponse = await res.json();
+
+      // Convert to our snippet format, deduplicate, limit
+      const seen = new Set<string>();
+      const snippets: SearchSnippet[] = [];
+
+      for (const result of data.results) {
+        if (snippets.length >= MAX_SNIPPETS) break;
+        if (!result.content?.trim()) continue;
+
+        // Deduplicate by URL
+        if (seen.has(result.url)) continue;
+        seen.add(result.url);
+
+        snippets.push({
+          title: result.title || "",
+          url: result.url,
+          content: result.content.trim(),
+          engine: result.engine || "unknown",
+        });
+      }
+
+      return snippets;
+    } catch (err) {
+      clearTimeout(timeout);
+      if (signal?.aborted) throw new Error("Cancelled");
+
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Retry on network errors (ECONNREFUSED, fetch failed, etc.)
+      if (attempt < maxRetries && lastError.name !== "AbortError") {
+        continue;
+      }
+      throw lastError;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  throw lastError ?? new Error("Search failed after retries");
 }
 
 // ---------------------------------------------------------------------------

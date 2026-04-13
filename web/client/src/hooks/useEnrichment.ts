@@ -20,6 +20,8 @@ const INITIAL_JOB: EnrichmentJobState = {
   stage: "idle",
   total: 0,
   completed: 0,
+  errorCount: 0,
+  skippedCount: 0,
   currentPoiName: null,
   modelLoadProgress: 0,
   webGpuAvailable: false,
@@ -104,7 +106,7 @@ export function useEnrichment() {
         if (ctrl.signal.aborted) return;
 
         // Step 2: Batch enrichment
-        updateJob({ stage: "running", modelLoadProgress: 1, phase: "geocode-search", etaSeconds: null });
+        updateJob({ stage: "running", modelLoadProgress: 1, phase: "geocode-search", etaSeconds: null, errorCount: 0, skippedCount: 0 });
 
         await enrichBatch(pois, {
           signal: ctrl.signal,
@@ -113,7 +115,7 @@ export function useEnrichment() {
           skipUnnamed: true,
           targetLanguage,
           enrichAll,
-          onProgress: (poiId, enrichment, index, total) => {
+          onProgress: (poiId, enrichment, completed, total) => {
             // Update enrichments map incrementally
             setEnrichments((prev) => {
               const next = new Map(prev);
@@ -121,12 +123,15 @@ export function useEnrichment() {
               return next;
             });
 
-            updateJob({
-              completed: index + 1,
+            setJob((prev) => ({
+              ...prev,
+              completed,
               total,
+              errorCount: prev.errorCount + (enrichment.status === "error" ? 1 : 0),
+              skippedCount: prev.skippedCount + (enrichment.status === "skipped" ? 1 : 0),
               currentPoiName:
-                index + 1 < total ? pois[index + 1]?.name ?? null : null,
-            });
+                completed < total ? pois[completed]?.name ?? null : null,
+            }));
           },
           onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
             updateJob({ phase, etaSeconds });

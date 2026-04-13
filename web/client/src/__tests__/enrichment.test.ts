@@ -801,7 +801,7 @@ describe("enrichBatch pipeline", () => {
 
     expect(results.size).toBe(2);
     expect(results.get("unnamed")!.status).toBe("skipped");
-    expect(results.get("unnamed")!.skipReason).toBe("unnamed");
+    expect(results.get("unnamed")!.skipReason).toBe("generic-name");
     expect(results.get("named")!.status).toBe("done");
     // reverseGeocode should only be called for the named POI
     expect(reverseGeocode).toHaveBeenCalledTimes(1);
@@ -957,7 +957,7 @@ describe("enrichBatch pipeline", () => {
     expect(results.get("diy")!.rating).toBeNull(); // minimal = no search/LLM
     expect(results.get("water")!.status).toBe("skipped");
     expect(results.get("noname")!.status).toBe("skipped");
-    expect(results.get("noname")!.skipReason).toBe("unnamed");
+    expect(results.get("noname")!.skipReason).toBe("generic-name");
   });
 
   it("computes confidence for batch results", async () => {

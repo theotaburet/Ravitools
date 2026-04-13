@@ -183,6 +183,20 @@ export function EnrichmentPanel({
               Current: {job.currentPoiName}
             </div>
           )}
+          {(job.errorCount > 0 || job.skippedCount > 0) && (
+            <div className="text-xs font-mono" style={{ display: "flex", gap: "0.75rem" }}>
+              {job.errorCount > 0 && (
+                <span style={{ color: "var(--color-danger)" }}>
+                  {job.errorCount} error{job.errorCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {job.skippedCount > 0 && (
+                <span style={{ color: "var(--color-muted)" }}>
+                  {job.skippedCount} skipped
+                </span>
+              )}
+            </div>
+          )}
           {job.etaSeconds != null && job.etaSeconds > 0 && (
             <div className="text-xs text-muted font-mono">
               ETA: {formatEta(job.etaSeconds)}
@@ -190,8 +204,11 @@ export function EnrichmentPanel({
           )}
           <div className="progress-bar-track">
             <div
-              className="progress-bar-fill bg-lime"
-              style={{ width: `${progressPct}%` }}
+              className="progress-bar-fill"
+              style={{
+                width: `${progressPct}%`,
+                backgroundColor: job.errorCount > 0 ? "var(--color-warning)" : "var(--color-lime)",
+              }}
             />
           </div>
           <button
@@ -209,10 +226,27 @@ export function EnrichmentPanel({
           <div className="enrichment-done">
             Enriched {enrichedCount}/{poiCount} POIs
           </div>
+          {(job.errorCount > 0 || job.skippedCount > 0) && (
+            <div className="text-xs font-mono" style={{ display: "flex", gap: "0.75rem" }}>
+              {job.errorCount > 0 && (
+                <span style={{ color: "var(--color-danger)" }}>
+                  {job.errorCount} error{job.errorCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {job.skippedCount > 0 && (
+                <span style={{ color: "var(--color-muted)" }}>
+                  {job.skippedCount} skipped
+                </span>
+              )}
+            </div>
+          )}
           <div className="progress-bar-track">
             <div
-              className="progress-bar-fill bg-success"
-              style={{ width: "100%" }}
+              className="progress-bar-fill"
+              style={{
+                width: "100%",
+                backgroundColor: job.errorCount > 0 ? "var(--color-warning)" : "var(--color-success)",
+              }}
             />
           </div>
           <button

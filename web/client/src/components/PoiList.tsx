@@ -10,6 +10,7 @@ import { buildGoogleMapsUrl } from "../lib/enrichment";
 /** Human-readable labels for skip reasons */
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
   "unnamed": "Unnamed POI",
+  "generic-name": "Generic name",
   "low-value-category": "Low-value category",
   "no-results": "No search results found",
   "rate-limited": "Rate limited",

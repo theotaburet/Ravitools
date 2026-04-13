@@ -120,6 +120,7 @@ export type EnrichabilityPolicy = "full" | "minimal" | "skip";
 /** Why enrichment was skipped for a POI */
 export type SkipReason =
   | "unnamed"
+  | "generic-name"
   | "low-value-category"
   | "no-results"
   | "rate-limited"
@@ -206,6 +207,10 @@ export interface EnrichmentJobState {
   total: number;
   /** POIs completed (done or error or skipped) */
   completed: number;
+  /** POIs that completed with errors */
+  errorCount: number;
+  /** POIs skipped (generic name, low-value category, etc.) */
+  skippedCount: number;
   /** Current POI being processed */
   currentPoiName: string | null;
   /** LLM model loading progress (0-1) */
