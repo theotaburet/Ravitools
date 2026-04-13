@@ -41,7 +41,8 @@ server-start:
 
 # SearXNG (search engine)
 searxng:
-	docker-compose up -d searxng
+	@echo "Starting SearXNG..." && \
+	(docker compose up -d searxng 2>/dev/null || docker-compose up -d searxng 2>/dev/null || echo "Docker not found. Run: docker run -d -p 8888:8080 --rm searxng/searxng")
 
 # All services
 all: searxng
