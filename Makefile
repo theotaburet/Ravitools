@@ -1,7 +1,7 @@
 # Ravitools Makefile
 # Usage: make <target>
 
-.PHONY: help install client client-build client-start server server-build server-start searxng searxng-stop all stop
+.PHONY: help install client client-build client-start client-stop server server-build server-start server-stop searxng searxng-stop all stop
 
 help:
 	@echo "Ravitools targets:"
@@ -39,6 +39,13 @@ server-build:
 server-start:
 	cd web/server && npm start
 
+server-stop:
+	@lsof -ti:3001 | xargs kill -9 2>/dev/null && echo "Server stopped" || echo "Server not running"
+
+# Client
+client-stop:
+	@lsof -ti:5173 | xargs kill -9 2>/dev/null && echo "Client stopped" || echo "Client not running"
+
 # SearXNG (search engine)
 searxng:
 	@if docker info >/dev/null 2>&1; then \
@@ -68,3 +75,6 @@ all: searxng
 
 # Stop all services
 stop: searxng-stop
+	-@lsof -ti:3001 | xargs kill -9 2>/dev/null
+	-@lsof -ti:5173 | xargs kill -9 2>/dev/null
+	@echo "Stopped server (3001) and client (5173)"
