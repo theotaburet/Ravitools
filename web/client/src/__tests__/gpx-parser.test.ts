@@ -10,6 +10,7 @@ import {
   computePathLength,
   simplifyTrace,
   distanceToTrace,
+  TraceIndex,
 } from "../lib/gpx-parser";
 import type { TracePoint } from "../types";
 import { TRACE_COLORS } from "../types";
@@ -165,5 +166,118 @@ describe("distanceToTrace", () => {
     const d = distanceToTrace(point, trace);
     expect(d).toBeGreaterThan(500);
     expect(d).toBeLessThan(1000);
+  });
+});
+
+describe("TraceIndex", () => {
+  it("should return same distance as brute-force distanceToTrace", () => {
+    const trace: TracePoint[] = [
+      { lat: 48.8566, lon: 2.3522 },
+      { lat: 48.8600, lon: 2.3600 },
+      { lat: 48.8650, lon: 2.3700 },
+      { lat: 48.8700, lon: 2.3800 },
+    ];
+    const index = new TraceIndex(trace);
+    const point: TracePoint = { lat: 48.862, lon: 2.365 };
+    const brute = distanceToTrace(point, trace);
+    const indexed = index.distanceTo(point);
+    // Should be very close — both compute segment distance
+    expect(Math.abs(brute - indexed)).toBeLessThan(1);
+  });
+
+  it("should return 0 for a point on the trace", () => {
+    const trace: TracePoint[] = [
+      { lat: 48.8566, lon: 2.3522 },
+      { lat: 48.8700, lon: 2.3800 },
+    ];
+    const index = new TraceIndex(trace);
+    const d = index.distanceTo(trace[0]);
+    expect(d).toBeLessThan(1);
+  });
+
+  it("should handle a long trace correctly", () => {
+    // Simulate a ~50km trace with 500 points
+    const trace: TracePoint[] = [];
+    for (let i = 0; i < 500; i++) {
+      trace.push({ lat: 48.0 + i * 0.001, lon: 2.0 + i * 0.001 });
+    }
+    const index = new TraceIndex(trace);
+    // Point near the middle of the trace
+    const point: TracePoint = { lat: 48.25, lon: 2.251 };
+    const brute = distanceToTrace(point, trace);
+    const indexed = index.distanceTo(point);
+    expect(Math.abs(brute - indexed)).toBeLessThan(1);
+  });
+
+  it("should match brute-force for a point far from trace", () => {
+    const trace: TracePoint[] = [
+      { lat: 48.8566, lon: 2.3522 },
+      { lat: 48.8700, lon: 2.3800 },
+    ];
+    const index = new TraceIndex(trace);
+    // Point far away — should fallback to brute force
+    const farPoint: TracePoint = { lat: 50.0, lon: 5.0 };
+    const brute = distanceToTrace(farPoint, trace);
+    const indexed = index.distanceTo(farPoint);
+    expect(Math.abs(brute - indexed)).toBeLessThan(1);
+  });
+
+  it("should be significantly faster than brute-force on 12k-point trace", () => {
+    // Simulate a 600km trace with 12000 points (~50m spacing)
+    const trace: TracePoint[] = [];
+    for (let i = 0; i < 12000; i++) {
+      // Zigzag path to simulate realistic route with curves
+      const lat = 43.0 + i * 0.00045;
+      const lon = 1.0 + Math.sin(i * 0.01) * 0.005 + i * 0.00045;
+      trace.push({ lat, lon });
+    }
+
+    // Generate 2000 test POIs scattered near the trace
+    const pois: TracePoint[] = [];
+    for (let i = 0; i < 2000; i++) {
+      const traceIdx = Math.floor(Math.random() * trace.length);
+      const offsetLat = (Math.random() - 0.5) * 0.03; // ±1.5km
+      const offsetLon = (Math.random() - 0.5) * 0.04;
+      pois.push({
+        lat: trace[traceIdx].lat + offsetLat,
+        lon: trace[traceIdx].lon + offsetLon,
+      });
+    }
+
+    // Brute force
+    const bruteStart = performance.now();
+    const bruteResults: number[] = [];
+    for (const poi of pois) {
+      bruteResults.push(distanceToTrace(poi, trace));
+    }
+    const bruteMs = performance.now() - bruteStart;
+
+    // Indexed
+    const indexBuildStart = performance.now();
+    const index = new TraceIndex(trace);
+    const indexBuildMs = performance.now() - indexBuildStart;
+
+    const indexQueryStart = performance.now();
+    const indexResults: number[] = [];
+    for (const poi of pois) {
+      indexResults.push(index.distanceTo(poi));
+    }
+    const indexQueryMs = performance.now() - indexQueryStart;
+    const indexTotalMs = indexBuildMs + indexQueryMs;
+
+    // Verify correctness — all results should match
+    for (let i = 0; i < pois.length; i++) {
+      expect(Math.abs(bruteResults[i] - indexResults[i])).toBeLessThan(1);
+    }
+
+    // Index should be at least 5x faster (typically 50-200x)
+    const speedup = bruteMs / indexTotalMs;
+    // Log for visibility
+    console.log(
+      `TraceIndex benchmark: brute=${bruteMs.toFixed(0)}ms, ` +
+      `index=${indexTotalMs.toFixed(0)}ms (build=${indexBuildMs.toFixed(0)}ms + query=${indexQueryMs.toFixed(0)}ms), ` +
+      `speedup=${speedup.toFixed(1)}x`
+    );
+    expect(speedup).toBeGreaterThan(5);
   });
 });

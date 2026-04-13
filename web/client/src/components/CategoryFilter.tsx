@@ -52,7 +52,7 @@ export function CategoryFilter({
         </button>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
-        <div className="px-4 py-3 border-b-3 border-black bg-white">
+        <div className="px-4 py-3 border-b-2 border-black bg-white">
           <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
             <span>Max distance to route</span>
             <span>{maxDistanceM}m</span>

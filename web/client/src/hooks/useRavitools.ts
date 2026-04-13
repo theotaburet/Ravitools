@@ -107,11 +107,13 @@ export function useRavitools() {
       }
 
       const allTraceSimplified = prev.traces.map((t) => t.simplified);
+      const allTraceOriginal = prev.traces.map((t) => t.original);
       const pois = processElements(
         rawElementsRef.current,
         allTraceSimplified,
         maxDistanceM,
         50,
+        allTraceOriginal,
       );
 
       return {
@@ -212,12 +214,14 @@ export function useRavitools() {
 
         const endProcess = log.time("POI processing");
         const allTraceSimplified = traces.map((t) => t.simplified);
+        const allTraceOriginal = traces.map((t) => t.original);
         rawElementsRef.current = rawElements;
         const pois = processElements(
           rawElements,
           allTraceSimplified,
           routeSettingsRef.current.maxDistanceM,
           50,
+          allTraceOriginal,
         );
         endProcess();
 
@@ -303,12 +307,14 @@ export function useRavitools() {
       });
 
       const allTraceSimplified = currentTraces.map((t) => t.simplified);
+      const allTraceOriginal = currentTraces.map((t) => t.original);
       rawElementsRef.current = rawElements;
       const pois = processElements(
         rawElements,
         allTraceSimplified,
         routeSettingsRef.current.maxDistanceM,
         50,
+        allTraceOriginal,
       );
 
       if (ctrl.signal.aborted) return;

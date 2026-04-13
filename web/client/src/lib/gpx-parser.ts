@@ -192,6 +192,106 @@ export function distanceToTrace(
   return minDist;
 }
 
+// ---------------------------------------------------------------------------
+// Spatial index for fast distance-to-trace queries on long traces
+// ---------------------------------------------------------------------------
+
+/** Grid cell size in degrees (~2.2 km at 45°N latitude) */
+const GRID_CELL_DEG = 0.02;
+
+/** A segment index entry: start index in the trace points array */
+interface SegmentRef {
+  /** Index of the first point of this segment in the trace */
+  idx: number;
+}
+
+/**
+ * Spatial index for a trace polyline.
+ *
+ * Segments are bucketed into a grid keyed by `"latCell,lonCell"`.
+ * Each segment is inserted into every cell its bounding box touches.
+ * To query distance from a point, only segments in nearby cells are tested.
+ *
+ * For a 600 km trace with ~12 000 points, building the index is O(n)
+ * and each distance query is O(k) where k ≪ n (typically 20-60 segments).
+ */
+export class TraceIndex {
+  private grid = new Map<string, SegmentRef[]>();
+  private points: TracePoint[];
+
+  constructor(trace: TracePoint[]) {
+    this.points = trace;
+    for (let i = 0; i < trace.length - 1; i++) {
+      const a = trace[i];
+      const b = trace[i + 1];
+      // Bounding box of the segment
+      const minLat = Math.min(a.lat, b.lat);
+      const maxLat = Math.max(a.lat, b.lat);
+      const minLon = Math.min(a.lon, b.lon);
+      const maxLon = Math.max(a.lon, b.lon);
+      // Insert into every cell the segment touches
+      const cMinLat = Math.floor(minLat / GRID_CELL_DEG);
+      const cMaxLat = Math.floor(maxLat / GRID_CELL_DEG);
+      const cMinLon = Math.floor(minLon / GRID_CELL_DEG);
+      const cMaxLon = Math.floor(maxLon / GRID_CELL_DEG);
+      const ref: SegmentRef = { idx: i };
+      for (let cy = cMinLat; cy <= cMaxLat; cy++) {
+        for (let cx = cMinLon; cx <= cMaxLon; cx++) {
+          const key = `${cy},${cx}`;
+          let bucket = this.grid.get(key);
+          if (!bucket) {
+            bucket = [];
+            this.grid.set(key, bucket);
+          }
+          bucket.push(ref);
+        }
+      }
+    }
+  }
+
+  /**
+   * Compute minimum distance from a point to the indexed trace.
+   * Only tests segments in cells within `searchRadiusDeg` of the point.
+   *
+   * @param point - The query point
+   * @param searchRadiusDeg - How many grid cells to search around the point
+   *   (default 2 = 5x5 neighbourhood ≈ ±4.4 km). For maxDistanceM=1500m
+   *   this provides ample margin even at cell boundaries.
+   */
+  distanceTo(point: TracePoint, searchRadiusDeg: number = 2): number {
+    const cy = Math.floor(point.lat / GRID_CELL_DEG);
+    const cx = Math.floor(point.lon / GRID_CELL_DEG);
+
+    let minDist = Infinity;
+    const tested = new Set<number>(); // avoid testing same segment twice
+
+    for (let dy = -searchRadiusDeg; dy <= searchRadiusDeg; dy++) {
+      for (let dx = -searchRadiusDeg; dx <= searchRadiusDeg; dx++) {
+        const key = `${cy + dy},${cx + dx}`;
+        const bucket = this.grid.get(key);
+        if (!bucket) continue;
+        for (const ref of bucket) {
+          if (tested.has(ref.idx)) continue;
+          tested.add(ref.idx);
+          const d = distanceToSegment(
+            point,
+            this.points[ref.idx],
+            this.points[ref.idx + 1],
+          );
+          if (d < minDist) minDist = d;
+        }
+      }
+    }
+
+    // If no segments found nearby (point far from trace), fall back to brute force
+    if (minDist === Infinity) {
+      return distanceToTrace(point, this.points);
+    }
+
+    return minDist;
+  }
+}
+
 /**
  * Approximate distance from a point to a line segment.
  * Projects the point onto the segment in lat/lon space then computes

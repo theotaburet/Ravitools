@@ -6,7 +6,7 @@
 import type { POI, TracePoint, PoiCategory } from "../types";
 import type { OverpassElement } from "./overpass";
 import { findCategoryForTag } from "./poi-config";
-import { haversine, distanceToTrace } from "./gpx-parser";
+import { haversine, distanceToTrace, TraceIndex } from "./gpx-parser";
 
 const NON_MERGEABLE_CATEGORIES = new Set<PoiCategory>([
   "Restaurant or Bar",
@@ -42,12 +42,17 @@ function generateId(): string {
  * @param traces - Array of simplified traces for distance calculation
  * @param maxDistanceM - Maximum distance from any trace to keep (default 1500m)
  * @param deduplicationRadiusM - Merge POIs within this radius (default 50m)
+ * @param originalTraces - If provided, use these (full-resolution) traces
+ *   for distance calculation instead of the simplified ones. This avoids
+ *   missing POIs near tight curves that the 500m resampling may cut.
+ *   A spatial index is built automatically so performance stays O(k) per POI.
  */
 export function processElements(
   elements: OverpassElement[],
   traces: TracePoint[][],
   maxDistanceM: number = 1500,
   deduplicationRadiusM: number = 50,
+  originalTraces?: TracePoint[][],
 ): POI[] {
   // Step 1: Convert elements to POIs
   const rawPois: POI[] = [];
@@ -57,12 +62,22 @@ export function processElements(
     if (poi) rawPois.push(poi);
   }
 
-  // Step 2: Compute distance to nearest trace and filter
+  // Step 2: Compute distance to nearest trace and filter.
+  // When original traces are available, build spatial indices for fast lookup
+  // on potentially very long polylines (10k+ points for 600km routes).
+  const distTraces = originalTraces ?? traces;
+  const indices = distTraces.map((t) =>
+    t.length > 200 ? new TraceIndex(t) : null,
+  );
+
   const withDistance: POI[] = [];
   for (const poi of rawPois) {
     let minDist = Infinity;
-    for (const trace of traces) {
-      const dist = distanceToTrace(poi, trace);
+    for (let ti = 0; ti < distTraces.length; ti++) {
+      const idx = indices[ti];
+      const dist = idx
+        ? idx.distanceTo(poi)
+        : distanceToTrace(poi, distTraces[ti]);
       if (dist < minDist) minDist = dist;
     }
     poi.distanceToTrace = minDist;
