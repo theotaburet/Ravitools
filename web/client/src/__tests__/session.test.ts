@@ -59,6 +59,7 @@ function makePoi(id: string, category: PoiCategory = "Restaurant or Bar"): POI {
     name: `POI ${id}`,
     icon: "utensils",
     distanceToTrace: 120,
+    alongTraceDistance: 5000,
     tags: { amenity: "restaurant" },
     style: {
       iconShape: "circle",

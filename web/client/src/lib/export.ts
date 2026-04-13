@@ -382,6 +382,146 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+// ---------------------------------------------------------------------------
+// Hours formatting – normalize LLM-generated hours into clean per-day lines
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a raw hours string from LLM into a clean multi-line schedule.
+ * Handles various separators (; , / \n) and normalizes day names.
+ * Returns one line per day-range for readability.
+ *
+ * Examples:
+ *   "Mon-Fri: 8:00-12:00, 14:00-18:00; Sat: 9:00-12:00; Sun: closed"
+ *   → "Mon-Fri: 8:00-12:00, 14:00-18:00\nSat: 9:00-12:00\nSun: closed"
+ */
+export function formatHours(raw: string): string {
+  if (!raw) return raw;
+
+  // Split on common day-schedule separators:
+  // - semicolons always separate day entries
+  // - " / " (spaced slash) separates day entries
+  // - newlines separate day entries
+  // BUT NOT commas within time ranges (e.g. "8:00-12:00, 14:00-18:00")
+  const entries = raw
+    .split(/[;\n]|(?:\s\/\s)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (entries.length <= 1) {
+    // Single entry — just clean up whitespace
+    return raw.trim();
+  }
+
+  return entries.join("\n");
+}
+
+/**
+ * Format hours for HTML output — same logic as formatHours but uses <br/> for line breaks.
+ */
+export function formatHoursHtml(raw: string): string {
+  if (!raw) return raw;
+
+  const entries = raw
+    .split(/[;\n]|(?:\s\/\s)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (entries.length <= 1) {
+    return raw.trim();
+  }
+
+  return entries.join("<br/>");
+}
+
+// ---------------------------------------------------------------------------
+// Sunday / evening availability detection
+// ---------------------------------------------------------------------------
+
+/** Day abbreviations that indicate Sunday in both OSM and freeform hours */
+const SUNDAY_PATTERNS = /\b(su|sun|sunday|dim|dimanche|do|domingo)\b/i;
+
+/** Patterns indicating a day range that includes Sunday (e.g. Mo-Su, Mon-Sun, 7j/7, 7/7) */
+const SUNDAY_RANGE_PATTERNS = /\b(mo|mon|lu|lun)\s*[-–]\s*(su|sun|dim|do)\b|7\s*[j/]\s*[/]?\s*7/i;
+
+/** Patterns that explicitly say Sunday is closed */
+const SUNDAY_CLOSED = /\b(su|sun|sunday|dim|dimanche)\b[^;/\n]*\b(closed|fermé|geschlossen|cerrado)\b/i;
+
+/**
+ * Detect whether a POI is open on Sunday, from either enrichment hours or OSM opening_hours.
+ * Returns true if Sunday appears to have opening hours (not "closed").
+ */
+export function isOpenSunday(hours: string | null | undefined, osmHours?: string | null): boolean {
+  const raw = hours ?? osmHours ?? "";
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+
+  // Explicit "closed on Sunday" → false
+  if (SUNDAY_CLOSED.test(lower)) return false;
+
+  // Range that includes Sunday (Mo-Su, 7j/7, etc.)
+  if (SUNDAY_RANGE_PATTERNS.test(lower)) return true;
+
+  // Sunday mentioned with a time (not just "closed")
+  if (SUNDAY_PATTERNS.test(lower)) {
+    // Check it's not followed by "closed"
+    const sunMatch = lower.match(SUNDAY_PATTERNS);
+    if (sunMatch) {
+      const afterSun = lower.slice(sunMatch.index! + sunMatch[0].length, sunMatch.index! + sunMatch[0].length + 30);
+      if (!/closed|fermé|geschlossen|cerrado/.test(afterSun)) return true;
+    }
+  }
+
+  return false;
+}
+
+/** Evening = has a closing time >= 20:00 */
+const EVENING_TIME = /\b(\d{1,2})[h:.]?(\d{2})?\s*$/;
+
+/**
+ * Detect whether a POI is open in the evening (closing time >= 20:00).
+ */
+export function isOpenEvening(hours: string | null | undefined, osmHours?: string | null): boolean {
+  const raw = hours ?? osmHours ?? "";
+  if (!raw) return false;
+
+  // Look for time ranges like "8:00-21:00" or "08h00-22h00" — check the closing time
+  const timeRanges = raw.match(/\d{1,2}[h:.]?\d{0,2}\s*[-–]\s*\d{1,2}[h:.]?\d{0,2}/g);
+  if (!timeRanges) return false;
+
+  for (const range of timeRanges) {
+    const parts = range.split(/[-–]/);
+    if (parts.length !== 2) continue;
+    const closing = parts[1].trim();
+    const hourMatch = closing.match(/^(\d{1,2})/);
+    if (hourMatch) {
+      const hour = parseInt(hourMatch[1], 10);
+      if (hour >= 20 || hour <= 2) return true; // 20:00+ or wraps past midnight (0:00-2:00)
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Build availability tags for a POI (e.g. ["Open Sunday", "Open evenings"]).
+ * Uses enrichment hours if available, falls back to OSM opening_hours tag.
+ */
+export function getAvailabilityTags(
+  enrichmentHours: string | null | undefined,
+  osmHours: string | null | undefined,
+  lang: "fr" | "en" = "en",
+): string[] {
+  const tags: string[] = [];
+  if (isOpenSunday(enrichmentHours, osmHours)) {
+    tags.push(lang === "fr" ? "Ouvert le dimanche" : "Open Sunday");
+  }
+  if (isOpenEvening(enrichmentHours, osmHours)) {
+    tags.push(lang === "fr" ? "Ouvert le soir" : "Open evenings");
+  }
+  return tags;
+}
+
 function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
   const parts = [`Category: ${poi.category}`];
 
@@ -391,7 +531,7 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
       parts.push(`Rating: ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
     }
     if (enrichment.specialty) parts.push(`Type: ${enrichment.specialty}`);
-    if (enrichment.hours) parts.push(`Hours: ${enrichment.hours}`);
+    if (enrichment.hours) parts.push(`Hours:\n${formatHours(enrichment.hours)}`);
     if (enrichment.priceLevel != null) parts.push(`Price: ${"$".repeat(enrichment.priceLevel)}`);
     // Prefer translated summary for user-facing output
     const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
@@ -408,7 +548,15 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
   if (poi.tags.phone) parts.push(`Phone: ${poi.tags.phone}`);
   if (poi.tags.website) parts.push(`Web: ${poi.tags.website}`);
   if (poi.tags.fee) parts.push(`Fee: ${poi.tags.fee}`);
-  parts.push(`Distance from route: ${Math.round(poi.distanceToTrace)}m`);
+
+  // Availability highlights
+  const availability = getAvailabilityTags(
+    enrichment?.hours ?? null,
+    poi.tags.opening_hours ?? null,
+  );
+  if (availability.length > 0) parts.push(availability.join(" · "));
+
+  parts.push(`km ${(poi.alongTraceDistance / 1000).toFixed(1)} — ${Math.round(poi.distanceToTrace)}m from route`);
   return parts.join("\n");
 }
 
@@ -422,7 +570,7 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
       parts.push(`<b>Rating:</b> ${stars} ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
     }
     if (enrichment.specialty) parts.push(`<b>Type:</b> ${enrichment.specialty}`);
-    if (enrichment.hours) parts.push(`<b>Hours:</b> ${enrichment.hours}`);
+    if (enrichment.hours) parts.push(`<b>Hours:</b><br/>${formatHoursHtml(enrichment.hours)}`);
     if (enrichment.priceLevel != null) parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
     // Prefer translated summary for user-facing output
     const displaySummary = enrichment.translatedSummary ?? enrichment.summary;
@@ -442,8 +590,18 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
       `<b>Web:</b> <a href="${poi.tags.website}">${poi.tags.website}</a>`,
     );
   if (poi.tags.fee) parts.push(`<b>Fee:</b> ${poi.tags.fee}`);
+
+  // Availability highlights
+  const availabilityHtml = getAvailabilityTags(
+    enrichment?.hours ?? null,
+    poi.tags.opening_hours ?? null,
+  );
+  if (availabilityHtml.length > 0) {
+    parts.push(`<b style="color:#16a34a">${availabilityHtml.join(" · ")}</b>`);
+  }
+
   parts.push(
-    `<b>Distance from route:</b> ${Math.round(poi.distanceToTrace)}m`,
+    `<b>km ${(poi.alongTraceDistance / 1000).toFixed(1)}</b> — ${Math.round(poi.distanceToTrace)}m from route`,
   );
   return parts.join("<br/>");
 }

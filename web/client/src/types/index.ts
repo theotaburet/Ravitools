@@ -85,6 +85,9 @@ export interface POI {
   icon: string;
   /** Distance to nearest point on the trace (meters) */
   distanceToTrace: number;
+  /** Distance along the trace from its start to the POI's nearest projection (meters).
+   *  Used for ordering POIs in trace-travel order. */
+  alongTraceDistance: number;
   /** Raw OSM tags */
   tags: Record<string, string>;
   /** Style from category config */
@@ -198,6 +201,7 @@ export type EnrichmentJobStage =
 export type EnrichmentPhase =
   | "geocode-search" // fetching data from Nominatim + SearXNG
   | "synthesize"     // LLM inference
+  | "retry"          // retrying failed POIs
   | "idle";          // not actively enriching
 
 /** Enrichment job progress */

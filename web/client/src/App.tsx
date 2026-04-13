@@ -33,6 +33,7 @@ export default function App() {
     job: enrichmentJob,
     enrichments,
     startEnrichment,
+    continueEnrichment,
     cancelEnrichment,
     resetEnrichment,
     restoreEnrichments,
@@ -102,6 +103,12 @@ export default function App() {
     state.stage === "processing";
 
   const hasPois = state.pois.length > 0;
+
+  // Count POIs that still need enrichment (unenriched + errors)
+  const pendingEnrichmentCount = filteredPois.filter((poi) => {
+    const e = enrichments.get(poi.id);
+    return !e || e.status === "error";
+  }).length;
 
   const handleReset = useCallback(() => {
     reset();
@@ -222,11 +229,13 @@ export default function App() {
               job={enrichmentJob}
               poiCount={filteredPois.length}
               enrichedCount={enrichments.size}
+              pendingCount={pendingEnrichmentCount}
               targetLanguage={targetLanguage}
               onLanguageChange={setTargetLanguage}
               enrichAll={enrichAll}
               onEnrichAllChange={setEnrichAll}
               onStart={() => startEnrichment(filteredPois, targetLanguage, enrichAll)}
+              onContinue={() => continueEnrichment(filteredPois, targetLanguage, enrichAll)}
               onCancel={cancelEnrichment}
             />
           )}

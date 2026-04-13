@@ -7,6 +7,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { translateCategory, translatePoiName } from "../lib/i18n";
+import { getAvailabilityTags } from "../lib/export";
 
 /** Human-readable labels for skip reasons */
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
@@ -165,9 +166,18 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
                 <div className="flex-1 min-w-0">
                   <div className="poi-list-name">{translatePoiName(poi.name, targetLanguage)}</div>
                   <div className="poi-list-meta">
-                    {translateCategory(poi.category, targetLanguage)} &middot; {Math.round(poi.distanceToTrace)}m
+                    {translateCategory(poi.category, targetLanguage)} &middot; km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot; {Math.round(poi.distanceToTrace)}m
                     {poi.tags.opening_hours && ` · ${poi.tags.opening_hours}`}
                   </div>
+                  {/* Availability tags from OSM hours (when no enrichment) */}
+                  {(!enrichment || enrichment.status !== "done") && (() => {
+                    const osmAvail = getAvailabilityTags(null, poi.tags.opening_hours, targetLanguage as "fr" | "en");
+                    return osmAvail.length > 0 ? (
+                      <div className="poi-enrichment-meta" style={{ color: "#16a34a", fontWeight: 600 }}>
+                        {osmAvail.join(" · ")}
+                      </div>
+                    ) : null;
+                  })()}
 
                   {/* Enrichment data */}
                   {enrichment && enrichment.status === "done" && (
@@ -195,10 +205,22 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
                         )}
                       </div>
                       {enrichment.hours && (
-                        <div className="poi-enrichment-meta">
-                          {enrichment.hours}
+                        <div className="poi-enrichment-meta" style={{ whiteSpace: "pre-line" }}>
+                          {enrichment.hours
+                            .split(/[;\n]|(?:\s\/\s)/)
+                            .map((s) => s.trim())
+                            .filter((s) => s.length > 0)
+                            .join("\n")}
                         </div>
                       )}
+                      {(() => {
+                        const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
+                        return avail.length > 0 ? (
+                          <div className="poi-enrichment-meta" style={{ color: "#16a34a", fontWeight: 600 }}>
+                            {avail.join(" · ")}
+                          </div>
+                        ) : null;
+                      })()}
                       {(enrichment.translatedSummary || enrichment.summary) && (
                         <div className="poi-enrichment-summary">
                           {enrichment.translatedSummary ?? enrichment.summary}

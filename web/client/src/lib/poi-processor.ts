@@ -6,7 +6,7 @@
 import type { POI, TracePoint, PoiCategory } from "../types";
 import type { OverpassElement } from "./overpass";
 import { findCategoryForTag } from "./poi-config";
-import { haversine, distanceToTrace, TraceIndex } from "./gpx-parser";
+import { haversine, distanceToTrace, TraceIndex, alongTraceProjection } from "./gpx-parser";
 
 const NON_MERGEABLE_CATEGORIES = new Set<PoiCategory>([
   "Restaurant or Bar",
@@ -73,15 +73,21 @@ export function processElements(
   const withDistance: POI[] = [];
   for (const poi of rawPois) {
     let minDist = Infinity;
+    let bestTraceIdx = 0;
     for (let ti = 0; ti < distTraces.length; ti++) {
       const idx = indices[ti];
       const dist = idx
         ? idx.distanceTo(poi)
         : distanceToTrace(poi, distTraces[ti]);
-      if (dist < minDist) minDist = dist;
+      if (dist < minDist) {
+        minDist = dist;
+        bestTraceIdx = ti;
+      }
     }
     poi.distanceToTrace = minDist;
     if (minDist <= maxDistanceM) {
+      // Compute along-trace distance for ordering POIs in travel order
+      poi.alongTraceDistance = alongTraceProjection(poi, distTraces[bestTraceIdx]);
       withDistance.push(poi);
     }
   }
@@ -89,8 +95,8 @@ export function processElements(
   // Step 3: Deduplicate
   const deduped = deduplicatePois(withDistance, deduplicationRadiusM);
 
-  // Step 4: Sort by distance to trace
-  deduped.sort((a, b) => a.distanceToTrace - b.distanceToTrace);
+  // Step 4: Sort by along-trace distance (travel order from GPX start)
+  deduped.sort((a, b) => a.alongTraceDistance - b.alongTraceDistance);
 
   return deduped;
 }
@@ -128,6 +134,7 @@ function elementToPoi(el: OverpassElement): POI | null {
         name: tags.name || formatFallbackName(match.category.category, key, value),
         icon: match.tag.icon,
         distanceToTrace: 0, // computed later
+        alongTraceDistance: 0, // computed later
         tags,
         style: match.category.style,
         osmId: el.id,

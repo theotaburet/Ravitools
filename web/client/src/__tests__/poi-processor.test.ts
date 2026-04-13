@@ -209,19 +209,19 @@ describe("processElements", () => {
     expect(pois.length).toBe(0);
   });
 
-  it("should sort POIs by distance to trace", () => {
+  it("should sort POIs by along-trace distance (travel order)", () => {
     const elements: OverpassElement[] = [
       {
         type: "node",
         id: 9001,
-        lat: 48.862, // farther from trace start
+        lat: 48.862, // near middle of trace
         lon: 2.375,
         tags: { amenity: "drinking_water" },
       },
       {
         type: "node",
         id: 9002,
-        lat: 48.857, // closer to trace start
+        lat: 48.857, // near start of trace
         lon: 2.353,
         tags: { amenity: "toilets" },
       },
@@ -229,8 +229,26 @@ describe("processElements", () => {
 
     const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(2);
-    expect(pois[0].distanceToTrace).toBeLessThanOrEqual(
-      pois[1].distanceToTrace,
+    // POI near trace start should come first
+    expect(pois[0].alongTraceDistance).toBeLessThanOrEqual(
+      pois[1].alongTraceDistance,
     );
+  });
+
+  it("should have alongTraceDistance on all POIs", () => {
+    const elements: OverpassElement[] = [
+      {
+        type: "node",
+        id: 10001,
+        lat: 48.858,
+        lon: 2.356,
+        tags: { amenity: "drinking_water" },
+      },
+    ];
+
+    const pois = processElements(elements, [TRACE]);
+    expect(pois.length).toBe(1);
+    expect(pois[0].alongTraceDistance).toBeGreaterThanOrEqual(0);
+    expect(typeof pois[0].alongTraceDistance).toBe("number");
   });
 });

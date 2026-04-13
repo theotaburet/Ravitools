@@ -15,6 +15,7 @@ const MOCK_POIS: POI[] = [
     name: "Fontaine de la Place",
     icon: "droplet",
     distanceToTrace: 120,
+    alongTraceDistance: 3000,
     tags: { amenity: "drinking_water", fee: "no" },
     style: {
       iconShape: "circle",
@@ -34,6 +35,7 @@ const MOCK_POIS: POI[] = [
     name: "Camping Municipal",
     icon: "tent",
     distanceToTrace: 350,
+    alongTraceDistance: 8000,
     tags: { tourism: "camp_site", name: "Camping Municipal" },
     style: {
       iconShape: "circle",
@@ -258,6 +260,7 @@ describe("OsmAnd GPX with optional categories", () => {
     name: "Hôpital Saint-Louis",
     icon: "hospital",
     distanceToTrace: 200,
+    alongTraceDistance: 6000,
     tags: { amenity: "hospital", name: "Hôpital Saint-Louis" },
     style: {
       iconShape: "circle",

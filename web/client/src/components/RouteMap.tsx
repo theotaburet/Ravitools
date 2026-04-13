@@ -18,6 +18,7 @@ import type { POI, TraceData, EnrichedData, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
 import { translateCategory, translatePoiName } from "../lib/i18n";
+import { getAvailabilityTags } from "../lib/export";
 
 interface Props {
   traces: TraceData[];
@@ -185,7 +186,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                 <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
                 <div className="poi-popup-cat">{translateCategory(poi.category, targetLanguage)}</div>
                 <div className="poi-popup-dist">
-                  {Math.round(poi.distanceToTrace)}m from route
+                  km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot; {Math.round(poi.distanceToTrace)}m from route
                 </div>
 
                 {/* Enrichment data */}
@@ -212,10 +213,22 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                       </div>
                     )}
                     {enrichment.hours && (
-                      <div style={{ fontSize: "0.75rem" }}>
-                        {enrichment.hours}
+                      <div style={{ fontSize: "0.75rem", whiteSpace: "pre-line" }}>
+                        {enrichment.hours
+                          .split(/[;\n]|(?:\s\/\s)/)
+                          .map((s) => s.trim())
+                          .filter((s) => s.length > 0)
+                          .join("\n")}
                       </div>
                     )}
+                    {(() => {
+                      const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
+                      return avail.length > 0 ? (
+                        <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
+                          {avail.join(" · ")}
+                        </div>
+                      ) : null;
+                    })()}
                     {(enrichment.translatedSummary || enrichment.summary) && (
                       <div
                         style={{
@@ -246,6 +259,14 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                         Hours: {poi.tags.opening_hours}
                       </div>
                     )}
+                    {(() => {
+                      const osmAvail = getAvailabilityTags(null, poi.tags.opening_hours, targetLanguage as "fr" | "en");
+                      return osmAvail.length > 0 ? (
+                        <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
+                          {osmAvail.join(" · ")}
+                        </div>
+                      ) : null;
+                    })()}
                     {poi.tags.phone && (
                       <div className="text-xs">Tel: {poi.tags.phone}</div>
                     )}

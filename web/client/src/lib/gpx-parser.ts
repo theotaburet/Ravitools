@@ -318,3 +318,63 @@ function distanceToSegment(
 
   return haversine(p, proj);
 }
+
+// ---------------------------------------------------------------------------
+// Along-trace distance computation
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the cumulative along-trace distance from the trace start to the
+ * nearest projection of a point onto the trace.
+ *
+ * For each segment, we project the point and compute:
+ *   cumulative distance to segment start + fraction * segment length
+ *
+ * We pick the segment whose projection is closest (same logic as distanceToTrace)
+ * and return the along-trace distance in meters.
+ *
+ * @returns Distance along the trace (meters) from the start to the POI's projection
+ */
+export function alongTraceProjection(
+  point: TracePoint,
+  trace: TracePoint[],
+): number {
+  if (trace.length === 0) return 0;
+  if (trace.length === 1) return 0;
+
+  let minDist = Infinity;
+  let bestAlongDist = 0;
+  let cumDist = 0;
+
+  for (let i = 0; i < trace.length - 1; i++) {
+    const a = trace[i];
+    const b = trace[i + 1];
+    const segLen = haversine(a, b);
+
+    // Project point onto segment
+    const dx = b.lon - a.lon;
+    const dy = b.lat - a.lat;
+    const lenSq = dx * dx + dy * dy;
+
+    let t = 0;
+    if (lenSq > 0) {
+      t = ((point.lon - a.lon) * dx + (point.lat - a.lat) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+    }
+
+    const proj: TracePoint = {
+      lat: a.lat + t * dy,
+      lon: a.lon + t * dx,
+    };
+
+    const d = haversine(point, proj);
+    if (d < minDist) {
+      minDist = d;
+      bestAlongDist = cumDist + t * segLen;
+    }
+
+    cumDist += segLen;
+  }
+
+  return bestAlongDist;
+}

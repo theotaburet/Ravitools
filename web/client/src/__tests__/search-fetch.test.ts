@@ -19,6 +19,7 @@ function makePoi(overrides: Partial<POI> = {}): POI {
     name: "Le Petit Zinc",
     icon: "utensils",
     distanceToTrace: 120,
+    alongTraceDistance: 5000,
     tags: { amenity: "restaurant" },
     style: {
       iconShape: "circle",

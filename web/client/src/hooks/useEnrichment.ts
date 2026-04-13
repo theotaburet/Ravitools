@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // useEnrichment – React hook for POI enrichment batch job
-// Manages: model loading → batch enrichment → progress → results
+// Manages: model loading → batch enrichment → retry failed → results
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11,8 +11,15 @@ import {
   unloadEngine,
   enrichBatch,
 } from "../lib/enrichment";
+import { dlog } from "../lib/debug-log";
 
 const API_BASE = "/api";
+
+/** Max number of automatic retry passes for failed POIs */
+const MAX_RETRY_PASSES = 2;
+
+/** Stagger multiplier for each retry pass (exponential backoff) */
+const RETRY_STAGGER_MULTIPLIER = 3;
 
 // ---------------------------------------------------------------------------
 // Initial state
@@ -48,6 +55,20 @@ export function useEnrichment() {
     new Map(),
   );
   const abortRef = useRef<AbortController | null>(null);
+  /** Ref mirror of enrichments for synchronous reads (e.g. filtering in continueEnrichment) */
+  const enrichmentsRef = useRef<Map<string, EnrichedData>>(new Map());
+
+  /** Update enrichments state + ref mirror together */
+  const updateEnrichments = useCallback(
+    (updater: (prev: Map<string, EnrichedData>) => Map<string, EnrichedData>) => {
+      setEnrichments((prev) => {
+        const next = updater(prev);
+        enrichmentsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
   const updateJob = useCallback(
     (partial: Partial<EnrichmentJobState>) =>
@@ -72,7 +93,8 @@ export function useEnrichment() {
    * Start enrichment for a list of POIs.
    * 1. Load WebLLM model (if WebGPU available)
    * 2. Run batch enrichment (search + geocode + LLM per POI)
-   * 3. Update enrichments map incrementally
+   * 3. Auto-retry failed POIs (rate-limited / errors) up to MAX_RETRY_PASSES times
+   * 4. Update enrichments map incrementally
    * @param targetLanguage - language for LLM synthesis output (default: "en")
    * @param enrichAll - override enrichability policy to "full" for all categories
    */
@@ -82,6 +104,7 @@ export function useEnrichment() {
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      const log = dlog("enrichment");
 
       const hasWebGpu = isWebGpuAvailable();
 
@@ -134,6 +157,9 @@ export function useEnrichment() {
           currentPoiName: pois[0]?.name ?? null,
         });
 
+        // Build a POI lookup for retry passes
+        const poiById = new Map(pois.map((p) => [p.id, p]));
+
         await enrichBatch(pois, {
           signal: ctrl.signal,
           searchConcurrency: 3,
@@ -143,7 +169,7 @@ export function useEnrichment() {
           enrichAll,
           onProgress: (poiId, enrichment, completed, total) => {
             // Update enrichments map incrementally
-            setEnrichments((prev) => {
+            updateEnrichments((prev) => {
               const next = new Map(prev);
               next.set(poiId, enrichment);
               return next;
@@ -166,6 +192,77 @@ export function useEnrichment() {
             updateJob({ phase, etaSeconds });
           },
         });
+
+        if (ctrl.signal.aborted) return;
+
+        // -----------------------------------------------------------------
+        // Step 3: Retry failed POIs (rate-limited / search errors)
+        // -----------------------------------------------------------------
+        for (let retryPass = 1; retryPass <= MAX_RETRY_PASSES; retryPass++) {
+          if (ctrl.signal.aborted) break;
+
+          // Collect failed POI IDs from current enrichments ref
+          const failedPois: POI[] = [];
+          for (const [id, data] of enrichmentsRef.current) {
+            if (data.status === "error") {
+              const poi = poiById.get(id);
+              if (poi) failedPois.push(poi);
+            }
+          }
+
+          if (failedPois.length === 0) break;
+
+          const retryStaggerMs = 500 * RETRY_STAGGER_MULTIPLIER * retryPass;
+          log.info(`Retry pass ${retryPass}/${MAX_RETRY_PASSES}: ${failedPois.length} failed POIs (stagger=${retryStaggerMs}ms)`, {
+            retryPass,
+            failedCount: failedPois.length,
+            staggerMs: retryStaggerMs,
+          });
+
+          updateJob({
+            phase: "retry",
+            currentPoiName: failedPois[0]?.name ?? null,
+            currentPoiId: failedPois[0]?.id ?? null,
+          });
+
+          // Wait before retry to let rate-limits cool down
+          const cooldownMs = 5_000 * retryPass;
+          await new Promise((r) => setTimeout(r, cooldownMs));
+          if (ctrl.signal.aborted) break;
+
+          await enrichBatch(failedPois, {
+            signal: ctrl.signal,
+            searchConcurrency: 2, // lower concurrency for retries
+            searchStaggerMs: retryStaggerMs,
+            skipUnnamed: true,
+            targetLanguage,
+            enrichAll,
+            onProgress: (poiId, enrichment) => {
+              // Overwrite the previous error result
+              updateEnrichments((prev) => {
+                const next = new Map(prev);
+                next.set(poiId, enrichment);
+                return next;
+              });
+
+              // Update error count: decrement if this retry succeeded (was error → now ok)
+              setJob((prev) => {
+                const retrySucceeded = enrichment.status !== "error";
+                return {
+                  ...prev,
+                  errorCount: retrySucceeded
+                    ? Math.max(0, prev.errorCount - 1)
+                    : prev.errorCount,
+                  currentPoiName: retrySucceeded ? null : prev.currentPoiName,
+                  currentPoiId: retrySucceeded ? null : prev.currentPoiId,
+                };
+              });
+            },
+            onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
+              updateJob({ phase: "retry" as EnrichmentPhase, etaSeconds });
+            },
+          });
+        }
 
         if (ctrl.signal.aborted) return;
 
@@ -203,6 +300,40 @@ export function useEnrichment() {
   }, [updateJob]);
 
   /**
+   * Continue enrichment: only process POIs that are missing or failed.
+   * Preserves existing successful/skipped enrichments.
+   * Perfect for resuming after a disconnect or session restore.
+   */
+  const continueEnrichment = useCallback(
+    async (allPois: POI[], targetLanguage: TargetLanguage = "en", enrichAll: boolean = false) => {
+      // Filter to only unenriched or failed POIs
+      const currentEnrichments = enrichmentsRef.current;
+      const pendingPois = allPois.filter((poi) => {
+        const existing = currentEnrichments.get(poi.id);
+        if (!existing) return true; // never enriched
+        return existing.status === "error"; // failed — retry
+      });
+
+      const log = dlog("enrichment");
+      log.info(`Continue enrichment: ${pendingPois.length} remaining out of ${allPois.length} total`, {
+        total: allPois.length,
+        alreadyDone: allPois.length - pendingPois.length,
+        pending: pendingPois.length,
+      });
+
+      if (pendingPois.length === 0) {
+        // Nothing to do — everything is already enriched
+        updateJob({ stage: "done" });
+        return;
+      }
+
+      // Reuse startEnrichment with only the pending POIs
+      await startEnrichment(pendingPois, targetLanguage, enrichAll);
+    },
+    [startEnrichment, updateJob],
+  );
+
+  /**
    * Reset enrichment state entirely.
    */
   const resetEnrichment = useCallback(async () => {
@@ -212,6 +343,7 @@ export function useEnrichment() {
       ...INITIAL_JOB,
       webGpuAvailable: isWebGpuAvailable(),
     });
+    enrichmentsRef.current = new Map();
     setEnrichments(new Map());
   }, []);
 
@@ -220,6 +352,7 @@ export function useEnrichment() {
    */
   const restoreEnrichments = useCallback(
     (saved: Map<string, EnrichedData>) => {
+      enrichmentsRef.current = saved;
       setEnrichments(saved);
       if (saved.size > 0) {
         setJob((prev) => ({
@@ -237,6 +370,7 @@ export function useEnrichment() {
     job,
     enrichments,
     startEnrichment,
+    continueEnrichment,
     cancelEnrichment,
     resetEnrichment,
     restoreEnrichments,

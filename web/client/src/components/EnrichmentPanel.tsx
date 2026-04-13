@@ -3,7 +3,7 @@
 // Neobrutalist design: progress bar, model download, batch trigger
 // ---------------------------------------------------------------------------
 
-import type { EnrichmentJobState, TargetLanguage, POI } from "../types";
+import type { EnrichmentJobState, TargetLanguage } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
 import { countFullEnrichable, countEnrichable } from "../lib/poi-config";
 
@@ -21,11 +21,15 @@ interface Props {
   job: EnrichmentJobState;
   poiCount: number;
   enrichedCount: number;
+  /** Number of POIs that still need enrichment (unenriched + errors) */
+  pendingCount: number;
   targetLanguage: TargetLanguage;
   onLanguageChange: (lang: TargetLanguage) => void;
   enrichAll: boolean;
   onEnrichAllChange: (enrichAll: boolean) => void;
   onStart: () => void;
+  /** Continue enrichment for remaining/failed POIs only */
+  onContinue: () => void;
   onCancel: () => void;
 }
 
@@ -33,11 +37,13 @@ export function EnrichmentPanel({
   job,
   poiCount,
   enrichedCount,
+  pendingCount,
   targetLanguage,
   onLanguageChange,
   enrichAll,
   onEnrichAllChange,
   onStart,
+  onContinue,
   onCancel,
 }: Props) {
   if (poiCount === 0) return null;
@@ -133,14 +139,24 @@ export function EnrichmentPanel({
         </div>
       )}
 
-      {/* Idle after partial enrichment */}
+      {/* Idle after partial enrichment — offer continue or re-enrich */}
       {job.stage === "idle" && enrichedCount > 0 && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-mono text-muted">
             {enrichedCount}/{poiCount} POIs enriched
+            {pendingCount > 0 && ` — ${pendingCount} remaining`}
           </div>
+          {pendingCount > 0 && (
+            <button
+              className="neo-btn-primary w-full"
+              onClick={onContinue}
+              disabled={!job.searxngAvailable}
+            >
+              Continue enrichment ({pendingCount} remaining)
+            </button>
+          )}
           <button
-            className="neo-btn-primary w-full"
+            className="neo-btn-sm neo-btn-secondary w-full"
             onClick={onStart}
             disabled={!job.searxngAvailable}
           >
@@ -185,7 +201,9 @@ export function EnrichmentPanel({
                 ? "Searching..."
                 : job.phase === "synthesize"
                   ? "AI synthesis..."
-                  : "Enriching..."}{" "}
+                  : job.phase === "retry"
+                    ? "Retrying failed..."
+                    : "Enriching..."}{" "}
               {job.completed}/{job.total}
             </span>
           </div>
@@ -260,6 +278,15 @@ export function EnrichmentPanel({
               }}
             />
           </div>
+          {pendingCount > 0 && (
+            <button
+              className="neo-btn-primary w-full"
+              onClick={onContinue}
+              disabled={!job.searxngAvailable}
+            >
+              Continue enrichment ({pendingCount} remaining)
+            </button>
+          )}
           <button
             className="neo-btn-sm neo-btn-secondary"
             onClick={onStart}
@@ -281,12 +308,21 @@ export function EnrichmentPanel({
               {enrichedCount}/{poiCount} enriched before error
             </div>
           )}
-          <button
-            className="neo-btn-sm neo-btn-primary"
-            onClick={onStart}
-          >
-            Retry
-          </button>
+          {pendingCount > 0 ? (
+            <button
+              className="neo-btn-sm neo-btn-primary"
+              onClick={onContinue}
+            >
+              Continue ({pendingCount} remaining)
+            </button>
+          ) : (
+            <button
+              className="neo-btn-sm neo-btn-primary"
+              onClick={onStart}
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
     </div>
