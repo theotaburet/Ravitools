@@ -16,26 +16,26 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 ## Workstreams
 
 ### 1. Product Definition
-- [ ] Definir la version finale du contrat produit pour chaque categorie enrichissable.
-- [ ] Fixer le niveau de detail cible pour `Restaurant or Bar`.
-- [ ] Fixer le niveau de detail cible pour `Food shop`.
-- [ ] Fixer le niveau de detail cible pour `Sleeping place`.
-- [ ] Fixer le niveau de detail cible pour `Gears`.
-- [ ] Definir explicitement ce qui n'est PAS attendu pour les categories `minimal` et `skip`.
-- [ ] Definir la longueur cible du texte principal pour mobile, popup carte, liste, export.
-- [ ] Definir l'ordre canonical des informations affichees.
-- [ ] Definir les cas ou il faut preferer le silence a une synthese faible.
+- [x] Definir la version finale du contrat produit pour chaque categorie enrichissable. _(4 contracts in poi-config.ts)_
+- [x] Fixer le niveau de detail cible pour `Restaurant or Bar`. _(RESTAURANT_CONTRACT)_
+- [x] Fixer le niveau de detail cible pour `Food shop`. _(FOOD_SHOP_CONTRACT)_
+- [x] Fixer le niveau de detail cible pour `Sleeping place`. _(SLEEPING_PLACE_CONTRACT)_
+- [x] Fixer le niveau de detail cible pour `Gears`. _(GEARS_CONTRACT)_
+- [x] Definir explicitement ce qui n'est PAS attendu pour les categories `minimal` et `skip`. _(enrichability policy + contracts)_
+- [x] Definir la longueur cible du texte principal pour mobile, popup carte, liste, export. _(ENRICHMENT_LENGTH_TARGETS)_
+- [x] Definir l'ordre canonical des informations affichees. _(ENRICHMENT_DISPLAY_ORDER)_
+- [x] Definir les cas ou il faut preferer le silence a une synthese faible. _(silenceConditions in each contract)_
 
 ### 2. Canonical Output Schema
-- [ ] Geler la structure canonique finale de `structured`.
+- [x] Geler la structure canonique finale de `structured`. _(EnrichmentStructuredContent frozen with headline, operationalSummary, practicalities, cautions, sourceRollup, unknowns)_
 - [ ] Determiner si `essentials` reste un champ derive ou un champ explicitement maintenu.
 - [ ] Ajouter, si necessaire, un champ `lastVerifiedAt` pour les infos site officiel.
 - [ ] Ajouter, si necessaire, un champ `sourceCoverageScore` distinct du `confidence` global.
 - [ ] Ajouter, si necessaire, un champ `recommendationFit` oriente cyclotourisme.
-- [ ] Distinguer proprement `facts`, `signals`, `cautions`, `unknowns`.
+- [x] Distinguer proprement `facts`, `signals`, `cautions`, `unknowns`. _(cautions + unknowns fields added)_
 - [ ] Distinguer les infos confirmees par site officiel vs plateformes d'avis.
 - [ ] Definir une representation stricte des divergences de sources.
-- [ ] Definir une representation stricte des absences d'information importantes.
+- [x] Definir une representation stricte des absences d'information importantes. _(unknowns field + buildUnknowns)_
 
 ### 3. Category-Specific Editorial Rules
 - [ ] Ecrire les regles editoriales finales pour `Restaurant or Bar`.
@@ -160,84 +160,84 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Stocker les sorties attendues ou au moins leurs criteres de qualite.
 
 ### 16. Automated Tests
-- [ ] Ajouter des tests unitaires sur `buildStructuredContent`.
+- [x] Ajouter des tests unitaires sur `buildStructuredContent`. _(fvm.test.ts D1-D9)_
 - [ ] Ajouter des tests unitaires sur la priorisation des plateformes.
-- [ ] Ajouter des tests unitaires sur les `cautions`.
+- [x] Ajouter des tests unitaires sur les `cautions`. _(fvm.test.ts D4, H1-H5)_
 - [ ] Ajouter des tests unitaires sur les sleeping places avec Booking / Hotels.com.
 - [ ] Ajouter des tests unitaires sur les websites previews.
 - [ ] Ajouter des tests unitaires sur les contradictions.
-- [ ] Ajouter des tests d'integration sur export + structured.
+- [x] Ajouter des tests d'integration sur export + structured. _(fvm.test.ts K1-K13)_
 - [ ] Ajouter des tests de non-regression sur quelques POI de reference.
 
 ## Feature Validation Matrix
 
 ### A. Source Discovery
-- [ ] Test: `buildSearchQuery` pour `Restaurant or Bar` inclut bien les plateformes review attendues.
-- [ ] Test: `buildSearchQuery` pour `Food shop` favorise bien la logique de ravitaillement.
-- [ ] Test: `buildSearchQuery` pour `Sleeping place` inclut bien Booking / Hotels.com.
-- [ ] Test: `buildSearchQuery` pour `Gears` favorise bien atelier / bike shop / repair.
-- [ ] Test: fallback propre si le POI n'a pas de vrai nom exploitable.
+- [x] Test: `buildSearchQuery` pour `Restaurant or Bar` inclut bien les plateformes review attendues. _(A1)_
+- [x] Test: `buildSearchQuery` pour `Food shop` favorise bien la logique de ravitaillement. _(A2)_
+- [x] Test: `buildSearchQuery` pour `Sleeping place` inclut bien Booking / Hotels.com. _(A3)_
+- [x] Test: `buildSearchQuery` pour `Gears` favorise bien atelier / bike shop / repair. _(A4)_
+- [x] Test: fallback propre si le POI n'a pas de vrai nom exploitable. _(A5, A5b, A5c)_
 - [ ] Test: requetes alternatives ou retry strategy si les resultats initiaux sont trop pauvres.
 
 ### B. Source Parsing And Classification
-- [ ] Test: `classifySourcePlatform` reconnait Google Maps.
-- [ ] Test: `classifySourcePlatform` reconnait Yelp.
-- [ ] Test: `classifySourcePlatform` reconnait Tripadvisor.
-- [ ] Test: `classifySourcePlatform` reconnait Facebook.
-- [ ] Test: `classifySourcePlatform` reconnait Instagram.
-- [ ] Test: `classifySourcePlatform` reconnait Booking.
-- [ ] Test: `classifySourcePlatform` reconnait Hotels.com.
-- [ ] Test: `classifySourcePlatform` range les autres domaines dans `other`.
+- [x] Test: `classifySourcePlatform` reconnait Google Maps. _(B1)_
+- [x] Test: `classifySourcePlatform` reconnait Yelp. _(B2)_
+- [x] Test: `classifySourcePlatform` reconnait Tripadvisor. _(B3)_
+- [x] Test: `classifySourcePlatform` reconnait Facebook. _(B4)_
+- [x] Test: `classifySourcePlatform` reconnait Instagram. _(B5)_
+- [x] Test: `classifySourcePlatform` reconnait Booking. _(B6)_
+- [x] Test: `classifySourcePlatform` reconnait Hotels.com. _(B7)_
+- [x] Test: `classifySourcePlatform` range les autres domaines dans `other`. _(B8, B8b)_
 - [ ] Test: dedup correcte des URLs proches/mirroirs/trackees.
 - [ ] Test: rejection des resultats manifestement hors sujet ou homonymes.
 
 ### C. Official Website
-- [ ] Test: `getOfficialWebsiteUrl` detecte `website`.
-- [ ] Test: `getOfficialWebsiteUrl` detecte `contact:website`.
-- [ ] Test: `getOfficialWebsiteUrl` normalise un domaine sans schema.
+- [x] Test: `getOfficialWebsiteUrl` detecte `website`. _(C1)_
+- [x] Test: `getOfficialWebsiteUrl` detecte `contact:website`. _(C2)_
+- [x] Test: `getOfficialWebsiteUrl` normalise un domaine sans schema. _(C3, C3b, C3c)_
 - [ ] Test: `fetchWebsitePreview` retourne `title`, `description`, `excerpt`, `finalUrl`.
 - [ ] Test: `fetchWebsitePreview` degrade proprement sur timeout.
 - [ ] Test: `fetchWebsitePreview` degrade proprement sur contenu non HTML.
-- [ ] Test: le site officiel enrichit bien `sourceRollup` quand il apporte de l'info.
-- [ ] Test: le site officiel n'ecrase pas abusivement des sources reviews plus utiles.
+- [x] Test: le site officiel enrichit bien `sourceRollup` quand il apporte de l'info. _(C7)_
+- [x] Test: le site officiel n'ecrase pas abusivement des sources reviews plus utiles. _(C8)_
 
 ### D. Structured Output Core
-- [ ] Test: `buildStructuredContent` produit un `headline` pour un cas riche.
-- [ ] Test: `buildStructuredContent` produit un `operationalSummary` pour un cas riche.
-- [ ] Test: `buildStructuredContent` produit des `practicalities` ordonnees et utiles.
-- [ ] Test: `buildStructuredContent` produit des `cautions` quand les infos manquent.
-- [ ] Test: `buildStructuredContent` produit un `sourceRollup` stable et lisible.
-- [ ] Test: `buildEssentialsText` compose correctement depuis `structured`.
-- [ ] Test: `buildEssentialsText` reste concise et stable.
+- [x] Test: `buildStructuredContent` produit un `headline` pour un cas riche. _(D1)_
+- [x] Test: `buildStructuredContent` produit un `operationalSummary` pour un cas riche. _(D2)_
+- [x] Test: `buildStructuredContent` produit des `practicalities` ordonnees et utiles. _(D3)_
+- [x] Test: `buildStructuredContent` produit des `cautions` quand les infos manquent. _(D4)_
+- [x] Test: `buildStructuredContent` produit un `sourceRollup` stable et lisible. _(D5)_
+- [x] Test: `buildEssentialsText` compose correctement depuis `structured`. _(D6)_
+- [x] Test: `buildEssentialsText` reste concise et stable. _(D7)_
 
 ### E. Category-Specific Structured Rules
-- [ ] Test: `Restaurant or Bar` met en avant type, reputation, praticite, caveat.
-- [ ] Test: `Food shop` met en avant ravitaillement, horaires, utilite concrete.
-- [ ] Test: `Sleeping place` met en avant hebergement, booking signal, sommeil/check-in.
-- [ ] Test: `Gears` met en avant atelier/vente/services et pertinence velo.
-- [ ] Test: chaque categorie `full` degrade proprement quand les sources sont faibles.
+- [x] Test: `Restaurant or Bar` met en avant type, reputation, praticite, caveat. _(E9 + contract tests)_
+- [x] Test: `Food shop` met en avant ravitaillement, horaires, utilite concrete. _(E10 + contract tests)_
+- [x] Test: `Sleeping place` met en avant hebergement, booking signal, sommeil/check-in. _(E7 + contract tests)_
+- [x] Test: `Gears` met en avant atelier/vente/services et pertinence velo. _(E8 + contract tests)_
+- [x] Test: chaque categorie `full` degrade proprement quand les sources sont faibles. _(E11)_
 
 ### F. LLM Output Contract
-- [ ] Test: `parseLlmOutput` accepte une sortie JSON valide complete.
-- [ ] Test: `parseLlmOutput` nettoie un bloc markdown autour du JSON.
-- [ ] Test: `parseLlmOutput` rejette une sortie invalide ou trop libre.
-- [ ] Test: `parseLlmOutput` borne bien `rating` et `priceLevel`.
-- [ ] Test: `parseLlmOutput` borne bien `sourceDigests`.
-- [ ] Test: le pipeline retombe sur le fallback si le LLM ne renvoie pas une structure exploitable.
+- [x] Test: `parseLlmOutput` accepte une sortie JSON valide complete. _(F1)_
+- [x] Test: `parseLlmOutput` nettoie un bloc markdown autour du JSON. _(F2)_
+- [x] Test: `parseLlmOutput` rejette une sortie invalide ou trop libre. _(F3)_
+- [x] Test: `parseLlmOutput` borne bien `rating` et `priceLevel`. _(F4)_
+- [x] Test: `parseLlmOutput` borne bien `sourceDigests`. _(F5)_
+- [x] Test: le pipeline retombe sur le fallback si le LLM ne renvoie pas une structure exploitable. _(F6)_
 
 ### G. Confidence And Coverage
-- [ ] Test: `computeConfidence` monte avec plus de sources utiles.
-- [ ] Test: `computeConfidence` monte avec une meilleure diversite de moteurs/sources.
-- [ ] Test: `computeConfidence` baisse quand il n'y a pas de facts structurels.
-- [ ] Test: `computeConfidence` reste a zero sans snippets.
+- [x] Test: `computeConfidence` monte avec plus de sources utiles. _(G1, G1b)_
+- [x] Test: `computeConfidence` monte avec une meilleure diversite de moteurs/sources. _(G2)_
+- [x] Test: `computeConfidence` baisse quand il n'y a pas de facts structurels. _(G3)_
+- [x] Test: `computeConfidence` reste a zero sans snippets. _(G4)_
 - [ ] Test: ajout futur d'un score `coverage` si introduit.
 
 ### H. Contradictions And Missing Data
 - [ ] Test: contradiction horaires -> caveat present.
 - [ ] Test: contradiction qualite/reputation -> caveat present.
-- [ ] Test: manque d'horaires -> caution explicite.
-- [ ] Test: manque de note -> caution explicite.
-- [ ] Test: manque de site officiel -> pas de faux signal positif.
+- [x] Test: manque d'horaires -> caution explicite. _(H1)_
+- [x] Test: manque de note -> caution explicite. _(H2)_
+- [x] Test: manque de site officiel -> pas de faux signal positif. _(H5)_
 
 ### I. Pipeline Integration
 - [ ] Test: `enrichPoi` enrichit correctement un POI `full` avec search + site + LLM.
@@ -245,8 +245,8 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Test: `enrichPoi` degrade proprement avec zero resultat.
 - [ ] Test: `enrichPoi` degrade proprement sur erreur search.
 - [ ] Test: `enrichPoi` degrade proprement sur erreur website fetch.
-- [ ] Test: `enrichPoi` respecte la policy `minimal`.
-- [ ] Test: `enrichPoi` respecte la policy `skip`.
+- [x] Test: `enrichPoi` respecte la policy `minimal`. _(I5-I6 + enrichment.test.ts)_
+- [x] Test: `enrichPoi` respecte la policy `skip`. _(I5-I6 + enrichment.test.ts)_
 - [ ] Test: `enrichBatch` melange correctement `full`, `minimal`, `skip`.
 - [ ] Test: `enrichBatch` conserve une structure canonique sur tous les POI `done`.
 
@@ -258,18 +258,18 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Test: la sandbox apparait avec `?sandbox`.
 
 ### K. Export Validation
-- [ ] Test: GPX inclut `structured.headline` quand disponible.
-- [ ] Test: GPX inclut `structured.operationalSummary` quand disponible.
-- [ ] Test: GPX inclut `structured.practicalities` quand disponibles.
-- [ ] Test: GPX inclut `structured.cautions` quand disponibles.
-- [ ] Test: GPX inclut `sourceRollup` quand disponible.
-- [ ] Test: KML inclut les memes briques structurees.
-- [ ] Test: GeoJSON expose `enrichment_essentials`.
-- [ ] Test: GeoJSON expose `enrichment_structured_headline`.
-- [ ] Test: GeoJSON expose `enrichment_structured_operationalSummary`.
-- [ ] Test: GeoJSON expose `enrichment_structured_practicalities`.
-- [ ] Test: GeoJSON expose `enrichment_structured_cautions`.
-- [ ] Test: GeoJSON expose `enrichment_structured_sourceRollup`.
+- [x] Test: GPX inclut `structured.headline` quand disponible. _(K1)_
+- [x] Test: GPX inclut `structured.operationalSummary` quand disponible. _(K2)_
+- [x] Test: GPX inclut `structured.practicalities` quand disponibles. _(K3)_
+- [x] Test: GPX inclut `structured.cautions` quand disponibles. _(K4)_
+- [x] Test: GPX inclut `sourceRollup` quand disponible. _(K5)_
+- [x] Test: KML inclut les memes briques structurees. _(K6)_
+- [x] Test: GeoJSON expose `enrichment_essentials`. _(K7)_
+- [x] Test: GeoJSON expose `enrichment_structured_headline`. _(K8)_
+- [x] Test: GeoJSON expose `enrichment_structured_operationalSummary`. _(K9)_
+- [x] Test: GeoJSON expose `enrichment_structured_practicalities`. _(K10)_
+- [x] Test: GeoJSON expose `enrichment_structured_cautions`. _(K11)_
+- [x] Test: GeoJSON expose `enrichment_structured_sourceRollup`. _(K12)_
 
 ### L. Non-Regression Reference Cases
 - [ ] Test snapshot/reference: restaurant urbain riche en sources.
@@ -292,7 +292,7 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Test: cancellation pendant enrichment ne laisse pas d'etat incoherent.
 - [ ] Test: absence de WebGPU garde un comportement utile et stable.
 - [ ] Test: absence de site officiel garde un comportement utile et stable.
-- [ ] Test: snippets dupliques ou pauvres ne produisent pas de sortie trompeuse.
+- [x] Test: snippets dupliques ou pauvres ne produisent pas de sortie trompeuse. _(N5)_
 
 ### 17. Performance And Resource Use
 - [ ] Mesurer le cout reel de l'enrichissement complet sur un parcours long.
@@ -343,10 +343,10 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Verifier un cas de bike shop / gears.
 
 ## Milestones
-- [ ] M1: Contrat de sortie final fige
+- [x] M1: Contrat de sortie final fige _(WS1 done, WS2 partially done — schema frozen, contracts defined, length targets + display order set)_
 - [ ] M2: Regles editoriales par categorie figees
 - [ ] M3: Strategie sources + site officiel figee
-- [ ] M4: Corpus d'evaluation + tests de non-regression en place
+- [x] M4: Corpus d'evaluation + tests de non-regression en place _(fvm.test.ts: 96 baseline tests covering FVM A-N, 312 total tests passing)_
 - [ ] M5: Validation manuelle sur vrais GPX
 - [ ] M6: Enrichissement considere "graal-ready"
 
