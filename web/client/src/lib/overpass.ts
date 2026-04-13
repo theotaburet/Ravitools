@@ -218,7 +218,7 @@ export async function queryAllPois(
   categories?: PoiCategory[],
   onProgress?: (progress: QueryProgress) => void,
   maxPointsPerQuery: number = 50,
-  concurrency: number = 2,
+  concurrency: number = 1,
   maxRetryRounds: number = 3,
 ): Promise<QueryAllPoisResult> {
   const log = dlog("overpass");
