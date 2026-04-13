@@ -12,6 +12,8 @@ export interface TracePoint {
 
 /** Result of GPX parsing & simplification */
 export interface TraceData {
+  /** Unique identifier for this trace */
+  id: string;
   /** Original parsed points */
   original: TracePoint[];
   /** Simplified/resampled points used for Overpass queries */
@@ -20,6 +22,8 @@ export interface TraceData {
   totalDistanceM: number;
   /** Name from GPX metadata if available */
   name?: string;
+  /** Display color for map rendering */
+  color: string;
 }
 
 /** V1 POI categories – matches config.yaml OSM_POI_configuration keys */
@@ -212,10 +216,24 @@ export interface EnrichmentJobState {
   etaSeconds: number | null;
 }
 
+/** Palette of distinct trace colors (cycling) */
+export const TRACE_COLORS = [
+  "#1a1a1a", // black (primary trace)
+  "#e63946", // red
+  "#2a9d8f", // teal
+  "#e9c46a", // gold
+  "#264653", // dark teal
+  "#f4845f", // coral
+  "#7209b7", // purple
+  "#4361ee", // blue
+  "#f72585", // magenta
+  "#06d6a0", // mint
+] as const;
+
 /** Application state */
 export interface AppState {
   stage: PipelineStage;
-  trace: TraceData | null;
+  traces: TraceData[];
   pois: POI[];
   activeCategories: Set<PoiCategory>;
   error: string | null;

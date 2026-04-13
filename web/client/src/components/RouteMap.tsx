@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// Map component – Leaflet map displaying the trace and POIs (neobrutalist)
-// Updated with enrichment data in popups, Google Maps link, and selection
+// Map component – Leaflet map displaying traces and POIs (neobrutalist)
+// Supports multiple traces with distinct colors, legend, and hover highlight
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useCallback, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -18,21 +18,22 @@ import type { POI, TraceData, EnrichedData } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 
 interface Props {
-  trace: TraceData | null;
+  traces: TraceData[];
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
   selectedPoiId?: string | null;
   onSelectPoi?: (poiId: string | null) => void;
 }
 
-function FitBounds({ trace }: { trace: TraceData | null }) {
+function FitBounds({ traces }: { traces: TraceData[] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!trace || trace.original.length === 0) return;
+    const allPoints = traces.flatMap((t) => t.original);
+    if (allPoints.length === 0) return;
 
-    const lats = trace.original.map((p) => p.lat);
-    const lons = trace.original.map((p) => p.lon);
+    const lats = allPoints.map((p) => p.lat);
+    const lons = allPoints.map((p) => p.lon);
 
     const bounds: LatLngBoundsExpression = [
       [Math.min(...lats), Math.min(...lons)],
@@ -40,7 +41,7 @@ function FitBounds({ trace }: { trace: TraceData | null }) {
     ];
 
     map.fitBounds(bounds, { padding: [40, 40] });
-  }, [trace, map]);
+  }, [traces, map]);
 
   return null;
 }
@@ -72,22 +73,18 @@ function FlyToSelected({
   return null;
 }
 
-export function RouteMap({ trace, pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
+export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
   const markerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
+  const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
   const center = useMemo<[number, number]>(() => {
-    if (trace && trace.original.length > 0) {
-      const mid = trace.original[Math.floor(trace.original.length / 2)];
+    const allPoints = traces.flatMap((t) => t.original);
+    if (allPoints.length > 0) {
+      const mid = allPoints[Math.floor(allPoints.length / 2)];
       return [mid.lat, mid.lon];
     }
     return [46.5, 2.5];
-  }, [trace]);
-
-  const tracePositions = useMemo(
-    () =>
-      trace?.original.map((p) => [p.lat, p.lon] as [number, number]) ?? [],
-    [trace],
-  );
+  }, [traces]);
 
   const setMarkerRef = useCallback((poiId: string, el: L.CircleMarker | null) => {
     if (el) {
@@ -117,15 +114,33 @@ export function RouteMap({ trace, pois, enrichments, selectedPoiId, onSelectPoi 
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <FitBounds trace={trace} />
+      <FitBounds traces={traces} />
       <FlyToSelected selectedPoiId={selectedPoiId ?? null} markerRefs={markerRefs} />
 
-      {tracePositions.length > 0 && (
-        <Polyline
-          positions={tracePositions}
-          pathOptions={{ color: "#1a1a1a", weight: 4, opacity: 0.9 }}
-        />
-      )}
+      {/* Render each trace as a distinct Polyline */}
+      {traces.map((trace) => {
+        const positions = trace.original.map((p) => [p.lat, p.lon] as [number, number]);
+        if (positions.length === 0) return null;
+
+        const isHighlighted = highlightedTraceId === trace.id;
+        const isDimmed = highlightedTraceId !== null && !isHighlighted;
+
+        return (
+          <Polyline
+            key={trace.id}
+            positions={positions}
+            pathOptions={{
+              color: trace.color,
+              weight: isHighlighted ? 6 : 4,
+              opacity: isDimmed ? 0.3 : 0.9,
+            }}
+            eventHandlers={{
+              mouseover: () => setHighlightedTraceId(trace.id),
+              mouseout: () => setHighlightedTraceId(null),
+            }}
+          />
+        );
+      })}
 
       {pois.map((poi) => {
         const enrichment = enrichments.get(poi.id);
@@ -249,6 +264,58 @@ export function RouteMap({ trace, pois, enrichments, selectedPoiId, onSelectPoi 
           </CircleMarker>
         );
       })}
+
+      {/* Trace legend overlay (only when multiple traces) */}
+      {traces.length > 1 && (
+        <TraceLegend
+          traces={traces}
+          highlightedTraceId={highlightedTraceId}
+          onHighlight={setHighlightedTraceId}
+        />
+      )}
     </MapContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trace legend – shows trace names + colors in a corner overlay
+// ---------------------------------------------------------------------------
+
+function TraceLegend({
+  traces,
+  highlightedTraceId,
+  onHighlight,
+}: {
+  traces: TraceData[];
+  highlightedTraceId: string | null;
+  onHighlight: (id: string | null) => void;
+}) {
+  return (
+    <div className="trace-legend">
+      <div className="trace-legend-title">Traces</div>
+      {traces.map((trace) => {
+        const isHighlighted = highlightedTraceId === trace.id;
+        const isDimmed = highlightedTraceId !== null && !isHighlighted;
+        return (
+          <div
+            key={trace.id}
+            className={`trace-legend-item ${isHighlighted ? "highlighted" : ""} ${isDimmed ? "dimmed" : ""}`}
+            onMouseEnter={() => onHighlight(trace.id)}
+            onMouseLeave={() => onHighlight(null)}
+          >
+            <span
+              className="trace-legend-swatch"
+              style={{ backgroundColor: trace.color }}
+            />
+            <span className="trace-legend-name">
+              {trace.name ?? trace.id}
+            </span>
+            <span className="trace-legend-dist">
+              {(trace.totalDistanceM / 1000).toFixed(0)} km
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

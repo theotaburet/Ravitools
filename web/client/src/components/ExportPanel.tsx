@@ -14,15 +14,18 @@ import {
 
 interface Props {
   pois: POI[];
-  trace: TraceData | null;
+  traces: TraceData[];
   enrichments?: Map<string, EnrichedData>;
 }
 
-export function ExportPanel({ pois, trace, enrichments }: Props) {
+export function ExportPanel({ pois, traces, enrichments }: Props) {
   if (pois.length === 0) return null;
 
-  const baseName = trace?.name
-    ? `ravitools-${trace.name.replace(/\s+/g, "-").toLowerCase()}`
+  const firstName = traces[0]?.name;
+  const baseName = firstName
+    ? traces.length === 1
+      ? `ravitools-${firstName.replace(/\s+/g, "-").toLowerCase()}`
+      : `ravitools-${traces.length}-routes`
     : "ravitools-pois";
 
   return (
@@ -30,6 +33,7 @@ export function ExportPanel({ pois, trace, enrichments }: Props) {
       <h3>Export for GPS</h3>
       <p className="text-xs text-muted font-mono mb-3">
         {pois.length} POIs ready
+        {traces.length > 1 && ` (${traces.length} traces)`}
         {enrichments && enrichments.size > 0 && ` (${enrichments.size} enriched)`}
       </p>
 
@@ -37,13 +41,13 @@ export function ExportPanel({ pois, trace, enrichments }: Props) {
       <div className="flex flex-col gap-2">
         <button
           className="neo-btn-lime w-full"
-          onClick={() => exportToGpx(pois, trace, baseName, enrichments)}
+          onClick={() => exportToGpx(pois, traces, baseName, enrichments)}
         >
           .GPX (Garmin, Wahoo...)
         </button>
         <button
           className="neo-btn-secondary w-full"
-          onClick={() => exportToKml(pois, trace, baseName, enrichments)}
+          onClick={() => exportToKml(pois, traces, baseName, enrichments)}
         >
           .KML (Google Earth)
         </button>
@@ -64,13 +68,13 @@ export function ExportPanel({ pois, trace, enrichments }: Props) {
       <div className="flex flex-col gap-2">
         <button
           className="neo-btn-pink w-full"
-          onClick={() => exportToOsmAndGpx(pois, trace, baseName, enrichments)}
+          onClick={() => exportToOsmAndGpx(pois, traces, baseName, enrichments)}
         >
           .GPX OsmAnd (icons + colors)
         </button>
         <button
           className="neo-btn-secondary w-full"
-          onClick={() => exportToKmz(pois, trace, baseName, enrichments)}
+          onClick={() => exportToKmz(pois, traces, baseName, enrichments)}
         >
           .KMZ (Organic Maps, Guru Maps)
         </button>

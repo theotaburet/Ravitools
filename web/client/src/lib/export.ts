@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // Offline export utilities
 // Export POIs as GPX waypoints or KML for GPS devices
+// Supports multiple traces (multi-GPX)
 // ---------------------------------------------------------------------------
 
 import type { POI, PoiCategory, TraceData, EnrichedData } from "../types";
@@ -17,15 +18,15 @@ import {
 
 export function exportToGpx(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   filename: string = "ravitools-pois",
   enrichments?: Map<string, EnrichedData>,
 ): void {
-  const gpxContent = buildGpxString(pois, trace, enrichments);
+  const gpxContent = buildGpxString(pois, traces, enrichments);
   downloadFile(gpxContent, `${filename}.gpx`, "application/gpx+xml");
 }
 
-export function buildGpxString(pois: POI[], trace: TraceData | null, enrichments?: Map<string, EnrichedData>): string {
+export function buildGpxString(pois: POI[], traces: TraceData[], enrichments?: Map<string, EnrichedData>): string {
   const wpts = pois
     .map((poi) => {
       const desc = formatPoiDescription(poi, enrichments?.get(poi.id));
@@ -39,25 +40,27 @@ export function buildGpxString(pois: POI[], trace: TraceData | null, enrichments
     })
     .join("\n");
 
-  // Include original track if available
-  let trkSection = "";
-  if (trace?.original && trace.original.length > 0) {
-    const trkpts = trace.original
-      .map((p) => {
-        const elePart = p.ele != null ? `\n        <ele>${p.ele}</ele>` : "";
-        return `      <trkpt lat="${p.lat}" lon="${p.lon}">${elePart}
+  // Include all tracks
+  const trkSections = traces
+    .filter((t) => t.original.length > 0)
+    .map((trace) => {
+      const trkpts = trace.original
+        .map((p) => {
+          const elePart = p.ele != null ? `\n        <ele>${p.ele}</ele>` : "";
+          return `      <trkpt lat="${p.lat}" lon="${p.lon}">${elePart}
       </trkpt>`;
-      })
-      .join("\n");
+        })
+        .join("\n");
 
-    trkSection = `
+      return `
   <trk>
     <name>${escapeXml(trace.name ?? "Route")}</name>
     <trkseg>
 ${trkpts}
     </trkseg>
   </trk>`;
-  }
+    })
+    .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Ravitools" xmlns="http://www.topografix.com/GPX/1/1">
@@ -66,7 +69,7 @@ ${trkpts}
     <desc>Points of interest along your cycling route</desc>
     <time>${new Date().toISOString()}</time>
   </metadata>
-${wpts}${trkSection}
+${wpts}${trkSections}
 </gpx>`;
 }
 
@@ -76,15 +79,15 @@ ${wpts}${trkSection}
 
 export function exportToKml(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   filename: string = "ravitools-pois",
   enrichments?: Map<string, EnrichedData>,
 ): void {
-  const kmlContent = buildKmlString(pois, trace, enrichments);
+  const kmlContent = buildKmlString(pois, traces, enrichments);
   downloadFile(kmlContent, `${filename}.kml`, "application/vnd.google-earth.kml+xml");
 }
 
-export function buildKmlString(pois: POI[], trace: TraceData | null, enrichments?: Map<string, EnrichedData>): string {
+export function buildKmlString(pois: POI[], traces: TraceData[], enrichments?: Map<string, EnrichedData>): string {
   // Group POIs by category for folders
   const byCategory = new Map<string, POI[]>();
   for (const poi of pois) {
@@ -122,17 +125,18 @@ ${placemarks}
     </Folder>\n`;
   }
 
-  // Track line
-  let trackSection = "";
-  if (trace?.original && trace.original.length > 0) {
-    const coords = trace.original
-      .map((p) => `${p.lon},${p.lat},${p.ele ?? 0}`)
-      .join(" ");
-    trackSection = `    <Placemark>
+  // Track lines – one Placemark per trace
+  const trackSections = traces
+    .filter((t) => t.original.length > 0)
+    .map((trace) => {
+      const coords = trace.original
+        .map((p) => `${p.lon},${p.lat},${p.ele ?? 0}`)
+        .join(" ");
+      return `    <Placemark>
       <name>${escapeXml(trace.name ?? "Route")}</name>
       <Style>
         <LineStyle>
-          <color>ff0000ff</color>
+          <color>ff${hexToKmlColor(trace.color)}</color>
           <width>3</width>
         </LineStyle>
       </Style>
@@ -141,14 +145,15 @@ ${placemarks}
         <coordinates>${coords}</coordinates>
       </LineString>
     </Placemark>\n`;
-  }
+    })
+    .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>Ravitools POIs</name>
     <description>Points of interest along your cycling route</description>
-${trackSection}${folders}  </Document>
+${trackSections}${folders}  </Document>
 </kml>`;
 }
 
@@ -220,17 +225,17 @@ export function buildGeoJsonObject(
 
 export function exportToOsmAndGpx(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   filename: string = "ravitools-pois-osmand",
   enrichments?: Map<string, EnrichedData>,
 ): void {
-  const gpxContent = buildOsmAndGpxString(pois, trace, enrichments);
+  const gpxContent = buildOsmAndGpxString(pois, traces, enrichments);
   downloadFile(gpxContent, `${filename}.gpx`, "application/gpx+xml");
 }
 
 export function buildOsmAndGpxString(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   enrichments?: Map<string, EnrichedData>,
 ): string {
   // Build <osmand:points_groups> for the <extensions> block
@@ -277,25 +282,27 @@ ${pointsGroups}
     })
     .join("\n");
 
-  // Include original track if available
-  let trkSection = "";
-  if (trace?.original && trace.original.length > 0) {
-    const trkpts = trace.original
-      .map((p) => {
-        const elePart = p.ele != null ? `\n        <ele>${p.ele}</ele>` : "";
-        return `      <trkpt lat="${p.lat}" lon="${p.lon}">${elePart}
+  // Include all tracks
+  const trkSections = traces
+    .filter((t) => t.original.length > 0)
+    .map((trace) => {
+      const trkpts = trace.original
+        .map((p) => {
+          const elePart = p.ele != null ? `\n        <ele>${p.ele}</ele>` : "";
+          return `      <trkpt lat="${p.lat}" lon="${p.lon}">${elePart}
       </trkpt>`;
-      })
-      .join("\n");
+        })
+        .join("\n");
 
-    trkSection = `
+      return `
   <trk>
     <name>${escapeXml(trace.name ?? "Route")}</name>
     <trkseg>
 ${trkpts}
     </trkseg>
   </trk>`;
-  }
+    })
+    .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Ravitools"
@@ -307,7 +314,7 @@ ${trkpts}
     <time>${new Date().toISOString()}</time>
   </metadata>
 ${extensionsBlock}
-${wpts}${trkSection}
+${wpts}${trkSections}
 </gpx>`;
 }
 
@@ -319,20 +326,20 @@ ${wpts}${trkSection}
 
 export function exportToKmz(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   filename: string = "ravitools-pois",
   enrichments?: Map<string, EnrichedData>,
 ): void {
-  const blob = buildKmzBlob(pois, trace, enrichments);
+  const blob = buildKmzBlob(pois, traces, enrichments);
   downloadBlob(blob, `${filename}.kmz`, "application/vnd.google-earth.kmz");
 }
 
 export function buildKmzBlob(
   pois: POI[],
-  trace: TraceData | null,
+  traces: TraceData[],
   enrichments?: Map<string, EnrichedData>,
 ): Blob {
-  const kmlContent = buildKmlString(pois, trace, enrichments);
+  const kmlContent = buildKmlString(pois, traces, enrichments);
   const kmlBytes = new TextEncoder().encode(kmlContent);
   const zipBytes = buildZipSingleFile("doc.kml", kmlBytes);
   return new Blob([zipBytes.buffer as ArrayBuffer], { type: "application/vnd.google-earth.kmz" });

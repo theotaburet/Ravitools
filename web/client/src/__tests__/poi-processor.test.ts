@@ -26,7 +26,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE);
+    const pois = processElements(elements, [TRACE]);
     expect(pois.length).toBe(1);
     expect(pois[0].category).toBe("Water");
     expect(pois[0].name).toBe("Drinking water");
@@ -44,7 +44,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE);
+    const pois = processElements(elements, [TRACE]);
     expect(pois.length).toBe(1);
     expect(pois[0].category).toBe("Sleeping place");
     expect(pois[0].name).toBe("Camping du Bois");
@@ -61,7 +61,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(0);
   });
 
@@ -83,7 +83,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500, 50);
+    const pois = processElements(elements, [TRACE], 1500, 50);
     expect(pois.length).toBe(1);
     // Should keep the one with more tags (the named one)
     expect(pois[0].name).toBe("Fontaine du Parc");
@@ -107,7 +107,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500, 50);
+    const pois = processElements(elements, [TRACE], 1500, 50);
     expect(pois.length).toBe(2);
   });
 
@@ -121,7 +121,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(1);
     expect(pois[0].lat).toBe(48.860);
     expect(pois[0].category).toBe("Sleeping place");
@@ -137,7 +137,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(0);
   });
 
@@ -152,7 +152,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(0);
   });
 
@@ -174,7 +174,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, TRACE, 1500);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(2);
     expect(pois[0].distanceToTrace).toBeLessThanOrEqual(
       pois[1].distanceToTrace,

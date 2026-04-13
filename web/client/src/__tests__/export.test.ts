@@ -48,6 +48,7 @@ const MOCK_POIS: POI[] = [
 ];
 
 const MOCK_TRACE: TraceData = {
+  id: "trace_test",
   original: [
     { lat: 48.8566, lon: 2.3522, ele: 35 },
     { lat: 48.8700, lon: 2.3800, ele: 50 },
@@ -58,18 +59,19 @@ const MOCK_TRACE: TraceData = {
   ],
   totalDistanceM: 2500,
   name: "Test Route",
+  color: "#1a1a1a",
 };
 
 describe("GPX export", () => {
   it("should produce valid GPX XML", () => {
-    const gpx = buildGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain('<?xml version="1.0"');
     expect(gpx).toContain("<gpx");
     expect(gpx).toContain("</gpx>");
   });
 
   it("should include all POIs as waypoints", () => {
-    const gpx = buildGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain("<wpt");
     expect(gpx).toContain("Fontaine de la Place");
     expect(gpx).toContain("Camping Municipal");
@@ -79,14 +81,14 @@ describe("GPX export", () => {
   });
 
   it("should include the track", () => {
-    const gpx = buildGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain("<trk>");
     expect(gpx).toContain("<trkpt");
     expect(gpx).toContain("Test Route");
   });
 
   it("should work without a trace", () => {
-    const gpx = buildGpxString(MOCK_POIS, null);
+    const gpx = buildGpxString(MOCK_POIS, []);
     expect(gpx).toContain("<wpt");
     expect(gpx).not.toContain("<trk>");
   });
@@ -98,7 +100,7 @@ describe("GPX export", () => {
         name: 'Bar & Grill "Special" <place>',
       },
     ];
-    const gpx = buildGpxString(poisWithSpecial, null);
+    const gpx = buildGpxString(poisWithSpecial, []);
     expect(gpx).toContain("&amp;");
     expect(gpx).toContain("&lt;");
     expect(gpx).toContain("&gt;");
@@ -108,21 +110,21 @@ describe("GPX export", () => {
 
 describe("KML export", () => {
   it("should produce valid KML XML", () => {
-    const kml = buildKmlString(MOCK_POIS, MOCK_TRACE);
+    const kml = buildKmlString(MOCK_POIS, [MOCK_TRACE]);
     expect(kml).toContain('<?xml version="1.0"');
     expect(kml).toContain("<kml");
     expect(kml).toContain("</kml>");
   });
 
   it("should group POIs by category in folders", () => {
-    const kml = buildKmlString(MOCK_POIS, MOCK_TRACE);
+    const kml = buildKmlString(MOCK_POIS, [MOCK_TRACE]);
     expect(kml).toContain("<Folder>");
     expect(kml).toContain("Water");
     expect(kml).toContain("Sleeping place");
   });
 
   it("should include the track as a LineString", () => {
-    const kml = buildKmlString(MOCK_POIS, MOCK_TRACE);
+    const kml = buildKmlString(MOCK_POIS, [MOCK_TRACE]);
     expect(kml).toContain("<LineString>");
     expect(kml).toContain("Test Route");
   });
@@ -159,12 +161,12 @@ describe("GeoJSON export", () => {
 
 describe("OsmAnd GPX export", () => {
   it("should include osmand namespace in root element", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain('xmlns:osmand="https://osmand.net"');
   });
 
   it("should include osmand:points_groups in extensions", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain("<osmand:points_groups>");
     expect(gpx).toContain("</osmand:points_groups>");
     // Should have groups for the categories used
@@ -173,7 +175,7 @@ describe("OsmAnd GPX export", () => {
   });
 
   it("should include osmand extensions on each waypoint", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain("<osmand:icon>");
     expect(gpx).toContain("<osmand:color>");
     expect(gpx).toContain("<osmand:background>");
@@ -184,7 +186,7 @@ describe("OsmAnd GPX export", () => {
   });
 
   it("should include OsmAnd category colors", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     // Water color: #0066CC
     expect(gpx).toContain("#0066CC");
     // Sleeping place color: #1A1A2E
@@ -192,7 +194,7 @@ describe("OsmAnd GPX export", () => {
   });
 
   it("should still be valid GPX (basic structure)", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain('<?xml version="1.0"');
     expect(gpx).toContain("<gpx");
     expect(gpx).toContain("</gpx>");
@@ -202,14 +204,14 @@ describe("OsmAnd GPX export", () => {
   });
 
   it("should include the track when trace is provided", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
     expect(gpx).toContain("<trk>");
     expect(gpx).toContain("<trkpt");
     expect(gpx).toContain("Test Route");
   });
 
   it("should work without a trace", () => {
-    const gpx = buildOsmAndGpxString(MOCK_POIS, null);
+    const gpx = buildOsmAndGpxString(MOCK_POIS, []);
     expect(gpx).toContain("<wpt");
     expect(gpx).not.toContain("<trk>");
   });
@@ -221,7 +223,7 @@ describe("OsmAnd GPX export", () => {
         tags: { amenity: "drinking_water" },
       },
     ];
-    const gpx = buildOsmAndGpxString(poisWithSpecificTag, null);
+    const gpx = buildOsmAndGpxString(poisWithSpecificTag, []);
     expect(gpx).toContain("amenity_drinking_water");
   });
 });
@@ -232,13 +234,13 @@ describe("OsmAnd GPX export", () => {
 
 describe("KMZ export", () => {
   it("should produce a Blob", () => {
-    const blob = buildKmzBlob(MOCK_POIS, MOCK_TRACE);
+    const blob = buildKmzBlob(MOCK_POIS, [MOCK_TRACE]);
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.type).toBe("application/vnd.google-earth.kmz");
   });
 
   it("should have non-zero size", () => {
-    const blob = buildKmzBlob(MOCK_POIS, MOCK_TRACE);
+    const blob = buildKmzBlob(MOCK_POIS, [MOCK_TRACE]);
     expect(blob.size).toBeGreaterThan(0);
   });
 });
@@ -269,20 +271,20 @@ describe("OsmAnd GPX with optional categories", () => {
   };
 
   it("should include osmand extensions for optional category POIs", () => {
-    const gpx = buildOsmAndGpxString([OPTIONAL_POI], null);
+    const gpx = buildOsmAndGpxString([OPTIONAL_POI], []);
     expect(gpx).toContain("<osmand:icon>amenity_hospital</osmand:icon>");
     expect(gpx).toContain("<osmand:color>#DC2626</osmand:color>");
     expect(gpx).toContain('name="Medical"');
   });
 
   it("should produce correct GPX symbol for optional categories", () => {
-    const gpx = buildGpxString([OPTIONAL_POI], null);
+    const gpx = buildGpxString([OPTIONAL_POI], []);
     expect(gpx).toContain("<sym>Medical Facility</sym>");
   });
 
   it("should handle mixed essential and optional categories", () => {
     const mixed = [...MOCK_POIS, OPTIONAL_POI];
-    const gpx = buildOsmAndGpxString(mixed, MOCK_TRACE);
+    const gpx = buildOsmAndGpxString(mixed, [MOCK_TRACE]);
     // Should have groups for all 3 categories
     expect(gpx).toContain('name="Water"');
     expect(gpx).toContain('name="Sleeping place"');
@@ -327,7 +329,7 @@ describe("GPX symbol mapping", () => {
         category: category as POI["category"],
         name: `Test ${category}`,
       };
-      const gpx = buildGpxString([poi], null);
+      const gpx = buildGpxString([poi], []);
       expect(gpx).toContain(`<sym>${expectedSymbol}</sym>`);
     });
   }

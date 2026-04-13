@@ -12,6 +12,7 @@ import {
   distanceToTrace,
 } from "../lib/gpx-parser";
 import type { TracePoint } from "../types";
+import { TRACE_COLORS } from "../types";
 
 // Minimal valid GPX with a short track
 const SAMPLE_GPX = `<?xml version="1.0" encoding="UTF-8"?>
@@ -83,6 +84,17 @@ describe("parseGpx", () => {
     expect(result.name).toBe("Test Route");
     expect(result.totalDistanceM).toBeGreaterThan(0);
     expect(result.simplified.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("should assign id and color to parsed trace", () => {
+    const result = parseGpx(SAMPLE_GPX);
+    expect(result.id).toMatch(/^trace_\d+$/);
+    expect(TRACE_COLORS).toContain(result.color);
+  });
+
+  it("should use colorIndex to pick color", () => {
+    const result = parseGpx(SAMPLE_GPX, 3);
+    expect(result.color).toBe(TRACE_COLORS[3]);
   });
 
   it("should parse a route (rtept) if no track", () => {

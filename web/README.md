@@ -142,27 +142,35 @@ L'enrichissement ajoute une seconde couche: quand OSM est trop pauvre, Ravitools
 git clone <repo-url>
 cd Ravitools
 
-# 2. Installer les dépendances serveur
-cd web/server
-npm install
+# 2. Installer les dépendances des deux projets
+cd web
+npm install                  # client
+cd server && npm install     # serveur
+cd ../client && npm install  # client (si étape précédente ratée)
 
-# 3. Installer les dépendances client
-cd ../client
-npm install
-
-# 4. Lancer le serveur (terminal 1)
+# 3. Lancer le serveur (terminal 1)
 cd ../server
 npm run dev
 # ✓ Écoute sur http://localhost:3001
 # ✓ Logs pino en mode pretty
 
-# 5. Lancer le client (terminal 2)
+# 4. Lancer le client (terminal 2)
 cd ../client
 npm run dev
 # ✓ Écoute sur http://localhost:5173
 # ✓ Vite proxy /api/* → localhost:3001
 
-# 6. Ouvrir http://localhost:5173 dans le navigateur
+# 5. Ouvrir http://localhost:5173 dans le navigateur
+```
+
+### Pour tout lancer en un seul terminal (dev + server)
+
+```bash
+# Terminal 1: serveur
+cd web/server && npm run dev
+
+# Terminal 2: client
+cd web/client && npm run dev
 ```
 
 ### Résumé des ports
@@ -193,7 +201,16 @@ cd web/client && npm run test:e2e
 
 # Type check sans build
 cd web/client && npx tsc --noEmit
-```
+
+# Tests unitaires client (121 tests)
+cd web/client && npm test
+
+# Tests unitaires serveur (32 tests)
+cd web/server && npm test
+
+# Build production
+cd web/client && npm run build    # → web/client/dist/
+cd web/server && npm run build    # → web/server/dist/
 
 ---
 

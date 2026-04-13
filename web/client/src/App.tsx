@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
 // App – main application component (neobrutalist Tailwind)
+// Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -18,7 +19,7 @@ export default function App() {
   const {
     state,
     filteredPois,
-    processFile,
+    processFiles,
     reset,
     restoreState,
     toggleCategory,
@@ -53,7 +54,7 @@ export default function App() {
     const session = loadSession();
     if (session) {
       restoreState({
-        trace: session.trace,
+        traces: session.traces,
         pois: session.pois,
         activeCategories: session.activeCategories,
       });
@@ -81,13 +82,13 @@ export default function App() {
     if (state.stage !== "done" || state.pois.length === 0) return;
     saveSession({
       activeCategories: state.activeCategories,
-      trace: state.trace,
+      traces: state.traces,
       pois: state.pois,
       enrichments,
       targetLanguage,
       enrichAll,
     });
-  }, [state.stage, state.pois, state.activeCategories, state.trace, enrichments, targetLanguage, enrichAll]);
+  }, [state.stage, state.pois, state.activeCategories, state.traces, enrichments, targetLanguage, enrichAll]);
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -148,7 +149,7 @@ export default function App() {
 
           {/* Upload area */}
           {(state.stage === "idle" || state.stage === "error") && !showResumePrompt && (
-            <GpxUpload onFile={processFile} disabled={isProcessing} />
+            <GpxUpload onFiles={processFiles} disabled={isProcessing} />
           )}
 
           {/* Status / Progress */}
@@ -193,7 +194,7 @@ export default function App() {
           {state.stage === "done" && (
             <ExportPanel
               pois={filteredPois}
-              trace={state.trace}
+              traces={state.traces}
               enrichments={enrichments}
             />
           )}
@@ -201,7 +202,7 @@ export default function App() {
           {/* Reset button */}
           {state.stage === "done" && (
             <button className="neo-btn-secondary w-full" onClick={handleReset}>
-              Load another GPX
+              Load new GPX files
             </button>
           )}
 
@@ -219,7 +220,7 @@ export default function App() {
         {/* Map */}
         <main className="map-container">
           <RouteMap
-            trace={state.trace}
+            traces={state.traces}
             pois={filteredPois}
             enrichments={enrichments}
             selectedPoiId={selectedPoiId}

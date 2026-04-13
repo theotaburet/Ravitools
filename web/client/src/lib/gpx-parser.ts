@@ -4,12 +4,17 @@
 // ---------------------------------------------------------------------------
 
 import type { TracePoint, TraceData } from "../types";
+import { TRACE_COLORS } from "../types";
+
+/** Auto-incrementing counter for trace IDs */
+let traceIdCounter = 0;
 
 /**
  * Parse a GPX file string into structured trace data.
  * Handles tracks, routes, and waypoints.
+ * Assigns a unique id and cycling color to each trace.
  */
-export function parseGpx(xmlString: string): TraceData {
+export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, "application/xml");
 
@@ -49,11 +54,16 @@ export function parseGpx(xmlString: string): TraceData {
   const totalDistanceM = computePathLength(points);
   const simplified = simplifyTrace(points, 500); // 500m default spacing
 
+  const id = `trace_${++traceIdCounter}`;
+  const color = TRACE_COLORS[(colorIndex ?? traceIdCounter - 1) % TRACE_COLORS.length];
+
   return {
+    id,
     original: points,
     simplified,
     totalDistanceM,
     name,
+    color,
   };
 }
 

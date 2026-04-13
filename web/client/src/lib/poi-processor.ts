@@ -22,18 +22,18 @@ function generateId(): string {
  *
  * Steps:
  * 1. Match each element to a category via OSM tags
- * 2. Compute distance to trace (corridor filtering)
+ * 2. Compute distance to nearest trace (corridor filtering)
  * 3. Deduplicate nearby POIs of the same category
  * 4. Sort by distance to trace
  *
  * @param elements - Raw Overpass API elements
- * @param trace - Simplified trace for distance calculation
- * @param maxDistanceM - Maximum distance from trace to keep (default 1500m)
+ * @param traces - Array of simplified traces for distance calculation
+ * @param maxDistanceM - Maximum distance from any trace to keep (default 1500m)
  * @param deduplicationRadiusM - Merge POIs within this radius (default 50m)
  */
 export function processElements(
   elements: OverpassElement[],
-  trace: TracePoint[],
+  traces: TracePoint[][],
   maxDistanceM: number = 1500,
   deduplicationRadiusM: number = 50,
 ): POI[] {
@@ -45,12 +45,16 @@ export function processElements(
     if (poi) rawPois.push(poi);
   }
 
-  // Step 2: Compute distance to trace and filter
+  // Step 2: Compute distance to nearest trace and filter
   const withDistance: POI[] = [];
   for (const poi of rawPois) {
-    const dist = distanceToTrace(poi, trace);
-    poi.distanceToTrace = dist;
-    if (dist <= maxDistanceM) {
+    let minDist = Infinity;
+    for (const trace of traces) {
+      const dist = distanceToTrace(poi, trace);
+      if (dist < minDist) minDist = dist;
+    }
+    poi.distanceToTrace = minDist;
+    if (minDist <= maxDistanceM) {
       withDistance.push(poi);
     }
   }

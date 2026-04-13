@@ -1,15 +1,16 @@
 // ---------------------------------------------------------------------------
 // GPX Upload component – drag & drop or file picker (neobrutalist)
+// Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
 
 interface Props {
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
   disabled?: boolean;
 }
 
-export function GpxUpload({ onFile, disabled }: Props) {
+export function GpxUpload({ onFiles, disabled }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(
@@ -17,20 +18,24 @@ export function GpxUpload({ onFile, disabled }: Props) {
       e.preventDefault();
       setDragOver(false);
       if (disabled) return;
-      const file = e.dataTransfer.files[0];
-      if (file && file.name.toLowerCase().endsWith(".gpx")) {
-        onFile(file);
+      const gpxFiles = Array.from(e.dataTransfer.files).filter((f) =>
+        f.name.toLowerCase().endsWith(".gpx"),
+      );
+      if (gpxFiles.length > 0) {
+        onFiles(gpxFiles);
       }
     },
-    [onFile, disabled],
+    [onFiles, disabled],
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) onFile(file);
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        onFiles(Array.from(files));
+      }
     },
-    [onFile],
+    [onFiles],
   );
 
   return (
@@ -61,13 +66,14 @@ export function GpxUpload({ onFile, disabled }: Props) {
       </svg>
 
       <p className="text-lg font-black uppercase tracking-tight">
-        Drop your .GPX here
+        Drop your .GPX files here
       </p>
-      <p className="text-sm text-muted font-mono">or click to browse</p>
+      <p className="text-sm text-muted font-mono">or click to browse (multiple files OK)</p>
 
       <input
         type="file"
         accept=".gpx"
+        multiple
         onChange={handleChange}
         disabled={disabled}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"

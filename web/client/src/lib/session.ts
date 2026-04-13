@@ -14,8 +14,9 @@ import type {
 // Schema versioning
 // ---------------------------------------------------------------------------
 
-/** Bump this when the persisted shape changes in a breaking way */
-const SCHEMA_VERSION = 1;
+/** Bump this when the persisted shape changes in a breaking way.
+ *  v2: trace → traces (multi-GPX support) */
+const SCHEMA_VERSION = 2;
 
 const STORAGE_KEY = "ravitools_session";
 
@@ -28,8 +29,8 @@ interface PersistedSession {
   savedAt: string; // ISO timestamp
   /** Active category names */
   activeCategories: PoiCategory[];
-  /** Trace metadata (not the full point arrays) */
-  trace: TraceData | null;
+  /** Loaded traces (multi-GPX) */
+  traces: TraceData[];
   /** Found POIs */
   pois: POI[];
   /** Enrichment results: stored as [id, data][] for JSON compat */
@@ -45,7 +46,7 @@ interface PersistedSession {
 
 export interface SessionSnapshot {
   activeCategories: Set<PoiCategory>;
-  trace: TraceData | null;
+  traces: TraceData[];
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
   targetLanguage: TargetLanguage;
@@ -63,7 +64,7 @@ export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): void {
       version: SCHEMA_VERSION,
       savedAt: new Date().toISOString(),
       activeCategories: [...snapshot.activeCategories],
-      trace: snapshot.trace,
+      traces: snapshot.traces,
       pois: snapshot.pois,
       enrichments: [...snapshot.enrichments.entries()],
       targetLanguage: snapshot.targetLanguage,
@@ -93,14 +94,14 @@ export function loadSession(): SessionSnapshot | null {
     }
 
     // Basic shape validation
-    if (!Array.isArray(data.pois) || !Array.isArray(data.enrichments)) {
+    if (!Array.isArray(data.pois) || !Array.isArray(data.enrichments) || !Array.isArray(data.traces)) {
       clearSession();
       return null;
     }
 
     return {
       activeCategories: new Set(data.activeCategories),
-      trace: data.trace,
+      traces: data.traces,
       pois: data.pois,
       enrichments: new Map(data.enrichments),
       targetLanguage: data.targetLanguage ?? "en",

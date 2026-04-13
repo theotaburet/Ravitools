@@ -175,7 +175,7 @@ describe("export with enrichments", () => {
       ],
     ]);
 
-    const gpx = buildGpxString([poi], null, enrichments);
+    const gpx = buildGpxString([poi], [], enrichments);
     expect(gpx).toContain("Rating: 4.2/5");
     expect(gpx).toContain("87 reviews");
     expect(gpx).toContain("French bistro");
@@ -212,7 +212,7 @@ describe("export with enrichments", () => {
       ],
     ]);
 
-    const kml = buildKmlString([poi], null, enrichments);
+    const kml = buildKmlString([poi], [], enrichments);
     expect(kml).toContain("3.8/5");
     expect(kml).toContain("Italian");
     expect(kml).toContain("Good place to eat.");
@@ -274,7 +274,7 @@ describe("export with enrichments", () => {
   it("GPX export works without enrichments (backward compat)", async () => {
     const { buildGpxString } = await import("../lib/export");
     const poi = makePoi();
-    const gpx = buildGpxString([poi], null);
+    const gpx = buildGpxString([poi], []);
     expect(gpx).toContain("Le Petit Zinc");
     expect(gpx).toContain("Restaurant or Bar");
   });
@@ -320,7 +320,7 @@ describe("export with translated summary", () => {
       ],
     ]);
 
-    const gpx = buildGpxString([poi], null, enrichments);
+    const gpx = buildGpxString([poi], [], enrichments);
     expect(gpx).toContain("Excellent bistro with terrace.");
     expect(gpx).not.toContain("Excellent bistrot avec terrasse.");
   });
@@ -352,7 +352,7 @@ describe("export with translated summary", () => {
       ],
     ]);
 
-    const gpx = buildGpxString([poi], null, enrichments);
+    const gpx = buildGpxString([poi], [], enrichments);
     expect(gpx).toContain("Un bon endroit.");
   });
 
@@ -416,7 +416,7 @@ describe("export with translated summary", () => {
       ],
     ]);
 
-    const kml = buildKmlString([poi], null, enrichments);
+    const kml = buildKmlString([poi], [], enrichments);
     expect(kml).toContain("Good Italian restaurant.");
     expect(kml).not.toContain("Buon ristorante italiano.");
   });
@@ -654,7 +654,7 @@ describe("export with source metadata", () => {
         },
       ],
     ]);
-    const gpx = buildGpxString([poi], null, enrichments);
+    const gpx = buildGpxString([poi], [], enrichments);
     expect(gpx).toContain("Sources: 3");
     expect(gpx).toContain("Confidence: 55%");
   });
@@ -685,7 +685,7 @@ describe("export with source metadata", () => {
         },
       ],
     ]);
-    const kml = buildKmlString([poi], null, enrichments);
+    const kml = buildKmlString([poi], [], enrichments);
     expect(kml).toContain("<b>Sources:</b> 1");
     expect(kml).toContain("<b>Confidence:</b> 24%");
   });

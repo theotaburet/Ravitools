@@ -107,7 +107,7 @@ describe("session persistence", () => {
   it("hasSession returns true after saving a session", () => {
     saveSession({
       activeCategories: new Set(["Restaurant or Bar"] as PoiCategory[]),
-      trace: null,
+      traces: [],
       pois: [],
       enrichments: new Map(),
       targetLanguage: "en",
@@ -124,7 +124,7 @@ describe("session persistence", () => {
 
     saveSession({
       activeCategories: new Set(["Restaurant or Bar", "Water"] as PoiCategory[]),
-      trace: null,
+      traces: [],
       pois,
       enrichments,
       targetLanguage: "fr",
@@ -147,7 +147,7 @@ describe("session persistence", () => {
   it("preserves Set semantics for activeCategories", () => {
     saveSession({
       activeCategories: new Set(["Water", "DIY", "Water"] as PoiCategory[]),
-      trace: null,
+      traces: [],
       pois: [],
       enrichments: new Map(),
       targetLanguage: "en",
@@ -167,7 +167,7 @@ describe("session persistence", () => {
 
     saveSession({
       activeCategories: new Set<PoiCategory>(),
-      trace: null,
+      traces: [],
       pois: [],
       enrichments,
       targetLanguage: "en",
@@ -182,7 +182,7 @@ describe("session persistence", () => {
   it("clearSession removes saved data", () => {
     saveSession({
       activeCategories: new Set<PoiCategory>(),
-      trace: null,
+      traces: [],
       pois: [makePoi("z")],
       enrichments: new Map(),
       targetLanguage: "en",
@@ -220,10 +220,10 @@ describe("session persistence", () => {
 
   it("returns null for missing required fields", () => {
     const fakeData = {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       activeCategories: [],
-      trace: null,
+      traces: [],
       // pois missing
       enrichments: [],
     };
@@ -233,15 +233,17 @@ describe("session persistence", () => {
 
   it("saves with trace metadata", () => {
     const trace = {
+      id: "trace_1",
       original: [{ lat: 47.0, lon: 0.6 }, { lat: 47.1, lon: 0.7 }],
       simplified: [{ lat: 47.0, lon: 0.6 }],
       totalDistanceM: 12345,
       name: "Test Route",
+      color: "#1a1a1a",
     };
 
     saveSession({
       activeCategories: new Set<PoiCategory>(),
-      trace,
+      traces: [trace],
       pois: [],
       enrichments: new Map(),
       targetLanguage: "en",
@@ -249,9 +251,11 @@ describe("session persistence", () => {
     });
 
     const loaded = loadSession();
-    expect(loaded!.trace).not.toBeNull();
-    expect(loaded!.trace!.name).toBe("Test Route");
-    expect(loaded!.trace!.totalDistanceM).toBe(12345);
-    expect(loaded!.trace!.original).toHaveLength(2);
+    expect(loaded!.traces).toHaveLength(1);
+    expect(loaded!.traces[0].name).toBe("Test Route");
+    expect(loaded!.traces[0].totalDistanceM).toBe(12345);
+    expect(loaded!.traces[0].original).toHaveLength(2);
+    expect(loaded!.traces[0].id).toBe("trace_1");
+    expect(loaded!.traces[0].color).toBe("#1a1a1a");
   });
 });
