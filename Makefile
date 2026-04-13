@@ -41,7 +41,11 @@ server-start:
 
 # SearXNG (search engine)
 searxng:
-	docker run -d -p 8888:8080 --rm --name searxng searxng/searxng
+	@if docker info >/dev/null 2>&1; then \
+		docker run -d -p 8888:8080 --rm --name searxng searxng/searxng; \
+	else \
+		echo "Docker not running. Please start Docker Desktop and retry 'make searxng'"; \
+	fi
 
 # All services
 all: searxng
