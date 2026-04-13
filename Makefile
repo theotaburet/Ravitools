@@ -16,8 +16,8 @@ help:
 	@echo "  make all          - Start searxng + server + client"
 
 install:
-	cd web/client && npm install
-	cd web/server && npm install
+	cd web/client && npm install && cd web/client && npm audit fix --force
+	cd web/server && npm install && cd web/server && npm audit fix --force
 
 # Client (frontend)
 client:
