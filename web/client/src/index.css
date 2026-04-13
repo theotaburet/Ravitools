@@ -161,6 +161,7 @@ body {
 .app-layout {
   display: flex;
   height: calc(100% - 60px);
+  overflow: hidden;
 }
 
 .sidebar {
@@ -621,6 +622,132 @@ body {
   color: #166534;
 }
 
+.sandbox-panel {
+  border: 3px solid #000;
+  background: #fff;
+  box-shadow: 4px 4px 0 var(--color-shadow);
+  padding: 1rem;
+}
+
+.sandbox-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sandbox-header h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.sandbox-subtitle,
+.sandbox-muted {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.sandbox-controls {
+  margin-bottom: 0.75rem;
+}
+
+.sandbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.sandbox-field select {
+  border: 2px solid #000;
+  background: #fff;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.sandbox-poi-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.sandbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sandbox-card {
+  border: 2px solid #000;
+  padding: 0.75rem;
+  background: var(--color-bg);
+}
+
+.sandbox-card-wide {
+  grid-column: 1 / -1;
+}
+
+.sandbox-card h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.sandbox-block {
+  margin-bottom: 0.75rem;
+}
+
+.sandbox-block strong {
+  display: block;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.sandbox-block p {
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.sandbox-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+.sandbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sandbox-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+}
+
+.sandbox-platform {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
 /* Progress bar */
 .progress-bar-track {
   width: 100%;
@@ -810,6 +937,10 @@ body {
 
   .map-container {
     min-height: 50vh;
+  }
+
+  .sandbox-grid {
+    grid-template-columns: 1fr;
   }
 }
 

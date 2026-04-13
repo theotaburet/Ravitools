@@ -10,6 +10,7 @@ import {
   Polyline,
   Marker,
   Popup,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
@@ -132,6 +133,11 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
         const isHighlighted = highlightedTraceId === trace.id;
         const isDimmed = highlightedTraceId !== null && !isHighlighted;
 
+        const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
+        const elevationLabel = trace.elevationGainM > 0 || trace.elevationLossM > 0
+          ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
+          : "";
+
         return (
           <Polyline
             key={trace.id}
@@ -145,7 +151,11 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
               mouseover: () => setHighlightedTraceId(trace.id),
               mouseout: () => setHighlightedTraceId(null),
             }}
-          />
+          >
+            <Tooltip sticky>
+              {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
+            </Tooltip>
+          </Polyline>
         );
       })}
 
@@ -229,7 +239,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                         </div>
                       ) : null;
                     })()}
-                    {(enrichment.translatedSummary || enrichment.summary) && (
+                    {(enrichment.essentials || enrichment.translatedSummary || enrichment.summary) && (
                       <div
                         style={{
                           marginTop: "0.25rem",
@@ -237,7 +247,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                           lineHeight: "1.3",
                         }}
                       >
-                        {enrichment.translatedSummary ?? enrichment.summary}
+                        {enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary}
                       </div>
                     )}
                     {enrichment.sourceCount > 0 && (

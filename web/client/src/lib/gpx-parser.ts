@@ -53,6 +53,7 @@ export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
 
   const totalDistanceM = computePathLength(points);
   const simplified = simplifyTrace(points, 500); // 500m default spacing
+  const { gain: elevationGainM, loss: elevationLossM } = computeElevationStats(points);
 
   const id = `trace_${++traceIdCounter}`;
   const color = TRACE_COLORS[(colorIndex ?? traceIdCounter - 1) % TRACE_COLORS.length];
@@ -62,6 +63,8 @@ export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
     original: points,
     simplified,
     totalDistanceM,
+    elevationGainM,
+    elevationLossM,
     name,
     color,
   };
@@ -106,6 +109,26 @@ export function computePathLength(points: TracePoint[]): number {
     total += haversine(points[i - 1], points[i]);
   }
   return total;
+}
+
+/**
+ * Compute elevation gain (D+) and loss (D-) from trace points.
+ * Ignores tiny elevation changes (< 2m) to avoid GPS noise.
+ */
+export function computeElevationStats(points: TracePoint[]): { gain: number; loss: number } {
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    if (prev.ele == null || curr.ele == null) return { gain: 0, loss: 0 };
+    const diff = curr.ele - prev.ele;
+    if (Math.abs(diff) >= 2) {
+      if (diff > 0) gain += diff;
+      else loss += Math.abs(diff);
+    }
+  }
+  return { gain: Math.round(gain), loss: Math.round(loss) };
 }
 
 // ---------------------------------------------------------------------------

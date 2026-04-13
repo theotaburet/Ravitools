@@ -60,6 +60,8 @@ const MOCK_TRACE: TraceData = {
     { lat: 48.8700, lon: 2.3800 },
   ],
   totalDistanceM: 2500,
+  elevationGainM: 150,
+  elevationLossM: 80,
   name: "Test Route",
   color: "#1a1a1a",
 };

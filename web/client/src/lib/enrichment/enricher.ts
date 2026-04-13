@@ -5,10 +5,36 @@
 // ---------------------------------------------------------------------------
 
 import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy, EnrichmentPhase, SearchSnippet } from "../../types";
-import { buildGoogleMapsUrl, searchPoi, reverseGeocode } from "./search";
+import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, fetchWebsitePreview } from "./search";
 import { synthesize, isEngineReady } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
 import { dlog } from "../debug-log";
+import { buildEssentialsText, buildSourceDigests, buildStructuredContent } from "./structured";
+
+function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "status" | "locality" | "sourceCount" | "sourceEngines" | "confidence"> {
+  return {
+    rating: null,
+    reviewCount: null,
+    hours: null,
+    summary: null,
+    translatedSummary: null,
+    specialty: null,
+    priceLevel: null,
+    googleMapsUrl: buildGoogleMapsUrl(poi),
+    sourceUrls: [],
+    rawSnippets: [],
+    essentials: null,
+    sourceDigests: [],
+    officialWebsite: null,
+    structured: {
+      headline: null,
+      operationalSummary: null,
+      practicalities: [],
+      sourceRollup: [],
+      cautions: [],
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,14 +95,13 @@ export async function enrichPoi(
   const apiBase = options.apiBase ?? "/api";
   const targetLanguage = options.targetLanguage ?? "en";
   const googleMapsUrl = buildGoogleMapsUrl(poi);
+  const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
   const policy = options.policyOverride ?? getEnrichabilityPolicy(poi.category);
 
   // --- Policy: skip → no network calls at all ---
   if (policy === "skip") {
     return {
-      rating: null, reviewCount: null, hours: null, summary: null,
-      translatedSummary: null, specialty: null, priceLevel: null,
-      googleMapsUrl, sourceUrls: [], rawSnippets: [],
+      ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
       status: "skipped", skipReason: "low-value-category", locality: null,
       sourceCount: 0, sourceEngines: [], confidence: 0,
@@ -85,6 +110,7 @@ export async function enrichPoi(
 
   let status: EnrichmentStatus = "pending";
   let locality: string | null = null;
+  let officialWebsite = null;
 
   try {
     // Step 1: Reverse geocode for locality
@@ -95,13 +121,15 @@ export async function enrichPoi(
 
     // --- Policy: minimal → geocode only, no search/LLM ---
     if (policy === "minimal") {
+      if (officialWebsiteUrl) {
+        officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
+      }
       return {
-        rating: null, reviewCount: null, hours: null, summary: null,
-        translatedSummary: null, specialty: null, priceLevel: null,
-        googleMapsUrl, sourceUrls: [], rawSnippets: [],
+        ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "done", locality,
         sourceCount: 0, sourceEngines: [], confidence: 0,
+        officialWebsite,
       };
     }
 
@@ -111,14 +139,17 @@ export async function enrichPoi(
     if (options.signal?.aborted) throw new Error("Cancelled");
     const snippets = await searchPoi(poi, locality, apiBase, options.signal);
 
+    if (officialWebsiteUrl) {
+      officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
+    }
+
     if (snippets.length === 0) {
       return {
-        rating: null, reviewCount: null, hours: null, summary: null,
-        translatedSummary: null, specialty: null, priceLevel: null,
-        googleMapsUrl, sourceUrls: [], rawSnippets: [],
+        ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "skipped", skipReason: "no-results", locality,
         sourceCount: 0, sourceEngines: [], confidence: 0,
+        officialWebsite,
       };
     }
 
@@ -128,12 +159,16 @@ export async function enrichPoi(
     const sourceUrls = snippets.map((s) => s.url);
 
     if (isEngineReady()) {
-      const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage);
+      const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage, officialWebsite);
 
       if (options.signal?.aborted) throw new Error("Cancelled");
 
       if (synthesis) {
+        const sourceDigests = synthesis.sourceDigests.length > 0
+          ? synthesis.sourceDigests
+          : buildSourceDigests(snippets, officialWebsite);
         const result = {
+          ...createBaseEnrichment(poi),
           rating: synthesis.rating,
           reviewCount: synthesis.reviewCount,
           hours: synthesis.hours,
@@ -147,7 +182,12 @@ export async function enrichPoi(
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
+          essentials: synthesis.essentials,
+          sourceDigests,
+          officialWebsite,
         };
+        result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
+        result.essentials = result.essentials ?? buildEssentialsText(result.structured);
         result.confidence = computeConfidence(result);
         return result;
       }
@@ -155,26 +195,28 @@ export async function enrichPoi(
 
     // No LLM or synthesis failed — return raw snippets without synthesis
     const noLlmResult = {
-      rating: null, reviewCount: null, hours: null, summary: null,
-      translatedSummary: null, specialty: null, priceLevel: null,
+      ...createBaseEnrichment(poi),
       googleMapsUrl, sourceUrls, rawSnippets: snippets,
       enrichedAt: new Date().toISOString(),
       status: "done" as const, locality,
       sourceCount: snippets.length,
       sourceEngines: extractEngines(snippets),
       confidence: 0,
+      sourceDigests: buildSourceDigests(snippets, officialWebsite),
+      officialWebsite,
     };
+    noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
+    noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
     noLlmResult.confidence = computeConfidence(noLlmResult);
     return noLlmResult;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return {
-      rating: null, reviewCount: null, hours: null, summary: null,
-      translatedSummary: null, specialty: null, priceLevel: null,
-      googleMapsUrl, sourceUrls: [], rawSnippets: [],
+      ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
       status: "error", error: message, locality,
       sourceCount: 0, sourceEngines: [], confidence: 0,
+      officialWebsite,
     };
   }
 }
@@ -190,6 +232,7 @@ interface SearchStageResult {
   locality: string | null;
   snippets: SearchSnippet[];
   googleMapsUrl: string;
+  officialWebsite: EnrichedData["officialWebsite"];
   policy: EnrichabilityPolicy;
   /** If already resolved (skip/minimal/no-results/error), the final enrichment */
   earlyResult?: EnrichedData;
@@ -277,10 +320,7 @@ export async function enrichBatch(
     // Skip unnamed or generic POI names that won't yield useful search results
     if (skipUnnamed && isGenericPoiName(poi.name)) {
       const skippedData: EnrichedData = {
-        rating: null, reviewCount: null, hours: null, summary: null,
-        translatedSummary: null, specialty: null, priceLevel: null,
-        googleMapsUrl: buildGoogleMapsUrl(poi),
-        sourceUrls: [], rawSnippets: [],
+        ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "skipped", skipReason: "generic-name", locality: null,
         sourceCount: 0, sourceEngines: [], confidence: 0,
@@ -294,10 +334,7 @@ export async function enrichBatch(
     // Skip categories
     if (policy === "skip") {
       const skippedData: EnrichedData = {
-        rating: null, reviewCount: null, hours: null, summary: null,
-        translatedSummary: null, specialty: null, priceLevel: null,
-        googleMapsUrl: buildGoogleMapsUrl(poi),
-        sourceUrls: [], rawSnippets: [],
+        ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "skipped", skipReason: "low-value-category", locality: null,
         sourceCount: 0, sourceEngines: [], confidence: 0,
@@ -332,24 +369,27 @@ export async function enrichBatch(
       if (signal?.aborted) return;
       const { poi, index, policy } = item;
       const googleMapsUrl = buildGoogleMapsUrl(poi);
+      const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
 
       try {
         // Geocode
         if (signal?.aborted) return;
         const locality = await reverseGeocode(poi.lat, poi.lon, apiBase, signal);
+        const officialWebsite = officialWebsiteUrl
+          ? await fetchWebsitePreview(officialWebsiteUrl, apiBase, signal)
+          : null;
 
         // Minimal policy: geocode only
         if (signal?.aborted) return;
         if (policy === "minimal") {
           const result: EnrichedData = {
-            rating: null, reviewCount: null, hours: null, summary: null,
-            translatedSummary: null, specialty: null, priceLevel: null,
-            googleMapsUrl, sourceUrls: [], rawSnippets: [],
+            ...createBaseEnrichment(poi),
             enrichedAt: new Date().toISOString(),
             status: "done", locality,
             sourceCount: 0, sourceEngines: [], confidence: 0,
+            officialWebsite,
           };
-          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
@@ -362,33 +402,30 @@ export async function enrichBatch(
         if (signal?.aborted) return;
         if (snippets.length === 0) {
           const result: EnrichedData = {
-            rating: null, reviewCount: null, hours: null, summary: null,
-            translatedSummary: null, specialty: null, priceLevel: null,
-            googleMapsUrl, sourceUrls: [], rawSnippets: [],
+            ...createBaseEnrichment(poi),
             enrichedAt: new Date().toISOString(),
             status: "skipped", skipReason: "no-results", locality,
             sourceCount: 0, sourceEngines: [], confidence: 0,
+            officialWebsite,
           };
-          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
         }
 
-        searchResults.push({ poi, index, locality, snippets, googleMapsUrl, policy });
+        searchResults.push({ poi, index, locality, snippets, googleMapsUrl, officialWebsite, policy });
         onPhaseProgress?.("geocode-search", computeEta());
       } catch (err) {
         if (signal?.aborted) return;
         const message = err instanceof Error ? err.message : "Unknown error";
         const result: EnrichedData = {
-          rating: null, reviewCount: null, hours: null, summary: null,
-          translatedSummary: null, specialty: null, priceLevel: null,
-          googleMapsUrl, sourceUrls: [], rawSnippets: [],
+          ...createBaseEnrichment(poi),
           enrichedAt: new Date().toISOString(),
           status: "error", error: message, locality: null,
           sourceCount: 0, sourceEngines: [], confidence: 0,
         };
-        searchResults.push({ poi, index, locality: null, snippets: [], googleMapsUrl, policy, earlyResult: result });
+        searchResults.push({ poi, index, locality: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, earlyResult: result });
         emitResult(poi, result);
         onPhaseProgress?.("geocode-search", computeEta());
       }
@@ -412,19 +449,23 @@ export async function enrichBatch(
     for (const item of needSynthesis) {
       if (signal?.aborted) break;
 
-      const { poi, locality, snippets, googleMapsUrl } = item;
+      const { poi, locality, snippets, googleMapsUrl, officialWebsite } = item;
       const sourceUrls = snippets.map((s) => s.url);
 
       try {
         if (signal?.aborted) break;
 
         if (isEngineReady()) {
-          const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage);
+          const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage, officialWebsite);
 
           if (signal?.aborted) break;
 
           if (synthesis) {
+            const sourceDigests = synthesis.sourceDigests.length > 0
+              ? synthesis.sourceDigests
+              : buildSourceDigests(snippets, officialWebsite);
             const result: EnrichedData = {
+              ...createBaseEnrichment(poi),
               rating: synthesis.rating,
               reviewCount: synthesis.reviewCount,
               hours: synthesis.hours,
@@ -438,7 +479,12 @@ export async function enrichBatch(
               sourceCount: snippets.length,
               sourceEngines: extractEngines(snippets),
               confidence: 0,
+              essentials: synthesis.essentials,
+              sourceDigests,
+              officialWebsite,
             };
+            result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
+            result.essentials = result.essentials ?? buildEssentialsText(result.structured);
             result.confidence = computeConfidence(result);
             emitResult(poi, result);
             onPhaseProgress?.("synthesize", computeEta());
@@ -448,15 +494,18 @@ export async function enrichBatch(
 
         // No LLM or synthesis failed — raw snippets
         const noLlmResult: EnrichedData = {
-          rating: null, reviewCount: null, hours: null, summary: null,
-          translatedSummary: null, specialty: null, priceLevel: null,
+          ...createBaseEnrichment(poi),
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "done", locality,
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
+          sourceDigests: buildSourceDigests(snippets, officialWebsite),
+          officialWebsite,
         };
+        noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
+        noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
         noLlmResult.confidence = computeConfidence(noLlmResult);
         emitResult(poi, noLlmResult);
         onPhaseProgress?.("synthesize", computeEta());
@@ -464,12 +513,12 @@ export async function enrichBatch(
         if (signal?.aborted) break;
         const message = err instanceof Error ? err.message : "Unknown error";
         const errResult: EnrichedData = {
-          rating: null, reviewCount: null, hours: null, summary: null,
-          translatedSummary: null, specialty: null, priceLevel: null,
+          ...createBaseEnrichment(poi),
           googleMapsUrl, sourceUrls: [], rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "error", error: message, locality,
           sourceCount: 0, sourceEngines: [], confidence: 0,
+          officialWebsite,
         };
         emitResult(poi, errResult);
         onPhaseProgress?.("synthesize", computeEta());

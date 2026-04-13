@@ -245,6 +245,8 @@ describe("session persistence", () => {
       original: [{ lat: 47.0, lon: 0.6 }, { lat: 47.1, lon: 0.7 }],
       simplified: [{ lat: 47.0, lon: 0.6 }],
       totalDistanceM: 12345,
+      elevationGainM: 500,
+      elevationLossM: 300,
       name: "Test Route",
       color: "#1a1a1a",
     };

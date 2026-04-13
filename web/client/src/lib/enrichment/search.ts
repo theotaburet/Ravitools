@@ -2,7 +2,7 @@
 // SearXNG search adapter, Google Maps link builder, Nominatim reverse geocode
 // ---------------------------------------------------------------------------
 
-import type { POI, SearchSnippet } from "../../types";
+import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview } from "../../types";
 import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,8 @@ const MAX_SNIPPETS = 8;
 
 /** Timeout for search/geocode requests (ms) */
 const REQUEST_TIMEOUT = 15_000;
+
+const OFFICIAL_SITE_TAGS = ["website", "contact:website", "url", "contact:web"] as const;
 
 // ---------------------------------------------------------------------------
 // Google Maps link builder (no API key needed)
@@ -33,6 +35,68 @@ export function buildGoogleMapsUrl(poi: POI): string {
  */
 export function buildGoogleMapsDirectionsUrl(poi: POI): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${poi.lat},${poi.lon}`;
+}
+
+/** Pick the best official website URL from OSM tags when present. */
+export function getOfficialWebsiteUrl(poi: POI): string | null {
+  for (const key of OFFICIAL_SITE_TAGS) {
+    const value = poi.tags[key];
+    if (!value?.trim()) continue;
+
+    const trimmed = value.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) return `https://${trimmed}`;
+  }
+  return null;
+}
+
+/** Classify a source URL into a small set of known review/discovery platforms. */
+export function classifySourcePlatform(url: string): EnrichmentPlatform {
+  let hostname = "";
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return "other";
+  }
+
+  if (hostname.includes("google.")) return "google_maps";
+  if (hostname.includes("yelp.")) return "yelp";
+  if (hostname.includes("tripadvisor.")) return "tripadvisor";
+  if (hostname.includes("facebook.")) return "facebook";
+  if (hostname.includes("instagram.")) return "instagram";
+  if (hostname.includes("booking.")) return "booking";
+  if (hostname.includes("hotels.")) return "hotels_com";
+  return "other";
+}
+
+/** Fetch a small preview of an official website through the server proxy. */
+export async function fetchWebsitePreview(
+  url: string,
+  apiBase: string = "/api",
+  signal?: AbortSignal,
+): Promise<WebsitePreview | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort());
+  }
+
+  try {
+    const res = await fetch(`${apiBase}/fetch-page`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) return null;
+    return await res.json() as WebsitePreview;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +154,13 @@ export function buildSearchQuery(
 
   // Add "avis" / "review" to bias towards review content
   parts.push("avis OR review OR horaires");
+
+  // Bias towards the source families we want to compile.
+  parts.push("\"google maps\" OR yelp OR tripadvisor OR facebook OR instagram");
+
+  if (poi.category === "Sleeping place") {
+    parts.push("booking OR \"hotels.com\"");
+  }
 
   return parts.join(" ");
 }

@@ -4,7 +4,7 @@
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
-import type { SearchSnippet, TargetLanguage } from "../../types";
+import type { SearchSnippet, TargetLanguage, EnrichmentSourceDigest, WebsitePreview } from "../../types";
 import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,8 @@ export interface LlmSynthesis {
   translatedSummary: string | null;
   specialty: string | null;
   priceLevel: number | null;
+  essentials: string | null;
+  sourceDigests: EnrichmentSourceDigest[];
 }
 
 /** Progress callback for model loading */
@@ -124,7 +126,15 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
   "summary": <string in the original snippet language, 2-3 sentences max, useful for a cyclist, or null>,
   "translatedSummary": <same summary rewritten in ${langName}, 2-3 sentences max, or null if summary is null>,
   "specialty": <string, type/cuisine/specialty, or null>,
-  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>
+  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>,
+  "essentials": <string in ${langName}, 3-5 short factual sentences, or null>,
+  "sourceDigests": [
+    {
+      "platform": <google_maps|yelp|tripadvisor|facebook|instagram|booking|hotels_com|official_website|other>,
+      "brief": <one short factual sentence summarizing what this source contributes>,
+      "url": <source URL string or null>
+    }
+  ]
 }
 
 Rules:
@@ -135,6 +145,19 @@ Rules:
 - "summary" must stay in the original language of the snippets (French, English, Italian, etc.).
 - "translatedSummary" must be written in ${langName}. If the snippets are already in ${langName}, copy the summary as-is.
 - Summary should mention: vibe, quality, cyclist-friendliness if mentioned.
+- "essentials" must be the main traveler-facing synthesis: concise but complete on what the place is, reputation, practical info, and any notable caveat.
+- "essentials" must read like a final production answer, not notes.
+- First sentence: identify the place and why it matters on-route.
+- Second sentence: reputation / quality signal from review platforms if present.
+- Third sentence: practical traveler information only (hours, resupply, sleep, bike relevance, official site).
+- Last sentence: strongest caveat or uncertainty if any.
+- For general commerce, output a terse compilation of what the different platforms say.
+- If the place is a hotel or sleeping place and booking platforms are present, include booking-specific sleep context in essentials.
+- For food shops, prioritize resupply usefulness over ambiance.
+- For restaurants/bars, prioritize practicality + reputation over generic atmosphere.
+- For sleeping places, prioritize booking/reliability/check-in/sleep context over marketing wording.
+- For gears, prioritize bike service/product relevance and reliability.
+- Only add a sourceDigests entry when that platform is actually represented in the input.
 - Be concise. Prefer null over uncertain data.
 - When snippets are vague or contradictory, say so explicitly (e.g. "Limited information available", "Sources disagree"). Never fill gaps with plausible-sounding invented detail.`;
 }
@@ -146,6 +169,7 @@ function buildUserPrompt(
   poiName: string,
   category: string,
   snippets: SearchSnippet[],
+  websitePreview?: WebsitePreview | null,
 ): string {
   const snippetText = snippets
     .map(
@@ -154,10 +178,16 @@ function buildUserPrompt(
     )
     .join("\n\n");
 
+  const websiteText = websitePreview
+    ? `\n\nOfficial website preview:\nTitle: ${websitePreview.title ?? "n/a"}\nDescription: ${websitePreview.description ?? "n/a"}\nExcerpt: ${websitePreview.excerpt ?? "n/a"}\nSource URL: ${websitePreview.finalUrl}`
+    : "";
+
   return `Place: "${poiName}" (${category})
 
 Web search results:
 ${snippetText}
+
+${websiteText}
 
 Extract the JSON:`;
 }
@@ -182,6 +212,7 @@ export async function synthesize(
   category: string,
   snippets: SearchSnippet[],
   targetLanguage: TargetLanguage = "en",
+  websitePreview?: WebsitePreview | null,
 ): Promise<LlmSynthesis | null> {
   if (!engineReady || !engineInstance) return null;
   if (snippets.length === 0) return null;
@@ -193,7 +224,7 @@ export async function synthesize(
         { role: "system", content: buildSystemPrompt(targetLanguage) },
         {
           role: "user",
-          content: buildUserPrompt(poiName, category, snippets),
+          content: buildUserPrompt(poiName, category, snippets, websitePreview),
         },
       ],
       max_tokens: MAX_TOKENS,
@@ -213,6 +244,8 @@ export async function synthesize(
       translatedSummary: parsed?.translatedSummary?.slice(0, 100),
       specialty: parsed?.specialty,
       hours: parsed?.hours,
+      essentials: parsed?.essentials?.slice(0, 120),
+      digestCount: parsed?.sourceDigests?.length ?? 0,
     });
 
     return parsed;
@@ -263,6 +296,22 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
       priceLevel: typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
         ? Math.round(parsed.priceLevel)
         : null,
+      essentials: typeof parsed.essentials === "string" && parsed.essentials.length > 0
+        ? parsed.essentials.slice(0, 700)
+        : null,
+      sourceDigests: Array.isArray(parsed.sourceDigests)
+        ? parsed.sourceDigests
+          .filter((entry: unknown) => typeof entry === "object" && entry !== null)
+          .map((entry: unknown) => {
+            const digest = entry as Record<string, unknown>;
+            return {
+              platform: typeof digest.platform === "string" ? digest.platform : "other",
+              brief: typeof digest.brief === "string" ? digest.brief.slice(0, 240) : "",
+              url: typeof digest.url === "string" && digest.url.length > 0 ? digest.url : null,
+            };
+          })
+          .filter((entry: { brief: string }) => entry.brief.length > 0) as EnrichmentSourceDigest[]
+        : [],
     };
   } catch {
     console.warn("[WebLLM] Failed to parse LLM output:", text.slice(0, 200));

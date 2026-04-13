@@ -221,9 +221,9 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
                           </div>
                         ) : null;
                       })()}
-                      {(enrichment.translatedSummary || enrichment.summary) && (
+                      {(enrichment.essentials || enrichment.translatedSummary || enrichment.summary) && (
                         <div className="poi-enrichment-summary">
-                          {enrichment.translatedSummary ?? enrichment.summary}
+                          {enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary}
                         </div>
                       )}
 

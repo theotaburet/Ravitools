@@ -20,6 +20,10 @@ export interface TraceData {
   simplified: TracePoint[];
   /** Total distance in meters */
   totalDistanceM: number;
+  /** Positive elevation gain in meters */
+  elevationGainM: number;
+  /** Negative elevation loss in meters */
+  elevationLossM: number;
   /** Name from GPX metadata if available */
   name?: string;
   /** Display color for map rendering */
@@ -132,6 +136,21 @@ export type SkipReason =
 /** Supported output languages for enrichment synthesis */
 export type TargetLanguage = "fr" | "en";
 
+/** Canonical source platforms used in enrichment synthesis */
+export const ENRICHMENT_PLATFORMS = [
+  "google_maps",
+  "yelp",
+  "tripadvisor",
+  "facebook",
+  "instagram",
+  "booking",
+  "hotels_com",
+  "official_website",
+  "other",
+] as const;
+
+export type EnrichmentPlatform = typeof ENRICHMENT_PLATFORMS[number];
+
 /** Human-readable labels for target languages */
 export const TARGET_LANGUAGE_LABELS: Record<TargetLanguage, string> = {
   fr: "Français",
@@ -145,6 +164,37 @@ export interface SearchSnippet {
   content: string; // text excerpt
   engine: string; // "google", "bing", "duckduckgo"...
 }
+
+/** Structured, user-facing digest for a source platform */
+export interface EnrichmentSourceDigest {
+  platform: EnrichmentPlatform;
+  brief: string;
+  url: string | null;
+}
+
+/** Hardened, stable structure for traveler-facing enrichment output */
+export interface EnrichmentStructuredContent {
+  /** One-paragraph synthesis that should stand on its own */
+  headline: string | null;
+  /** Operational verdict for quick scanning */
+  operationalSummary: string | null;
+  /** Reliable practical facts only */
+  practicalities: string[];
+  /** What web/review platforms say, one line each */
+  sourceRollup: EnrichmentSourceDigest[];
+  /** Main caveats, disagreement, or missing info */
+  cautions: string[];
+}
+
+/** Minimal fetched preview of an official website */
+export interface WebsitePreview {
+  url: string;
+  finalUrl: string;
+  title: string | null;
+  description: string | null;
+  excerpt: string | null;
+  fetchedAt: string;
+ }
 
 /** Status of enrichment for a single POI */
 export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done" | "error" | "skipped";
@@ -187,6 +237,14 @@ export interface EnrichedData {
   sourceEngines: string[];
   /** Confidence score 0-1 based on source count, agreement, and structured field presence */
   confidence: number;
+  /** Main user-facing synthesis in target language, concise but complete on essentials */
+  essentials?: string | null;
+  /** Short per-platform digest when the sources are identifiable */
+  sourceDigests?: EnrichmentSourceDigest[];
+  /** Working official website preview when a fetch succeeded */
+  officialWebsite?: WebsitePreview | null;
+  /** Hardened structured content consumed by UI/export/sandbox */
+  structured?: EnrichmentStructuredContent;
 }
 
 /** Overall enrichment job state */

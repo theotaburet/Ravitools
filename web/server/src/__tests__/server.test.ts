@@ -508,3 +508,60 @@ describe("/geocode", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// /fetch-page
+// ---------------------------------------------------------------------------
+
+describe("/fetch-page", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("rejects missing url", async () => {
+    const res = await request(app).post("/fetch-page").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid url", async () => {
+    const res = await request(app).post("/fetch-page").send({ url: "notaurl" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns parsed website preview for html pages", async () => {
+    const html = `<!doctype html><html><head><title>Hotel du Test</title><meta name="description" content="Central hotel with bike storage"></head><body><main>Open daily. Booking available.</main></body></html>`;
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      url: "https://example.com/final",
+      headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
+      text: async () => html,
+    } as unknown as Response);
+
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Hotel du Test");
+    expect(res.body.description).toBe("Central hotel with bike storage");
+    expect(res.body.finalUrl).toBe("https://example.com/final");
+    expect(res.body.excerpt).toMatch(/Open daily/);
+  });
+
+  it("rejects non-html content", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      url: "https://example.com/file.pdf",
+      headers: new Headers({ "Content-Type": "application/pdf" }),
+      text: async () => "pdf",
+    } as unknown as Response);
+
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com/file.pdf" });
+    expect(res.status).toBe(415);
+  });
+
+  it("returns 504 on timeout", async () => {
+    mockFetch.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
+    expect(res.status).toBe(504);
+  });
+});

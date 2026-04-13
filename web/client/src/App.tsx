@@ -3,7 +3,7 @@
 // Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { useRavitools } from "./hooks/useRavitools";
 import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
@@ -16,7 +16,11 @@ import { DebugPanel } from "./components/DebugPanel";
 import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
 import type { TargetLanguage } from "./types";
 
+const EnrichmentSandbox = lazy(() => import("./components/EnrichmentSandbox").then((module) => ({ default: module.EnrichmentSandbox })));
+
 export default function App() {
+  const sandboxMode = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).has("sandbox");
   const {
     state,
     filteredPois,
@@ -238,6 +242,15 @@ export default function App() {
               onContinue={() => continueEnrichment(filteredPois, targetLanguage, enrichAll)}
               onCancel={cancelEnrichment}
             />
+          )}
+
+          {sandboxMode && state.stage === "done" && (
+            <Suspense fallback={null}>
+              <EnrichmentSandbox
+                pois={filteredPois}
+                targetLanguage={targetLanguage}
+              />
+            </Suspense>
           )}
 
           {/* Export */}

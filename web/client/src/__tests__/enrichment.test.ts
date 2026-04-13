@@ -172,6 +172,14 @@ describe("export with enrichments", () => {
           sourceCount: 0,
           sourceEngines: [],
           confidence: 0,
+          essentials: "Le Petit Zinc is a food stop near the route.",
+          structured: {
+            headline: "Excellent French bistro, cyclist-friendly terrace.",
+            operationalSummary: "Reputation signals present.",
+            practicalities: ["Type: French bistro"],
+            sourceRollup: [],
+            cautions: [],
+          },
         },
       ],
     ]);
@@ -209,6 +217,14 @@ describe("export with enrichments", () => {
           sourceCount: 0,
           sourceEngines: [],
           confidence: 0,
+          essentials: "Good place to eat.",
+          structured: {
+            headline: "Good place to eat.",
+            operationalSummary: "Reputation signals present.",
+            practicalities: ["Type: Italian"],
+            sourceRollup: [],
+            cautions: [],
+          },
         },
       ],
     ]);
@@ -242,6 +258,16 @@ describe("export with enrichments", () => {
           sourceCount: 3,
           sourceEngines: ["google", "bing"],
           confidence: 0.55,
+          essentials: "Toujours ouvert.",
+          structured: {
+            headline: "Toujours ouvert.",
+            operationalSummary: "Coverage: Google Maps, Yelp.",
+            practicalities: ["Type: Cafe"],
+            sourceRollup: [
+              { platform: "google_maps" as const, brief: "Google Maps: Always open.", url: "https://maps.google.com" },
+            ],
+            cautions: [],
+          },
         },
       ],
     ]);
@@ -260,6 +286,9 @@ describe("export with enrichments", () => {
     expect(props.enrichment_sourceCount).toBe(3);
     expect(props.enrichment_sourceEngines).toBe("google,bing");
     expect(props.enrichment_confidence).toBe(0.55);
+    expect(props.enrichment_essentials).toBe("Toujours ouvert.");
+    expect(props.enrichment_structured_headline).toBe("Toujours ouvert.");
+    expect(props.enrichment_structured_practicalities).toContain("Type: Cafe");
   });
 
   it("GeoJSON export works without enrichments", async () => {
@@ -734,6 +763,7 @@ vi.mock("../lib/enrichment/search", async () => {
   const actual = await vi.importActual<typeof import("../lib/enrichment/search")>("../lib/enrichment/search");
   return {
     ...actual,
+    fetchWebsitePreview: vi.fn(async () => null),
     reverseGeocode: vi.fn(async () => "TestCity"),
     searchPoi: vi.fn(async (poi: POI) => {
       // Simulate a small delay
@@ -762,6 +792,8 @@ vi.mock("../lib/enrichment/llm", async () => {
         translatedSummary: "Résumé test",
         specialty: "Cafe",
         priceLevel: 2,
+        essentials: "Résumé test. Reported rating: 4.0/5 from 30 reviews.",
+        sourceDigests: [],
       };
     }),
   };

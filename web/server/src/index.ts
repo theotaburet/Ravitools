@@ -432,6 +432,97 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Website preview proxy endpoint
+// ---------------------------------------------------------------------------
+app.post("/fetch-page", enrichLimiter, async (req, res) => {
+  try {
+    const { url } = req.body as { url?: string };
+
+    if (!url || typeof url !== "string") {
+      res.status(400).json({ error: "Missing 'url' in request body" });
+      return;
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      res.status(400).json({ error: "Invalid URL" });
+      return;
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      res.status(400).json({ error: "Only http/https URLs are supported" });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    let pageRes: Response;
+    try {
+      pageRes = await fetch(parsedUrl.toString(), {
+        method: "GET",
+        redirect: "follow",
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!pageRes.ok) {
+      res.status(pageRes.status).json({
+        error: "Website fetch error",
+        status: pageRes.status,
+      });
+      return;
+    }
+
+    const contentType = pageRes.headers.get("content-type") || "";
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+      res.status(415).json({
+        error: "Unsupported content type",
+        contentType,
+      });
+      return;
+    }
+
+    const html = await pageRes.text();
+    const normalized = html.replace(/\s+/g, " ").trim();
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const descriptionMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["'][^>]*>/i)
+      ?? html.match(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["'][^>]*>/i);
+    const bodyText = normalized
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    res.json({
+      url: parsedUrl.toString(),
+      finalUrl: pageRes.url,
+      contentType,
+      title: titleMatch?.[1]?.replace(/\s+/g, " ").trim() || null,
+      description: descriptionMatch?.[1]?.replace(/\s+/g, " ").trim() || null,
+      excerpt: bodyText.slice(0, 1200) || null,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      res.status(504).json({ error: "Website fetch timed out" });
+      return;
+    }
+    log.error({ err }, "Website fetch proxy error");
+    res.status(502).json({ error: "Failed to fetch website" });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Start (only when run directly, not when imported for testing)
 // ---------------------------------------------------------------------------
 if (process.env.NODE_ENV !== "test") {
