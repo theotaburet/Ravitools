@@ -261,6 +261,40 @@ body {
    Category filter
    --------------------------------------------------------------------------- */
 
+.filter-panel {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.filter-collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #000;
+  background: #fff;
+  font-weight: 900;
+  font-size: 0.875rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.filter-collapsed-count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #000;
+  padding: 0 0.375rem;
+  background: #fff;
+  border: 1.5px solid #000;
+}
+
+.filter-body {
+  /* No special styles needed — just a semantic container for the collapsible section */
+}
+
 .filter-header {
   display: flex;
   align-items: center;
