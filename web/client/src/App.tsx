@@ -2,7 +2,7 @@
 // App – main application component (neobrutalist Tailwind)
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRavitools } from "./hooks/useRavitools";
 import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
@@ -33,6 +33,14 @@ export default function App() {
 
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("en");
   const [enrichAll, setEnrichAll] = useState(false);
+  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+
+  // Clear selection when the selected POI leaves the filtered set
+  useEffect(() => {
+    if (selectedPoiId && !filteredPois.some((p) => p.id === selectedPoiId)) {
+      setSelectedPoiId(null);
+    }
+  }, [filteredPois, selectedPoiId]);
 
   const isProcessing =
     state.stage === "parsing" ||
@@ -42,10 +50,11 @@ export default function App() {
 
   const hasPois = state.pois.length > 0;
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     reset();
     resetEnrichment();
-  };
+    setSelectedPoiId(null);
+  }, [reset, resetEnrichment]);
 
   return (
     <div className="flex flex-col h-full">
@@ -133,7 +142,12 @@ export default function App() {
 
           {/* POI list */}
           {state.stage === "done" && (
-            <PoiList pois={filteredPois} enrichments={enrichments} />
+            <PoiList
+              pois={filteredPois}
+              enrichments={enrichments}
+              selectedPoiId={selectedPoiId}
+              onSelectPoi={setSelectedPoiId}
+            />
           )}
         </aside>
 
@@ -143,6 +157,8 @@ export default function App() {
             trace={state.trace}
             pois={filteredPois}
             enrichments={enrichments}
+            selectedPoiId={selectedPoiId}
+            onSelectPoi={setSelectedPoiId}
           />
         </main>
       </div>

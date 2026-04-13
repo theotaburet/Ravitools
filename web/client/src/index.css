@@ -370,10 +370,26 @@ body {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid rgba(0,0,0,0.12);
   font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 100ms;
+}
+
+.poi-list-item:hover {
+  background-color: var(--color-bg);
 }
 
 .poi-list-item:last-child {
   border-bottom: none;
+}
+
+.poi-list-item-selected {
+  background-color: #dbeafe;
+  border-left: 4px solid var(--color-accent);
+  padding-left: calc(0.75rem - 4px);
+}
+
+.poi-list-item-selected:hover {
+  background-color: #bfdbfe;
 }
 
 .poi-list-dot {

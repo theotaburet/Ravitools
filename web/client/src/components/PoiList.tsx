@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// POI list component (neobrutalist) – with enrichment data
+// POI list component (neobrutalist) – with enrichment data + selection
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { POI, EnrichedData, SkipReason } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 
@@ -26,20 +26,47 @@ function confidenceLabel(c: number): string {
 interface Props {
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
+  selectedPoiId?: string | null;
+  onSelectPoi?: (poiId: string | null) => void;
 }
 
-export function PoiList({ pois, enrichments }: Props) {
+export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Scroll selected item into view when selectedPoiId changes (from map click)
+  useEffect(() => {
+    if (!selectedPoiId) return;
+    const el = itemRefs.current.get(selectedPoiId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedPoiId]);
+
+  const setItemRef = useCallback((poiId: string, el: HTMLDivElement | null) => {
+    if (el) {
+      itemRefs.current.set(poiId, el);
+    } else {
+      itemRefs.current.delete(poiId);
+    }
+  }, []);
 
   if (pois.length === 0) return null;
 
-  const toggleSources = (poiId: string) => {
+  const toggleSources = (e: React.MouseEvent, poiId: string) => {
+    e.stopPropagation(); // Don't trigger row selection
     setExpandedSources((prev) => {
       const next = new Set(prev);
       if (next.has(poiId)) next.delete(poiId);
       else next.add(poiId);
       return next;
     });
+  };
+
+  const handleRowClick = (poiId: string) => {
+    if (!onSelectPoi) return;
+    // Toggle: click same POI deselects
+    onSelectPoi(selectedPoiId === poiId ? null : poiId);
   };
 
   return (
@@ -52,9 +79,23 @@ export function PoiList({ pois, enrichments }: Props) {
           const enrichment = enrichments.get(poi.id);
           const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
           const showSources = expandedSources.has(poi.id);
+          const isSelected = selectedPoiId === poi.id;
 
           return (
-            <div key={poi.id} className="poi-list-item">
+            <div
+              key={poi.id}
+              ref={(el) => setItemRef(poi.id, el)}
+              className={`poi-list-item${isSelected ? " poi-list-item-selected" : ""}`}
+              onClick={() => handleRowClick(poi.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleRowClick(poi.id);
+                }
+              }}
+            >
               <span
                 className="poi-list-dot"
                 style={{ backgroundColor: poi.style.backgroundColor }}
@@ -110,7 +151,7 @@ export function PoiList({ pois, enrichments }: Props) {
                         </span>
                         <button
                           className="poi-sources-toggle"
-                          onClick={() => toggleSources(poi.id)}
+                          onClick={(e) => toggleSources(e, poi.id)}
                         >
                           {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
                           {" "}
@@ -129,6 +170,7 @@ export function PoiList({ pois, enrichments }: Props) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="poi-source-link"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {new URL(url).hostname}
                           </a>
@@ -151,6 +193,7 @@ export function PoiList({ pois, enrichments }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="poi-gmaps-link"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   Google Maps →
                 </a>

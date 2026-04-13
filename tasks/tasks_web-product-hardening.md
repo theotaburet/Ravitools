@@ -64,15 +64,15 @@ Status: done
 
 ### 5. Add list <-> map interaction
 
-- [ ] Add a selected-POI state at app level in `web/client/src/App.tsx`
-- [ ] Pass selection state and handlers down to `PoiList` and `RouteMap`
-- [ ] Make clicking a POI in `web/client/src/components/PoiList.tsx` center and open the corresponding marker on the map
-- [ ] Make clicking a marker in `web/client/src/components/RouteMap.tsx` highlight the corresponding item in the list
-- [ ] Scroll the list to the selected item in `web/client/src/components/PoiList.tsx`
-- [ ] Add a visual selected state in both list rows and map markers
-- [ ] Preserve selection when filters change if the selected POI is still visible
-- [ ] Clear selection safely when the POI disappears because of filtering or reload
-- [ ] Add tests for selected-POI state transitions where practical
+- [x] Add a selected-POI state at app level in `web/client/src/App.tsx`
+- [x] Pass selection state and handlers down to `PoiList` and `RouteMap`
+- [x] Make clicking a POI in `web/client/src/components/PoiList.tsx` center and open the corresponding marker on the map
+- [x] Make clicking a marker in `web/client/src/components/RouteMap.tsx` highlight the corresponding item in the list
+- [x] Scroll the list to the selected item in `web/client/src/components/PoiList.tsx`
+- [x] Add a visual selected state in both list rows and map markers
+- [x] Preserve selection when filters change if the selected POI is still visible
+- [x] Clear selection safely when the POI disappears because of filtering or reload
+- [x] Keyboard accessibility (Enter/Space on list rows)
 
 ### 6. Remove the 200-item exploration ceiling in the UI
 

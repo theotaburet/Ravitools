@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // Map component – Leaflet map displaying the trace and POIs (neobrutalist)
-// Updated with enrichment data in popups + Google Maps link
+// Updated with enrichment data in popups, Google Maps link, and selection
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -13,6 +13,7 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
+import L from "leaflet";
 import type { POI, TraceData, EnrichedData } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 
@@ -20,6 +21,8 @@ interface Props {
   trace: TraceData | null;
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
+  selectedPoiId?: string | null;
+  onSelectPoi?: (poiId: string | null) => void;
 }
 
 function FitBounds({ trace }: { trace: TraceData | null }) {
@@ -42,7 +45,36 @@ function FitBounds({ trace }: { trace: TraceData | null }) {
   return null;
 }
 
-export function RouteMap({ trace, pois, enrichments }: Props) {
+/** Fly to selected POI and open its popup */
+function FlyToSelected({
+  selectedPoiId,
+  markerRefs,
+}: {
+  selectedPoiId: string | null;
+  markerRefs: React.MutableRefObject<Map<string, L.CircleMarker>>;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!selectedPoiId) return;
+    const marker = markerRefs.current.get(selectedPoiId);
+    if (!marker) return;
+
+    const latlng = marker.getLatLng();
+    map.flyTo(latlng, Math.max(map.getZoom(), 14), { duration: 0.6 });
+
+    // Open popup after fly animation
+    setTimeout(() => {
+      marker.openPopup();
+    }, 650);
+  }, [selectedPoiId, map, markerRefs]);
+
+  return null;
+}
+
+export function RouteMap({ trace, pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
+  const markerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
+
   const center = useMemo<[number, number]>(() => {
     if (trace && trace.original.length > 0) {
       const mid = trace.original[Math.floor(trace.original.length / 2)];
@@ -55,6 +87,22 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
     () =>
       trace?.original.map((p) => [p.lat, p.lon] as [number, number]) ?? [],
     [trace],
+  );
+
+  const setMarkerRef = useCallback((poiId: string, el: L.CircleMarker | null) => {
+    if (el) {
+      markerRefs.current.set(poiId, el);
+    } else {
+      markerRefs.current.delete(poiId);
+    }
+  }, []);
+
+  const handleMarkerClick = useCallback(
+    (poiId: string) => {
+      if (!onSelectPoi) return;
+      onSelectPoi(selectedPoiId === poiId ? null : poiId);
+    },
+    [onSelectPoi, selectedPoiId],
   );
 
   return (
@@ -70,6 +118,7 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
       />
 
       <FitBounds trace={trace} />
+      <FlyToSelected selectedPoiId={selectedPoiId ?? null} markerRefs={markerRefs} />
 
       {tracePositions.length > 0 && (
         <Polyline
@@ -81,17 +130,22 @@ export function RouteMap({ trace, pois, enrichments }: Props) {
       {pois.map((poi) => {
         const enrichment = enrichments.get(poi.id);
         const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
+        const isSelected = selectedPoiId === poi.id;
 
         return (
           <CircleMarker
             key={poi.id}
+            ref={(el) => setMarkerRef(poi.id, el as unknown as L.CircleMarker | null)}
             center={[poi.lat, poi.lon]}
-            radius={8}
+            radius={isSelected ? 12 : 8}
             pathOptions={{
               fillColor: poi.style.backgroundColor,
               fillOpacity: 1,
-              color: "#1a1a1a",
-              weight: 2.5,
+              color: isSelected ? "#3b82f6" : "#1a1a1a",
+              weight: isSelected ? 4 : 2.5,
+            }}
+            eventHandlers={{
+              click: () => handleMarkerClick(poi.id),
             }}
           >
             <Popup>
