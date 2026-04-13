@@ -100,8 +100,14 @@ web/
 
 ## SearXNG (requis pour l'enrichissement)
 
-L'enrichissement utilise SearXNG pour la recherche web. Lancez-le avant de lancer l'enrichissement:
+L'enrichissement utilise SearXNG pour la recherche web.
 
+**Option 1 - Docker Compose (recommande):**
+```bash
+docker-compose up -d searxng
+```
+
+**Option 2 - Docker seul:**
 ```bash
 docker run -d -p 8888:8080 --rm -e SEARXNG_BASE_URL=http://localhost:8888 searxng/searxng
 ```
