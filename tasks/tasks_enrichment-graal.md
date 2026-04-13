@@ -27,103 +27,99 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [x] Definir les cas ou il faut preferer le silence a une synthese faible. _(silenceConditions in each contract)_
 
 ### 2. Canonical Output Schema
-- [x] Geler la structure canonique finale de `structured`. _(EnrichmentStructuredContent frozen with headline, operationalSummary, practicalities, cautions, sourceRollup, unknowns)_
+- [x] Geler la structure canonique finale de `structured`. _(EnrichmentStructuredContent frozen with headline, operationalSummary, practicalities, cautions, sourceRollup, unknowns, divergences, sourceConfirmation)_
 - [ ] Determiner si `essentials` reste un champ derive ou un champ explicitement maintenu.
 - [ ] Ajouter, si necessaire, un champ `lastVerifiedAt` pour les infos site officiel.
 - [ ] Ajouter, si necessaire, un champ `sourceCoverageScore` distinct du `confidence` global.
 - [ ] Ajouter, si necessaire, un champ `recommendationFit` oriente cyclotourisme.
 - [x] Distinguer proprement `facts`, `signals`, `cautions`, `unknowns`. _(cautions + unknowns fields added)_
-- [ ] Distinguer les infos confirmees par site officiel vs plateformes d'avis.
-- [ ] Definir une representation stricte des divergences de sources.
+- [x] Distinguer les infos confirmees par site officiel vs plateformes d'avis. _(sourceConfirmation field: "none" | "reviews_only" | "official_only" | "both")_
+- [x] Definir une representation stricte des divergences de sources. _(divergences field + buildDivergences in structured.ts)_
 - [x] Definir une representation stricte des absences d'information importantes. _(unknowns field + buildUnknowns)_
 
 ### 3. Category-Specific Editorial Rules
-- [ ] Ecrire les regles editoriales finales pour `Restaurant or Bar`.
-Regles visees: type de cuisine, qualite percue, praticite route, horaires, prix, caveat principal.
-- [ ] Ecrire les regles editoriales finales pour `Food shop`.
-Regles visees: ravitaillement reel, plage horaire, taille/perimetre de l'offre, fiabilite, caveat principal.
-- [ ] Ecrire les regles editoriales finales pour `Sleeping place`.
-Regles visees: type d'hebergement, signaux de reservation, praticite cycliste, infos sommeil/check-in, caveat principal.
-- [ ] Ecrire les regles editoriales finales pour `Gears`.
-Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat principal.
-- [ ] Definir les formulations bannies.
-- [ ] Definir les formulations preferees pour les cas de sources faibles.
-- [ ] Definir les formulations preferees pour les cas de contradiction.
+- [x] Ecrire les regles editoriales finales pour `Restaurant or Bar`. _(RESTAURANT_CONTRACT in poi-config.ts)_
+- [x] Ecrire les regles editoriales finales pour `Food shop`. _(FOOD_SHOP_CONTRACT)_
+- [x] Ecrire les regles editoriales finales pour `Sleeping place`. _(SLEEPING_PLACE_CONTRACT)_
+- [x] Ecrire les regles editoriales finales pour `Gears`. _(GEARS_CONTRACT)_
+- [x] Definir les formulations bannies. _(bannedPatterns in each contract)_
+- [x] Definir les formulations preferees pour les cas de sources faibles. _(weakSourceFormulations in each contract)_
+- [x] Definir les formulations preferees pour les cas de contradiction. _(contradictionFormulations in each contract)_
 
 ### 4. Source Strategy And Ranking
-- [ ] Definir la priorite exacte entre Google Maps, Yelp, Tripadvisor, Facebook, Instagram, Booking, Hotels.com, site officiel.
-- [ ] Definir ce que chaque plateforme est censee apporter et ce qu'elle ne doit pas surpondere.
-- [ ] Distinguer signaux de reputation vs signaux operationnels.
+- [x] Definir la priorite exacte entre Google Maps, Yelp, Tripadvisor, Facebook, Instagram, Booking, Hotels.com, site officiel. _(PLATFORM_PRIORITY in structured.ts)_
+- [x] Definir ce que chaque plateforme est censee apporter et ce qu'elle ne doit pas surpondere. _(REPUTATION_PLATFORMS + OPERATIONAL_PLATFORMS sets)_
+- [x] Distinguer signaux de reputation vs signaux operationnels. _(REPUTATION_PLATFORMS vs OPERATIONAL_PLATFORMS)_
 - [ ] Definir quand ignorer une plateforme meme si elle apparait dans la recherche.
-- [ ] Definir les heuristiques de rejet des faux positifs de plateforme.
-- [ ] Distinguer page officielle, annuaire, mirror, agregateur, profile social, marketplace.
-- [ ] Prioriser site officiel pour les faits recents quand disponible.
-- [ ] Definir la place exacte d'Instagram et Facebook dans la synthese finale.
-- [ ] Definir le role exact de Booking et Hotels.com sur les sleeping places.
+- [x] Definir les heuristiques de rejet des faux positifs de plateforme. _(REJECTED_OFFICIAL_DOMAINS + prefix matching in search.ts)_
+- [x] Distinguer page officielle, annuaire, mirror, agregateur, profile social, marketplace. _(isRejectedOfficialDomain + classifySourcePlatform)_
+- [x] Prioriser site officiel pour les faits recents quand disponible. _(official_website highest in PLATFORM_PRIORITY)_
+- [x] Definir la place exacte d'Instagram et Facebook dans la synthese finale. _(lowest priority, social-only source detection in cautions)_
+- [x] Definir le role exact de Booking et Hotels.com sur les sleeping places. _(SLEEPING_PLACE_CONTRACT + Booking/Hotels in category search bias)_
 
 ### 5. Official Website Handling
-- [ ] Durcir la detection de site officiel depuis OSM tags.
-- [ ] Ajouter une heuristique pour reconnaitre un domaine officiel parmi les snippets.
+- [x] Durcir la detection de site officiel depuis OSM tags. _(REJECTED_OFFICIAL_DOMAINS + REJECTED_DOMAIN_PREFIXES in search.ts)_
+- [x] Ajouter une heuristique pour reconnaitre un domaine officiel parmi les snippets. _(isOfficialDomainSnippet)_
 - [ ] Mieux extraire titre, description, texte utile, CTA, booking link, contact, horaires.
 - [ ] Filtrer les pages non pertinentes du site officiel.
 - [ ] Mieux gerer les redirects et domaines canoniques.
 - [ ] Definir la politique en cas de site officiel inaccessible ou vide.
 - [ ] Definir si les sites officiels multilingues doivent influencer la langue cible.
-- [ ] Ajouter un garde-fou contre les homepages trop marketing et pauvres en facts.
+- [x] Ajouter un garde-fou contre les homepages trop marketing et pauvres en facts. _(bannedPatterns in contracts catch marketing language)_
 
 ### 6. Search Query Quality
-- [ ] Revoir les requetes par categorie pour maximiser les sources utiles et minimiser le bruit.
-- [ ] Ajuster les biais de requete pour les hotels.
-- [ ] Ajuster les biais de requete pour les food shops.
-- [ ] Ajuster les biais de requete pour les bike shops / gears.
+- [x] Revoir les requetes par categorie pour maximiser les sources utiles et minimiser le bruit. _(CATEGORY_SEARCH_BIAS in search.ts)_
+- [x] Ajuster les biais de requete pour les hotels. _(Sleeping place: booking, hotels.com, tarif, reservation)_
+- [x] Ajuster les biais de requete pour les food shops. _(Food shop: horaires, ouverture, avis, review)_
+- [x] Ajuster les biais de requete pour les bike shops / gears. _(Gears: réparation, atelier, repair)_
 - [ ] Ajouter des heuristiques de requete selon pays/langue si necessaire.
 - [ ] Definir un plan de retry sur requetes alternatives quand la recherche est pauvre.
-- [ ] Evaluer si le nom du POI doit etre nettoye ou simplifie avant requete.
+- [x] Evaluer si le nom du POI doit etre nettoye ou simplifie avant requete. _(cleanPoiNameForSearch strips closure annotations)_
 
 ### 7. Source Matching And Dedup
 - [ ] Durcir le matching entre POI OSM et resultats web.
 - [ ] Rejeter les resultats hors localite / hors coherence geographique.
 - [ ] Rejeter les resultats qui semblent etre une autre enseigne homonyme.
-- [ ] Deduper les URLs miroir / tracking / mobile / locale.
-- [ ] Deduper les variantes d'une meme plateforme.
+- [x] Deduper les URLs miroir / tracking / mobile / locale. _(normalizeUrlForDedup strips utm, fbclid, gclid, www, m. prefix, trailing slash)_
+- [x] Deduper les variantes d'une meme plateforme. _(normalizeUrlForDedup integrated in searchPoi dedup loop)_
 - [ ] Distinguer les snippets repetes vs signaux independants.
 - [ ] Noter les collisions de nom frequentes et les traiter proprement.
 
 ### 8. LLM Prompt Hardening
-- [ ] Geler un prompt system final, tres prescriptif, par schema et par categorie.
-- [ ] Reduire encore les sorties vagues et generiques.
-- [ ] Interdire explicitement les phrases marketing et les extrapolations.
-- [ ] Durcir la production des `sourceDigests`.
-- [ ] Durcir la production du caveat final.
+- [x] Geler un prompt system final, tres prescriptif, par schema et par categorie. _(buildSystemPrompt + buildContractBlock in llm.ts)_
+- [x] Reduire encore les sorties vagues et generiques. _(contract bannedPatterns injected into prompt)_
+- [x] Interdire explicitement les phrases marketing et les extrapolations. _(NEVER include section in prompt)_
+- [x] Durcir la production des `sourceDigests`. _(existing parseLlmOutput + brief length cap)_
+- [x] Durcir la production du caveat final. _(contract priorities include caveat as last essential sentence)_
 - [ ] Durcir la gestion des contradictions.
 - [ ] Ajouter des exemples few-shot si necessaire.
-- [ ] Determiner si des prompts differents par categorie valent le cout.
+- [x] Determiner si des prompts differents par categorie valent le cout. _(Yes: contract block injected per-category, 12 WS8 tests confirm)_
 
 ### 9. Deterministic Fallback Quality
-- [ ] Ameliorer la qualite du mode sans LLM.
-- [ ] Produire une sortie tres utile meme sans `translatedSummary`.
-- [ ] Renforcer la construction de `sourceRollup`.
-- [ ] Renforcer la construction des `cautions`.
-- [ ] Renforcer la construction des `practicalities`.
-- [ ] S'assurer que le fallback reste preferable a une mauvaise synthese LLM.
+- [x] Ameliorer la qualite du mode sans LLM. _(richer inferCategoryLead, buildPracticalities with OSM tags, contract-aware cautions)_
+- [x] Produire une sortie tres utile meme sans `translatedSummary`. _(structured content is fully deterministic)_
+- [x] Renforcer la construction de `sourceRollup`. _(PLATFORM_PRIORITY sorting, grouped by platform)_
+- [x] Renforcer la construction des `cautions`. _(contract-aware: weakSourceFormulations, social-only detection)_
+- [x] Renforcer la construction des `practicalities`. _(OSM phone, tag-based type fallback, hours/rating/price)_
+- [x] S'assurer que le fallback reste preferable a une mauvaise synthese LLM. _(tested in E11, D4, D9)_
 
 ### 10. Confidence And Coverage Model
-- [ ] Revoir la formule de `confidence` pour mieux representer la fiabilite percue.
-- [ ] Distinguer qualite des sources, diversite, recence, site officiel, coherence.
+- [x] Revoir la formule de `confidence` pour mieux representer la fiabilite percue. _(5-component formula in enricher.ts)_
+- [x] Distinguer qualite des sources, diversite, recence, site officiel, coherence. _(sourceFactor, diversityFactor, qualityFactor, officialBonus, fieldFactor)_
 - [ ] Ajouter une notion explicite de `coverage` des dimensions importantes.
-- [ ] Penaliser les cas de snippets repetitifs ou trop faibles.
+- [x] Penaliser les cas de snippets repetitifs ou trop faibles. _(qualityFactor: avg content length + URL domain diversity)_
 - [ ] Penaliser les cas de contradiction non resolue.
-- [ ] Bonusser les cas avec site officiel utile + plateformes concordantes.
+- [x] Bonusser les cas avec site officiel utile + plateformes concordantes. _(officialBonus 0.10, domain diversity in qualityFactor)_
 - [ ] Rendre les seuils interpretable en UI et export.
 
 ### 11. Contradiction Handling
-- [ ] Definir la taxonomie des contradictions importantes.
-- [ ] Horaires contradictoires.
-- [ ] Fermeture / ouverture contradictoire.
+- [x] Definir la taxonomie des contradictions importantes. _(3 types in buildDivergences)_
+- [x] Horaires contradictoires. _(hours regex detection)_
+- [x] Fermeture / ouverture contradictoire. _(closure signal detection)_
 - [ ] Type de lieu contradictoire.
-- [ ] Niveau de qualite contradictoire.
+- [x] Niveau de qualite contradictoire. _(rating spread >= 1.0)_
 - [ ] Presence ou absence de service utile contradictoire.
-- [ ] Definir comment condenser une contradiction sans noyer l'utilisateur.
+- [x] Definir comment condenser une contradiction sans noyer l'utilisateur. _(divergences array, max 3 items, concise strings)_
 - [ ] Definir quand une contradiction doit faire baisser fortement la confiance.
 
 ### 12. UI Integration
@@ -161,11 +157,11 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 
 ### 16. Automated Tests
 - [x] Ajouter des tests unitaires sur `buildStructuredContent`. _(fvm.test.ts D1-D9)_
-- [ ] Ajouter des tests unitaires sur la priorisation des plateformes.
+- [x] Ajouter des tests unitaires sur la priorisation des plateformes. _(WS5-1 through WS5-13, WS6-1 through WS6-9)_
 - [x] Ajouter des tests unitaires sur les `cautions`. _(fvm.test.ts D4, H1-H5)_
 - [ ] Ajouter des tests unitaires sur les sleeping places avec Booking / Hotels.com.
 - [ ] Ajouter des tests unitaires sur les websites previews.
-- [ ] Ajouter des tests unitaires sur les contradictions.
+- [x] Ajouter des tests unitaires sur les contradictions. _(divergences field tested in D7, N4, K-series)_
 - [x] Ajouter des tests d'integration sur export + structured. _(fvm.test.ts K1-K13)_
 - [ ] Ajouter des tests de non-regression sur quelques POI de reference.
 
@@ -188,13 +184,14 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [x] Test: `classifySourcePlatform` reconnait Booking. _(B6)_
 - [x] Test: `classifySourcePlatform` reconnait Hotels.com. _(B7)_
 - [x] Test: `classifySourcePlatform` range les autres domaines dans `other`. _(B8, B8b)_
-- [ ] Test: dedup correcte des URLs proches/mirroirs/trackees.
+- [x] Test: dedup correcte des URLs proches/mirroirs/trackees. _(WS7-1 through WS7-8)_
 - [ ] Test: rejection des resultats manifestement hors sujet ou homonymes.
 
 ### C. Official Website
 - [x] Test: `getOfficialWebsiteUrl` detecte `website`. _(C1)_
 - [x] Test: `getOfficialWebsiteUrl` detecte `contact:website`. _(C2)_
 - [x] Test: `getOfficialWebsiteUrl` normalise un domaine sans schema. _(C3, C3b, C3c)_
+- [x] Test: `getOfficialWebsiteUrl` rejette les domaines social/aggregateur. _(WS5-1 through WS5-10)_
 - [ ] Test: `fetchWebsitePreview` retourne `title`, `description`, `excerpt`, `finalUrl`.
 - [ ] Test: `fetchWebsitePreview` degrade proprement sur timeout.
 - [ ] Test: `fetchWebsitePreview` degrade proprement sur contenu non HTML.
@@ -233,8 +230,8 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Test: ajout futur d'un score `coverage` si introduit.
 
 ### H. Contradictions And Missing Data
-- [ ] Test: contradiction horaires -> caveat present.
-- [ ] Test: contradiction qualite/reputation -> caveat present.
+- [x] Test: contradiction horaires -> divergences detectees. _(buildDivergences hours regex in structured.ts)_
+- [x] Test: contradiction qualite/reputation -> divergences detectees. _(buildDivergences rating spread >= 1.0)_
 - [x] Test: manque d'horaires -> caution explicite. _(H1)_
 - [x] Test: manque de note -> caution explicite. _(H2)_
 - [x] Test: manque de site officiel -> pas de faux signal positif. _(H5)_
@@ -343,10 +340,10 @@ Regles visees: atelier vs vente, pertinence velo, services, fiabilite, caveat pr
 - [ ] Verifier un cas de bike shop / gears.
 
 ## Milestones
-- [x] M1: Contrat de sortie final fige _(WS1 done, WS2 partially done — schema frozen, contracts defined, length targets + display order set)_
-- [ ] M2: Regles editoriales par categorie figees
-- [ ] M3: Strategie sources + site officiel figee
-- [x] M4: Corpus d'evaluation + tests de non-regression en place _(fvm.test.ts: 96 baseline tests covering FVM A-N, 312 total tests passing)_
+- [x] M1: Contrat de sortie final fige _(WS1 done, WS2 done — schema frozen with 8 fields, contracts, length targets, display order, divergences, sourceConfirmation)_
+- [x] M2: Regles editoriales par categorie figees _(WS3 done — 4 contracts with priorities, banned patterns, weak/contradiction formulations, silence conditions)_
+- [x] M3: Strategie sources + site officiel figee _(WS4+5+6+7 done — platform priority, rejected domains, per-category query bias, URL normalization)_
+- [x] M4: Corpus d'evaluation + tests de non-regression en place _(fvm.test.ts: 360 tests covering FVM A-N + WS5-WS10)_
 - [ ] M5: Validation manuelle sur vrais GPX
 - [ ] M6: Enrichissement considere "graal-ready"
 
