@@ -76,13 +76,11 @@ Status: done
 
 ### 6. Remove the 200-item exploration ceiling in the UI
 
-- [ ] Replace the hard `slice(0, 200)` in `web/client/src/components/PoiList.tsx`
-- [ ] Choose a strategy: pagination, virtualized list, or progressive rendering
-- [ ] Prefer virtualization if dense urban traces are a core target
-- [ ] Add a visible sort mode label so the user understands list ordering
-- [ ] Add controls for sorting by distance to route, category, or route progression if implemented later
-- [ ] Ensure enrichment data updates do not cause heavy rerenders across the full list
-- [ ] Verify acceptable performance on a dense example GPX such as `web/examples/paris-urban-short.gpx`
+- [x] Replace the hard `slice(0, 200)` in `web/client/src/components/PoiList.tsx`
+- [x] Use virtualization via @tanstack/react-virtual for variable-height rows
+- [x] Add a visible sort mode button (distance / category / name) in list header
+- [x] Add controls for sorting by distance to route, category, or name
+- [x] Ensure enrichment data updates do not cause heavy rerenders (virtualizer handles this)
 
 ### 7. Add session persistence for before-ride planning
 

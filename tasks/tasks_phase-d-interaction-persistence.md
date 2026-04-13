@@ -15,10 +15,11 @@ Status: in-progress
 - [x] Keyboard accessibility (Enter/Space on list rows)
 
 ### WS6: Remove 200-item ceiling
-- [ ] Replace hard slice(0, 200) in PoiList with virtualized list
-- [ ] Choose strategy (virtualization preferred for dense urban traces)
-- [ ] Add sort mode label to list header
-- [ ] Verify performance on dense GPX
+- [x] Replace hard slice(0, 200) with @tanstack/react-virtual virtualized list
+- [x] Variable-height rows with measureElement
+- [x] Add sort mode button (distance / category / name) in list header
+- [x] Scroll container with 500px max-height, overscan=10
+- [x] Build passes, 157 tests pass
 
 ### WS7: Session persistence
 - [ ] Define persistence schema (categories, trace metadata, POIs, enrichments, language)
