@@ -8,4 +8,4 @@ export { isWebGpuAvailable, initEngine, isEngineReady, unloadEngine, synthesize 
 export type { LlmSynthesis, ModelLoadProgressCallback } from "./llm";
 export { enrichPoi, enrichBatch, computeConfidence } from "./enricher";
 export type { EnrichmentProgressCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";
-export { buildSourceDigests, buildEssentialsText } from "./structured";
+export { buildSourceDigests, buildEssentialsText, buildStructuredContent, buildDivergences, determineSourceConfirmation } from "./structured";

@@ -296,6 +296,29 @@ export async function enrichBatch(
         hasLLM: enrichment.summary != null,
         progress: `${completedCount}/${total}`,
       });
+
+      // WS20: Log divergences when detected
+      if (enrichment.structured?.divergences && enrichment.structured.divergences.length > 0) {
+        log.info(`Divergences detected for "${poi.name}": ${enrichment.structured.divergences.join(" | ")}`, {
+          divergenceCount: enrichment.structured.divergences.length,
+        });
+      }
+
+      // WS20: Log source confirmation level
+      if (enrichment.structured?.sourceConfirmation && enrichment.structured.sourceConfirmation !== "none") {
+        log.debug(`Source confirmation for "${poi.name}": ${enrichment.structured.sourceConfirmation}`, {
+          sourceConfirmation: enrichment.structured.sourceConfirmation,
+        });
+      }
+
+      // WS20: Log official website impact
+      if (enrichment.officialWebsite) {
+        const hasUsefulContent = enrichment.officialWebsite.description || enrichment.officialWebsite.excerpt;
+        log.debug(`Official site for "${poi.name}": ${hasUsefulContent ? "useful content extracted" : "no useful content"}`, {
+          officialUrl: enrichment.officialWebsite.finalUrl,
+          hasContent: !!hasUsefulContent,
+        });
+      }
     } else if (enrichment.status === "skipped") {
       log.debug(`Skipped "${poi.name}" (${enrichment.skipReason})`, {
         status: enrichment.status,
@@ -652,6 +675,7 @@ export function computeConfidence(enrichment: {
   summary: string | null;
   specialty: string | null;
   officialWebsite?: { url: string } | null;
+  structured?: { divergences: string[] } | null;
 }): number {
   const snippetCount = enrichment.rawSnippets.length;
   if (snippetCount === 0) return 0;
@@ -691,8 +715,12 @@ export function computeConfidence(enrichment: {
   }
   qualityFactor = Math.min(qualityFactor, 0.15);
 
-  const raw = sourceFactor + diversityFactor + fieldFactor + officialBonus + qualityFactor;
-  return Math.min(Math.round(raw * 100) / 100, 1);
+  // --- Contradiction penalty (WS11): divergences reduce confidence ---
+  const divergenceCount = enrichment.structured?.divergences?.length ?? 0;
+  const contradictionPenalty = Math.min(divergenceCount * 0.05, 0.15);
+
+  const raw = sourceFactor + diversityFactor + fieldFactor + officialBonus + qualityFactor - contradictionPenalty;
+  return Math.min(Math.max(Math.round(raw * 100) / 100, 0), 1);
 }
 
 /** Extract unique engine names from snippets */

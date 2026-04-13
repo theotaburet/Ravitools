@@ -104,7 +104,7 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
               ) : <p>None</p>}
             </div>
             <div className="sandbox-block">
-              <strong>Source Digests</strong>
+              <strong>Source Digests (legacy)</strong>
               {result.sourceDigests && result.sourceDigests.length > 0 ? (
                 <ul className="sandbox-list">
                   {result.sourceDigests.map((digest, index) => (
@@ -114,7 +114,7 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                     </li>
                   ))}
                 </ul>
-              ) : <p>None</p>}
+              ) : <p>None — see Source Rollup below</p>}
             </div>
             <div className="sandbox-block">
               <strong>Cautions</strong>
@@ -123,6 +123,40 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                   {result.structured.cautions.map((item, index) => <li key={`caution-${index}`}>{item}</li>)}
                 </ul>
               ) : <p>None</p>}
+            </div>
+            <div className="sandbox-block">
+              <strong>Divergences</strong>
+              {result.structured?.divergences.length ? (
+                <ul className="sandbox-list sandbox-divergences">
+                  {result.structured.divergences.map((item, index) => <li key={`div-${index}`}>{item}</li>)}
+                </ul>
+              ) : <p>None</p>}
+            </div>
+            <div className="sandbox-block">
+              <strong>Unknowns</strong>
+              {result.structured?.unknowns.length ? (
+                <ul className="sandbox-list">
+                  {result.structured.unknowns.map((item, index) => <li key={`unk-${index}`}>{item}</li>)}
+                </ul>
+              ) : <p>None</p>}
+            </div>
+            <div className="sandbox-block">
+              <strong>Source Rollup</strong>
+              {result.structured?.sourceRollup.length ? (
+                <ul className="sandbox-list">
+                  {result.structured.sourceRollup.map((digest, index) => (
+                    <li key={`rollup-${index}`}>
+                      <span className="sandbox-platform">{digest.platform}</span>
+                      <span>{digest.brief}</span>
+                      {digest.url && <a className="poi-source-link" href={digest.url} target="_blank" rel="noreferrer">link</a>}
+                    </li>
+                  ))}
+                </ul>
+              ) : <p>None</p>}
+            </div>
+            <div className="sandbox-block">
+              <strong>Source Confirmation</strong>
+              <p>{result.structured?.sourceConfirmation ?? "none"}</p>
             </div>
           </div>
 

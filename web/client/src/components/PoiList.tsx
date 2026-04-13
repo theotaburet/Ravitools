@@ -227,6 +227,22 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
                         </div>
                       )}
 
+                      {/* Cautions & divergences (WS12) */}
+                      {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
+                        <div className="poi-enrichment-meta poi-divergences">
+                          {enrichment.structured.divergences.map((d, i) => (
+                            <span key={`div-${i}`}>⚠ {d}</span>
+                          ))}
+                        </div>
+                      )}
+                      {enrichment.structured?.cautions && enrichment.structured.cautions.length > 0 && (
+                        <div className="poi-enrichment-meta poi-cautions">
+                          {enrichment.structured.cautions.slice(0, 2).map((c, i) => (
+                            <span key={`caut-${i}`}>{c}</span>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Confidence + sources */}
                       {enrichment.sourceCount > 0 && (
                         <div className="poi-confidence-row">

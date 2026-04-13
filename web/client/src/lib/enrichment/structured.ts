@@ -239,8 +239,9 @@ function buildUnknowns(
 /**
  * Detect divergences/contradictions across source snippets.
  * Currently pattern-based heuristics — can be extended with LLM-assisted detection.
+ * Exported for direct testing (WS16).
  */
-function buildDivergences(
+export function buildDivergences(
   snippets: SearchSnippet[],
   enrichment: Pick<EnrichedData, "hours" | "rating">,
 ): string[] {
@@ -303,7 +304,8 @@ function buildDivergences(
 // Source confirmation (WS2: official site vs reviews distinction)
 // ---------------------------------------------------------------------------
 
-function determineSourceConfirmation(
+/** Exported for direct testing (WS16). */
+export function determineSourceConfirmation(
   sourceRollup: EnrichmentSourceDigest[],
 ): EnrichmentStructuredContent["sourceConfirmation"] {
   const hasOfficial = sourceRollup.some((d) => d.platform === "official_website");

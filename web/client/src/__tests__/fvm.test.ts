@@ -17,7 +17,7 @@ import {
   normalizeUrlForDedup,
   cleanPoiNameForSearch,
 } from "../lib/enrichment/search";
-import { buildStructuredContent, buildEssentialsText } from "../lib/enrichment/structured";
+import { buildStructuredContent, buildEssentialsText, buildDivergences, determineSourceConfirmation } from "../lib/enrichment/structured";
 import { parseLlmOutput, buildSystemPrompt } from "../lib/enrichment/llm";
 import { computeConfidence, isGenericPoiName } from "../lib/enrichment/enricher";
 import {
@@ -1321,5 +1321,287 @@ describe("FVM-WS10: Richer Confidence Formula", () => {
     });
     expect(withRating).toBeGreaterThan(base);
     expect(withMore).toBeGreaterThan(withRating);
+  });
+});
+
+// ===========================================================================
+// WS11: Contradiction Confidence Penalty
+// ===========================================================================
+
+describe("FVM-WS11: Contradiction Confidence Penalty", () => {
+  const baseEnrichment = {
+    rating: 4.0,
+    reviewCount: 50,
+    hours: "9:00-18:00",
+    summary: "Good restaurant",
+    specialty: "French cuisine",
+  };
+
+  it("WS11-1: divergences reduce confidence score", () => {
+    const noDivergences = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+    });
+    const withDivergences = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+      structured: { divergences: ["Sources report different opening hours — verify locally."] },
+    });
+    expect(withDivergences).toBeLessThan(noDivergences);
+  });
+
+  it("WS11-2: multiple divergences reduce confidence more", () => {
+    const oneDivergence = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+      structured: { divergences: ["Hours differ."] },
+    });
+    const threeDivergences = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+      structured: { divergences: ["Hours differ.", "Ratings vary.", "Closure signals detected."] },
+    });
+    expect(threeDivergences).toBeLessThan(oneDivergence);
+  });
+
+  it("WS11-3: contradiction penalty capped at 0.15", () => {
+    const noPenalty = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+    });
+    const maxPenalty = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+      structured: { divergences: ["A", "B", "C", "D", "E"] },
+    });
+    // 5 * 0.05 = 0.25, but cap is 0.15
+    expect(noPenalty - maxPenalty).toBeLessThanOrEqual(0.16);
+    expect(noPenalty - maxPenalty).toBeGreaterThanOrEqual(0.14);
+  });
+
+  it("WS11-4: confidence never goes below 0 from penalty", () => {
+    const score = computeConfidence({
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      summary: null,
+      specialty: null,
+      rawSnippets: [{ engine: "google", content: "x", url: "https://a.com" }],
+      structured: { divergences: ["A", "B", "C"] },
+    });
+    expect(score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("WS11-5: empty divergences array has no penalty", () => {
+    const noDivergences = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+    });
+    const emptyDivergences = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(5),
+      structured: { divergences: [] },
+    });
+    expect(emptyDivergences).toBe(noDivergences);
+  });
+});
+
+// ===========================================================================
+// WS16: Direct Divergence Detection Tests
+// ===========================================================================
+
+describe("FVM-WS16: Divergence Detection (buildDivergences)", () => {
+  const noEnrichment = { hours: null, rating: null };
+
+  it("WS16-1: detects hours contradictions from different patterns", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "Open 9h00-17h00 weekdays" },
+      { engine: "bing", title: "B", url: "https://b.com", content: "Hours: 10h00-18h00 daily" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.includes("hours"))).toBe(true);
+  });
+
+  it("WS16-2: no hours divergence when patterns agree", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "Open 9h00-17h00" },
+      { engine: "bing", title: "B", url: "https://b.com", content: "Horaires: 9h00-17h00" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.includes("hours"))).toBe(false);
+  });
+
+  it("WS16-3: detects rating spread >= 1.0", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "Rated 4.5/5 on Google" },
+      { engine: "bing", title: "B", url: "https://b.com", content: "Only 3.2/5 stars" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.includes("Rating varies"))).toBe(true);
+  });
+
+  it("WS16-4: no rating divergence when spread < 1.0", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "4.2/5 stars" },
+      { engine: "bing", title: "B", url: "https://b.com", content: "4.5/5 stars" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.includes("Rating varies"))).toBe(false);
+  });
+
+  it("WS16-5: detects closure contradiction with positive signals", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "Closed", url: "https://a.com", content: "Permanently closed since 2024" },
+      { engine: "bing", title: "Review", url: "https://b.com", content: "Excellent food, open daily" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.includes("closed"))).toBe(true);
+  });
+
+  it("WS16-6: closure without positive signal still warns", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "Closed", url: "https://a.com", content: "Fermé définitivement" },
+      { engine: "bing", title: "Info", url: "https://b.com", content: "No recent updates" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.some((d) => d.toLowerCase().includes("clos"))).toBe(true);
+  });
+
+  it("WS16-7: no divergences for clean, consistent snippets", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "Nice bakery in town center" },
+      { engine: "bing", title: "B", url: "https://b.com", content: "Great bread and pastries" },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences).toHaveLength(0);
+  });
+
+  it("WS16-8: divergences capped at 3", () => {
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "A", url: "https://a.com", content: "Open 9h00-17h00. Rating 4.8/5 stars. Permanently closed." },
+      { engine: "bing", title: "B", url: "https://b.com", content: "Open 11h00-22h00. Only 2.1/5 stars. Excellent restaurant, highly recommended." },
+    ];
+    const divergences = buildDivergences(snippets, noEnrichment);
+    expect(divergences.length).toBeLessThanOrEqual(3);
+  });
+});
+
+// ===========================================================================
+// WS16: Source Confirmation Tests
+// ===========================================================================
+
+describe("FVM-WS16: Source Confirmation (determineSourceConfirmation)", () => {
+  it("WS16-SC1: returns 'both' when official + review platforms present", () => {
+    const rollup = [
+      { platform: "official_website" as const, brief: "Official", url: "https://example.com" },
+      { platform: "google_maps" as const, brief: "Google Maps", url: "https://maps.google.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("both");
+  });
+
+  it("WS16-SC2: returns 'official' when only official present", () => {
+    const rollup = [
+      { platform: "official_website" as const, brief: "Official", url: "https://example.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("official");
+  });
+
+  it("WS16-SC3: returns 'reviews-only' when only review platforms present", () => {
+    const rollup = [
+      { platform: "tripadvisor" as const, brief: "Tripadvisor", url: "https://tripadvisor.com" },
+      { platform: "yelp" as const, brief: "Yelp", url: "https://yelp.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("reviews-only");
+  });
+
+  it("WS16-SC4: returns 'none' when only social/other platforms", () => {
+    const rollup = [
+      { platform: "facebook" as const, brief: "Facebook", url: "https://facebook.com" },
+      { platform: "instagram" as const, brief: "Instagram", url: "https://instagram.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("none");
+  });
+
+  it("WS16-SC5: returns 'none' when empty", () => {
+    expect(determineSourceConfirmation([])).toBe("none");
+  });
+
+  it("WS16-SC6: booking counts as review platform", () => {
+    const rollup = [
+      { platform: "booking" as const, brief: "Booking", url: "https://booking.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("reviews-only");
+  });
+
+  it("WS16-SC7: official + booking = both", () => {
+    const rollup = [
+      { platform: "official_website" as const, brief: "Official", url: "https://hotel.com" },
+      { platform: "booking" as const, brief: "Booking", url: "https://booking.com" },
+    ];
+    expect(determineSourceConfirmation(rollup)).toBe("both");
+  });
+});
+
+// ===========================================================================
+// WS16: Sleeping Place with Booking/Hotels.com
+// ===========================================================================
+
+describe("FVM-WS16: Sleeping Place Booking Integration", () => {
+  it("WS16-SP1: sleeping place search query includes booking bias", () => {
+    const poi = makePoi({ name: "Hotel des Voyageurs", category: "Sleeping place" });
+    const query = buildSearchQuery(poi, "Lyon");
+    const lower = query.toLowerCase();
+    expect(lower.includes("booking") || lower.includes("hotels.com") || lower.includes("tarif") || lower.includes("reservation")).toBe(true);
+  });
+
+  it("WS16-SP2: sleeping place structured content with booking source", () => {
+    const poi = makePoi({ name: "Camping Les Pins", category: "Sleeping place" });
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "Booking", url: "https://booking.com/camping-les-pins", content: "Camping Les Pins. Rated 7.8/10 on Booking. Pitch from 15€/night. Check-in 14:00." },
+      { engine: "bing", title: "Google", url: "https://google.com/maps/camping", content: "Camping Les Pins. 4.1/5 stars (89 reviews). Open April to October." },
+    ];
+    const enrichment = {
+      rating: 4.1,
+      reviewCount: 89,
+      hours: "April-October",
+      specialty: "Campsite",
+      summary: "Campsite near the route",
+      translatedSummary: null,
+      priceLevel: 1,
+      locality: "Ardèche",
+    };
+    const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
+    expect(structured.sourceConfirmation).toBe("reviews-only");
+    expect(structured.sourceRollup.some((d) => d.platform === "booking")).toBe(true);
+    expect(structured.practicalities.length).toBeGreaterThan(0);
+  });
+
+  it("WS16-SP3: sleeping place with official site + booking = both confirmation", () => {
+    const poi = makePoi({ name: "Gîte du Col", category: "Sleeping place" });
+    const snippets: SearchSnippet[] = [
+      { engine: "google", title: "Booking", url: "https://booking.com/gite-du-col", content: "Rated 8.5/10. From 45€/night." },
+    ];
+    const websitePreview = {
+      url: "https://gite-du-col.fr",
+      finalUrl: "https://gite-du-col.fr",
+      title: "Gîte du Col - Hébergement cycliste",
+      description: "Gîte avec local vélo sécurisé, petit-déjeuner inclus",
+      excerpt: "Bienvenue au Gîte du Col",
+      fetchedAt: new Date().toISOString(),
+    };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      specialty: "Gîte",
+      summary: null,
+      translatedSummary: null,
+      priceLevel: null,
+      locality: "Vercors",
+    };
+    const structured = buildStructuredContent(poi, enrichment, snippets, websitePreview, "en");
+    expect(structured.sourceConfirmation).toBe("both");
+    expect(structured.sourceRollup.some((d) => d.platform === "official_website")).toBe(true);
+    expect(structured.sourceRollup.some((d) => d.platform === "booking")).toBe(true);
   });
 });

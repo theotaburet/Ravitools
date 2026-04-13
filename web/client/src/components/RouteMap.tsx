@@ -250,6 +250,21 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                         {enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary}
                       </div>
                     )}
+                    {/* Divergences & cautions (WS12) */}
+                    {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
+                      <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#dc2626", lineHeight: "1.3" }}>
+                        {enrichment.structured.divergences.map((d, i) => (
+                          <div key={`div-${i}`}>⚠ {d}</div>
+                        ))}
+                      </div>
+                    )}
+                    {enrichment.structured?.cautions && enrichment.structured.cautions.length > 0 && (
+                      <div style={{ marginTop: "0.15rem", fontSize: "0.65rem", color: "#6b6b6b", fontStyle: "italic", lineHeight: "1.3" }}>
+                        {enrichment.structured.cautions.slice(0, 2).map((c, i) => (
+                          <div key={`caut-${i}`}>{c}</div>
+                        ))}
+                      </div>
+                    )}
                     {enrichment.sourceCount > 0 && (
                       <div style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}>
                         {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}

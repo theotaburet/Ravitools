@@ -108,7 +108,7 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [x] Distinguer qualite des sources, diversite, recence, site officiel, coherence. _(sourceFactor, diversityFactor, qualityFactor, officialBonus, fieldFactor)_
 - [ ] Ajouter une notion explicite de `coverage` des dimensions importantes.
 - [x] Penaliser les cas de snippets repetitifs ou trop faibles. _(qualityFactor: avg content length + URL domain diversity)_
-- [ ] Penaliser les cas de contradiction non resolue.
+- [x] Penaliser les cas de contradiction non resolue. _(contradictionPenalty in computeConfidence: -0.05 per divergence, capped at 0.15)_
 - [x] Bonusser les cas avec site officiel utile + plateformes concordantes. _(officialBonus 0.10, domain diversity in qualityFactor)_
 - [ ] Rendre les seuils interpretable en UI et export.
 
@@ -120,16 +120,16 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [x] Niveau de qualite contradictoire. _(rating spread >= 1.0)_
 - [ ] Presence ou absence de service utile contradictoire.
 - [x] Definir comment condenser une contradiction sans noyer l'utilisateur. _(divergences array, max 3 items, concise strings)_
-- [ ] Definir quand une contradiction doit faire baisser fortement la confiance.
+- [x] Definir quand une contradiction doit faire baisser fortement la confiance. _(contradictionPenalty: 0.05 per divergence, capped at 0.15 — tested WS11-1 through WS11-5)_
 
 ### 12. UI Integration
-- [ ] Verifier que la liste POI affiche seulement l'information la plus utile.
-- [ ] Verifier que la popup carte reste tres concise.
+- [x] Verifier que la liste POI affiche seulement l'information la plus utile. _(PoiList shows essentials + cautions/divergences inline, WS12)_
+- [x] Verifier que la popup carte reste tres concise. _(RouteMap popup: rating/hours/essentials + compact divergences/cautions, WS12)_
 - [ ] Verifier que les labels `sourceRollup` sont lisibles sur mobile.
-- [ ] Verifier que les caveats ressortent assez.
+- [x] Verifier que les caveats ressortent assez. _(cautions in PoiList + RouteMap popup + Sandbox, WS12)_
 - [ ] Verifier que les sleeping places ont un rendu adapte a leur usage.
 - [ ] Verifier qu'un commerce pauvre en infos reste lisible et non trompeur.
-- [ ] Definir si les `sourceDigests` doivent etre collapses par defaut.
+- [x] Definir si les `sourceDigests` doivent etre collapses par defaut. _(sourceDigests marked as legacy in Sandbox, sourceRollup is now primary)_
 
 ### 13. Export Quality
 - [ ] Verifier que le GPX exporte la bonne densite d'information sans devenir illisible.
@@ -159,7 +159,7 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [x] Ajouter des tests unitaires sur `buildStructuredContent`. _(fvm.test.ts D1-D9)_
 - [x] Ajouter des tests unitaires sur la priorisation des plateformes. _(WS5-1 through WS5-13, WS6-1 through WS6-9)_
 - [x] Ajouter des tests unitaires sur les `cautions`. _(fvm.test.ts D4, H1-H5)_
-- [ ] Ajouter des tests unitaires sur les sleeping places avec Booking / Hotels.com.
+- [x] Ajouter des tests unitaires sur les sleeping places avec Booking / Hotels.com. _(WS16-SP1 through WS16-SP3 in fvm.test.ts)_
 - [ ] Ajouter des tests unitaires sur les websites previews.
 - [x] Ajouter des tests unitaires sur les contradictions. _(divergences field tested in D7, N4, K-series)_
 - [x] Ajouter des tests d'integration sur export + structured. _(fvm.test.ts K1-K13)_
@@ -230,11 +230,14 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [ ] Test: ajout futur d'un score `coverage` si introduit.
 
 ### H. Contradictions And Missing Data
-- [x] Test: contradiction horaires -> divergences detectees. _(buildDivergences hours regex in structured.ts)_
-- [x] Test: contradiction qualite/reputation -> divergences detectees. _(buildDivergences rating spread >= 1.0)_
+- [x] Test: contradiction horaires -> divergences detectees. _(buildDivergences hours regex in structured.ts + WS16-1, WS16-2)_
+- [x] Test: contradiction qualite/reputation -> divergences detectees. _(buildDivergences rating spread >= 1.0 + WS16-3, WS16-4)_
 - [x] Test: manque d'horaires -> caution explicite. _(H1)_
 - [x] Test: manque de note -> caution explicite. _(H2)_
 - [x] Test: manque de site officiel -> pas de faux signal positif. _(H5)_
+- [x] Test: closure contradiction detected. _(WS16-5, WS16-6)_
+- [x] Test: divergences capped at 3. _(WS16-8)_
+- [x] Test: contradiction confidence penalty applied. _(WS11-1 through WS11-5)_
 
 ### I. Pipeline Integration
 - [ ] Test: `enrichPoi` enrichit correctement un POI `full` avec search + site + LLM.
@@ -314,10 +317,10 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [ ] Revoir les liens externes exposes dans UI/export.
 
 ### 20. Observability And Debugging
-- [ ] Ajouter les logs minimaux pour comprendre pourquoi une synthese est faible.
+- [x] Ajouter les logs minimaux pour comprendre pourquoi une synthese est faible. _(dlog in enricher.ts emitResult logs sources, engines, rating, confidence, hasLLM)_
 - [ ] Logger la plateforme retenue pour chaque digest.
-- [ ] Logger les cas de contradiction.
-- [ ] Logger les cas ou le site officiel a ameliore ou n'a rien apporte.
+- [x] Logger les cas de contradiction. _(WS20: divergence logging in emitResult when divergences.length > 0)_
+- [x] Logger les cas ou le site officiel a ameliore ou n'a rien apporte. _(WS20: official site impact logging — hasContent flag)_
 - [ ] Ajouter des compteurs simples de qualite en mode debug.
 
 ### 21. Documentation
@@ -343,7 +346,7 @@ Atteindre un enrichissement POI tres fiable, tres utile en voyage a velo, stable
 - [x] M1: Contrat de sortie final fige _(WS1 done, WS2 done — schema frozen with 8 fields, contracts, length targets, display order, divergences, sourceConfirmation)_
 - [x] M2: Regles editoriales par categorie figees _(WS3 done — 4 contracts with priorities, banned patterns, weak/contradiction formulations, silence conditions)_
 - [x] M3: Strategie sources + site officiel figee _(WS4+5+6+7 done — platform priority, rejected domains, per-category query bias, URL normalization)_
-- [x] M4: Corpus d'evaluation + tests de non-regression en place _(fvm.test.ts: 360 tests covering FVM A-N + WS5-WS10)_
+- [x] M4: Corpus d'evaluation + tests de non-regression en place _(fvm.test.ts: 383 tests covering FVM A-N + WS5-WS11 + WS16)_
 - [ ] M5: Validation manuelle sur vrais GPX
 - [ ] M6: Enrichissement considere "graal-ready"
 
