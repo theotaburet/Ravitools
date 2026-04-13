@@ -10,6 +10,7 @@ import { parseGpx } from "../lib/gpx-parser";
 import { queryAllPois, type OverpassElement } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
+import { dlog } from "../lib/debug-log";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: 1500,
@@ -130,6 +131,7 @@ export function useRavitools() {
   // -----------------------------------------------------------------------
   const processFiles = useCallback(
     async (files: File[]) => {
+      const log = dlog("pipeline");
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -141,6 +143,7 @@ export function useRavitools() {
         // Stage 1: Parse all GPX files
         update({ stage: "parsing", error: null, progress: `Reading ${files.length} GPX file${files.length > 1 ? "s" : ""}...` });
 
+        const endParse = log.time("GPX parsing");
         const traces: TraceData[] = [];
         for (let i = 0; i < files.length; i++) {
           const text = await files[i].text();
@@ -149,8 +152,15 @@ export function useRavitools() {
           if (!trace.name) {
             trace.name = files[i].name.replace(/\.gpx$/i, "");
           }
+          log.info(`Parsed "${trace.name}": ${trace.original.length} pts → ${trace.simplified.length} simplified, ${(trace.totalDistanceM / 1000).toFixed(1)} km`, {
+            name: trace.name,
+            originalPoints: trace.original.length,
+            simplifiedPoints: trace.simplified.length,
+            distanceKm: Math.round(trace.totalDistanceM / 100) / 10,
+          });
           traces.push(trace);
         }
+        endParse();
 
         const totalPoints = traces.reduce((sum, t) => sum + t.original.length, 0);
         const totalSimplified = traces.reduce((sum, t) => sum + t.simplified.length, 0);
@@ -172,16 +182,18 @@ export function useRavitools() {
           progress: `Querying OpenStreetMap for ${selectedCategories.length} categories...`,
         });
 
+        const endQuery = log.time("Overpass querying");
         const rawElements = await queryAllPois(
           allSimplified,
           1000,
           selectedCategories,
           (done, total) => {
             update({
-              progress: `Querying Overpass... (${done + 1}/${total} chunks)`,
+              progress: `Querying Overpass... (${done}/${total} chunks)`,
             });
           },
         );
+        endQuery();
 
         if (ctrl.signal.aborted) return;
 
@@ -191,6 +203,7 @@ export function useRavitools() {
           progress: `Processing ${rawElements.length} raw elements...`,
         });
 
+        const endProcess = log.time("POI processing");
         const allTraceSimplified = traces.map((t) => t.simplified);
         rawElementsRef.current = rawElements;
         const pois = processElements(
@@ -199,6 +212,13 @@ export function useRavitools() {
           routeSettingsRef.current.maxDistanceM,
           50,
         );
+        endProcess();
+
+        log.info(`Pipeline complete: ${pois.length} POIs from ${rawElements.length} raw elements`, {
+          rawElements: rawElements.length,
+          filteredPois: pois.length,
+          maxDistanceM: routeSettingsRef.current.maxDistanceM,
+        });
 
         if (ctrl.signal.aborted) return;
 
@@ -211,16 +231,87 @@ export function useRavitools() {
         if (ctrl.signal.aborted) return;
         const message =
           err instanceof Error ? err.message : "Unknown error occurred";
+        log.error(`Pipeline error: ${message}`);
+        // Keep traces visible on the map so the user can see what was loaded
+        // and retry without re-uploading. Stage goes to "error" but traces persist.
         update({ stage: "error", error: message, progress: "" });
       }
     },
     [update],
   );
 
+  // -----------------------------------------------------------------------
+  // Retry Overpass query after an error (reuses already-parsed traces)
+  // -----------------------------------------------------------------------
+  const retryQuery = useCallback(async () => {
+    const log = dlog("pipeline");
+    const currentTraces = (state as AppState).traces;
+    if (currentTraces.length === 0) {
+      log.warn("retryQuery called but no traces loaded");
+      return;
+    }
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const selectedCategories = [...activeCatsRef.current];
+
+    try {
+      const allSimplified = currentTraces.flatMap((t) => t.simplified);
+      update({
+        stage: "querying",
+        error: null,
+        progress: `Retrying Overpass query for ${selectedCategories.length} categories...`,
+      });
+
+      log.info("Retrying Overpass query", { traces: currentTraces.length, simplifiedPoints: allSimplified.length });
+
+      const rawElements = await queryAllPois(
+        allSimplified,
+        1000,
+        selectedCategories,
+        (done, total) => {
+          update({
+            progress: `Querying Overpass... (${done}/${total} chunks)`,
+          });
+        },
+      );
+
+      if (ctrl.signal.aborted) return;
+
+      update({
+        stage: "processing",
+        progress: `Processing ${rawElements.length} raw elements...`,
+      });
+
+      const allTraceSimplified = currentTraces.map((t) => t.simplified);
+      rawElementsRef.current = rawElements;
+      const pois = processElements(
+        rawElements,
+        allTraceSimplified,
+        routeSettingsRef.current.maxDistanceM,
+        50,
+      );
+
+      if (ctrl.signal.aborted) return;
+
+      update({
+        stage: "done",
+        pois,
+        progress: `Found ${pois.length} POIs along your route${currentTraces.length > 1 ? "s" : ""}`,
+      });
+    } catch (err) {
+      if (ctrl.signal.aborted) return;
+      const message = err instanceof Error ? err.message : "Unknown error occurred";
+      log.error(`Retry failed: ${message}`);
+      update({ stage: "error", error: message, progress: "" });
+    }
+  }, [state, update]);
+
   return {
     state,
     filteredPois,
     processFiles,
+    retryQuery,
     reset,
     restoreState,
     toggleCategory,

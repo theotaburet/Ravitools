@@ -20,14 +20,14 @@ const CACHE_TTL = parseInt(process.env.CACHE_TTL || "86400", 10); // 24h default
 const SEARCH_CACHE_TTL = parseInt(process.env.SEARCH_CACHE_TTL || "604800", 10); // 7 days
 const GEOCODE_CACHE_TTL = parseInt(process.env.GEOCODE_CACHE_TTL || "2592000", 10); // 30 days
 const MAX_QUERY_LENGTH = parseInt(
-  process.env.MAX_QUERY_LENGTH || "16000",
+  process.env.MAX_QUERY_LENGTH || "32000",
   10,
 );
 const RATE_LIMIT_WINDOW_MS = parseInt(
   process.env.RATE_LIMIT_WINDOW_MS || "60000",
   10,
 );
-const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "10", 10);
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "60", 10);
 
 const log = pino({
   transport:

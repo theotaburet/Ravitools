@@ -97,7 +97,7 @@ describe("/overpass", () => {
   it("rejects oversized query", async () => {
     const res = await request(app)
       .post("/overpass")
-      .send({ data: "x".repeat(20000) });
+      .send({ data: "x".repeat(40000) });
     expect(res.status).toBe(413);
     expect(res.body.error).toMatch(/too large/i);
   });

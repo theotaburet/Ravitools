@@ -12,6 +12,7 @@ import { CategoryFilter } from "./components/CategoryFilter";
 import { ExportPanel } from "./components/ExportPanel";
 import { PoiList } from "./components/PoiList";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
+import { DebugPanel } from "./components/DebugPanel";
 import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
 import type { TargetLanguage } from "./types";
 
@@ -20,6 +21,7 @@ export default function App() {
     state,
     filteredPois,
     processFiles,
+    retryQuery,
     reset,
     restoreState,
     toggleCategory,
@@ -152,8 +154,8 @@ export default function App() {
             onMaxDistanceChange={setMaxDistance}
           />
 
-          {/* Upload area */}
-          {(state.stage === "idle" || state.stage === "error") && !showResumePrompt && (
+          {/* Upload area – show when idle, or at error with no traces loaded */}
+          {((state.stage === "idle" || (state.stage === "error" && state.traces.length === 0)) && !showResumePrompt) && (
             <GpxUpload onFiles={processFiles} disabled={isProcessing} />
           )}
 
@@ -174,9 +176,16 @@ export default function App() {
                 <span className="font-black uppercase">Error:</span>{" "}
                 {state.error}
               </p>
-              <button className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
-                Try again
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                {state.traces.length > 0 && (
+                  <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                    Retry query
+                  </button>
+                )}
+                <button className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
+                  {state.traces.length > 0 ? "Start over" : "Try again"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -220,6 +229,9 @@ export default function App() {
               onSelectPoi={setSelectedPoiId}
             />
           )}
+
+          {/* Debug panel – always available */}
+          <DebugPanel />
         </aside>
 
         {/* Map */}

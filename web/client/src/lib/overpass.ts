@@ -5,6 +5,7 @@
 
 import type { TracePoint, PoiCategory } from "../types";
 import { POI_CATEGORIES } from "./poi-config";
+import { dlog } from "./debug-log";
 
 /** Proxy base URL – in dev, Vite proxies /api to the server */
 const PROXY_BASE =
@@ -117,8 +118,10 @@ export async function queryOverpass(
   query: string,
   retries: number = 3,
 ): Promise<OverpassResponse> {
+  const log = dlog("overpass");
   const cached = overpassResultCache.get(query);
   if (cached) {
+    log.info("Client cache hit", { elements: cached.elements.length, queryChars: query.length });
     return cached;
   }
 
@@ -126,11 +129,14 @@ export async function queryOverpass(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
+      const delayMs = 5000 * attempt;
+      log.warn(`Retry ${attempt}/${retries} after ${delayMs}ms backoff`, { attempt });
       // Exponential backoff: 5s, 10s, 15s
-      await new Promise((r) => setTimeout(r, 5000 * attempt));
+      await new Promise((r) => setTimeout(r, delayMs));
     }
 
     try {
+      const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
       const res = await fetch(`${PROXY_BASE}/overpass`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,16 +144,16 @@ export async function queryOverpass(
       });
 
       if (res.status === 429 || res.status === 504) {
+        const reason = res.status === 429 ? "Rate limited by proxy" : "Overpass server timeout";
+        endTimer();
+        log.warn(`${reason} (HTTP ${res.status})`, { status: res.status, attempt });
         // Rate limited or timeout – wait and retry
-        lastError = new Error(
-          res.status === 429
-            ? "Rate limited by proxy"
-            : "Overpass server timeout",
-        );
+        lastError = new Error(reason);
         continue;
       }
 
       if (!res.ok) {
+        endTimer();
         const body = await res.text();
         throw new Error(
           `Overpass error (${res.status}): ${body.slice(0, 200)}`,
@@ -155,10 +161,19 @@ export async function queryOverpass(
       }
 
       const data: OverpassResponse = await res.json();
+      const elapsedMs = endTimer();
+      const cacheHeader = res.headers.get("X-Cache") || "UNKNOWN";
+      log.info(`Got ${data.elements.length} elements`, {
+        elements: data.elements.length,
+        elapsedMs: Math.round(elapsedMs),
+        serverCache: cacheHeader,
+        queryChars: query.length,
+      });
       overpassResultCache.set(query, data);
       return data;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      log.error(`Fetch error: ${lastError.message}`, { attempt, error: lastError.message });
       if (attempt < retries) continue;
     }
   }
@@ -169,37 +184,84 @@ export async function queryOverpass(
 /**
  * Query Overpass for all categories along a trace, chunking if necessary.
  * Returns raw elements from all chunks, deduplicated by OSM ID.
+ *
+ * Sends up to `concurrency` requests in parallel to reduce total latency
+ * while staying friendly to the Overpass public API.
  */
 export async function queryAllPois(
   simplifiedPoints: TracePoint[],
   radiusM: number = 1000,
   categories?: PoiCategory[],
   onProgress?: (done: number, total: number) => void,
+  maxPointsPerQuery: number = 50,
+  concurrency: number = 2,
 ): Promise<OverpassElement[]> {
+  const log = dlog("overpass");
   const queries = buildChunkedQueries(
     simplifiedPoints,
     radiusM,
-    25,
+    maxPointsPerQuery,
     categories,
   );
 
+  log.info(`Built ${queries.length} chunks from ${simplifiedPoints.length} simplified points`, {
+    chunks: queries.length,
+    simplifiedPoints: simplifiedPoints.length,
+    radiusM,
+    maxPointsPerQuery,
+    concurrency,
+    avgQueryChars: Math.round(queries.reduce((s, q) => s + q.length, 0) / queries.length),
+  });
+
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
+  let completed = 0;
 
-  for (let i = 0; i < queries.length; i++) {
-    onProgress?.(i, queries.length);
+  const endTotal = log.time(`All ${queries.length} chunks`);
 
-    const result = await queryOverpass(queries[i]);
+  // Process chunks with limited concurrency
+  let i = 0;
+  while (i < queries.length) {
+    const batch = queries.slice(i, i + concurrency);
+    const batchStart = i;
+    log.debug(`Sending batch ${Math.floor(i / concurrency) + 1} (chunks ${i + 1}-${i + batch.length})`, {
+      batchSize: batch.length,
+    });
 
-    for (const el of result.elements) {
-      const uid = `${el.type}_${el.id}`;
-      if (!seenIds.has(uid)) {
-        seenIds.add(uid);
-        allElements.push(el);
+    const results = await Promise.allSettled(
+      batch.map((q, idx) =>
+        queryOverpass(q).then((r) => ({ chunkIndex: batchStart + idx, result: r })),
+      ),
+    );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        const { chunkIndex, result } = r.value;
+        let newCount = 0;
+        for (const el of result.elements) {
+          const uid = `${el.type}_${el.id}`;
+          if (!seenIds.has(uid)) {
+            seenIds.add(uid);
+            allElements.push(el);
+            newCount++;
+          }
+        }
+        log.debug(`Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`);
+      } else {
+        log.error(`Chunk failed: ${r.reason}`);
       }
+      completed++;
+      onProgress?.(completed, queries.length);
     }
+
+    i += concurrency;
   }
 
-  onProgress?.(queries.length, queries.length);
+  endTotal();
+  log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks`, {
+    totalElements: allElements.length,
+    totalDeduped: queries.length > 0 ? seenIds.size - allElements.length : 0,
+  });
+
   return allElements;
 }
