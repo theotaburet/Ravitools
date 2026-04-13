@@ -6,8 +6,9 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
-import type { PoiCategory, POI } from "../types";
+import type { PoiCategory, POI, TargetLanguage } from "../types";
 import { POI_CATEGORIES } from "../lib/poi-config";
+import { translateCategory } from "../lib/i18n";
 
 interface Props {
   activeCategories: Set<PoiCategory>;
@@ -19,6 +20,8 @@ interface Props {
   pois: POI[];
   /** When true, shows counts next to each category */
   showCounts?: boolean;
+  /** Target language for i18n */
+  targetLanguage?: TargetLanguage;
 }
 
 const essentialCats = POI_CATEGORIES.filter((c) => c.defaultEnabled !== false);
@@ -32,6 +35,7 @@ export function CategoryFilter({
   onMaxDistanceChange,
   pois,
   showCounts = false,
+  targetLanguage = "en",
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -99,6 +103,7 @@ export function CategoryFilter({
               active={activeCategories.has(cat.category)}
               count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
               onToggle={onToggle}
+              targetLanguage={targetLanguage}
             />
           ))}
 
@@ -111,6 +116,7 @@ export function CategoryFilter({
               active={activeCategories.has(cat.category)}
               count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
               onToggle={onToggle}
+              targetLanguage={targetLanguage}
             />
           ))}
         </div>
@@ -124,11 +130,13 @@ function CategoryRow({
   active,
   count,
   onToggle,
+  targetLanguage = "en",
 }: {
   cat: (typeof POI_CATEGORIES)[number];
   active: boolean;
   count?: number;
   onToggle: (cat: PoiCategory) => void;
+  targetLanguage?: TargetLanguage;
 }) {
   return (
     <label className="filter-item">
@@ -142,7 +150,7 @@ function CategoryRow({
         style={{ backgroundColor: cat.style.backgroundColor }}
       />
       <span className={`flex-1 ${active ? "font-bold" : ""}`}>
-        {cat.category}
+        {translateCategory(cat.category, targetLanguage)}
       </span>
       {count !== undefined && <span className="filter-count">{count}</span>}
     </label>

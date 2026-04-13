@@ -4,8 +4,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { POI, EnrichedData, SkipReason } from "../types";
+import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
+import { translateCategory, translatePoiName } from "../lib/i18n";
 
 /** Human-readable labels for skip reasons */
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
@@ -55,9 +56,10 @@ interface Props {
   enrichments: Map<string, EnrichedData>;
   selectedPoiId?: string | null;
   onSelectPoi?: (poiId: string | null) => void;
+  targetLanguage?: TargetLanguage;
 }
 
-export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
+export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetLanguage = "en" }: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -161,9 +163,9 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi }: Props
                   style={{ backgroundColor: poi.style.backgroundColor }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="poi-list-name">{poi.name}</div>
+                  <div className="poi-list-name">{translatePoiName(poi.name, targetLanguage)}</div>
                   <div className="poi-list-meta">
-                    {poi.category} &middot; {Math.round(poi.distanceToTrace)}m
+                    {translateCategory(poi.category, targetLanguage)} &middot; {Math.round(poi.distanceToTrace)}m
                     {poi.tags.opening_hours && ` · ${poi.tags.opening_hours}`}
                   </div>
 

@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { SearchSnippet, TargetLanguage } from "../../types";
+import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -186,6 +187,7 @@ export async function synthesize(
   if (snippets.length === 0) return null;
 
   try {
+    const log = dlog("llm");
     const response = await engineInstance.chat.completions.create({
       messages: [
         { role: "system", content: buildSystemPrompt(targetLanguage) },
@@ -201,7 +203,19 @@ export async function synthesize(
     const text = response.choices?.[0]?.message?.content?.trim();
     if (!text) return null;
 
-    return parseLlmOutput(text);
+    const parsed = parseLlmOutput(text);
+
+    // Debug: log LLM synthesis result
+    log.info(`LLM synthesis for "${poiName}"`, {
+      rawOutput: text.slice(0, 300),
+      rating: parsed?.rating,
+      summary: parsed?.summary?.slice(0, 100),
+      translatedSummary: parsed?.translatedSummary?.slice(0, 100),
+      specialty: parsed?.specialty,
+      hours: parsed?.hours,
+    });
+
+    return parsed;
   } catch (err) {
     console.error("[WebLLM] Synthesis failed:", err);
     return null;
@@ -210,8 +224,9 @@ export async function synthesize(
 
 /**
  * Parse the LLM JSON output, tolerating minor formatting issues.
+ * Exported for testing.
  */
-function parseLlmOutput(text: string): LlmSynthesis | null {
+export function parseLlmOutput(text: string): LlmSynthesis | null {
   try {
     // Strip markdown code block wrapper if present
     let cleaned = text;

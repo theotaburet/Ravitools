@@ -25,6 +25,7 @@ const INITIAL_JOB: EnrichmentJobState = {
   errorCount: 0,
   skippedCount: 0,
   currentPoiName: null,
+  currentPoiId: null,
   modelLoadProgress: 0,
   webGpuAvailable: false,
   searxngAvailable: false,
@@ -122,7 +123,16 @@ export function useEnrichment() {
         if (ctrl.signal.aborted) return;
 
         // Step 2: Batch enrichment
-        updateJob({ stage: "running", modelLoadProgress: 1, phase: "geocode-search", etaSeconds: null, errorCount: 0, skippedCount: 0 });
+        updateJob({
+          stage: "running",
+          modelLoadProgress: 1,
+          phase: "geocode-search",
+          etaSeconds: null,
+          errorCount: 0,
+          skippedCount: 0,
+          currentPoiId: pois[0]?.id ?? null,
+          currentPoiName: pois[0]?.name ?? null,
+        });
 
         await enrichBatch(pois, {
           signal: ctrl.signal,
@@ -139,14 +149,17 @@ export function useEnrichment() {
               return next;
             });
 
+            // Track the next POI being processed
+            const nextPoi = completed < total ? pois[completed] : null;
+
             setJob((prev) => ({
               ...prev,
               completed,
               total,
               errorCount: prev.errorCount + (enrichment.status === "error" ? 1 : 0),
               skippedCount: prev.skippedCount + (enrichment.status === "skipped" ? 1 : 0),
-              currentPoiName:
-                completed < total ? pois[completed]?.name ?? null : null,
+              currentPoiName: nextPoi?.name ?? null,
+              currentPoiId: nextPoi?.id ?? null,
             }));
           },
           onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
@@ -159,6 +172,7 @@ export function useEnrichment() {
         updateJob({
           stage: "done",
           currentPoiName: null,
+          currentPoiId: null,
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
@@ -168,6 +182,7 @@ export function useEnrichment() {
           stage: "error",
           error: message,
           currentPoiName: null,
+          currentPoiId: null,
         });
       }
     },
@@ -182,6 +197,7 @@ export function useEnrichment() {
     updateJob({
       stage: "idle",
       currentPoiName: null,
+      currentPoiId: null,
       error: null,
     });
   }, [updateJob]);

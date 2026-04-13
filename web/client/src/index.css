@@ -505,6 +505,21 @@ body {
   z-index: 1000 !important;
 }
 
+.poi-marker-enriching {
+  animation: poi-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes poi-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59,130,246,0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59,130,246,0);
+    transform: scale(1.15);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    POI popup (Leaflet)
    --------------------------------------------------------------------------- */

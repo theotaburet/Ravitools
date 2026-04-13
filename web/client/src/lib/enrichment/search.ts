@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { POI, SearchSnippet } from "../../types";
+import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -148,6 +149,7 @@ export async function searchPoi(
       }
 
       const data: SearXNGResponse = await res.json();
+      const log = dlog("search");
 
       // Convert to our snippet format, deduplicate, limit
       const seen = new Set<string>();
@@ -167,6 +169,16 @@ export async function searchPoi(
           content: result.content.trim(),
           engine: result.engine || "unknown",
         });
+      }
+
+      // Debug: log raw search results for visibility
+      log.info(`SearXNG results for "${poi.name}"`, {
+        query,
+        totalResults: data.results.length,
+        keptSnippets: snippets.length,
+      });
+      for (const s of snippets) {
+        log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
       }
 
       return snippets;

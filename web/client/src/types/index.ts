@@ -213,6 +213,8 @@ export interface EnrichmentJobState {
   skippedCount: number;
   /** Current POI being processed */
   currentPoiName: string | null;
+  /** ID of the POI currently being enriched (for UI highlighting) */
+  currentPoiId: string | null;
   /** LLM model loading progress (0-1) */
   modelLoadProgress: number;
   /** Whether WebGPU is available */

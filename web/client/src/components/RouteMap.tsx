@@ -14,9 +14,10 @@ import {
 } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
-import type { POI, TraceData, EnrichedData } from "../types";
+import type { POI, TraceData, EnrichedData, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
+import { translateCategory, translatePoiName } from "../lib/i18n";
 
 interface Props {
   traces: TraceData[];
@@ -24,6 +25,10 @@ interface Props {
   enrichments: Map<string, EnrichedData>;
   selectedPoiId?: string | null;
   onSelectPoi?: (poiId: string | null) => void;
+  /** ID of the POI currently being enriched (pulsing animation) */
+  enrichingPoiId?: string | null;
+  /** Target language for i18n */
+  targetLanguage?: TargetLanguage;
 }
 
 function FitBounds({ traces }: { traces: TraceData[] }) {
@@ -74,7 +79,7 @@ function FlyToSelected({
   return null;
 }
 
-export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi }: Props) {
+export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiId, targetLanguage = "en" }: Props) {
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
@@ -147,12 +152,19 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
         const enrichment = enrichments.get(poi.id);
         const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
         const isSelected = selectedPoiId === poi.id;
+        const isEnriching = enrichingPoiId === poi.id;
         const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
         const size = isSelected ? 32 : 24;
 
+        const markerClasses = [
+          "poi-marker",
+          isSelected ? "poi-marker-selected" : "",
+          isEnriching ? "poi-marker-enriching" : "",
+        ].filter(Boolean).join(" ");
+
         const icon = L.divIcon({
           className: "poi-marker-icon",
-          html: `<div class="poi-marker ${isSelected ? "poi-marker-selected" : ""}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
+          html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
           popupAnchor: [0, -size / 2],
@@ -170,8 +182,8 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
           >
             <Popup>
               <div className="poi-popup">
-                <strong>{poi.name}</strong>
-                <div className="poi-popup-cat">{poi.category}</div>
+                <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
+                <div className="poi-popup-cat">{translateCategory(poi.category, targetLanguage)}</div>
                 <div className="poi-popup-dist">
                   {Math.round(poi.distanceToTrace)}m from route
                 </div>

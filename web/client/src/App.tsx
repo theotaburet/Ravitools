@@ -152,6 +152,7 @@ export default function App() {
             showCounts={hasPois}
             maxDistanceM={state.routeSettings.maxDistanceM}
             onMaxDistanceChange={setMaxDistance}
+            targetLanguage={targetLanguage}
           />
 
           {/* Upload area – show when idle, or at error with no traces loaded */}
@@ -253,6 +254,7 @@ export default function App() {
               enrichments={enrichments}
               selectedPoiId={selectedPoiId}
               onSelectPoi={setSelectedPoiId}
+              targetLanguage={targetLanguage}
             />
           )}
 
@@ -268,6 +270,8 @@ export default function App() {
             enrichments={enrichments}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
+            enrichingPoiId={enrichmentJob.stage === "running" ? enrichmentJob.currentPoiId : null}
+            targetLanguage={targetLanguage}
           />
         </main>
       </div>
