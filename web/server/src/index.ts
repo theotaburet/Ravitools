@@ -152,6 +152,14 @@ app.get("/cache/stats", (_req, res) => {
   });
 });
 
+/** Flush the search cache — useful after engine configuration changes */
+app.delete("/cache/search", (_req, res) => {
+  const count = searchCache.keys().length;
+  searchCache.flushAll();
+  log.info({ flushed: count }, "Search cache flushed");
+  res.json({ flushed: count });
+});
+
 // ---------------------------------------------------------------------------
 // Overpass proxy endpoint
 // ---------------------------------------------------------------------------
@@ -256,7 +264,7 @@ app.post("/overpass", limiter, async (req, res) => {
 // ---------------------------------------------------------------------------
 app.post("/search", enrichLimiter, async (req, res) => {
   try {
-    const { query, language } = req.body as { query?: string; language?: string };
+    const { query, language, engines } = req.body as { query?: string; language?: string; engines?: string };
 
     if (!query || typeof query !== "string") {
       res.status(400).json({ error: "Missing 'query' in request body" });
@@ -268,9 +276,10 @@ app.post("/search", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // Cache key
+    // Cache key includes engines to avoid returning cached results from different engine sets
     const crypto = await import("crypto");
-    const cacheKey = `search:${crypto.createHash("md5").update(query).digest("hex")}`;
+    const cacheInput = engines ? `${query}|engines=${engines}` : query;
+    const cacheKey = `search:${crypto.createHash("md5").update(cacheInput).digest("hex")}`;
 
     const cached = searchCache.get<string>(cacheKey);
     if (cached) {
@@ -291,7 +300,12 @@ app.post("/search", enrichLimiter, async (req, res) => {
       safesearch: "0",
     });
 
-    log.info({ query: query.slice(0, 80) }, "Searching SearXNG");
+    // Forward engine selection to SearXNG if specified
+    if (engines && typeof engines === "string") {
+      params.set("engines", engines);
+    }
+
+    log.info({ query: query.slice(0, 80), engines: engines || "default" }, "Searching SearXNG");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);

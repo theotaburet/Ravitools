@@ -9,7 +9,7 @@ import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, f
 import { synthesize, isEngineReady } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
 import { dlog } from "../debug-log";
-import { buildEssentialsText, buildSourceDigests, buildStructuredContent } from "./structured";
+import { buildEssentialsText, buildSourceDigests, buildStructuredContent, extractPriceLevel } from "./structured";
 
 function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "status" | "locality" | "sourceCount" | "sourceEngines" | "confidence"> {
   return {
@@ -185,7 +185,8 @@ export async function enrichPoi(
           summary: synthesis.summary,
           translatedSummary: synthesis.translatedSummary,
           specialty: synthesis.specialty,
-          priceLevel: synthesis.priceLevel,
+          // LLM price first, fallback to snippet extraction
+          priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "done" as const, locality,
@@ -205,9 +206,11 @@ export async function enrichPoi(
       }
     }
 
-    // No LLM or synthesis failed — return raw snippets without synthesis
+    // No LLM or synthesis failed — deterministic extraction from snippets
+    const snippetPriceLevel = extractPriceLevel(snippets, poi.category);
     const noLlmResult = {
       ...createBaseEnrichment(poi),
+      priceLevel: snippetPriceLevel,
       googleMapsUrl, sourceUrls, rawSnippets: snippets,
       enrichedAt: new Date().toISOString(),
       status: "done" as const, locality,
@@ -518,7 +521,8 @@ export async function enrichBatch(
               summary: synthesis.summary,
               translatedSummary: synthesis.translatedSummary,
               specialty: synthesis.specialty,
-              priceLevel: synthesis.priceLevel,
+              // LLM price first, fallback to snippet extraction
+              priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
               googleMapsUrl, sourceUrls, rawSnippets: snippets,
               enrichedAt: new Date().toISOString(),
               status: "done", locality,
@@ -540,9 +544,11 @@ export async function enrichBatch(
           }
         }
 
-        // No LLM or synthesis failed — raw snippets
+        // No LLM or synthesis failed — deterministic extraction from snippets
+        const snippetPriceLevel = extractPriceLevel(snippets, poi.category);
         const noLlmResult: EnrichedData = {
           ...createBaseEnrichment(poi),
+          priceLevel: snippetPriceLevel,
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "done", locality,

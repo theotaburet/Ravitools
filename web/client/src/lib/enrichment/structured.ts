@@ -82,6 +82,142 @@ function representativeSnippet(snippets: SearchSnippet[]): SearchSnippet | null 
 }
 
 // ---------------------------------------------------------------------------
+// Price level extraction from snippets (deterministic, no LLM needed)
+// ---------------------------------------------------------------------------
+
+/**
+ * Currency symbol patterns used for price extraction.
+ * Covers Euro, Dollar, Pound, Yen/Yuan.
+ */
+const CURRENCY_SYMBOLS = /[€$£¥]/;
+
+/**
+ * Detect repeated-symbol price indicators like €€, $$$, ££££.
+ * These are common on Google Maps, Tripadvisor, Yelp, etc.
+ * Requires at least 2 consecutive symbols (single € in "15€" is a numeric price, not a level indicator).
+ */
+const REPEATED_SYMBOL_RE = /([€$£¥])\s*\1{1,3}/g;
+
+/**
+ * Detect textual price-level labels (English & French).
+ * Google Maps uses: "Inexpensive", "Moderate", "Expensive", "Very Expensive"
+ * French: "bon marché", "modéré", "cher", "très cher"
+ *
+ * Note: JS \b doesn't work with Unicode chars like é/è, so we use
+ * lookaround with whitespace/punctuation/boundary instead.
+ */
+const WB = String.raw`(?:^|[\s,;:!?.(])`;   // word-start boundary (Unicode-safe)
+const WE = String.raw`(?=$|[\s,;:!?.)])`;    // word-end boundary (Unicode-safe)
+
+const TEXTUAL_PRICE_LEVEL: Array<{ re: RegExp; level: number }> = [
+  { re: new RegExp(`${WB}(very\\s+expensive|très\\s+cher)${WE}`, "i"), level: 4 },
+  { re: new RegExp(`${WB}(expensive|cher(?!\\s*ch[eé])(?!ch))${WE}`, "i"), level: 3 },
+  { re: new RegExp(`${WB}(moderate|moderately\\s+priced|modéré|prix\\s+moyens?)${WE}`, "i"), level: 2 },
+  { re: new RegExp(`${WB}(inexpensive|cheap|bon\\s+marché|pas\\s+cher|économique)${WE}`, "i"), level: 1 },
+];
+
+/**
+ * Detect numeric price values with currency symbols.
+ * Matches patterns like: 15€, €15, $12.50, 25,90€, £8, ¥1200
+ * Also matches ranges: 15€-25€, $10-$20
+ */
+const NUMERIC_PRICE_RE =
+  /(?:([€$£¥])\s*(\d+(?:[.,]\d{1,2})?))|((\d+(?:[.,]\d{1,2})?)\s*([€$£¥]))/g;
+
+/**
+ * Extract a price level (1-4) from search snippets using deterministic heuristics.
+ *
+ * Strategy (in priority order):
+ * 1. Repeated currency symbols (€€€ = 3) — most reliable, used by review platforms
+ * 2. Textual price labels ("Moderate" = 2) — used by Google Maps
+ * 3. Numeric price values — infer bracket from median price
+ *
+ * Returns null if no price signal is found.
+ * Exported for direct testing.
+ */
+export function extractPriceLevel(
+  snippets: SearchSnippet[],
+  category?: PoiCategory,
+): number | null {
+  if (snippets.length === 0) return null;
+
+  const allContent = snippets.map((s) => s.content).join(" ");
+
+  // Quick bail: no currency symbol at all → no price signal
+  if (!CURRENCY_SYMBOLS.test(allContent)) {
+    // Still check for textual labels (Google Maps sometimes uses words only)
+    for (const { re, level } of TEXTUAL_PRICE_LEVEL) {
+      if (re.test(allContent)) return level;
+    }
+    return null;
+  }
+
+  // --- Strategy 1: Repeated currency symbols (€€, $$$, etc.) ---
+  const symbolCounts: number[] = [];
+  for (const snippet of snippets) {
+    for (const match of snippet.content.matchAll(REPEATED_SYMBOL_RE)) {
+      const full = match[0].replace(/\s/g, "");
+      const count = full.length;
+      if (count >= 2 && count <= 4) {
+        symbolCounts.push(count);
+      }
+    }
+  }
+  if (symbolCounts.length > 0) {
+    // Take the median of all repeated-symbol signals
+    symbolCounts.sort((a, b) => a - b);
+    const median = symbolCounts[Math.floor(symbolCounts.length / 2)];
+    return Math.min(Math.max(median, 1), 4);
+  }
+
+  // --- Strategy 2: Textual price labels ---
+  for (const { re, level } of TEXTUAL_PRICE_LEVEL) {
+    if (re.test(allContent)) return level;
+  }
+
+  // --- Strategy 3: Numeric prices → infer bracket ---
+  const prices: number[] = [];
+  for (const snippet of snippets) {
+    for (const match of snippet.content.matchAll(NUMERIC_PRICE_RE)) {
+      // Pattern: €15 or $12.50
+      const prefixValue = match[2];
+      // Pattern: 15€ or 25,90€
+      const suffixValue = match[4];
+      const raw = prefixValue ?? suffixValue;
+      if (raw) {
+        const normalized = parseFloat(raw.replace(",", "."));
+        if (!isNaN(normalized) && normalized > 0 && normalized < 10000) {
+          prices.push(normalized);
+        }
+      }
+    }
+  }
+
+  if (prices.length > 0) {
+    prices.sort((a, b) => a - b);
+    const median = prices[Math.floor(prices.length / 2)];
+
+    // Bracket thresholds depend on category
+    const isAccommodation = category === "Sleeping place";
+    if (isAccommodation) {
+      // Hotel/accommodation: different price brackets
+      if (median <= 30) return 1;     // budget hostel/camping
+      if (median <= 70) return 2;     // mid-range
+      if (median <= 150) return 3;    // upper mid
+      return 4;                       // luxury
+    } else {
+      // Restaurant/food/general: meal-level brackets
+      if (median <= 8) return 1;      // street food / cheap eats
+      if (median <= 20) return 2;     // casual dining
+      if (median <= 45) return 3;     // upscale casual
+      return 4;                       // fine dining
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Category-aware lead inference (WS9: better deterministic fallback)
 // ---------------------------------------------------------------------------
 

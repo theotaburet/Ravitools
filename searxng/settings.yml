@@ -1,6 +1,11 @@
 # SearXNG settings for Ravitools
 # Enables JSON API format and relaxes limiter for local/server usage.
 # Mount this file at /etc/searxng/settings.yml in the container.
+#
+# Engine strategy (April 2026):
+#   - Google/Startpage/DuckDuckGo/Brave: frequently blocked or CAPTCHA'd
+#   - Working engines: yandex, presearch, mojeek, bing, aol, seznam
+#   - We explicitly enable reliable engines and increase request timeout
 
 use_default_settings: true
 
@@ -8,6 +13,14 @@ search:
   formats:
     - html
     - json
+  # Increase default timeout so slower engines have time to respond
+  default_timeout: 8
+
+outgoing:
+  # Increase request timeout for individual engines
+  request_timeout: 10.0
+  # Use a realistic browser User-Agent for outgoing requests
+  useragent_suffix: ""
 
 server:
   # Allow JSON API access without requiring a secret key
@@ -17,3 +30,45 @@ server:
   # Bind to all interfaces inside container
   bind_address: "0.0.0.0"
   port: 8080
+
+# Engine configuration: disable broken engines, tune working ones
+engines:
+
+  # --- DISABLED: frequently blocked or rate-limited ---
+  - name: google
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: duckduckgo
+    disabled: true
+  - name: brave
+    disabled: true
+  - name: karmasearch
+    disabled: true
+  - name: karmasearch videos
+    disabled: true
+  - name: qwant
+    disabled: true
+
+  # --- ENABLED & PRIORITIZED: reliably return results for European POIs ---
+  - name: presearch
+    disabled: false
+    weight: 1.5
+  - name: yandex
+    disabled: false
+    weight: 1.5
+  - name: mojeek
+    disabled: false
+    weight: 1.2
+  - name: bing
+    disabled: false
+    weight: 1.0
+  - name: aol
+    disabled: false
+    weight: 0.8
+  - name: seznam
+    disabled: false
+    weight: 0.5
+  - name: yahoo
+    disabled: false
+    weight: 0.5
