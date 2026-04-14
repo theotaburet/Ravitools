@@ -15,13 +15,6 @@ const MAX_SNIPPETS = 8;
 /** Timeout for search/geocode requests (ms) */
 const REQUEST_TIMEOUT = 15_000;
 
-/**
- * Default SearXNG engines to query.
- * Prioritizes engines that reliably return results for European POI searches.
- * Google/Startpage/DuckDuckGo/Brave are frequently blocked or CAPTCHA'd (April 2026).
- */
-const SEARXNG_ENGINES = "presearch,yandex,mojeek,bing,aol";
-
 const OFFICIAL_SITE_TAGS = ["website", "contact:website", "url", "contact:web"] as const;
 
 /**
@@ -470,7 +463,7 @@ export async function searchPoi(
       const res = await fetch(`${apiBase}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, language: "auto", engines: SEARXNG_ENGINES }),
+        body: JSON.stringify({ query, language: "auto" }),
         signal: controller.signal,
       });
 

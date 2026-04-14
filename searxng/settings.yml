@@ -15,10 +15,26 @@ search:
     - json
   # Increase default timeout so slower engines have time to respond
   default_timeout: 8
+  # Reduce ban time so transient errors don't kill engines for long
+  ban_time_on_fail: 2
+  max_ban_time_on_fail: 30
+  # Override suspension penalties — defaults are brutal
+  # (e.g. CAPTCHA = 24h, AccessDenied = 24h, TooManyRequests = 1h)
+  # For a local single-user instance, short suspensions are fine:
+  # the engine will be retried quickly after a transient error.
+  suspended_times:
+    SearxEngineAccessDenied: 60       # default 86400 (24h) → 1 min
+    SearxEngineCaptcha: 120           # default 86400 (24h) → 2 min
+    SearxEngineTooManyRequests: 30    # default 3600 (1h) → 30s
+    cf_SearxEngineCaptcha: 300        # Cloudflare CAPTCHA → 5 min
+    cf_SearxEngineAccessDenied: 300   # Cloudflare block → 5 min
+    recaptcha_SearxEngineCaptcha: 300 # reCAPTCHA → 5 min
 
 outgoing:
   # Increase request timeout for individual engines
-  request_timeout: 10.0
+  request_timeout: 12.0
+  # Allow slow engines to complete
+  max_request_timeout: 15.0
   # Use a realistic browser User-Agent for outgoing requests
   useragent_suffix: ""
 
