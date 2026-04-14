@@ -90,12 +90,13 @@ function makeBaseEnrichment(overrides: Partial<EnrichedData> = {}): EnrichedData
 // ===========================================================================
 
 describe("FVM-A: Source Discovery", () => {
-  it("A1: Restaurant query includes review platform bias", () => {
+  it("A1: Restaurant query includes review and hours context keywords", () => {
     const poi = makePoi({ category: "Restaurant or Bar" });
     const query = buildSearchQuery(poi, "Lyon");
-    expect(query).toContain("google maps");
-    expect(query).toContain("tripadvisor");
-    expect(query).toContain("yelp");
+    expect(query).toContain("avis");
+    expect(query).toContain("restaurant");
+    expect(query).toContain("horaires");
+    expect(query).toContain("Lyon");
   });
 
   it("A2: Food shop query includes resupply-relevant terms", () => {
@@ -107,21 +108,22 @@ describe("FVM-A: Source Discovery", () => {
     const query = buildSearchQuery(poi, "Valence");
     expect(query).toContain('"Carrefour Contact"');
     expect(query).toContain("Valence");
-    // Should contain review/hours bias (per-category: Food shop)
+    // Should contain food shop context keywords
     expect(query).toContain("horaires");
+    expect(query).toContain("magasin");
     expect(query).toContain("avis");
-    expect(query).toContain("review");
   });
 
-  it("A3: Sleeping place query includes booking platforms", () => {
+  it("A3: Sleeping place query includes accommodation context", () => {
     const poi = makePoi({
       category: "Sleeping place",
       name: "Camping du Lac",
       tags: { tourism: "camp_site" },
     });
     const query = buildSearchQuery(poi, null);
-    expect(query).toContain("booking");
-    expect(query).toContain("hotels.com");
+    expect(query).toContain("avis");
+    expect(query).toContain("hébergement");
+    expect(query).toContain("tarif");
   });
 
   it("A4: Gears query uses POI name for bike shop search", () => {
@@ -1041,24 +1043,26 @@ describe("FVM-WS5: Official Website Hardening", () => {
 // ===========================================================================
 
 describe("FVM-WS6: Per-Category Search Query Tuning", () => {
-  it("WS6-1: Restaurant query has tripadvisor and menu keywords", () => {
+  it("WS6-1: Restaurant query has restaurant and horaires keywords", () => {
     const poi = makePoi({ category: "Restaurant or Bar" });
     const query = buildSearchQuery(poi, "Lyon");
-    expect(query).toContain("tripadvisor");
-    expect(query).toContain("menu");
+    expect(query).toContain("avis");
+    expect(query).toContain("restaurant");
+    expect(query).toContain("horaires");
   });
 
-  it("WS6-2: Food shop query has ouverture keyword", () => {
+  it("WS6-2: Food shop query has horaires and magasin keywords", () => {
     const poi = makePoi({ category: "Food shop", name: "Carrefour", tags: { shop: "supermarket" } });
     const query = buildSearchQuery(poi, "Valence");
-    expect(query).toContain("ouverture");
+    expect(query).toContain("horaires");
+    expect(query).toContain("magasin");
   });
 
-  it("WS6-3: Sleeping place query has tarif and reservation keywords", () => {
+  it("WS6-3: Sleeping place query has tarif and hébergement keywords", () => {
     const poi = makePoi({ category: "Sleeping place", name: "Hotel du Parc", tags: { tourism: "hotel" } });
     const query = buildSearchQuery(poi, null);
     expect(query).toContain("tarif");
-    expect(query).toContain("reservation");
+    expect(query).toContain("hébergement");
   });
 
   it("WS6-4: Gears query has réparation and atelier keywords", () => {
@@ -1071,9 +1075,9 @@ describe("FVM-WS6: Per-Category Search Query Tuning", () => {
   it("WS6-5: unknown category falls back to default bias", () => {
     const poi = makePoi({ category: "DIY" as any, name: "Brico Depot", tags: { shop: "doityourself" } });
     const query = buildSearchQuery(poi, "Toulouse");
-    // Default bias should have generic review keywords
+    // Default bias should have generic avis keyword
     expect(query).toContain("avis");
-    expect(query).toContain("review");
+    expect(query).toContain("Toulouse");
   });
 
   it("WS6-6: cleanPoiNameForSearch removes parenthetical annotations", () => {

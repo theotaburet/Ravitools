@@ -272,6 +272,20 @@ export interface WebsitePreview {
   fetchedAt: string;
  }
 
+/** Rich geographic context from reverse geocoding, used for search query building and snippet filtering */
+export interface GeoContext {
+  /** Most specific locality (city/town/village/hamlet) */
+  locality: string | null;
+  /** County or department */
+  county: string | null;
+  /** State or region */
+  state: string | null;
+  /** Country name */
+  country: string | null;
+  /** Country code (ISO 3166-1 alpha-2, lowercase) */
+  countryCode: string | null;
+}
+
 /** Status of enrichment for a single POI */
 export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done" | "error" | "skipped";
 
@@ -307,6 +321,10 @@ export interface EnrichedData {
   skipReason?: SkipReason;
   /** City/locality resolved via reverse geocoding */
   locality: string | null;
+  /** Full geographic context from reverse geocoding */
+  geoContext?: GeoContext | null;
+  /** Search query sent to SearXNG (debug) */
+  searchQuery?: string | null;
   /** Number of distinct search snippets used (0 = no data) */
   sourceCount: number;
   /** Names of search engines that contributed snippets */

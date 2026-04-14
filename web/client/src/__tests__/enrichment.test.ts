@@ -107,7 +107,7 @@ describe("buildSearchQuery", () => {
   it("adds review/hours bias keywords", () => {
     const poi = makePoi();
     const query = buildSearchQuery(poi, null);
-    expect(query).toContain("avis OR review OR horaires");
+    expect(query).toContain("avis restaurant horaires");
   });
 
   it("falls back to OSM tags for unnamed POIs", () => {
@@ -773,15 +773,18 @@ vi.mock("../lib/enrichment/search", async () => {
   return {
     ...actual,
     fetchWebsitePreview: vi.fn(async () => null),
-    reverseGeocode: vi.fn(async () => "TestCity"),
+    reverseGeocode: vi.fn(async () => ({ locality: "TestCity", county: null, state: null, country: null, countryCode: null })),
     searchPoi: vi.fn(async (poi: POI) => {
       // Simulate a small delay
       await new Promise((r) => setTimeout(r, 5));
-      // Return 2 fake snippets
-      return [
-        { title: `${poi.name} review`, url: "https://example.com/1", content: "Nice place", engine: "google" },
-        { title: `${poi.name} hours`, url: "https://example.com/2", content: "Open 9-17", engine: "bing" },
-      ];
+      // Return 2 fake snippets wrapped in { snippets, query }
+      return {
+        snippets: [
+          { title: `${poi.name} review`, url: "https://example.com/1", content: "Nice place", engine: "google" },
+          { title: `${poi.name} hours`, url: "https://example.com/2", content: "Open 9-17", engine: "bing" },
+        ],
+        query: `"${poi.name}" avis restaurant site:tripadvisor.com`,
+      };
     }),
   };
 });
@@ -948,9 +951,12 @@ describe("enrichBatch pipeline", () => {
       await new Promise((r) => setTimeout(r, 5));
       // Abort right after the first search completes — synthesis hasn't started
       controller.abort();
-      return [
-        { title: "R", url: "https://ex.com", content: "Good", engine: "google" },
-      ];
+      return {
+        snippets: [
+          { title: "R", url: "https://ex.com", content: "Good", engine: "google" },
+        ],
+        query: `"${poi.name}" test`,
+      };
     });
 
     const pois = [makeBatchPoi("solo")];

@@ -2,7 +2,7 @@
 // SearXNG search adapter, Google Maps link builder, Nominatim reverse geocode
 // ---------------------------------------------------------------------------
 
-import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview, PoiCategory } from "../../types";
+import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview, PoiCategory, GeoContext } from "../../types";
 import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
@@ -243,41 +243,38 @@ interface SearXNGResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Per-category search query tuning (WS6)
+// Per-category search query tuning (WS6) + Google dorks
 // ---------------------------------------------------------------------------
 
 /**
  * Category-specific search biases.
- * Each category has platform hints and context keywords that improve
+ * Each category has lightweight context keywords that improve
  * the quality of search results from SearXNG.
+ * No site: dorks — SearXNG handles multi-engine discovery;
+ * Google Maps, Booking, Yelp, etc. surface naturally when relevant.
+ * Geographic filtering post-search handles false positives.
  * (WS6: search query quality)
  */
 const CATEGORY_SEARCH_BIAS: Record<string, {
-  platformHints: string;
   contextKeywords: string;
 }> = {
   "Restaurant or Bar": {
-    platformHints: '"google maps" OR yelp OR tripadvisor',
-    contextKeywords: "avis OR review OR horaires OR menu",
+    contextKeywords: "avis restaurant horaires",
   },
   "Food shop": {
-    platformHints: '"google maps" OR yelp',
-    contextKeywords: "horaires OR ouverture OR avis OR review",
+    contextKeywords: "horaires magasin avis",
   },
   "Sleeping place": {
-    platformHints: '"google maps" OR tripadvisor OR booking OR "hotels.com"',
-    contextKeywords: "avis OR review OR tarif OR reservation",
+    contextKeywords: "avis hébergement tarif",
   },
   "Gears": {
-    platformHints: '"google maps" OR yelp',
-    contextKeywords: "avis OR review OR réparation OR atelier OR repair",
+    contextKeywords: "avis atelier vélo réparation",
   },
 };
 
 /** Default bias for categories without specific tuning */
 const DEFAULT_SEARCH_BIAS = {
-  platformHints: '"google maps" OR yelp OR tripadvisor OR facebook OR instagram',
-  contextKeywords: "avis OR review OR horaires",
+  contextKeywords: "avis",
 };
 
 /**
@@ -297,13 +294,14 @@ export function cleanPoiNameForSearch(name: string): string {
 
 /**
  * Build an effective search query for a POI.
- * Uses per-category biases for better source targeting.
- * Cleans the POI name and adds geographic + category context.
- * (WS6: per-category query tuning)
+ * Uses site: dorks for targeted platform results + geographic context.
+ * Cleans the POI name and adds locality for disambiguation.
+ * (WS6: per-category query tuning + Google dorks)
  */
 export function buildSearchQuery(
   poi: POI,
   locality: string | null,
+  geoContext?: GeoContext | null,
 ): string {
   const parts: string[] = [];
 
@@ -316,9 +314,16 @@ export function buildSearchQuery(
     parts.push(`"${cleanedName}"`);
   }
 
-  // Locality for geographic precision
-  if (locality) {
-    parts.push(locality);
+  // Geographic precision: locality + county/state for disambiguation
+  // This is critical for filtering irrelevant results from wrong cities
+  const geoTerms: string[] = [];
+  if (locality) geoTerms.push(locality);
+  if (geoContext?.county && geoContext.county !== locality) geoTerms.push(geoContext.county);
+  if (geoContext?.state && geoContext.state !== locality && geoContext.state !== geoContext?.county) {
+    geoTerms.push(geoContext.state);
+  }
+  if (geoTerms.length > 0) {
+    parts.push(geoTerms.join(" "));
   }
 
   // Category hint for generic names or unnamed POIs
@@ -330,17 +335,98 @@ export function buildSearchQuery(
     if (tagHint) parts.push(tagHint);
   }
 
-  // Per-category bias (WS6)
+  // Per-category context keywords (lightweight, no site: dorks)
   const bias = CATEGORY_SEARCH_BIAS[poi.category] ?? DEFAULT_SEARCH_BIAS;
   parts.push(bias.contextKeywords);
-  parts.push(bias.platformHints);
 
   return parts.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Geographic filtering of search results
+// ---------------------------------------------------------------------------
+
+/**
+ * Known city/region names that are geographically far from each other.
+ * If a snippet mentions a city that is NOT the expected locality,
+ * it's likely a false positive (wrong establishment, homonym).
+ */
+
+/**
+ * Check if a snippet is geographically coherent with the expected location.
+ * Returns false if the snippet clearly refers to a different city/region.
+ *
+ * Strategy:
+ * - Extract city/region mentions from snippet title + content
+ * - If snippet mentions a specific city that is NOT the expected locality,
+ *   and does NOT mention the expected locality, it's a mismatch
+ * - Conservative: only reject when confident (explicit city mention in title)
+ */
+export function isSnippetGeographicallyCoherent(
+  snippet: { title: string; content: string; url: string },
+  geoContext: GeoContext | null,
+  locality: string | null,
+): boolean {
+  if (!geoContext && !locality) return true; // No geo data, can't filter
+
+  const expectedLocality = locality?.toLowerCase() ?? "";
+  const expectedCounty = geoContext?.county?.toLowerCase() ?? "";
+  const expectedState = geoContext?.state?.toLowerCase() ?? "";
+  const expectedCountry = geoContext?.country?.toLowerCase() ?? "";
+
+  // Combine title and content for analysis (title is more authoritative)
+  const titleLower = snippet.title.toLowerCase();
+  const contentLower = snippet.content.toLowerCase();
+  const fullText = `${titleLower} ${contentLower}`;
+
+  // If snippet mentions the expected locality, county or state → keep it
+  if (expectedLocality && fullText.includes(expectedLocality)) return true;
+  if (expectedCounty && fullText.includes(expectedCounty)) return true;
+  if (expectedState && fullText.includes(expectedState)) return true;
+
+  // --- Title-based city detection ---
+  // Tripadvisor, Google Maps, Booking titles often have "Name, City" pattern
+  // e.g. "Deni's, Torrevieja" or "Hotel du Port - Lyon"
+  const titleCityPatterns = [
+    /,\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*[-–:·]?\s*/,    // "Name, City"
+    /[-–]\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*$/,            // "Name - City"
+    /in\s+([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)/i,                 // "... in City"
+  ];
+
+  for (const pattern of titleCityPatterns) {
+    const match = snippet.title.match(pattern);
+    if (match) {
+      const mentionedCity = match[1].trim().toLowerCase();
+      // Skip very short matches (noise) or matches that ARE the expected locality
+      if (mentionedCity.length < 3) continue;
+      if (expectedLocality && mentionedCity === expectedLocality) return true;
+      if (expectedCounty && mentionedCity === expectedCounty) return true;
+
+      // The title explicitly mentions a different city → suspicious
+      // But only reject if it's NOT a substring of our expected locality
+      if (expectedLocality && !expectedLocality.includes(mentionedCity) && !mentionedCity.includes(expectedLocality)) {
+        dlog("search").info(`Geographic mismatch: snippet "${snippet.title}" mentions "${mentionedCity}" but expected "${expectedLocality}"`, {
+          url: snippet.url,
+          mentionedCity,
+          expectedLocality,
+        });
+        return false;
+      }
+    }
+  }
+
+  // --- URL-based geographic check ---
+  // Tripadvisor URLs contain city: tripadvisor.com/Restaurant_Review-g187529-...
+  // Booking URLs contain city: booking.com/hotel/es/...
+  // Don't reject based on URL alone — too many false positives
+
+  return true; // Default: keep the snippet (conservative)
 }
 
 /**
  * Search for POI information via the server-side SearXNG proxy.
  * Returns cleaned snippets ready for LLM synthesis.
+ * Applies geographic filtering to reject results from wrong locations.
  * Retries on 429 (rate-limited) and network errors with exponential backoff.
  */
 export async function searchPoi(
@@ -349,8 +435,9 @@ export async function searchPoi(
   apiBase: string = "/api",
   signal?: AbortSignal,
   maxRetries: number = 3,
-): Promise<SearchSnippet[]> {
-  const query = buildSearchQuery(poi, locality);
+  geoContext?: GeoContext | null,
+): Promise<{ snippets: SearchSnippet[]; query: string }> {
+  const query = buildSearchQuery(poi, locality, geoContext);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -397,10 +484,10 @@ export async function searchPoi(
 
       // Convert to our snippet format, deduplicate (WS7: normalized URLs), limit
       const seen = new Set<string>();
-      const snippets: SearchSnippet[] = [];
+      const rawSnippets: SearchSnippet[] = [];
 
       for (const result of data.results) {
-        if (snippets.length >= MAX_SNIPPETS) break;
+        if (rawSnippets.length >= MAX_SNIPPETS * 2) break; // Over-fetch for filtering
         if (!result.content?.trim()) continue;
 
         // WS7: deduplicate by normalized URL (strips tracking params, www/m prefix, trailing /)
@@ -408,7 +495,7 @@ export async function searchPoi(
         if (seen.has(normalizedUrl)) continue;
         seen.add(normalizedUrl);
 
-        snippets.push({
+        rawSnippets.push({
           title: result.title || "",
           url: result.url,
           content: result.content.trim(),
@@ -416,17 +503,31 @@ export async function searchPoi(
         });
       }
 
+      // Geographic filtering: reject snippets from wrong locations
+      const snippets: SearchSnippet[] = [];
+      let filteredCount = 0;
+      for (const s of rawSnippets) {
+        if (snippets.length >= MAX_SNIPPETS) break;
+        if (isSnippetGeographicallyCoherent(s, geoContext ?? null, locality)) {
+          snippets.push(s);
+        } else {
+          filteredCount++;
+        }
+      }
+
       // Debug: log raw search results for visibility
       log.info(`SearXNG results for "${poi.name}"`, {
         query,
         totalResults: data.results.length,
+        rawKept: rawSnippets.length,
+        geoFiltered: filteredCount,
         keptSnippets: snippets.length,
       });
       for (const s of snippets) {
         log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
       }
 
-      return snippets;
+      return { snippets, query };
     } catch (err) {
       clearTimeout(timeout);
       if (signal?.aborted) throw new Error("Cancelled");
@@ -466,7 +567,8 @@ interface NominatimReverseResponse {
 }
 
 /**
- * Resolve the locality (city/town/village) for a POI via Nominatim reverse geocode.
+ * Resolve the locality (city/town/village) and full geographic context
+ * for a POI via Nominatim reverse geocode.
  * Uses the server-side proxy to respect Nominatim rate limits.
  */
 export async function reverseGeocode(
@@ -474,7 +576,7 @@ export async function reverseGeocode(
   lon: number,
   apiBase: string = "/api",
   signal?: AbortSignal,
-): Promise<string | null> {
+): Promise<GeoContext | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
@@ -501,15 +603,22 @@ export async function reverseGeocode(
     const addr = data.address;
     if (!addr) return null;
 
-    return (
+    const locality =
       addr.city ||
       addr.town ||
       addr.village ||
       addr.hamlet ||
       addr.municipality ||
       addr.county ||
-      null
-    );
+      null;
+
+    return {
+      locality,
+      county: addr.county ?? null,
+      state: addr.state ?? null,
+      country: addr.country ?? null,
+      countryCode: (data as { address?: { country_code?: string } }).address?.country_code?.toLowerCase() ?? null,
+    };
   } catch {
     // Non-critical failure
     return null;

@@ -71,12 +71,13 @@ describe("searchPoi", () => {
       ]),
     });
 
-    const snippets = await searchPoi(makePoi(), "Tours", "/api");
-    expect(snippets).toHaveLength(2);
-    expect(snippets[0].title).toBe("Review 1");
-    expect(snippets[0].content).toBe("Great place");
-    expect(snippets[0].engine).toBe("google");
-    expect(snippets[1].url).toBe("https://b.com");
+    const result = await searchPoi(makePoi(), "Tours", "/api");
+    expect(result.snippets).toHaveLength(2);
+    expect(result.snippets[0].title).toBe("Review 1");
+    expect(result.snippets[0].content).toBe("Great place");
+    expect(result.snippets[0].engine).toBe("google");
+    expect(result.snippets[1].url).toBe("https://b.com");
+    expect(result.query).toContain('"Le Petit Zinc"');
   });
 
   it("deduplicates results by URL", async () => {
@@ -90,10 +91,10 @@ describe("searchPoi", () => {
       ]),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
-    expect(snippets).toHaveLength(2);
-    expect(snippets[0].url).toBe("https://same.com");
-    expect(snippets[1].url).toBe("https://other.com");
+    const result = await searchPoi(makePoi(), null, "/api");
+    expect(result.snippets).toHaveLength(2);
+    expect(result.snippets[0].url).toBe("https://same.com");
+    expect(result.snippets[1].url).toBe("https://other.com");
   });
 
   it("skips results with empty content", async () => {
@@ -107,9 +108,9 @@ describe("searchPoi", () => {
       ]),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
-    expect(snippets).toHaveLength(1);
-    expect(snippets[0].title).toBe("Has content");
+    const result = await searchPoi(makePoi(), null, "/api");
+    expect(result.snippets).toHaveLength(1);
+    expect(result.snippets[0].title).toBe("Has content");
   });
 
   it("limits results to MAX_SNIPPETS (8)", async () => {
@@ -126,8 +127,8 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse(many),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
-    expect(snippets).toHaveLength(8);
+    const result = await searchPoi(makePoi(), null, "/api");
+    expect(result.snippets).toHaveLength(8);
   });
 
   it("retries on 429 with backoff", async () => {
@@ -142,9 +143,9 @@ describe("searchPoi", () => {
         ]),
       });
 
-    const snippets = await searchPoi(makePoi(), null, "/api", undefined, 1);
-    expect(snippets).toHaveLength(1);
-    expect(snippets[0].title).toBe("After retry");
+    const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
+    expect(result.snippets).toHaveLength(1);
+    expect(result.snippets[0].title).toBe("After retry");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 10_000);
 
@@ -159,8 +160,8 @@ describe("searchPoi", () => {
         ]),
       });
 
-    const snippets = await searchPoi(makePoi(), null, "/api", undefined, 1);
-    expect(snippets).toHaveLength(1);
+    const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
+    expect(result.snippets).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 10_000);
 
@@ -188,8 +189,8 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse([]),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
-    expect(snippets).toHaveLength(0);
+    const result = await searchPoi(makePoi(), null, "/api");
+    expect(result.snippets).toHaveLength(0);
   });
 
   it("sends correct request body with query", async () => {
@@ -220,8 +221,8 @@ describe("searchPoi", () => {
       ]),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
-    expect(snippets[0].content).toBe("padded content");
+    const result = await searchPoi(makePoi(), null, "/api");
+    expect(result.snippets[0].content).toBe("padded content");
   });
 
   it("uses 'unknown' for missing engine field", async () => {
@@ -234,8 +235,8 @@ describe("searchPoi", () => {
       }),
     });
 
-    const snippets = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null, "/api");
     // engine is "" which is falsy → should fallback to "unknown"
-    expect(snippets[0].engine).toBe("unknown");
+    expect(result.snippets[0].engine).toBe("unknown");
   });
 });

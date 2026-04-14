@@ -175,6 +175,21 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
 
           <div className="sandbox-card sandbox-card-wide">
             <h4>Raw Search Snippets</h4>
+            {result.searchQuery && (
+              <div className="sandbox-block">
+                <strong>Search Query</strong>
+                <code className="sandbox-query">{result.searchQuery}</code>
+              </div>
+            )}
+            {result.geoContext && (
+              <div className="sandbox-block">
+                <strong>Geo Context</strong>
+                <span className="sandbox-muted">
+                  {[result.geoContext.locality, result.geoContext.county, result.geoContext.state, result.geoContext.country].filter(Boolean).join(" > ")}
+                  {result.geoContext.countryCode ? ` (${result.geoContext.countryCode.toUpperCase()})` : ""}
+                </span>
+              </div>
+            )}
             {result.rawSnippets.length > 0 ? (
               <ul className="sandbox-list">
                 {result.rawSnippets.map((snippet, index) => (

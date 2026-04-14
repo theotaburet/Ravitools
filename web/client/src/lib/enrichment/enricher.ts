@@ -4,7 +4,7 @@
 // Uses staged pipeline: geocode+search with concurrency, LLM serial.
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy, EnrichmentPhase, SearchSnippet } from "../../types";
+import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy, EnrichmentPhase, SearchSnippet, GeoContext } from "../../types";
 import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, fetchWebsitePreview } from "./search";
 import { synthesize, isEngineReady } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
@@ -113,12 +113,14 @@ export async function enrichPoi(
 
   let status: EnrichmentStatus = "pending";
   let locality: string | null = null;
+  let geoContext: GeoContext | null = null;
   let officialWebsite = null;
 
   try {
     // Step 1: Reverse geocode for locality
     status = "searching";
-    locality = await reverseGeocode(poi.lat, poi.lon, apiBase, options.signal);
+    geoContext = await reverseGeocode(poi.lat, poi.lon, apiBase, options.signal);
+    locality = geoContext?.locality ?? null;
 
     if (options.signal?.aborted) throw new Error("Cancelled");
 
@@ -131,6 +133,7 @@ export async function enrichPoi(
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "done", locality,
+        geoContext,
         sourceCount: 0, sourceEngines: [], confidence: 0,
         officialWebsite,
       };
@@ -140,7 +143,9 @@ export async function enrichPoi(
 
     // Step 2: Search for snippets
     if (options.signal?.aborted) throw new Error("Cancelled");
-    const snippets = await searchPoi(poi, locality, apiBase, options.signal);
+    const searchResult = await searchPoi(poi, locality, apiBase, options.signal, 3, geoContext);
+    const snippets = searchResult.snippets;
+    const searchQuery = searchResult.query;
 
     if (officialWebsiteUrl) {
       officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
@@ -151,6 +156,8 @@ export async function enrichPoi(
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
         status: "skipped", skipReason: "no-results", locality,
+        geoContext,
+        searchQuery,
         sourceCount: 0, sourceEngines: [], confidence: 0,
         officialWebsite,
       };
@@ -182,6 +189,8 @@ export async function enrichPoi(
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "done" as const, locality,
+          geoContext,
+          searchQuery,
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
@@ -202,6 +211,8 @@ export async function enrichPoi(
       googleMapsUrl, sourceUrls, rawSnippets: snippets,
       enrichedAt: new Date().toISOString(),
       status: "done" as const, locality,
+      geoContext,
+      searchQuery,
       sourceCount: snippets.length,
       sourceEngines: extractEngines(snippets),
       confidence: 0,
@@ -218,6 +229,7 @@ export async function enrichPoi(
       ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
       status: "error", error: message, locality,
+      geoContext,
       sourceCount: 0, sourceEngines: [], confidence: 0,
       officialWebsite,
     };
@@ -233,6 +245,8 @@ interface SearchStageResult {
   poi: POI;
   index: number;
   locality: string | null;
+  geoContext: GeoContext | null;
+  searchQuery: string | null;
   snippets: SearchSnippet[];
   googleMapsUrl: string;
   officialWebsite: EnrichedData["officialWebsite"];
@@ -398,9 +412,10 @@ export async function enrichBatch(
       const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
 
       try {
-        // Geocode
+        // Geocode → returns full GeoContext
         if (signal?.aborted) return;
-        const locality = await reverseGeocode(poi.lat, poi.lon, apiBase, signal);
+        const geoContext = await reverseGeocode(poi.lat, poi.lon, apiBase, signal);
+        const locality = geoContext?.locality ?? null;
         const officialWebsite = officialWebsiteUrl
           ? await fetchWebsitePreview(officialWebsiteUrl, apiBase, signal)
           : null;
@@ -412,10 +427,11 @@ export async function enrichBatch(
             ...createBaseEnrichment(poi),
             enrichedAt: new Date().toISOString(),
             status: "done", locality,
+            geoContext,
             sourceCount: 0, sourceEngines: [], confidence: 0,
             officialWebsite,
           };
-          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, geoContext, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
@@ -423,7 +439,9 @@ export async function enrichBatch(
 
         // Full policy: geocode + search
         if (signal?.aborted) return;
-        const snippets = await searchPoi(poi, locality, apiBase, signal);
+        const searchResult = await searchPoi(poi, locality, apiBase, signal, 3, geoContext);
+        const snippets = searchResult.snippets;
+        const searchQuery = searchResult.query;
 
         if (signal?.aborted) return;
         if (snippets.length === 0) {
@@ -431,16 +449,18 @@ export async function enrichBatch(
             ...createBaseEnrichment(poi),
             enrichedAt: new Date().toISOString(),
             status: "skipped", skipReason: "no-results", locality,
+            geoContext,
+            searchQuery,
             sourceCount: 0, sourceEngines: [], confidence: 0,
             officialWebsite,
           };
-          searchResults.push({ poi, index, locality, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
         }
 
-        searchResults.push({ poi, index, locality, snippets, googleMapsUrl, officialWebsite, policy });
+        searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, policy });
         onPhaseProgress?.("geocode-search", computeEta());
       } catch (err) {
         if (signal?.aborted) return;
@@ -451,7 +471,7 @@ export async function enrichBatch(
           status: "error", error: message, locality: null,
           sourceCount: 0, sourceEngines: [], confidence: 0,
         };
-        searchResults.push({ poi, index, locality: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, earlyResult: result });
+        searchResults.push({ poi, index, locality: null, geoContext: null, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, earlyResult: result });
         emitResult(poi, result);
         onPhaseProgress?.("geocode-search", computeEta());
       }
@@ -475,7 +495,7 @@ export async function enrichBatch(
     for (const item of needSynthesis) {
       if (signal?.aborted) break;
 
-      const { poi, locality, snippets, googleMapsUrl, officialWebsite } = item;
+      const { poi, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite } = item;
       const sourceUrls = snippets.map((s) => s.url);
 
       try {
@@ -502,6 +522,8 @@ export async function enrichBatch(
               googleMapsUrl, sourceUrls, rawSnippets: snippets,
               enrichedAt: new Date().toISOString(),
               status: "done", locality,
+              geoContext,
+              searchQuery,
               sourceCount: snippets.length,
               sourceEngines: extractEngines(snippets),
               confidence: 0,
@@ -524,6 +546,8 @@ export async function enrichBatch(
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "done", locality,
+          geoContext,
+          searchQuery,
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
@@ -543,6 +567,8 @@ export async function enrichBatch(
           googleMapsUrl, sourceUrls: [], rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
           status: "error", error: message, locality,
+          geoContext,
+          searchQuery,
           sourceCount: 0, sourceEngines: [], confidence: 0,
           officialWebsite,
         };
