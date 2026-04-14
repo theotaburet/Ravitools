@@ -68,6 +68,9 @@ function makeBaseEnrichment(overrides: Partial<EnrichedData> = {}): EnrichedData
     rating: null,
     reviewCount: null,
     hours: null,
+    openingHours: null,
+    description: null,
+    review: null,
     summary: null,
     translatedSummary: null,
     specialty: null,
@@ -500,27 +503,24 @@ describe("FVM-E: Category-Specific Contracts", () => {
 // ===========================================================================
 
 describe("FVM-F: LLM Output Contract", () => {
-  it("F1: parseLlmOutput accepts full valid JSON with sourceDigests", () => {
+  it("F1: parseLlmOutput accepts full valid JSON with new compact format", () => {
     const input = JSON.stringify({
       rating: 4.5,
       reviewCount: 200,
-      hours: "Mon-Sat 9:00-18:00",
-      summary: "Great bike shop with repair service.",
-      translatedSummary: "Super magasin velo avec atelier.",
-      specialty: "Bike shop and repair",
-      priceLevel: 3,
-      essentials: "Cycles Dupont is a reliable bike shop near the route.",
-      sourceDigests: [
-        { platform: "google_maps", brief: "Well-reviewed bike shop", url: "https://google.com/maps/test" },
-        { platform: "yelp", brief: "Fast repair service", url: "https://yelp.com/biz/test" },
+      hours: [
+        { day: "Mon-Sat", open: "9:00", close: "18:00" },
       ],
+      description: "Great bike shop with repair service.",
+      review: "Cycles Dupont is a reliable bike shop near the route.",
+      priceLevel: 3,
     });
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(4.5);
-    expect(result!.sourceDigests).toHaveLength(2);
-    expect(result!.sourceDigests[0].platform).toBe("google_maps");
-    expect(result!.essentials).toContain("Cycles Dupont");
+    expect(result!.hours).toHaveLength(1);
+    expect(result!.hoursFlat).toContain("Mon-Sat");
+    expect(result!.description).toContain("bike shop");
+    expect(result!.review).toContain("Cycles Dupont");
   });
 
   it("F2: parseLlmOutput strips markdown and extracts JSON", () => {
@@ -528,17 +528,15 @@ describe("FVM-F: LLM Output Contract", () => {
       rating: 3.0,
       reviewCount: null,
       hours: null,
-      summary: "Decent.",
-      translatedSummary: null,
-      specialty: null,
+      description: "Decent.",
+      review: null,
       priceLevel: null,
-      essentials: null,
-      sourceDigests: [],
     });
     const input = "Here is the information:\n```json\n" + json + "\n```\nHope this helps!";
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(3.0);
+    expect(result!.description).toBe("Decent.");
   });
 
   it("F3: parseLlmOutput rejects completely invalid output", () => {
@@ -556,41 +554,32 @@ describe("FVM-F: LLM Output Contract", () => {
     expect(parseLlmOutput(valid)!.rating).toBe(4.5);
   });
 
-  it("F5: parseLlmOutput filters empty sourceDigest briefs", () => {
+  it("F5: parseLlmOutput truncates description to 300 chars", () => {
+    const longDescription = "X".repeat(400);
     const input = JSON.stringify({
       rating: null,
       reviewCount: null,
       hours: null,
-      summary: "Test",
-      translatedSummary: null,
-      specialty: null,
+      description: longDescription,
+      review: null,
       priceLevel: null,
-      essentials: null,
-      sourceDigests: [
-        { platform: "google_maps", brief: "", url: null },
-        { platform: "yelp", brief: "Good reviews", url: "https://yelp.com/test" },
-      ],
     });
     const result = parseLlmOutput(input);
-    expect(result!.sourceDigests).toHaveLength(1);
-    expect(result!.sourceDigests[0].platform).toBe("yelp");
+    expect(result!.description!.length).toBe(300);
   });
 
-  it("F6: parseLlmOutput truncates essentials to 700 chars", () => {
-    const longEssentials = "X".repeat(800);
+  it("F6: parseLlmOutput truncates review to 300 chars", () => {
+    const longReview = "Y".repeat(400);
     const input = JSON.stringify({
       rating: null,
       reviewCount: null,
       hours: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
+      description: null,
+      review: longReview,
       priceLevel: null,
-      essentials: longEssentials,
-      sourceDigests: [],
     });
     const result = parseLlmOutput(input);
-    expect(result!.essentials!.length).toBe(700);
+    expect(result!.review!.length).toBe(300);
   });
 });
 
@@ -603,8 +592,8 @@ describe("FVM-G: Confidence And Coverage", () => {
     rating: null,
     reviewCount: null,
     hours: null,
-    summary: null,
-    specialty: null,
+    description: null,
+    review: null,
   };
 
   it("G1: confidence increases with more useful sources (below saturation)", () => {
@@ -646,8 +635,8 @@ describe("FVM-G: Confidence And Coverage", () => {
       rating: 4.0,
       reviewCount: 50,
       hours: "9-17",
-      summary: "Good place",
-      specialty: "Cafe",
+      description: "Good place",
+      review: "Cafe review",
       rawSnippets: makeSnippets(3),
     });
     const withoutFields = computeConfidence({
@@ -666,8 +655,8 @@ describe("FVM-G: Confidence And Coverage", () => {
       rating: 5.0,
       reviewCount: 1000,
       hours: "24/7",
-      summary: "Perfect in every way",
-      specialty: "Everything",
+      description: "Perfect in every way",
+      review: "Everything",
       rawSnippets: makeSnippets(20),
     });
     expect(maxScore).toBeLessThanOrEqual(1.0);
@@ -803,6 +792,8 @@ describe("FVM-K: Export Validation", () => {
     rating: 4.3,
     reviewCount: 120,
     hours: "Mon-Sat 12:00-14:00, 19:00-22:00",
+    description: "Excellent bistro with cyclist-friendly terrace, French cuisine.",
+    review: "Well-reviewed bistro with great terrace, popular with cyclists.",
     summary: "Great bistro for cyclists.",
     translatedSummary: null,
     specialty: "French bistro",
@@ -818,20 +809,20 @@ describe("FVM-K: Export Validation", () => {
   const poi = makePoi();
   const enrichments = new Map([["fvm-poi-1", enrichment]]);
 
-  it("K1: GPX includes structured.headline", () => {
+  it("K1: GPX includes description", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Excellent bistro with cyclist-friendly terrace.");
+    expect(gpx).toContain("Excellent bistro with cyclist-friendly terrace");
   });
 
-  it("K2: GPX includes structured.operationalSummary", () => {
+  it("K2: GPX includes review", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Best read as French bistro");
+    expect(gpx).toContain("Well-reviewed bistro with great terrace");
   });
 
-  it("K3: GPX includes structured.practicalities", () => {
+  it("K3: GPX includes rating and price", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Type: French bistro");
     expect(gpx).toContain("4.3/5");
+    expect(gpx).toContain("$$");
   });
 
   it("K4: GPX includes structured.cautions", () => {
@@ -845,18 +836,18 @@ describe("FVM-K: Export Validation", () => {
     expect(gpx).toContain("Well-reviewed bistro");
   });
 
-  it("K5b: GPX includes unknowns", () => {
+  it("K5b: GPX no longer includes unknowns (compact format)", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Bike parking availability unclear.");
+    // unknowns are no longer rendered in the compact export
+    expect(gpx).not.toContain("Bike parking availability unclear.");
   });
 
-  it("K6: KML includes the same structured bricks", () => {
+  it("K6: KML includes compact structured fields", () => {
     const kml = buildKmlString([poi], [], enrichments);
-    expect(kml).toContain("Excellent bistro with cyclist-friendly terrace.");
-    expect(kml).toContain("Best read as French bistro");
-    expect(kml).toContain("Type: French bistro");
+    expect(kml).toContain("Excellent bistro with cyclist-friendly terrace");
+    expect(kml).toContain("Well-reviewed bistro with great terrace");
     expect(kml).toContain("Price information could not be confirmed.");
-    expect(kml).toContain("Bike parking availability unclear.");
+    expect(kml).toContain("4.3/5");
   });
 
   it("K7: GeoJSON exposes enrichment_essentials", () => {
@@ -1237,8 +1228,8 @@ describe("FVM-WS10: Richer Confidence Formula", () => {
     rating: null,
     reviewCount: null,
     hours: null,
-    summary: null,
-    specialty: null,
+    description: null,
+    review: null,
   };
 
   it("WS10-1: official website boosts confidence", () => {
@@ -1293,8 +1284,8 @@ describe("FVM-WS10: Richer Confidence Formula", () => {
       rating: 5.0,
       reviewCount: 1000,
       hours: "24/7",
-      summary: "Perfect in every way with lots of detail and nuance",
-      specialty: "Everything",
+      description: "Perfect in every way with lots of detail and nuance",
+      review: "Everything",
       rawSnippets: Array.from({ length: 20 }, (_, i) => ({
         engine: ["google", "bing", "duckduckgo", "brave"][i % 4],
         content: "X".repeat(300),
@@ -1320,7 +1311,7 @@ describe("FVM-WS10: Richer Confidence Formula", () => {
       ...baseEnrichment,
       rating: 4.0,
       hours: "9-17",
-      summary: "Good place",
+      description: "Good place",
       rawSnippets: makeSnippets(4),
     });
     expect(withRating).toBeGreaterThan(base);
@@ -1337,8 +1328,8 @@ describe("FVM-WS11: Contradiction Confidence Penalty", () => {
     rating: 4.0,
     reviewCount: 50,
     hours: "9:00-18:00",
-    summary: "Good restaurant",
-    specialty: "French cuisine",
+    description: "Good restaurant",
+    review: "French cuisine",
   };
 
   it("WS11-1: divergences reduce confidence score", () => {
@@ -1388,8 +1379,8 @@ describe("FVM-WS11: Contradiction Confidence Penalty", () => {
       rating: null,
       reviewCount: null,
       hours: null,
-      summary: null,
-      specialty: null,
+      description: null,
+      review: null,
       rawSnippets: [{ engine: "google", content: "x", url: "https://a.com" }],
       structured: { divergences: ["A", "B", "C"] },
     });

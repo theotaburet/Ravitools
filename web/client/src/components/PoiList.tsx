@@ -204,9 +204,6 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                         {enrichment.reviewCount != null && (
                           <span> ({enrichment.reviewCount} reviews)</span>
                         )}
-                        {enrichment.specialty && (
-                          <span> · {enrichment.specialty}</span>
-                        )}
                         {enrichment.priceLevel != null && (
                           <span>
                             {" · "}
@@ -214,7 +211,20 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                           </span>
                         )}
                       </div>
-                      {enrichment.hours && (
+                      {enrichment.openingHours && enrichment.openingHours.length > 0 ? (
+                        <table className="poi-hours-table">
+                          <tbody>
+                            {enrichment.openingHours.map((entry, i) => (
+                              <tr key={i}>
+                                <td className="poi-hours-day">{entry.day}</td>
+                                <td className="poi-hours-time">
+                                  {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : enrichment.hours ? (
                         <div className="poi-enrichment-meta" style={{ whiteSpace: "pre-line" }}>
                           {enrichment.hours
                             .split(/[;\n]|(?:\s\/\s)/)
@@ -222,7 +232,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                             .filter((s) => s.length > 0)
                             .join("\n")}
                         </div>
-                      )}
+                      ) : null}
                       {(() => {
                         const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
                         return avail.length > 0 ? (
@@ -231,9 +241,14 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                           </div>
                         ) : null;
                       })()}
-                      {(enrichment.essentials || enrichment.translatedSummary || enrichment.summary) && (
+                      {enrichment.description && (
                         <div className="poi-enrichment-summary">
-                          {enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary}
+                          {enrichment.description}
+                        </div>
+                      )}
+                      {enrichment.review && (
+                        <div className="poi-enrichment-summary" style={{ fontStyle: "italic" }}>
+                          {enrichment.review}
                         </div>
                       )}
 

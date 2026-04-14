@@ -187,6 +187,12 @@ export function buildGeoJsonObject(
             enrichment_rating: enrichment.rating,
             enrichment_reviewCount: enrichment.reviewCount,
             enrichment_hours: enrichment.hours,
+            enrichment_openingHours: enrichment.openingHours
+              ? enrichment.openingHours.map((e) => `${e.day}: ${e.open === "closed" ? "Closed" : `${e.open}-${e.close ?? ""}`}`).join("; ")
+              : null,
+            enrichment_description: enrichment.description,
+            enrichment_review: enrichment.review,
+            // Backward compat: keep old field names populated
             enrichment_summary: enrichment.summary,
             enrichment_translatedSummary: enrichment.translatedSummary,
             enrichment_essentials: enrichment.essentials ?? null,
@@ -539,20 +545,17 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.rating != null) {
       parts.push(`Rating: ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
     }
-    if (enrichment.specialty) parts.push(`Type: ${enrichment.specialty}`);
-    if (enrichment.hours) parts.push(`Hours:\n${formatHours(enrichment.hours)}`);
     if (enrichment.priceLevel != null) parts.push(`Price: ${"$".repeat(enrichment.priceLevel)}`);
-    if (enrichment.structured?.headline) parts.push(enrichment.structured.headline);
-    if (enrichment.structured?.operationalSummary) parts.push(enrichment.structured.operationalSummary);
-    if (enrichment.structured?.practicalities?.length) parts.push(`Practicalities: ${enrichment.structured.practicalities.join("; ")}`);
+    if (enrichment.hours) parts.push(`Hours:\n${formatHours(enrichment.hours)}`);
+    // New compact fields
+    if (enrichment.description) parts.push(enrichment.description);
+    if (enrichment.review) parts.push(enrichment.review);
+    // Cautions/divergences/source rollup (still useful for GPS)
     if (enrichment.structured?.cautions?.length) parts.push(`Cautions: ${enrichment.structured.cautions.join(" ")}`);
-    if (enrichment.structured?.unknowns?.length) parts.push(`Unknown: ${enrichment.structured.unknowns.join(" ")}`);
     if (enrichment.structured?.divergences?.length) parts.push(`Divergences: ${enrichment.structured.divergences.join(" ")}`);
     if (enrichment.structured?.sourceRollup?.length) {
       parts.push(...enrichment.structured.sourceRollup.map((digest) => `Source - ${digest.platform}: ${digest.brief}`));
     }
-    const displaySummary = enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary;
-    if (displaySummary) parts.push(displaySummary);
     if (enrichment.locality) parts.push(`Location: ${enrichment.locality}`);
     if (enrichment.sourceCount > 0) parts.push(`Sources: ${enrichment.sourceCount}`);
     if (enrichment.confidence > 0) parts.push(`Confidence: ${Math.round(enrichment.confidence * 100)}%`);
@@ -586,19 +589,14 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
       const stars = "★".repeat(Math.round(enrichment.rating)) + "☆".repeat(5 - Math.round(enrichment.rating));
       parts.push(`<b>Rating:</b> ${stars} ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
     }
-    if (enrichment.specialty) parts.push(`<b>Type:</b> ${enrichment.specialty}`);
-    if (enrichment.hours) parts.push(`<b>Hours:</b><br/>${formatHoursHtml(enrichment.hours)}`);
     if (enrichment.priceLevel != null) parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
-    if (enrichment.structured?.headline) parts.push(`<i>${escapeXml(enrichment.structured.headline)}</i>`);
-    if (enrichment.structured?.operationalSummary) parts.push(`${escapeXml(enrichment.structured.operationalSummary)}`);
-    if (enrichment.structured?.practicalities?.length) {
-      parts.push(`<b>Practicalities:</b> ${escapeXml(enrichment.structured.practicalities.join("; "))}`);
-    }
+    if (enrichment.hours) parts.push(`<b>Hours:</b><br/>${formatHoursHtml(enrichment.hours)}`);
+    // New compact fields
+    if (enrichment.description) parts.push(`<i>${escapeXml(enrichment.description)}</i>`);
+    if (enrichment.review) parts.push(`${escapeXml(enrichment.review)}`);
+    // Cautions/divergences/source rollup
     if (enrichment.structured?.cautions?.length) {
       parts.push(`<b>Cautions:</b> ${escapeXml(enrichment.structured.cautions.join(" "))}`);
-    }
-    if (enrichment.structured?.unknowns?.length) {
-      parts.push(`<b>Unknown:</b> ${escapeXml(enrichment.structured.unknowns.join(" "))}`);
     }
     if (enrichment.structured?.divergences?.length) {
       parts.push(`<b>Divergences:</b> ${escapeXml(enrichment.structured.divergences.join(" "))}`);
@@ -606,8 +604,6 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.structured?.sourceRollup?.length) {
       parts.push(...enrichment.structured.sourceRollup.map((digest) => `<b>Source - ${escapeXml(digest.platform)}:</b> ${escapeXml(digest.brief)}`));
     }
-    const displaySummary = enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary;
-    if (displaySummary) parts.push(`<i>${displaySummary}</i>`);
     if (enrichment.locality) parts.push(`<b>Location:</b> ${enrichment.locality}`);
     if (enrichment.sourceCount > 0) parts.push(`<b>Sources:</b> ${enrichment.sourceCount}`);
     if (enrichment.confidence > 0) parts.push(`<b>Confidence:</b> ${Math.round(enrichment.confidence * 100)}%`);

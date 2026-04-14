@@ -672,7 +672,7 @@ const SLEEPING_PLACE_CONTRACT: EnrichmentCategoryContract = {
   ],
   valuableSignals: [
     "Explicit price or price range from booking platforms",
-    "Booking.com / Hostelworld / camping platform listing",
+    "Booking.com / Airbnb / Hostelworld / camping platform listing",
     "Mentions of bike-friendly labels (Accueil Velo, Cyclists Welcome)",
     "Kitchen / cooking facilities for self-caterers",
     "Wild camping tolerance notes",

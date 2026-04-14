@@ -6,7 +6,7 @@
 
 import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy, EnrichmentPhase, SearchSnippet, GeoContext } from "../../types";
 import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, fetchWebsitePreview } from "./search";
-import { synthesize, isEngineReady } from "./llm";
+import { synthesize, isEngineReady, flattenHours } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
 import { dlog } from "../debug-log";
 import { buildEssentialsText, buildSourceDigests, buildStructuredContent, extractPriceLevel } from "./structured";
@@ -16,6 +16,9 @@ function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "stat
     rating: null,
     reviewCount: null,
     hours: null,
+    openingHours: null,
+    description: null,
+    review: null,
     summary: null,
     translatedSummary: null,
     specialty: null,
@@ -181,17 +184,19 @@ export async function enrichPoi(
       if (options.signal?.aborted) throw new Error("Cancelled");
 
       if (synthesis) {
-        const sourceDigests = synthesis.sourceDigests.length > 0
-          ? synthesis.sourceDigests
-          : buildSourceDigests(snippets, officialWebsite);
+        const sourceDigests = buildSourceDigests(snippets, officialWebsite);
         const result = {
           ...createBaseEnrichment(poi),
           rating: synthesis.rating,
           reviewCount: synthesis.reviewCount,
-          hours: synthesis.hours,
-          summary: synthesis.summary,
-          translatedSummary: synthesis.translatedSummary,
-          specialty: synthesis.specialty,
+          hours: synthesis.hoursFlat,
+          openingHours: synthesis.hours,
+          description: synthesis.description,
+          review: synthesis.review,
+          // Legacy compat: populate summary/translatedSummary from description
+          summary: synthesis.description,
+          translatedSummary: synthesis.description,
+          specialty: null,
           // LLM price first, fallback to snippet extraction
           priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
@@ -202,7 +207,7 @@ export async function enrichPoi(
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
-          essentials: synthesis.essentials,
+          essentials: synthesis.review,
           sourceDigests,
           officialWebsite,
           unresponsiveEngines,
@@ -322,7 +327,7 @@ export async function enrichBatch(
         engines: enrichment.sourceEngines.join(",") || "none",
         rating: enrichment.rating,
         confidence: enrichment.confidence,
-        hasLLM: enrichment.summary != null,
+        hasLLM: enrichment.description != null,
         progress: `${completedCount}/${total}`,
       });
 
@@ -530,17 +535,19 @@ export async function enrichBatch(
           if (signal?.aborted) break;
 
           if (synthesis) {
-            const sourceDigests = synthesis.sourceDigests.length > 0
-              ? synthesis.sourceDigests
-              : buildSourceDigests(snippets, officialWebsite);
+            const sourceDigests = buildSourceDigests(snippets, officialWebsite);
             const result: EnrichedData = {
               ...createBaseEnrichment(poi),
               rating: synthesis.rating,
               reviewCount: synthesis.reviewCount,
-              hours: synthesis.hours,
-              summary: synthesis.summary,
-              translatedSummary: synthesis.translatedSummary,
-              specialty: synthesis.specialty,
+              hours: synthesis.hoursFlat,
+              openingHours: synthesis.hours,
+              description: synthesis.description,
+              review: synthesis.review,
+              // Legacy compat: populate summary/translatedSummary from description
+              summary: synthesis.description,
+              translatedSummary: synthesis.description,
+              specialty: null,
               // LLM price first, fallback to snippet extraction
               priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
               googleMapsUrl, sourceUrls, rawSnippets: snippets,
@@ -551,7 +558,7 @@ export async function enrichBatch(
               sourceCount: snippets.length,
               sourceEngines: extractEngines(snippets),
               confidence: 0,
-              essentials: synthesis.essentials,
+              essentials: synthesis.review,
               sourceDigests,
               officialWebsite,
               unresponsiveEngines,
@@ -727,8 +734,8 @@ export function computeConfidence(enrichment: {
   rating: number | null;
   reviewCount: number | null;
   hours: string | null;
-  summary: string | null;
-  specialty: string | null;
+  description: string | null;
+  review: string | null;
   officialWebsite?: { url: string } | null;
   structured?: { divergences: string[] } | null;
 }): number {
@@ -747,8 +754,8 @@ export function computeConfidence(enrichment: {
   if (enrichment.rating != null) fieldFactor += 0.04;
   if (enrichment.reviewCount != null) fieldFactor += 0.04;
   if (enrichment.hours != null) fieldFactor += 0.04;
-  if (enrichment.summary != null) fieldFactor += 0.04;
-  if (enrichment.specialty != null) fieldFactor += 0.04;
+  if (enrichment.description != null) fieldFactor += 0.04;
+  if (enrichment.review != null) fieldFactor += 0.04;
   fieldFactor = Math.min(fieldFactor, 0.20);
 
   // --- Official website bonus (0-0.10) ---

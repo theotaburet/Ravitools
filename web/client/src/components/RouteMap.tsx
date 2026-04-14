@@ -215,14 +215,27 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                             ({enrichment.reviewCount} reviews)
                           </span>
                         )}
+                        {enrichment.priceLevel != null && (
+                          <span style={{ color: "#6b6b6b" }}>
+                            {" · "}{"$".repeat(enrichment.priceLevel)}
+                          </span>
+                        )}
                       </div>
                     )}
-                    {enrichment.specialty && (
-                      <div style={{ fontStyle: "italic", color: "#6b6b6b" }}>
-                        {enrichment.specialty}
-                      </div>
-                    )}
-                    {enrichment.hours && (
+                    {enrichment.openingHours && enrichment.openingHours.length > 0 ? (
+                      <table className="poi-hours-table" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
+                        <tbody>
+                          {enrichment.openingHours.map((entry, i) => (
+                            <tr key={i}>
+                              <td className="poi-hours-day">{entry.day}</td>
+                              <td className="poi-hours-time">
+                                {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : enrichment.hours ? (
                       <div style={{ fontSize: "0.75rem", whiteSpace: "pre-line" }}>
                         {enrichment.hours
                           .split(/[;\n]|(?:\s\/\s)/)
@@ -230,7 +243,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                           .filter((s) => s.length > 0)
                           .join("\n")}
                       </div>
-                    )}
+                    ) : null}
                     {(() => {
                       const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
                       return avail.length > 0 ? (
@@ -239,7 +252,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                         </div>
                       ) : null;
                     })()}
-                    {(enrichment.essentials || enrichment.translatedSummary || enrichment.summary) && (
+                    {enrichment.description && (
                       <div
                         style={{
                           marginTop: "0.25rem",
@@ -247,7 +260,20 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                           lineHeight: "1.3",
                         }}
                       >
-                        {enrichment.essentials ?? enrichment.translatedSummary ?? enrichment.summary}
+                        {enrichment.description}
+                      </div>
+                    )}
+                    {enrichment.review && (
+                      <div
+                        style={{
+                          marginTop: "0.15rem",
+                          fontSize: "0.7rem",
+                          lineHeight: "1.3",
+                          fontStyle: "italic",
+                          color: "#6b6b6b",
+                        }}
+                      >
+                        {enrichment.review}
                       </div>
                     )}
                     {/* Divergences & cautions (WS12) */}

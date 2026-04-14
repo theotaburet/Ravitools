@@ -144,6 +144,7 @@ export const ENRICHMENT_PLATFORMS = [
   "facebook",
   "instagram",
   "booking",
+  "airbnb",
   "hotels_com",
   "official_website",
   "other",
@@ -289,6 +290,16 @@ export interface GeoContext {
 /** Status of enrichment for a single POI */
 export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done" | "error" | "skipped";
 
+/** A single opening hours entry for one day or day range */
+export interface OpeningHoursEntry {
+  /** Day or day range (e.g. "Mon", "Mon-Fri", "Sat-Sun") */
+  day: string;
+  /** Opening time (e.g. "08:00") or "closed" */
+  open: string;
+  /** Closing time (e.g. "18:00") or null when open === "closed" */
+  close: string | null;
+}
+
 /** Enriched data attached to a POI after LLM synthesis */
 export interface EnrichedData {
   /** Rating extracted from search snippets (1-5 scale, null if not found). Not an aggregation — reflects whatever rating sources mention. */
@@ -297,11 +308,17 @@ export interface EnrichedData {
   reviewCount: number | null;
   /** Opening hours as human-readable string, extracted from snippets */
   hours: string | null;
-  /** Short summary of the place (2-3 sentences max), synthesized from snippets in source language */
+  /** Structured opening hours table (compact LLM output). Null when no LLM or no hours found. */
+  openingHours: OpeningHoursEntry[] | null;
+  /** One-sentence description in target language (compact LLM output). Merges what was previously summary + specialty. */
+  description: string | null;
+  /** One-sentence review synthesis in target language (compact LLM output). Replaces essentials. */
+  review: string | null;
+  /** @deprecated Use `description` instead. Short summary of the place, synthesized from snippets in source language. */
   summary: string | null;
-  /** Summary translated/rewritten in the user's target language. Null when no LLM or language matches source. */
+  /** @deprecated Use `description` instead. Summary translated/rewritten in the user's target language. */
   translatedSummary: string | null;
-  /** Type/cuisine/specialty (e.g. "Italian restaurant", "mountain bike shop") */
+  /** @deprecated Merged into `description`. Type/cuisine/specialty. */
   specialty: string | null;
   /** Price level (1-4 scale, null if unknown). Extracted from snippets, not verified. */
   priceLevel: number | null;
@@ -331,7 +348,7 @@ export interface EnrichedData {
   sourceEngines: string[];
   /** Confidence score 0-1 based on source count, agreement, and structured field presence */
   confidence: number;
-  /** Main user-facing synthesis in target language, concise but complete on essentials */
+  /** @deprecated Use `review` instead. Main user-facing synthesis in target language. */
   essentials?: string | null;
   /** Short per-platform digest when the sources are identifiable */
   sourceDigests?: EnrichmentSourceDigest[];

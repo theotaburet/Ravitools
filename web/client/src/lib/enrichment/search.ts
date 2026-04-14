@@ -151,6 +151,7 @@ export function classifySourcePlatform(url: string): EnrichmentPlatform {
   if (hostname.includes("facebook.")) return "facebook";
   if (hostname.includes("instagram.")) return "instagram";
   if (hostname.includes("booking.")) return "booking";
+  if (hostname.includes("airbnb.")) return "airbnb";
   if (hostname.includes("hotels.")) return "hotels_com";
   return "other";
 }

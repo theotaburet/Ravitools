@@ -84,80 +84,90 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
       {result && (
         <div className="sandbox-grid">
           <div className="sandbox-card">
-            <h4>Structured Output</h4>
-            <div className="sandbox-block"><strong>Essentials</strong><p>{result.essentials ?? "None"}</p></div>
-            <div className="sandbox-block"><strong>Headline</strong><p>{result.structured?.headline ?? "None"}</p></div>
-            <div className="sandbox-block"><strong>Operational summary</strong><p>{result.structured?.operationalSummary ?? "None"}</p></div>
-            <div className="sandbox-block"><strong>Summary</strong><p>{result.translatedSummary ?? result.summary ?? "None"}</p></div>
+            <h4>Compact LLM Output</h4>
             <div className="sandbox-facts">
               <span>Rating: {result.rating != null ? `${result.rating.toFixed(1)}/5` : "n/a"}</span>
               <span>Reviews: {result.reviewCount ?? "n/a"}</span>
-              <span>Hours: {result.hours ?? "n/a"}</span>
-              <span>Specialty: {result.specialty ?? "n/a"}</span>
+              <span>Price: {result.priceLevel != null ? "$".repeat(result.priceLevel) : "n/a"}</span>
+              <span>Confidence: {(result.confidence * 100).toFixed(0)}%</span>
             </div>
             <div className="sandbox-block">
-              <strong>Practicalities</strong>
-              {result.structured?.practicalities.length ? (
-                <ul className="sandbox-list">
-                  {result.structured.practicalities.map((item, index) => <li key={`practical-${index}`}>{item}</li>)}
-                </ul>
-              ) : <p>None</p>}
+              <strong>Description</strong>
+              <p>{result.description ?? "None"}</p>
             </div>
             <div className="sandbox-block">
-              <strong>Source Digests (legacy)</strong>
-              {result.sourceDigests && result.sourceDigests.length > 0 ? (
-                <ul className="sandbox-list">
-                  {result.sourceDigests.map((digest, index) => (
-                    <li key={`${digest.platform}-${index}`}>
-                      <span className="sandbox-platform">{digest.platform}</span>
-                      <span>{digest.brief}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : <p>None — see Source Rollup below</p>}
+              <strong>Review</strong>
+              <p>{result.review ?? "None"}</p>
             </div>
             <div className="sandbox-block">
-              <strong>Cautions</strong>
-              {result.structured?.cautions.length ? (
-                <ul className="sandbox-list">
-                  {result.structured.cautions.map((item, index) => <li key={`caution-${index}`}>{item}</li>)}
-                </ul>
-              ) : <p>None</p>}
+              <strong>Opening Hours</strong>
+              {result.openingHours && result.openingHours.length > 0 ? (
+                <table className="poi-hours-table">
+                  <tbody>
+                    {result.openingHours.map((entry, i) => (
+                      <tr key={i}>
+                        <td className="poi-hours-day">{entry.day}</td>
+                        <td className="poi-hours-time">
+                          {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>{result.hours ?? "None"}</p>
+              )}
             </div>
-            <div className="sandbox-block">
-              <strong>Divergences</strong>
-              {result.structured?.divergences.length ? (
-                <ul className="sandbox-list sandbox-divergences">
-                  {result.structured.divergences.map((item, index) => <li key={`div-${index}`}>{item}</li>)}
-                </ul>
-              ) : <p>None</p>}
-            </div>
-            <div className="sandbox-block">
-              <strong>Unknowns</strong>
-              {result.structured?.unknowns.length ? (
-                <ul className="sandbox-list">
-                  {result.structured.unknowns.map((item, index) => <li key={`unk-${index}`}>{item}</li>)}
-                </ul>
-              ) : <p>None</p>}
-            </div>
-            <div className="sandbox-block">
-              <strong>Source Rollup</strong>
-              {result.structured?.sourceRollup.length ? (
-                <ul className="sandbox-list">
-                  {result.structured.sourceRollup.map((digest, index) => (
-                    <li key={`rollup-${index}`}>
-                      <span className="sandbox-platform">{digest.platform}</span>
-                      <span>{digest.brief}</span>
-                      {digest.url && <a className="poi-source-link" href={digest.url} target="_blank" rel="noreferrer">link</a>}
-                    </li>
-                  ))}
-                </ul>
-              ) : <p>None</p>}
-            </div>
-            <div className="sandbox-block">
-              <strong>Source Confirmation</strong>
-              <p>{result.structured?.sourceConfirmation ?? "none"}</p>
-            </div>
+
+            {/* Legacy structured fields (when present from older enrichments) */}
+            {result.structured && (
+              <>
+                <div className="sandbox-block">
+                  <strong>Cautions</strong>
+                  {result.structured.cautions.length ? (
+                    <ul className="sandbox-list">
+                      {result.structured.cautions.map((item, index) => <li key={`caution-${index}`}>{item}</li>)}
+                    </ul>
+                  ) : <p>None</p>}
+                </div>
+                <div className="sandbox-block">
+                  <strong>Divergences</strong>
+                  {result.structured.divergences.length ? (
+                    <ul className="sandbox-list sandbox-divergences">
+                      {result.structured.divergences.map((item, index) => <li key={`div-${index}`}>{item}</li>)}
+                    </ul>
+                  ) : <p>None</p>}
+                </div>
+                <div className="sandbox-block">
+                  <strong>Source Rollup</strong>
+                  {result.structured.sourceRollup.length ? (
+                    <ul className="sandbox-list">
+                      {result.structured.sourceRollup.map((digest, index) => (
+                        <li key={`rollup-${index}`}>
+                          <span className="sandbox-platform">{digest.platform}</span>
+                          <span>{digest.brief}</span>
+                          {digest.url && <a className="poi-source-link" href={digest.url} target="_blank" rel="noreferrer">link</a>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p>None</p>}
+                </div>
+                <div className="sandbox-block">
+                  <strong>Source Confirmation</strong>
+                  <p>{result.structured.sourceConfirmation ?? "none"}</p>
+                </div>
+              </>
+            )}
+
+            {/* Deprecated fields (backward compat display) */}
+            {(result.summary || result.specialty || result.essentials) && (
+              <div className="sandbox-block" style={{ opacity: 0.5 }}>
+                <strong>Legacy Fields</strong>
+                <p>summary: {result.summary ?? "—"}</p>
+                <p>specialty: {result.specialty ?? "—"}</p>
+                <p>essentials: {result.essentials ?? "—"}</p>
+              </div>
+            )}
           </div>
 
           <div className="sandbox-card">

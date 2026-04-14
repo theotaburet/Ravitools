@@ -15,19 +15,18 @@ describe("parseLlmOutput", () => {
       rating: 4.2,
       reviewCount: 87,
       hours: "Mon-Fri 12:00-14:00",
-      summary: "Excellent French bistro.",
-      translatedSummary: "Excellent bistrot français.",
-      specialty: "French bistro",
+      description: "Excellent French bistro.",
+      review: "Great food and cozy atmosphere.",
       priceLevel: 2,
     });
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(4.2);
     expect(result!.reviewCount).toBe(87);
-    expect(result!.hours).toBe("Mon-Fri 12:00-14:00");
-    expect(result!.summary).toBe("Excellent French bistro.");
-    expect(result!.translatedSummary).toBe("Excellent bistrot français.");
-    expect(result!.specialty).toBe("French bistro");
+    expect(result!.hours).toEqual([{ day: "All", open: "Mon-Fri 12:00-14:00", close: null }]);
+    expect(result!.hoursFlat).toBe("All: Mon-Fri 12:00-14:00");
+    expect(result!.description).toBe("Excellent French bistro.");
+    expect(result!.review).toBe("Great food and cozy atmosphere.");
     expect(result!.priceLevel).toBe(2);
   });
 
@@ -36,9 +35,8 @@ describe("parseLlmOutput", () => {
       rating: null,
       reviewCount: null,
       hours: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
+      description: null,
+      review: null,
       priceLevel: null,
     });
     const result = parseLlmOutput(input);
@@ -46,9 +44,9 @@ describe("parseLlmOutput", () => {
     expect(result!.rating).toBeNull();
     expect(result!.reviewCount).toBeNull();
     expect(result!.hours).toBeNull();
-    expect(result!.summary).toBeNull();
-    expect(result!.translatedSummary).toBeNull();
-    expect(result!.specialty).toBeNull();
+    expect(result!.hoursFlat).toBeNull();
+    expect(result!.description).toBeNull();
+    expect(result!.review).toBeNull();
     expect(result!.priceLevel).toBeNull();
   });
 
@@ -61,9 +59,8 @@ describe("parseLlmOutput", () => {
       rating: 3.5,
       reviewCount: 10,
       hours: null,
-      summary: "Nice.",
-      translatedSummary: null,
-      specialty: null,
+      description: "Nice.",
+      review: null,
       priceLevel: 1,
     });
     const input = "```json\n" + json + "\n```";
@@ -78,16 +75,15 @@ describe("parseLlmOutput", () => {
       rating: 5,
       reviewCount: null,
       hours: null,
-      summary: "Perfect.",
-      translatedSummary: null,
-      specialty: null,
+      description: "Perfect.",
+      review: null,
       priceLevel: null,
     });
     const input = "```\n" + json + "\n```";
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(5);
-    expect(result!.summary).toBe("Perfect.");
+    expect(result!.description).toBe("Perfect.");
   });
 
   // -------------------------------------------------------------------------
@@ -96,12 +92,12 @@ describe("parseLlmOutput", () => {
 
   it("extracts JSON from surrounding text", () => {
     const input = `Here is the information:
-{"rating": 4.0, "reviewCount": 50, "hours": "9-17", "summary": "Good café.", "translatedSummary": null, "specialty": "Coffee", "priceLevel": 2}
+{"rating": 4.0, "reviewCount": 50, "hours": "9-17", "description": "Good café.", "review": null, "priceLevel": 2}
 I hope this helps!`;
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(4);
-    expect(result!.specialty).toBe("Coffee");
+    expect(result!.description).toBe("Good café.");
   });
 
   // -------------------------------------------------------------------------
@@ -109,61 +105,47 @@ I hope this helps!`;
   // -------------------------------------------------------------------------
 
   it("rounds rating to 1 decimal place", () => {
-    const input = JSON.stringify({ rating: 4.567, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: 4.567, reviewCount: null, hours: null, description: null, review: null, priceLevel: null });
     const result = parseLlmOutput(input);
     expect(result!.rating).toBe(4.6);
   });
 
   it("rejects rating outside 1-5 range", () => {
-    const tooLow = JSON.stringify({ rating: 0, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const tooLow = JSON.stringify({ rating: 0, reviewCount: null, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(tooLow)!.rating).toBeNull();
 
-    const tooHigh = JSON.stringify({ rating: 6, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const tooHigh = JSON.stringify({ rating: 6, reviewCount: null, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(tooHigh)!.rating).toBeNull();
   });
 
   it("rejects negative reviewCount", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: -5, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: null, reviewCount: -5, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.reviewCount).toBeNull();
   });
 
   it("rounds reviewCount to integer", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: 42.7, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: null, reviewCount: 42.7, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.reviewCount).toBe(43);
   });
 
   it("rejects priceLevel outside 1-4 range", () => {
-    const tooLow = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: 0 });
+    const tooLow = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: null, review: null, priceLevel: 0 });
     expect(parseLlmOutput(tooLow)!.priceLevel).toBeNull();
 
-    const tooHigh = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: 5 });
+    const tooHigh = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: null, review: null, priceLevel: 5 });
     expect(parseLlmOutput(tooHigh)!.priceLevel).toBeNull();
   });
 
   it("rounds priceLevel to integer", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: 2.6 });
+    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: null, review: null, priceLevel: 2.6 });
     expect(parseLlmOutput(input)!.priceLevel).toBe(3);
   });
 
-  it("truncates summary to 500 characters", () => {
-    const longSummary = "A".repeat(600);
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: longSummary, translatedSummary: null, specialty: null, priceLevel: null });
+  it("truncates description to 300 characters", () => {
+    const longDescription = "A".repeat(400);
+    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: longDescription, review: null, priceLevel: null });
     const result = parseLlmOutput(input);
-    expect(result!.summary!.length).toBe(500);
-  });
-
-  it("truncates specialty to 100 characters", () => {
-    const longSpecialty = "B".repeat(150);
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: longSpecialty, priceLevel: null });
-    const result = parseLlmOutput(input);
-    expect(result!.specialty!.length).toBe(100);
-  });
-
-  it("truncates translatedSummary to 500 characters", () => {
-    const longTranslated = "C".repeat(600);
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: "Short.", translatedSummary: longTranslated, specialty: null, priceLevel: null });
-    const result = parseLlmOutput(input);
-    expect(result!.translatedSummary!.length).toBe(500);
+    expect(result!.description!.length).toBe(300);
   });
 
   // -------------------------------------------------------------------------
@@ -171,28 +153,28 @@ I hope this helps!`;
   // -------------------------------------------------------------------------
 
   it("treats string rating as null", () => {
-    const input = JSON.stringify({ rating: "four", reviewCount: null, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: "four", reviewCount: null, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.rating).toBeNull();
   });
 
   it("treats boolean reviewCount as null", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: true, hours: null, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: null, reviewCount: true, hours: null, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.reviewCount).toBeNull();
   });
 
   it("treats numeric hours as null", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: 9, summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: null, reviewCount: null, hours: 9, description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.hours).toBeNull();
   });
 
   it("treats empty string hours as null", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: "", summary: null, translatedSummary: null, specialty: null, priceLevel: null });
+    const input = JSON.stringify({ rating: null, reviewCount: null, hours: "", description: null, review: null, priceLevel: null });
     expect(parseLlmOutput(input)!.hours).toBeNull();
   });
 
-  it("treats empty string summary as null", () => {
-    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, summary: "", translatedSummary: null, specialty: null, priceLevel: null });
-    expect(parseLlmOutput(input)!.summary).toBeNull();
+  it("treats empty string description as null", () => {
+    const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: "", review: null, priceLevel: null });
+    expect(parseLlmOutput(input)!.description).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -218,9 +200,9 @@ I hope this helps!`;
     expect(result!.rating).toBe(3.0);
     expect(result!.reviewCount).toBeNull();
     expect(result!.hours).toBeNull();
-    expect(result!.summary).toBeNull();
-    expect(result!.translatedSummary).toBeNull();
-    expect(result!.specialty).toBeNull();
+    expect(result!.hoursFlat).toBeNull();
+    expect(result!.description).toBeNull();
+    expect(result!.review).toBeNull();
     expect(result!.priceLevel).toBeNull();
   });
 
@@ -229,9 +211,8 @@ I hope this helps!`;
       rating: 4.0,
       reviewCount: null,
       hours: null,
-      summary: "Good.",
-      translatedSummary: null,
-      specialty: null,
+      description: "Good.",
+      review: null,
       priceLevel: null,
       unexpectedField: "should be ignored",
       anotherOne: 42,
@@ -239,7 +220,7 @@ I hope this helps!`;
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(4.0);
-    expect(result!.summary).toBe("Good.");
+    expect(result!.description).toBe("Good.");
     // Extra fields should not appear in the result
     expect((result as unknown as Record<string, unknown>).unexpectedField).toBeUndefined();
   });

@@ -23,6 +23,7 @@ const PLATFORM_LABELS: Record<EnrichmentPlatform, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   booking: "Booking",
+  airbnb: "Airbnb",
   hotels_com: "Hotels.com",
   official_website: "Official site",
   other: "Web",
@@ -39,10 +40,11 @@ const PLATFORM_PRIORITY: Record<EnrichmentPlatform, number> = {
   tripadvisor: 2,
   yelp: 3,
   booking: 4,
-  hotels_com: 5,
-  facebook: 6,
-  instagram: 7,
-  other: 8,
+  airbnb: 5,
+  hotels_com: 6,
+  facebook: 7,
+  instagram: 8,
+  other: 9,
 };
 
 /**
@@ -50,7 +52,7 @@ const PLATFORM_PRIORITY: Record<EnrichmentPlatform, number> = {
  * Social platforms (Facebook, Instagram) provide presence, not reliable reputation.
  */
 const REPUTATION_PLATFORMS: Set<EnrichmentPlatform> = new Set([
-  "google_maps", "tripadvisor", "yelp", "booking", "hotels_com",
+  "google_maps", "tripadvisor", "yelp", "booking", "airbnb", "hotels_com",
 ]);
 
 /**

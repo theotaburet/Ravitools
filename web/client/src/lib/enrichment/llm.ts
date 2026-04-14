@@ -4,7 +4,7 @@
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
-import type { SearchSnippet, TargetLanguage, EnrichmentSourceDigest, WebsitePreview, PoiCategory } from "../../types";
+import type { SearchSnippet, TargetLanguage, WebsitePreview, PoiCategory, OpeningHoursEntry } from "../../types";
 import { dlog } from "../debug-log";
 import { getEnrichmentContract } from "../poi-config";
 
@@ -12,19 +12,19 @@ import { getEnrichmentContract } from "../poi-config";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Structured output from LLM synthesis */
+/** Compact structured output from LLM synthesis (Google Maps style) */
 export interface LlmSynthesis {
   rating: number | null;
   reviewCount: number | null;
-  hours: string | null;
-  /** Summary in source snippet language */
-  summary: string | null;
-  /** Summary rewritten in the user's target language (same as summary if source already matches) */
-  translatedSummary: string | null;
-  specialty: string | null;
+  /** Structured opening hours table */
+  hours: OpeningHoursEntry[] | null;
+  /** Flat hours string for backward compat & export (derived from hours table) */
+  hoursFlat: string | null;
+  /** One-sentence description in target language (merges what was previously summary + specialty) */
+  description: string | null;
+  /** One-sentence review/verdict in target language */
+  review: string | null;
   priceLevel: number | null;
-  essentials: string | null;
-  sourceDigests: EnrichmentSourceDigest[];
 }
 
 /** Progress callback for model loading */
@@ -126,10 +126,9 @@ function buildContractBlock(
   const bannedList = bannedPatterns.map((b) => `  - ${b}`).join("\n");
 
   return `
-
 Category-specific instructions for "${category}":
 
-Priority fields for essentials (in this order):
+Priority signals for description and review:
 ${priorityList}
 
 Valuable signals to include when found:
@@ -158,44 +157,33 @@ export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: str
   const contract = category ? getEnrichmentContract(category as PoiCategory) : null;
   const contractBlock = contract ? buildContractBlock(contract.category, contract.priorities, contract.valuableSignals, contract.bannedPatterns) : "";
 
-  return `You are a travel assistant. Given web search snippets about a place, extract useful information for a cyclist.
+  // Price emphasis for commercial categories
+  const commercialCategories = new Set(["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"]);
+  const priceBlock = category && commercialCategories.has(category)
+    ? `\n- "priceLevel": IMPORTANT for this category. Look for price indicators: €€/$$$ symbols, "inexpensive"/"moderate"/"expensive", explicit prices (15€, $20), Booking/Airbnb tariffs. 1=budget, 2=moderate, 3=upscale, 4=luxury.`
+    : "";
+
+  return `You are a travel assistant. Given web search snippets about a place, extract a compact summary for a cyclist.
 
 Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
 {
-  "rating": <number 1-5 or null if not mentioned in snippets>,
-  "reviewCount": <number or null if not mentioned>,
-  "hours": <string or null, e.g. "Mon-Fri 8:00-19:00, Sat 9:00-13:00">,
-  "summary": <string in the original snippet language, 2-3 sentences max, useful for a cyclist, or null>,
-  "translatedSummary": <same summary rewritten in ${langName}, 2-3 sentences max, or null if summary is null>,
-  "specialty": <string, type/cuisine/specialty, or null>,
-  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>,
-  "essentials": <string in ${langName}, 3-5 short factual sentences, or null>,
-  "sourceDigests": [
-    {
-      "platform": <google_maps|yelp|tripadvisor|facebook|instagram|booking|hotels_com|official_website|other>,
-      "brief": <one short factual sentence summarizing what this source contributes>,
-      "url": <source URL string or null>
-    }
-  ]
+  "rating": <number 1-5 or null>,
+  "reviewCount": <number or null>,
+  "hours": [{"day":"Mon-Fri","open":"08:00","close":"19:00"},{"day":"Sat","open":"09:00","close":"13:00"},{"day":"Sun","open":"closed","close":null}],
+  "description": <one sentence in ${langName}, what the place is and why it matters for a cyclist, or null>,
+  "review": <one sentence in ${langName}, synthesis of reviews/reputation, or null>,
+  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>
 }
 
 Rules:
-- Extract ONLY what the snippets actually say. Do NOT invent or guess.
-- If a field cannot be determined from snippets, ALWAYS use null. Never guess.
-- For rating: only extract if an explicit rating (e.g. "4.2/5", "4 stars") is mentioned. Do not estimate from sentiment.
-- For reviewCount: only extract if an explicit count is mentioned (e.g. "238 reviews"). Do not estimate.
-- "summary" must stay in the original language of the snippets (French, English, Italian, etc.).
-- "translatedSummary" must be written in ${langName}. If the snippets are already in ${langName}, copy the summary as-is.
-- Summary should mention: vibe, quality, cyclist-friendliness if mentioned.
-- "essentials" must be the main traveler-facing synthesis: concise but complete on what the place is, reputation, practical info, and any notable caveat.
-- "essentials" must read like a final production answer, not notes.
-- First sentence: identify the place and why it matters on-route.
-- Second sentence: reputation / quality signal from review platforms if present.
-- Third sentence: practical traveler information only (hours, resupply, sleep, bike relevance, official site).
-- Last sentence: strongest caveat or uncertainty if any.
-- Only add a sourceDigests entry when that platform is actually represented in the input.
-- Be concise. Prefer null over uncertain data.
-- When snippets are vague or contradictory, say so explicitly (e.g. "Limited information available", "Sources disagree"). Never fill gaps with plausible-sounding invented detail.
+- Extract ONLY what the snippets say. Do NOT invent or guess.
+- If a field cannot be determined, use null. Never guess.
+- "rating": only from explicit ratings (e.g. "4.2/5"). Do not estimate from sentiment.
+- "reviewCount": only from explicit counts (e.g. "238 reviews").
+- "hours": structured table. Each entry has "day" (e.g. "Mon", "Mon-Fri", "Sat-Sun"), "open" (time or "closed"), "close" (time or null if closed). Use null for the whole field if no hours found.
+- "description": ONE sentence in ${langName}. Include type/specialty if known (e.g. "Italian restaurant with terrace, good for resupply"). Merge vibe and utility.
+- "review": ONE sentence in ${langName}. Summarize reputation: rating, review sentiment, key strengths or caveats. If sources disagree, say so.${priceBlock}
+- Be maximally concise. No filler. Prefer null over uncertain data.
 ${contractBlock}`;
 }
 
@@ -277,12 +265,9 @@ export async function synthesize(
     log.info(`LLM synthesis for "${poiName}"`, {
       rawOutput: text.slice(0, 300),
       rating: parsed?.rating,
-      summary: parsed?.summary?.slice(0, 100),
-      translatedSummary: parsed?.translatedSummary?.slice(0, 100),
-      specialty: parsed?.specialty,
-      hours: parsed?.hours,
-      essentials: parsed?.essentials?.slice(0, 120),
-      digestCount: parsed?.sourceDigests?.length ?? 0,
+      description: parsed?.description?.slice(0, 100),
+      review: parsed?.review?.slice(0, 100),
+      hoursEntries: parsed?.hours?.length ?? 0,
     });
 
     return parsed;
@@ -293,7 +278,7 @@ export async function synthesize(
 }
 
 /**
- * Parse the LLM JSON output, tolerating minor formatting issues.
+ * Parse the LLM JSON output (compact format), tolerating minor formatting issues.
  * Exported for testing.
  */
 export function parseLlmOutput(text: string): LlmSynthesis | null {
@@ -310,6 +295,10 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
 
     const parsed = JSON.parse(jsonMatch[0]);
 
+    // Parse structured hours
+    const hours = parseHoursField(parsed.hours);
+    const hoursFlat = hours ? flattenHours(hours) : null;
+
     // Validate and coerce types
     return {
       rating: typeof parsed.rating === "number" && parsed.rating >= 1 && parsed.rating <= 5
@@ -318,40 +307,74 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
       reviewCount: typeof parsed.reviewCount === "number" && parsed.reviewCount >= 0
         ? Math.round(parsed.reviewCount)
         : null,
-      hours: typeof parsed.hours === "string" && parsed.hours.length > 0
-        ? parsed.hours
+      hours,
+      hoursFlat,
+      description: typeof parsed.description === "string" && parsed.description.length > 0
+        ? parsed.description.slice(0, 300)
         : null,
-      summary: typeof parsed.summary === "string" && parsed.summary.length > 0
-        ? parsed.summary.slice(0, 500)
-        : null,
-      translatedSummary: typeof parsed.translatedSummary === "string" && parsed.translatedSummary.length > 0
-        ? parsed.translatedSummary.slice(0, 500)
-        : null,
-      specialty: typeof parsed.specialty === "string" && parsed.specialty.length > 0
-        ? parsed.specialty.slice(0, 100)
+      review: typeof parsed.review === "string" && parsed.review.length > 0
+        ? parsed.review.slice(0, 300)
         : null,
       priceLevel: typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
         ? Math.round(parsed.priceLevel)
         : null,
-      essentials: typeof parsed.essentials === "string" && parsed.essentials.length > 0
-        ? parsed.essentials.slice(0, 700)
-        : null,
-      sourceDigests: Array.isArray(parsed.sourceDigests)
-        ? parsed.sourceDigests
-          .filter((entry: unknown) => typeof entry === "object" && entry !== null)
-          .map((entry: unknown) => {
-            const digest = entry as Record<string, unknown>;
-            return {
-              platform: typeof digest.platform === "string" ? digest.platform : "other",
-              brief: typeof digest.brief === "string" ? digest.brief.slice(0, 240) : "",
-              url: typeof digest.url === "string" && digest.url.length > 0 ? digest.url : null,
-            };
-          })
-          .filter((entry: { brief: string }) => entry.brief.length > 0) as EnrichmentSourceDigest[]
-        : [],
     };
   } catch {
     console.warn("[WebLLM] Failed to parse LLM output:", text.slice(0, 200));
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Hours parsing helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse the hours field from LLM output.
+ * Accepts either:
+ * - An array of OpeningHoursEntry objects (new format)
+ * - A string (legacy format) — converted to a single entry
+ * Returns null if invalid.
+ */
+function parseHoursField(raw: unknown): OpeningHoursEntry[] | null {
+  if (raw == null) return null;
+
+  // New format: array of {day, open, close}
+  if (Array.isArray(raw)) {
+    const entries: OpeningHoursEntry[] = [];
+    for (const item of raw) {
+      if (typeof item !== "object" || item === null) continue;
+      const entry = item as Record<string, unknown>;
+      const day = typeof entry.day === "string" ? entry.day.trim() : null;
+      const open = typeof entry.open === "string" ? entry.open.trim() : null;
+      if (!day || !open) continue;
+      entries.push({
+        day,
+        open,
+        close: typeof entry.close === "string" ? entry.close.trim() : null,
+      });
+    }
+    return entries.length > 0 ? entries : null;
+  }
+
+  // Legacy fallback: string → single entry with full text
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return [{ day: "All", open: raw.trim(), close: null }];
+  }
+
+  return null;
+}
+
+/**
+ * Flatten structured hours to a human-readable string for exports and backward compat.
+ * e.g. [{ day: "Mon-Fri", open: "08:00", close: "19:00" }] → "Mon-Fri: 08:00-19:00"
+ */
+export function flattenHours(entries: OpeningHoursEntry[]): string {
+  return entries
+    .map((e) => {
+      if (e.open.toLowerCase() === "closed") return `${e.day}: closed`;
+      if (e.close) return `${e.day}: ${e.open}-${e.close}`;
+      return `${e.day}: ${e.open}`;
+    })
+    .join("; ");
 }
