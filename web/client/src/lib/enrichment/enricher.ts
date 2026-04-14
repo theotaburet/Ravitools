@@ -51,6 +51,9 @@ export type EnrichmentProgressCallback = (
   total: number,
 ) => void;
 
+/** Callback fired when a POI starts being processed (for live animation) */
+export type PoiStartCallback = (poiId: string, poiName: string) => void;
+
 /** Callback for phase/ETA updates during enrichment */
 export type PhaseProgressCallback = (phase: EnrichmentPhase, etaSeconds: number | null) => void;
 
@@ -72,6 +75,8 @@ export interface EnrichBatchOptions {
   enrichAll?: boolean;
   /** Callback after each POI completes */
   onProgress?: EnrichmentProgressCallback;
+  /** Callback when a POI starts processing (for live animation of in-flight POIs) */
+  onPoiStart?: PoiStartCallback;
   /** Callback for phase/ETA updates */
   onPhaseProgress?: PhaseProgressCallback;
 }
@@ -146,6 +151,7 @@ export async function enrichPoi(
     const searchResult = await searchPoi(poi, locality, apiBase, options.signal, 3, geoContext);
     const snippets = searchResult.snippets;
     const searchQuery = searchResult.query;
+    const unresponsiveEngines = searchResult.unresponsiveEngines;
 
     if (officialWebsiteUrl) {
       officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
@@ -160,6 +166,7 @@ export async function enrichPoi(
         searchQuery,
         sourceCount: 0, sourceEngines: [], confidence: 0,
         officialWebsite,
+        unresponsiveEngines,
       };
     }
 
@@ -198,6 +205,7 @@ export async function enrichPoi(
           essentials: synthesis.essentials,
           sourceDigests,
           officialWebsite,
+          unresponsiveEngines,
         };
         result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
         result.essentials = result.essentials ?? buildEssentialsText(result.structured);
@@ -221,6 +229,7 @@ export async function enrichPoi(
       confidence: 0,
       sourceDigests: buildSourceDigests(snippets, officialWebsite),
       officialWebsite,
+      unresponsiveEngines,
     };
     noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
     noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
@@ -254,6 +263,8 @@ interface SearchStageResult {
   googleMapsUrl: string;
   officialWebsite: EnrichedData["officialWebsite"];
   policy: EnrichabilityPolicy;
+  /** Engines that were unresponsive during search */
+  unresponsiveEngines: [string, string][];
   /** If already resolved (skip/minimal/no-results/error), the final enrichment */
   earlyResult?: EnrichedData;
 }
@@ -278,6 +289,7 @@ export async function enrichBatch(
     targetLanguage = "en",
     enrichAll = false,
     onProgress,
+    onPoiStart,
     onPhaseProgress,
   } = options;
 
@@ -414,6 +426,9 @@ export async function enrichBatch(
       const googleMapsUrl = buildGoogleMapsUrl(poi);
       const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
 
+      // Signal that this POI has started processing (for live animation)
+      onPoiStart?.(poi.id, poi.name);
+
       try {
         // Geocode → returns full GeoContext
         if (signal?.aborted) return;
@@ -434,7 +449,7 @@ export async function enrichBatch(
             sourceCount: 0, sourceEngines: [], confidence: 0,
             officialWebsite,
           };
-          searchResults.push({ poi, index, locality, geoContext, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, geoContext, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite, policy, unresponsiveEngines: [], earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
@@ -445,6 +460,7 @@ export async function enrichBatch(
         const searchResult = await searchPoi(poi, locality, apiBase, signal, 3, geoContext);
         const snippets = searchResult.snippets;
         const searchQuery = searchResult.query;
+        const unresponsiveEngines = searchResult.unresponsiveEngines;
 
         if (signal?.aborted) return;
         if (snippets.length === 0) {
@@ -456,14 +472,15 @@ export async function enrichBatch(
             searchQuery,
             sourceCount: 0, sourceEngines: [], confidence: 0,
             officialWebsite,
+            unresponsiveEngines,
           };
-          searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets: [], googleMapsUrl, officialWebsite, policy, earlyResult: result });
+          searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets: [], googleMapsUrl, officialWebsite, policy, unresponsiveEngines, earlyResult: result });
           emitResult(poi, result);
           onPhaseProgress?.("geocode-search", computeEta());
           return;
         }
 
-        searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, policy });
+        searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, policy, unresponsiveEngines });
         onPhaseProgress?.("geocode-search", computeEta());
       } catch (err) {
         if (signal?.aborted) return;
@@ -474,7 +491,7 @@ export async function enrichBatch(
           status: "error", error: message, locality: null,
           sourceCount: 0, sourceEngines: [], confidence: 0,
         };
-        searchResults.push({ poi, index, locality: null, geoContext: null, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, earlyResult: result });
+        searchResults.push({ poi, index, locality: null, geoContext: null, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, unresponsiveEngines: [], earlyResult: result });
         emitResult(poi, result);
         onPhaseProgress?.("geocode-search", computeEta());
       }
@@ -498,8 +515,11 @@ export async function enrichBatch(
     for (const item of needSynthesis) {
       if (signal?.aborted) break;
 
-      const { poi, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite } = item;
+      const { poi, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, unresponsiveEngines } = item;
       const sourceUrls = snippets.map((s) => s.url);
+
+      // Signal that this POI is now in LLM synthesis (for live animation)
+      onPoiStart?.(poi.id, poi.name);
 
       try {
         if (signal?.aborted) break;
@@ -534,6 +554,7 @@ export async function enrichBatch(
               essentials: synthesis.essentials,
               sourceDigests,
               officialWebsite,
+              unresponsiveEngines,
             };
             result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
             result.essentials = result.essentials ?? buildEssentialsText(result.structured);
@@ -559,6 +580,7 @@ export async function enrichBatch(
           confidence: 0,
           sourceDigests: buildSourceDigests(snippets, officialWebsite),
           officialWebsite,
+          unresponsiveEngines,
         };
         noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
         noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
@@ -577,6 +599,7 @@ export async function enrichBatch(
           searchQuery,
           sourceCount: 0, sourceEngines: [], confidence: 0,
           officialWebsite,
+          unresponsiveEngines,
         };
         emitResult(poi, errResult);
         onPhaseProgress?.("synthesize", computeEta());

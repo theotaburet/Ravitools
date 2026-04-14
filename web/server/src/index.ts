@@ -337,6 +337,17 @@ app.post("/search", enrichLimiter, async (req, res) => {
 
     const data = await searchRes.text();
 
+    // Log unresponsive engines for observability
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.unresponsive_engines?.length > 0) {
+        log.warn({
+          query: (req.body as { query?: string }).query?.slice(0, 60),
+          unresponsive: parsed.unresponsive_engines,
+        }, "SearXNG unresponsive engines");
+      }
+    } catch { /* non-critical parse failure */ }
+
     // Cache the response
     searchCache.set(cacheKey, data);
     log.info({ cacheKey, bytes: data.length }, "Cached search response");

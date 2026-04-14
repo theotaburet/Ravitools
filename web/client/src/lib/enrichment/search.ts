@@ -247,6 +247,8 @@ interface SearXNGResponse {
   results: SearXNGResult[];
   query: string;
   number_of_results?: number;
+  /** Engines that failed to respond: [[engine_name, error_message], ...] */
+  unresponsive_engines?: [string, string][];
 }
 
 // ---------------------------------------------------------------------------
@@ -443,7 +445,7 @@ export async function searchPoi(
   signal?: AbortSignal,
   maxRetries: number = 3,
   geoContext?: GeoContext | null,
-): Promise<{ snippets: SearchSnippet[]; query: string }> {
+): Promise<{ snippets: SearchSnippet[]; query: string; unresponsiveEngines: [string, string][] }> {
   const query = buildSearchQuery(poi, locality, geoContext);
   let lastError: Error | null = null;
 
@@ -529,12 +531,18 @@ export async function searchPoi(
         rawKept: rawSnippets.length,
         geoFiltered: filteredCount,
         keptSnippets: snippets.length,
+        unresponsiveEngines: data.unresponsive_engines?.length ?? 0,
       });
       for (const s of snippets) {
         log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
       }
+      if (data.unresponsive_engines && data.unresponsive_engines.length > 0) {
+        log.info(`Unresponsive engines for "${poi.name}": ${data.unresponsive_engines.map(([e, r]) => `${e} (${r})`).join(", ")}`, {
+          engines: data.unresponsive_engines,
+        });
+      }
 
-      return { snippets, query };
+      return { snippets, query, unresponsiveEngines: data.unresponsive_engines ?? [] };
     } catch (err) {
       clearTimeout(timeout);
       if (signal?.aborted) throw new Error("Cancelled");

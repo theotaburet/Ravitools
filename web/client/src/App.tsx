@@ -234,6 +234,7 @@ export default function App() {
               poiCount={filteredPois.length}
               enrichedCount={enrichments.size}
               pendingCount={pendingEnrichmentCount}
+              enrichments={enrichments}
               targetLanguage={targetLanguage}
               onLanguageChange={setTargetLanguage}
               enrichAll={enrichAll}
@@ -276,6 +277,7 @@ export default function App() {
               enrichments={enrichments}
               selectedPoiId={selectedPoiId}
               onSelectPoi={setSelectedPoiId}
+              enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
               targetLanguage={targetLanguage}
             />
           )}
@@ -292,7 +294,7 @@ export default function App() {
             enrichments={enrichments}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
-            enrichingPoiId={enrichmentJob.stage === "running" ? enrichmentJob.currentPoiId : null}
+            enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
             targetLanguage={targetLanguage}
           />
         </main>

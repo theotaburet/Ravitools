@@ -57,10 +57,12 @@ interface Props {
   enrichments: Map<string, EnrichedData>;
   selectedPoiId?: string | null;
   onSelectPoi?: (poiId: string | null) => void;
+  /** IDs of POIs currently being enriched (for in-progress indicator) */
+  enrichingPoiIds?: Set<string> | null;
   targetLanguage?: TargetLanguage;
 }
 
-export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetLanguage = "en" }: Props) {
+export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -135,6 +137,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
             const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
             const showSources = expandedSources.has(poi.id);
             const isSelected = selectedPoiId === poi.id;
+            const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
 
             return (
               <div
@@ -178,6 +181,13 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, targetL
                       </div>
                     ) : null;
                   })()}
+
+                  {/* In-progress enrichment indicator */}
+                  {isEnriching && (!enrichment || enrichment.status !== "done") && (
+                    <div className="poi-enrichment-meta poi-enriching-indicator">
+                      <span className="spinner-sm" /> Searching...
+                    </div>
+                  )}
 
                   {/* Enrichment data */}
                   {enrichment && enrichment.status === "done" && (

@@ -784,6 +784,7 @@ vi.mock("../lib/enrichment/search", async () => {
           { title: `${poi.name} hours`, url: "https://example.com/2", content: "Open 9-17", engine: "bing" },
         ],
         query: `"${poi.name}" avis restaurant site:tripadvisor.com`,
+        unresponsiveEngines: [],
       };
     }),
   };
@@ -956,6 +957,7 @@ describe("enrichBatch pipeline", () => {
           { title: "R", url: "https://ex.com", content: "Good", engine: "google" },
         ],
         query: `"${poi.name}" test`,
+        unresponsiveEngines: [],
       };
     });
 

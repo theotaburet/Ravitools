@@ -339,6 +339,8 @@ export interface EnrichedData {
   officialWebsite?: WebsitePreview | null;
   /** Hardened structured content consumed by UI/export/sandbox */
   structured?: EnrichmentStructuredContent;
+  /** Engines that were unresponsive during search: [[engine_name, error_reason], ...] */
+  unresponsiveEngines?: [string, string][];
 }
 
 /** Overall enrichment job state */
@@ -367,10 +369,12 @@ export interface EnrichmentJobState {
   errorCount: number;
   /** POIs skipped (generic name, low-value category, etc.) */
   skippedCount: number;
-  /** Current POI being processed */
+  /** Current POI being processed (last started, for label display) */
   currentPoiName: string | null;
-  /** ID of the POI currently being enriched (for UI highlighting) */
+  /** ID of the POI currently being enriched (for label display) */
   currentPoiId: string | null;
+  /** IDs of all POIs currently in-flight (for multi-marker animation) */
+  activePoiIds: Set<string>;
   /** LLM model loading progress (0-1) */
   modelLoadProgress: number;
   /** Whether WebGPU is available */

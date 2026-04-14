@@ -3,7 +3,7 @@
 // Neobrutalist design: progress bar, model download, batch trigger
 // ---------------------------------------------------------------------------
 
-import type { EnrichmentJobState, TargetLanguage } from "../types";
+import type { EnrichmentJobState, TargetLanguage, EnrichedData } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
 import { countFullEnrichable, countEnrichable } from "../lib/poi-config";
 
@@ -23,6 +23,8 @@ interface Props {
   enrichedCount: number;
   /** Number of POIs that still need enrichment (unenriched + errors) */
   pendingCount: number;
+  /** Enrichment results for aggregating engine failures */
+  enrichments: Map<string, EnrichedData>;
   targetLanguage: TargetLanguage;
   onLanguageChange: (lang: TargetLanguage) => void;
   enrichAll: boolean;
@@ -38,6 +40,7 @@ export function EnrichmentPanel({
   poiCount,
   enrichedCount,
   pendingCount,
+  enrichments,
   targetLanguage,
   onLanguageChange,
   enrichAll,
@@ -62,6 +65,19 @@ export function EnrichmentPanel({
         : isDone
           ? 100
           : 0;
+
+  // Aggregate unresponsive engines across all enrichment results
+  const unresponsiveEngineMap = new Map<string, string>();
+  for (const [, data] of enrichments) {
+    if (data.unresponsiveEngines) {
+      for (const [engine, reason] of data.unresponsiveEngines) {
+        if (!unresponsiveEngineMap.has(engine)) {
+          unresponsiveEngineMap.set(engine, reason);
+        }
+      }
+    }
+  }
+  const hasUnresponsiveEngines = unresponsiveEngineMap.size > 0;
 
   return (
     <div className="enrichment-panel">
@@ -209,7 +225,9 @@ export function EnrichmentPanel({
           </div>
           {job.currentPoiName && (
             <div className="text-xs text-muted font-mono truncate">
-              Current: {job.currentPoiName}
+              {job.activePoiIds.size > 1
+                ? `Processing ${job.activePoiIds.size} POIs (${job.currentPoiName}...)`
+                : `Current: ${job.currentPoiName}`}
             </div>
           )}
           {(job.errorCount > 0 || job.skippedCount > 0) && (
@@ -295,6 +313,23 @@ export function EnrichmentPanel({
             Re-enrich all
           </button>
         </div>
+      )}
+
+      {/* Unresponsive engines warning */}
+      {hasUnresponsiveEngines && (isDone || isRunning || hasError) && (
+        <details className="engine-failures">
+          <summary className="engine-failures-summary">
+            {unresponsiveEngineMap.size} search engine{unresponsiveEngineMap.size > 1 ? "s" : ""} degraded
+          </summary>
+          <ul className="engine-failures-list">
+            {[...unresponsiveEngineMap.entries()].map(([engine, reason]) => (
+              <li key={engine}>
+                <span className="engine-name">{engine}</span>
+                <span className="engine-reason">{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Error */}

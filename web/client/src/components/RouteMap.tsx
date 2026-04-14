@@ -27,8 +27,8 @@ interface Props {
   enrichments: Map<string, EnrichedData>;
   selectedPoiId?: string | null;
   onSelectPoi?: (poiId: string | null) => void;
-  /** ID of the POI currently being enriched (pulsing animation) */
-  enrichingPoiId?: string | null;
+  /** IDs of POIs currently being enriched (pulsing animation on all in-flight) */
+  enrichingPoiIds?: Set<string> | null;
   /** Target language for i18n */
   targetLanguage?: TargetLanguage;
 }
@@ -81,7 +81,7 @@ function FlyToSelected({
   return null;
 }
 
-export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiId, targetLanguage = "en" }: Props) {
+export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
@@ -163,7 +163,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
         const enrichment = enrichments.get(poi.id);
         const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
         const isSelected = selectedPoiId === poi.id;
-        const isEnriching = enrichingPoiId === poi.id;
+        const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
         const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
         const size = isSelected ? 32 : 24;
 

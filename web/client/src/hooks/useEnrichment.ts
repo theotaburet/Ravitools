@@ -33,6 +33,7 @@ const INITIAL_JOB: EnrichmentJobState = {
   skippedCount: 0,
   currentPoiName: null,
   currentPoiId: null,
+  activePoiIds: new Set(),
   modelLoadProgress: 0,
   webGpuAvailable: false,
   searxngAvailable: false,
@@ -153,8 +154,9 @@ export function useEnrichment() {
           etaSeconds: null,
           errorCount: 0,
           skippedCount: 0,
-          currentPoiId: pois[0]?.id ?? null,
-          currentPoiName: pois[0]?.name ?? null,
+          currentPoiId: null,
+          currentPoiName: null,
+          activePoiIds: new Set(),
         });
 
         // Build a POI lookup for retry passes
@@ -167,6 +169,18 @@ export function useEnrichment() {
           skipUnnamed: true,
           targetLanguage,
           enrichAll,
+          onPoiStart: (poiId, poiName) => {
+            setJob((prev) => {
+              const nextActive = new Set(prev.activePoiIds);
+              nextActive.add(poiId);
+              return {
+                ...prev,
+                currentPoiId: poiId,
+                currentPoiName: poiName,
+                activePoiIds: nextActive,
+              };
+            });
+          },
           onProgress: (poiId, enrichment, completed, total) => {
             // Update enrichments map incrementally
             updateEnrichments((prev) => {
@@ -175,18 +189,18 @@ export function useEnrichment() {
               return next;
             });
 
-            // Track the next POI being processed
-            const nextPoi = completed < total ? pois[completed] : null;
-
-            setJob((prev) => ({
-              ...prev,
-              completed,
-              total,
-              errorCount: prev.errorCount + (enrichment.status === "error" ? 1 : 0),
-              skippedCount: prev.skippedCount + (enrichment.status === "skipped" ? 1 : 0),
-              currentPoiName: nextPoi?.name ?? null,
-              currentPoiId: nextPoi?.id ?? null,
-            }));
+            setJob((prev) => {
+              const nextActive = new Set(prev.activePoiIds);
+              nextActive.delete(poiId);
+              return {
+                ...prev,
+                completed,
+                total,
+                errorCount: prev.errorCount + (enrichment.status === "error" ? 1 : 0),
+                skippedCount: prev.skippedCount + (enrichment.status === "skipped" ? 1 : 0),
+                activePoiIds: nextActive,
+              };
+            });
           },
           onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
             updateJob({ phase, etaSeconds });
@@ -223,6 +237,7 @@ export function useEnrichment() {
             phase: "retry",
             currentPoiName: failedPois[0]?.name ?? null,
             currentPoiId: failedPois[0]?.id ?? null,
+            activePoiIds: new Set(),
           });
 
           // Wait before retry to let rate-limits cool down
@@ -237,6 +252,18 @@ export function useEnrichment() {
             skipUnnamed: true,
             targetLanguage,
             enrichAll,
+            onPoiStart: (poiId, poiName) => {
+              setJob((prev) => {
+                const nextActive = new Set(prev.activePoiIds);
+                nextActive.add(poiId);
+                return {
+                  ...prev,
+                  currentPoiId: poiId,
+                  currentPoiName: poiName,
+                  activePoiIds: nextActive,
+                };
+              });
+            },
             onProgress: (poiId, enrichment) => {
               // Overwrite the previous error result
               updateEnrichments((prev) => {
@@ -245,9 +272,11 @@ export function useEnrichment() {
                 return next;
               });
 
-              // Update error count: decrement if this retry succeeded (was error → now ok)
+              // Update error count: decrement if this retry succeeded (was error -> now ok)
               setJob((prev) => {
                 const retrySucceeded = enrichment.status !== "error";
+                const nextActive = new Set(prev.activePoiIds);
+                nextActive.delete(poiId);
                 return {
                   ...prev,
                   errorCount: retrySucceeded
@@ -255,6 +284,7 @@ export function useEnrichment() {
                     : prev.errorCount,
                   currentPoiName: retrySucceeded ? null : prev.currentPoiName,
                   currentPoiId: retrySucceeded ? null : prev.currentPoiId,
+                  activePoiIds: nextActive,
                 };
               });
             },
@@ -270,6 +300,7 @@ export function useEnrichment() {
           stage: "done",
           currentPoiName: null,
           currentPoiId: null,
+          activePoiIds: new Set(),
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
@@ -280,6 +311,7 @@ export function useEnrichment() {
           error: message,
           currentPoiName: null,
           currentPoiId: null,
+          activePoiIds: new Set(),
         });
       }
     },
@@ -295,6 +327,7 @@ export function useEnrichment() {
       stage: "idle",
       currentPoiName: null,
       currentPoiId: null,
+      activePoiIds: new Set(),
       error: null,
     });
   }, [updateJob]);

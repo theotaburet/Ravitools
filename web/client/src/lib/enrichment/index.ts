@@ -7,5 +7,5 @@ export { getOfficialWebsiteUrl, classifySourcePlatform, fetchWebsitePreview } fr
 export { isWebGpuAvailable, initEngine, isEngineReady, unloadEngine, synthesize } from "./llm";
 export type { LlmSynthesis, ModelLoadProgressCallback } from "./llm";
 export { enrichPoi, enrichBatch, computeConfidence } from "./enricher";
-export type { EnrichmentProgressCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";
+export type { EnrichmentProgressCallback, PoiStartCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";
 export { buildSourceDigests, buildEssentialsText, buildStructuredContent, buildDivergences, determineSourceConfirmation } from "./structured";
