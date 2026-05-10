@@ -17,6 +17,7 @@
     "express-rate-limit": "^7.4.0",
     "helmet": "^8.0.0",
     "node-cache": "^5.1.2",
+    "pg": "^8.20.0",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",
     "playwright": "^1.59.1"
@@ -26,6 +27,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.7.0",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
     "tsx": "^4.19.0",

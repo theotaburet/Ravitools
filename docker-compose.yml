@@ -11,3 +11,23 @@ services:
     environment:
       - SEARXNG_BASE_URL=http://localhost:8888
     restart: unless-stopped
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ravitools
+      - POSTGRES_USER=ravitools
+      - POSTGRES_PASSWORD=ravitools_dev
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ravitools -d ravitools"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgis_data:

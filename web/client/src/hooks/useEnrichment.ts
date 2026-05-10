@@ -17,6 +17,7 @@ import {
   resetEngineFailureState,
 } from "../lib/enrichment";
 import { dlog } from "../lib/debug-log";
+import { lookupPoiBatch, uploadPoiEnrichment, getPoiCacheKey } from "../lib/poi-cache";
 
 const API_BASE = "/api";
 
@@ -137,6 +138,56 @@ export function useEnrichment() {
       const hasWebGpu = isWebGpuAvailable();
 
       try {
+        // -----------------------------------------------------------------
+        // Step 0: Shared cache lookup (Postgres+PostGIS via /api/poi/search)
+        // POIs found non-stale in the DB are reused directly — no LLM, no
+        // network search. Stale or missing POIs continue through the pipeline.
+        // -----------------------------------------------------------------
+        let poisToEnrich: POI[] = pois;
+        try {
+          const cached = await lookupPoiBatch(pois);
+          if (cached.size > 0) {
+            const reusedIds: string[] = [];
+            updateEnrichments((prev) => {
+              const next = new Map(prev);
+              for (const poi of pois) {
+                const key = getPoiCacheKey(poi);
+                if (!key) continue;
+                const hit = cached.get(key);
+                if (hit && !hit.is_stale) {
+                  next.set(poi.id, hit.enrichment);
+                  reusedIds.push(poi.id);
+                }
+              }
+              return next;
+            });
+            if (reusedIds.length > 0) {
+              const reusedSet = new Set(reusedIds);
+              poisToEnrich = pois.filter((p) => !reusedSet.has(p.id));
+              log.info(`Shared cache reused ${reusedIds.length}/${pois.length} POIs; ${poisToEnrich.length} to enrich`);
+            }
+          }
+        } catch (err) {
+          // Never block enrichment on cache failure
+          log.warn("Shared cache lookup failed, falling back to full enrichment", { err });
+        }
+
+        // If everything came from the cache, short-circuit cleanly.
+        if (poisToEnrich.length === 0) {
+          updateJob({
+            stage: "done",
+            total: pois.length,
+            completed: pois.length,
+            currentPoiName: null,
+            currentPoiId: null,
+            activePoiIds: new Set(),
+            phase: "idle",
+            etaSeconds: null,
+            warning: null,
+          });
+          return;
+        }
+
         // Step 1: Load LLM model (skip if no WebGPU)
         if (hasWebGpu) {
           updateJob({
@@ -192,10 +243,10 @@ export function useEnrichment() {
           activePoiIds: new Set(),
         });
 
-        // Build a POI lookup for retry passes
+        // Build a POI lookup for retry passes (covers all pois, not just to-enrich)
         const poiById = new Map(pois.map((p) => [p.id, p]));
 
-        await enrichBatch(pois, {
+        await enrichBatch(poisToEnrich, {
           signal: ctrl.signal,
           searchConcurrency: 3,
           searchStaggerMs: 500,
@@ -222,13 +273,23 @@ export function useEnrichment() {
               return next;
             });
 
+            // Push successful enrichments to the shared cache (fire-and-forget).
+            // Skip errors and skipped POIs so the cache stays clean.
+            if (enrichment.status === "done") {
+              const poi = poiById.get(poiId);
+              if (poi) {
+                void uploadPoiEnrichment(poi, enrichment);
+              }
+            }
+
             setJob((prev) => {
               const nextActive = new Set(prev.activePoiIds);
               nextActive.delete(poiId);
+              const cachedCount = pois.length - poisToEnrich.length;
               return {
                 ...prev,
-                completed,
-                total,
+                completed: completed + cachedCount,
+                total: total + cachedCount,
                 errorCount: prev.errorCount + (enrichment.status === "error" ? 1 : 0),
                 skippedCount: prev.skippedCount + (enrichment.status === "skipped" ? 1 : 0),
                 activePoiIds: nextActive,
