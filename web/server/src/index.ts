@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import NodeCache from "node-cache";
 import pino from "pino";
 import { chromium, type Browser } from "playwright";
+import { getBrowserContext, saveBrowserState, closeBrowserContext } from "./browser-context.js";
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { lookup } from "node:dns/promises";
@@ -814,23 +815,14 @@ async function queueGoogleMapsPreviewJob(url: string, poiName?: string | null): 
 
 async function fetchGoogleMapsPreviewOnce(url: string, attempt: number): Promise<GoogleMapsPreview | null> {
   const browser = await getBrowser();
-  const locale = randomItem(GOOGLE_MAPS_LOCALES);
-  const userAgent = randomItem(GOOGLE_MAPS_USER_AGENTS);
-  const page = await browser.newPage({
-    locale,
-    userAgent,
-    viewport: {
-      width: Math.floor(1280 + Math.random() * 320),
-      height: Math.floor(820 + Math.random() * 180),
-    },
-  });
+  const context = await getBrowserContext(browser);
+  // Page-level locale/UA/viewport overrides removed: the shared context owns
+  // identity. Rotating per page would defeat session continuity (Google detects
+  // the inconsistency and increases captcha rate).
+  const page = await context.newPage();
 
   try {
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": `${locale},en;q=0.8`,
-    });
-
-    log.info({ url, attempt, locale, userAgent }, "Google Maps preview: opening page");
+    log.info({ url, attempt }, "Google Maps preview: opening page");
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
     await acceptGoogleConsentIfPresent(page);
@@ -937,6 +929,9 @@ async function fetchGoogleMapsPreviewOnce(url: string, attempt: number): Promise
     throw err;
   } finally {
     await page.close().catch(() => undefined);
+    // Fire-and-forget: persist cookies after each request. Debounced to ~1
+    // I/O per 30s inside saveBrowserState(), so cheap.
+    saveBrowserState().catch(() => undefined);
   }
 }
 
@@ -1770,6 +1765,10 @@ if (process.env.NODE_ENV !== "test") {
   // Graceful shutdown — close Playwright browser to avoid orphaned Chromium processes
   const shutdown = async () => {
     log.info("Shutting down...");
+    try {
+      // Flush + close shared context first (saves cookies to disk)
+      await closeBrowserContext();
+    } catch { /* ignore */ }
     if (browserPromise) {
       try {
         const browser = await browserPromise;
