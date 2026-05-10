@@ -10,6 +10,11 @@ import {
   initEngine,
   unloadEngine,
   enrichBatch,
+  isRetryableEnrichmentResult,
+  fetchGoogleMapsJobStats,
+  buildCaptchaResolveUrl,
+  areAllEnginesSuspended,
+  resetEngineFailureState,
 } from "../lib/enrichment";
 import { dlog } from "../lib/debug-log";
 
@@ -41,6 +46,10 @@ const INITIAL_JOB: EnrichmentJobState = {
   error: null,
   phase: "idle",
   etaSeconds: null,
+  warning: null,
+  googleFallbackStatus: null,
+  googleFallbackStats: null,
+  captchaUrl: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -58,6 +67,8 @@ export function useEnrichment() {
   const abortRef = useRef<AbortController | null>(null);
   /** Ref mirror of enrichments for synchronous reads (e.g. filtering in continueEnrichment) */
   const enrichmentsRef = useRef<Map<string, EnrichedData>>(new Map());
+  /** Stored params to resume after CAPTCHA resolution */
+  const pausedParamsRef = useRef<{ pois: POI[]; targetLanguage: TargetLanguage; enrichAll: boolean } | null>(null);
 
   /** Update enrichments state + ref mirror together */
   const updateEnrichments = useCallback(
@@ -90,11 +101,27 @@ export function useEnrichment() {
       });
   }, [updateJob]);
 
+  useEffect(() => {
+    if (job.stage !== "running") return;
+    const ctrl = new AbortController();
+    const timer = setInterval(() => {
+      fetchGoogleMapsJobStats(API_BASE, ctrl.signal)
+        .then((stats) => {
+          if (stats) updateJob({ googleFallbackStats: stats });
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => {
+      ctrl.abort();
+      clearInterval(timer);
+    };
+  }, [job.stage, updateJob]);
+
   /**
    * Start enrichment for a list of POIs.
    * 1. Load WebLLM model (if WebGPU available)
    * 2. Run batch enrichment (search + geocode + LLM per POI)
-   * 3. Auto-retry failed POIs (rate-limited / errors) up to MAX_RETRY_PASSES times
+    * 3. Auto-retry transient failures (errors + degraded no-results) up to MAX_RETRY_PASSES times
    * 4. Update enrichments map incrementally
    * @param targetLanguage - language for LLM synthesis output (default: "en")
    * @param enrichAll - override enrichability policy to "full" for all categories
@@ -121,6 +148,9 @@ export function useEnrichment() {
             webGpuAvailable: true,
             targetLanguage,
             error: null,
+            warning: null,
+            googleFallbackStatus: null,
+            googleFallbackStats: null,
           });
 
           const ok = await initEngine((progress) => {
@@ -141,6 +171,9 @@ export function useEnrichment() {
             webGpuAvailable: false,
             targetLanguage,
             error: null,
+            warning: null,
+            googleFallbackStatus: null,
+            googleFallbackStats: null,
           });
         }
 
@@ -205,38 +238,72 @@ export function useEnrichment() {
           onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
             updateJob({ phase, etaSeconds });
           },
+          onWarning: (warning: string | null) => {
+            updateJob({ warning });
+          },
+          onGoogleFallbackStatus: (googleFallbackStatus: string | null) => {
+            updateJob({ googleFallbackStatus });
+          },
+          onAllEnginesSuspended: (captchaUrl: string) => {
+            // Store params for resuming after CAPTCHA resolution
+            pausedParamsRef.current = { pois, targetLanguage, enrichAll };
+            updateJob({
+              stage: "paused-captcha",
+              captchaUrl,
+              currentPoiName: null,
+              currentPoiId: null,
+              activePoiIds: new Set(),
+              warning: null,
+            });
+          },
         });
 
         if (ctrl.signal.aborted) return;
 
         // -----------------------------------------------------------------
-        // Step 3: Retry failed POIs (rate-limited / search errors)
+        // Step 3: Retry transient failures after cooldown
+        // Skip if all engines are still suspended — pause for CAPTCHA instead
         // -----------------------------------------------------------------
         for (let retryPass = 1; retryPass <= MAX_RETRY_PASSES; retryPass++) {
           if (ctrl.signal.aborted) break;
 
-          // Collect failed POI IDs from current enrichments ref
-          const failedPois: POI[] = [];
+          // Don't retry if all engines are blocked: the user needs to solve a CAPTCHA first
+          if (areAllEnginesSuspended()) {
+            const captchaUrl = buildCaptchaResolveUrl(API_BASE);
+            pausedParamsRef.current = { pois, targetLanguage, enrichAll };
+            updateJob({
+              stage: "paused-captcha",
+              captchaUrl,
+              currentPoiName: null,
+              currentPoiId: null,
+              activePoiIds: new Set(),
+              warning: null,
+            });
+            return;
+          }
+
+          // Collect retryable POI IDs from current enrichments ref
+          const retryablePois: POI[] = [];
           for (const [id, data] of enrichmentsRef.current) {
-            if (data.status === "error") {
+            if (isRetryableEnrichmentResult(data)) {
               const poi = poiById.get(id);
-              if (poi) failedPois.push(poi);
+              if (poi) retryablePois.push(poi);
             }
           }
 
-          if (failedPois.length === 0) break;
+          if (retryablePois.length === 0) break;
 
           const retryStaggerMs = 500 * RETRY_STAGGER_MULTIPLIER * retryPass;
-          log.info(`Retry pass ${retryPass}/${MAX_RETRY_PASSES}: ${failedPois.length} failed POIs (stagger=${retryStaggerMs}ms)`, {
+          log.info(`Retry pass ${retryPass}/${MAX_RETRY_PASSES}: ${retryablePois.length} retryable POIs (stagger=${retryStaggerMs}ms)`, {
             retryPass,
-            failedCount: failedPois.length,
+            retryableCount: retryablePois.length,
             staggerMs: retryStaggerMs,
           });
 
           updateJob({
             phase: "retry",
-            currentPoiName: failedPois[0]?.name ?? null,
-            currentPoiId: failedPois[0]?.id ?? null,
+            currentPoiName: retryablePois[0]?.name ?? null,
+            currentPoiId: retryablePois[0]?.id ?? null,
             activePoiIds: new Set(),
           });
 
@@ -245,7 +312,7 @@ export function useEnrichment() {
           await new Promise((r) => setTimeout(r, cooldownMs));
           if (ctrl.signal.aborted) break;
 
-          await enrichBatch(failedPois, {
+          await enrichBatch(retryablePois, {
             signal: ctrl.signal,
             searchConcurrency: 2, // lower concurrency for retries
             searchStaggerMs: retryStaggerMs,
@@ -265,20 +332,21 @@ export function useEnrichment() {
               });
             },
             onProgress: (poiId, enrichment) => {
-              // Overwrite the previous error result
+              // Overwrite the previous retryable result
               updateEnrichments((prev) => {
                 const next = new Map(prev);
                 next.set(poiId, enrichment);
                 return next;
               });
 
-              // Update error count: decrement if this retry succeeded (was error -> now ok)
+              // Update error count when a previously failing retryable item recovers.
               setJob((prev) => {
-                const retrySucceeded = enrichment.status !== "error";
+                const retrySucceeded = !isRetryableEnrichmentResult(enrichment);
                 const nextActive = new Set(prev.activePoiIds);
                 nextActive.delete(poiId);
                 return {
                   ...prev,
+                  completed: prev.completed + 1,
                   errorCount: retrySucceeded
                     ? Math.max(0, prev.errorCount - 1)
                     : prev.errorCount,
@@ -291,6 +359,23 @@ export function useEnrichment() {
             onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
               updateJob({ phase: "retry" as EnrichmentPhase, etaSeconds });
             },
+            onWarning: (warning: string | null) => {
+              updateJob({ warning });
+            },
+            onGoogleFallbackStatus: (googleFallbackStatus: string | null) => {
+              updateJob({ googleFallbackStatus });
+            },
+            onAllEnginesSuspended: (captchaUrl: string) => {
+              pausedParamsRef.current = { pois, targetLanguage, enrichAll };
+              updateJob({
+                stage: "paused-captcha",
+                captchaUrl,
+                currentPoiName: null,
+                currentPoiId: null,
+                activePoiIds: new Set(),
+                warning: null,
+              });
+            },
           });
         }
 
@@ -301,21 +386,30 @@ export function useEnrichment() {
           currentPoiName: null,
           currentPoiId: null,
           activePoiIds: new Set(),
+          warning: null,
+          googleFallbackStatus: null,
+          googleFallbackStats: null,
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
         const message =
           err instanceof Error ? err.message : "Unknown enrichment error";
+        // "all-engines-suspended" is handled via onAllEnginesSuspended callback
+        // which already set the stage to "paused-captcha"; don't overwrite it.
+        if (message === "all-engines-suspended") return;
         updateJob({
           stage: "error",
           error: message,
           currentPoiName: null,
           currentPoiId: null,
           activePoiIds: new Set(),
+          warning: null,
+          googleFallbackStatus: null,
+          googleFallbackStats: null,
         });
       }
     },
-    [updateJob],
+    [updateJob, updateEnrichments],
   );
 
   /**
@@ -323,28 +417,33 @@ export function useEnrichment() {
    */
   const cancelEnrichment = useCallback(() => {
     abortRef.current?.abort();
+    pausedParamsRef.current = null;
     updateJob({
       stage: "idle",
       currentPoiName: null,
       currentPoiId: null,
       activePoiIds: new Set(),
       error: null,
+      warning: null,
+      googleFallbackStatus: null,
+      googleFallbackStats: null,
+      captchaUrl: null,
     });
   }, [updateJob]);
 
   /**
-   * Continue enrichment: only process POIs that are missing or failed.
+   * Continue enrichment: only process POIs that are missing or retryable.
    * Preserves existing successful/skipped enrichments.
    * Perfect for resuming after a disconnect or session restore.
    */
   const continueEnrichment = useCallback(
     async (allPois: POI[], targetLanguage: TargetLanguage = "en", enrichAll: boolean = false) => {
-      // Filter to only unenriched or failed POIs
+      // Filter to only unenriched or retryable POIs
       const currentEnrichments = enrichmentsRef.current;
       const pendingPois = allPois.filter((poi) => {
         const existing = currentEnrichments.get(poi.id);
         if (!existing) return true; // never enriched
-        return existing.status === "error"; // failed — retry
+        return isRetryableEnrichmentResult(existing);
       });
 
       const log = dlog("enrichment");
@@ -367,11 +466,25 @@ export function useEnrichment() {
   );
 
   /**
+   * Resume enrichment after the user has manually resolved a CAPTCHA.
+   * Picks up where the batch left off (only retryable/unenriched POIs).
+   */
+  const resumeAfterCaptcha = useCallback(() => {
+    const params = pausedParamsRef.current;
+    if (!params) return;
+    pausedParamsRef.current = null;
+    updateJob({ stage: "idle", captchaUrl: null });
+    // continueEnrichment filters to unenriched/retryable POIs
+    continueEnrichment(params.pois, params.targetLanguage, params.enrichAll);
+  }, [continueEnrichment, updateJob]);
+
+  /**
    * Reset enrichment state entirely.
    */
   const resetEnrichment = useCallback(async () => {
     abortRef.current?.abort();
     await unloadEngine();
+    resetEngineFailureState();
     setJob({
       ...INITIAL_JOB,
       webGpuAvailable: isWebGpuAvailable(),
@@ -405,6 +518,7 @@ export function useEnrichment() {
     startEnrichment,
     continueEnrichment,
     cancelEnrichment,
+    resumeAfterCaptcha,
     resetEnrichment,
     restoreEnrichments,
   };

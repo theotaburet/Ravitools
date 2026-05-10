@@ -13,7 +13,18 @@ const PROXY_BASE =
     ((window as unknown as Record<string, unknown>).__RAVITOOLS_API_URL__ as string)) ||
   "/api";
 
+const OVERPASS_CACHE_MAX_ENTRIES = 50;
 const overpassResultCache = new Map<string, OverpassResponse>();
+
+/** Evict oldest entries when cache exceeds max size (simple FIFO). */
+function cacheSet(key: string, value: OverpassResponse) {
+  if (overpassResultCache.size >= OVERPASS_CACHE_MAX_ENTRIES) {
+    // Map iteration order = insertion order → first key is oldest
+    const oldest = overpassResultCache.keys().next().value;
+    if (oldest !== undefined) overpassResultCache.delete(oldest);
+  }
+  overpassResultCache.set(key, value);
+}
 
 // ---------------------------------------------------------------------------
 // Query building
@@ -169,7 +180,7 @@ export async function queryOverpass(
         serverCache: cacheHeader,
         queryChars: query.length,
       });
-      overpassResultCache.set(query, data);
+      cacheSet(query, data);
       return data;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));

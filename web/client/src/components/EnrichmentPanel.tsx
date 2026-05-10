@@ -33,6 +33,8 @@ interface Props {
   /** Continue enrichment for remaining/failed POIs only */
   onContinue: () => void;
   onCancel: () => void;
+  /** Resume after user has manually resolved a CAPTCHA */
+  onResumeAfterCaptcha: () => void;
 }
 
 export function EnrichmentPanel({
@@ -48,6 +50,7 @@ export function EnrichmentPanel({
   onStart,
   onContinue,
   onCancel,
+  onResumeAfterCaptcha,
 }: Props) {
   if (poiCount === 0) return null;
 
@@ -55,6 +58,7 @@ export function EnrichmentPanel({
     job.stage === "loading-model" || job.stage === "running";
   const isDone = job.stage === "done";
   const hasError = job.stage === "error";
+  const isPausedCaptcha = job.stage === "paused-captcha";
 
   // Progress percentage
   const progressPct =
@@ -100,6 +104,36 @@ export function EnrichmentPanel({
         <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
           SearXNG unavailable — search enrichment disabled.
           Start SearXNG: <code>docker run -d -p 8888:8080 --rm searxng/searxng</code>
+        </div>
+      )}
+
+      {job.warning && (
+        <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
+          {job.warning}
+        </div>
+      )}
+
+      {job.googleFallbackStatus && (
+        <div className="enrichment-notice" style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}>
+          {job.googleFallbackStatus}
+        </div>
+      )}
+
+      {job.googleFallbackStats && (job.googleFallbackStats.counts.queued > 0 || job.googleFallbackStats.counts.running > 0) && (
+        <div className="enrichment-notice" style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}>
+          Google queue: {job.googleFallbackStats.counts.queued} queued, {job.googleFallbackStats.counts.running} running
+          {job.googleFallbackStats.jobs.length > 0 && (
+            <div className="text-xs font-mono mt-1">
+              {job.googleFallbackStats.jobs
+                .filter((item) => item.status === "queued" || item.status === "running")
+                .slice(0, 3)
+                .map((item) => {
+                  const label = item.poiName ?? item.url.split("/maps/search/")[1]?.slice(0, 40) ?? item.jobId;
+                  return `${item.status}: ${label}`;
+                })
+                .join(" | ")}
+            </div>
+          )}
         </div>
       )}
 
@@ -160,7 +194,7 @@ export function EnrichmentPanel({
         <div className="flex flex-col gap-2">
           <div className="text-xs font-mono text-muted">
             {enrichedCount}/{poiCount} POIs enriched
-            {pendingCount > 0 && ` — ${pendingCount} remaining`}
+            {pendingCount > 0 && ` — ${pendingCount} retryable remaining`}
           </div>
           {pendingCount > 0 && (
             <button
@@ -168,7 +202,7 @@ export function EnrichmentPanel({
               onClick={onContinue}
               disabled={!job.searxngAvailable}
             >
-              Continue enrichment ({pendingCount} remaining)
+              Continue enrichment ({pendingCount} retryable)
             </button>
           )}
           <button
@@ -215,6 +249,8 @@ export function EnrichmentPanel({
             <span>
               {job.phase === "geocode-search"
                 ? "Searching..."
+                : job.phase === "google-fallback"
+                  ? "Google fallback queue..."
                 : job.phase === "synthesize"
                   ? "AI synthesis..."
                   : job.phase === "retry"
@@ -223,6 +259,11 @@ export function EnrichmentPanel({
               {job.completed}/{job.total}
             </span>
           </div>
+          {job.phase === "google-fallback" && (
+            <div className="text-xs text-muted font-mono">
+              Google Maps can take 30-90s per place. Still running — please wait.
+            </div>
+          )}
           {job.currentPoiName && (
             <div className="text-xs text-muted font-mono truncate">
               {job.activePoiIds.size > 1
@@ -267,6 +308,40 @@ export function EnrichmentPanel({
         </div>
       )}
 
+      {/* Paused — CAPTCHA required */}
+      {isPausedCaptcha && (
+        <div className="flex flex-col gap-2">
+          <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
+            <strong>All search engines blocked (CAPTCHA / access denied).</strong>
+            <br />
+            Open SearXNG in a new tab, complete the CAPTCHA, then come back and resume.
+          </div>
+          {job.captchaUrl && (
+            <a
+              href={job.captchaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="neo-btn-primary w-full text-center"
+              style={{ display: "block" }}
+            >
+              Open SearXNG — solve CAPTCHA
+            </a>
+          )}
+          <button
+            className="neo-btn-primary w-full"
+            onClick={onResumeAfterCaptcha}
+          >
+            Resume enrichment ({pendingCount} remaining)
+          </button>
+          <button
+            className="neo-btn-sm neo-btn-secondary"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Done */}
       {isDone && (
         <div className="flex flex-col gap-2">
@@ -302,7 +377,7 @@ export function EnrichmentPanel({
               onClick={onContinue}
               disabled={!job.searxngAvailable}
             >
-              Continue enrichment ({pendingCount} remaining)
+              Continue enrichment ({pendingCount} retryable)
             </button>
           )}
           <button
@@ -348,7 +423,7 @@ export function EnrichmentPanel({
               className="neo-btn-sm neo-btn-primary"
               onClick={onContinue}
             >
-              Continue ({pendingCount} remaining)
+              Continue ({pendingCount} retryable)
             </button>
           ) : (
             <button

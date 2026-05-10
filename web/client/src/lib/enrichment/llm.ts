@@ -25,6 +25,22 @@ export interface LlmSynthesis {
   /** One-sentence review/verdict in target language */
   review: string | null;
   priceLevel: number | null;
+  repaired?: boolean;
+  repairReason?: string | null;
+}
+
+function getSynthesisRejectionReason(parsed: LlmSynthesis | null, targetLanguage: TargetLanguage): string | null {
+  if (!parsed) return "invalid-json";
+  if (!looksLikeTargetLanguage(parsed.description, targetLanguage) || !looksLikeTargetLanguage(parsed.review, targetLanguage)) {
+    return "bad-language";
+  }
+  if ((parsed.description?.length ?? 0) > MAX_SENTENCE_CHARS || (parsed.review?.length ?? 0) > MAX_SENTENCE_CHARS) {
+    return "too-long";
+  }
+  if ([parsed.description, parsed.review].some((text) => isUnreadableText(text))) {
+    return "unreadable";
+  }
+  return null;
 }
 
 /** Progress callback for model loading */
@@ -44,7 +60,7 @@ export function isWebGpuAvailable(): boolean {
 // The engine is a singleton: one model loaded at a time.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic import, types not available at module level
 let engineInstance: any = null;
 let engineReady = false;
 
@@ -77,7 +93,7 @@ export async function initEngine(
     engineReady = true;
     return true;
   } catch (err) {
-    console.error("[WebLLM] Engine init failed:", err);
+    dlog("llm").error("[WebLLM] Engine init failed", { err: err instanceof Error ? err.message : String(err) });
     engineReady = false;
     engineInstance = null;
     return false;
@@ -104,6 +120,12 @@ export async function unloadEngine(): Promise<void> {
     engineInstance = null;
     engineReady = false;
   }
+}
+
+/** Reset all module-level LLM state. Call at the start of a fresh enrichment run. */
+export function resetLlmState(): void {
+  engineInstance = null;
+  engineReady = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,12 +200,14 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
 Rules:
 - Extract ONLY what the snippets say. Do NOT invent or guess.
 - If a field cannot be determined, use null. Never guess.
+- Write ALL natural-language fields strictly in ${langName}. Never answer in Spanish, Basque, Romanian, or the source language unless ${langName} matches it.
 - "rating": only from explicit ratings (e.g. "4.2/5"). Do not estimate from sentiment.
 - "reviewCount": only from explicit counts (e.g. "238 reviews").
 - "hours": structured table. Each entry has "day" (e.g. "Mon", "Mon-Fri", "Sat-Sun"), "open" (time or "closed"), "close" (time or null if closed). Use null for the whole field if no hours found.
-- "description": ONE sentence in ${langName}. Include type/specialty if known (e.g. "Italian restaurant with terrace, good for resupply"). Merge vibe and utility.
-- "review": ONE sentence in ${langName}. Summarize reputation: rating, review sentiment, key strengths or caveats. If sources disagree, say so.${priceBlock}
+- "description": ONE short sentence in ${langName}, max 160 characters. Include type/specialty if known (e.g. "Italian restaurant with terrace, good for resupply"). Merge utility first, vibe second.
+- "review": ONE short sentence in ${langName}, max 160 characters. Summarize reputation only: rating, review sentiment, key strengths or caveats. If sources disagree, say so.${priceBlock}
 - Be maximally concise. No filler. Prefer null over uncertain data.
+- Ignore snippets clearly unrelated to the POI (banking, novels, generic portals, wrong business).
 ${contractBlock}`;
 }
 
@@ -221,11 +245,53 @@ Extract the JSON:`;
 // Synthesis
 // ---------------------------------------------------------------------------
 
-/** Max tokens for LLM response */
-const MAX_TOKENS = 300;
+/** Max tokens for LLM response — 512 to fit full 7-day hours table + description + review */
+const MAX_TOKENS = 512;
 
 /** Temperature for synthesis (low = more factual) */
 const TEMPERATURE = 0.1;
+
+const MAX_SENTENCE_CHARS = 180;
+const MAX_REPAIR_ATTEMPTS = 2;
+
+function looksLikeTargetLanguage(text: string | null, targetLanguage: TargetLanguage): boolean {
+  if (!text) return true;
+  const lower = text.toLowerCase();
+  if (targetLanguage === "en") {
+    // Reject if clearly Spanish or French
+    return !/(\buna\b|\best[aeo]s?\b|\bhorarios?\b|\bopiniones\b|\brestaurante\b|\bcomer\b|\babierto\b|\bcerrado\b|\bc'est\b|\btrès\b|\bc'était\b|\bnotre\b|\bsont\b|\bavec\b|\bpour\b|\bdepuis\b|\bcette\b|\bvous\b|\bouverte?\b|\bfermée?\b)/i.test(lower);
+  }
+  // Reject if clearly English — use unambiguous multi-word English-only phrases that don't
+  // appear in French text (avoid single words like "restaurant", "open", "good").
+  return !/(\breviews?\b|\bopening hours\b|\bclosed on\b|\bopen daily\b|\bopen every day\b|\brated\b|\brated \d|\bworth a visit\b|\bgreat place\b|\bthis place\b|\bnice place\b|\bgreat food\b|\bhighly recommend\b|\bmust try\b|\bstaff was\b|\bvery good\b|\bvery nice\b|\bthe food\b|\bthe place\b|\bthe staff\b|\bi loved\b|\bi visited\b|\bwe had\b|\bwe went\b)/i.test(lower);
+}
+
+function isSynthesisAcceptable(parsed: LlmSynthesis | null, targetLanguage: TargetLanguage): boolean {
+  return getSynthesisRejectionReason(parsed, targetLanguage) == null;
+}
+
+function isUnreadableText(text: string | null): boolean {
+  if (!text) return false;
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length < 4) return true;
+  if (/([!?.,])\1{3,}/.test(compact)) return true;
+  if (/([a-zA-Z])\1{5,}/.test(compact)) return true;
+  const weirdRatio = (compact.match(/[^\p{L}\p{N}\s.,:;!?()'"\-/%&]/gu) ?? []).length / compact.length;
+  return weirdRatio > 0.15;
+}
+
+function buildRepairPrompt(targetLanguage: TargetLanguage, invalidJson: string): string {
+  const langName = targetLanguage === "fr" ? "French" : "English";
+  return `Rewrite this JSON so that description and review are strictly in ${langName}, each in one short sentence under 160 characters. Keep rating/reviewCount/hours/priceLevel unchanged when present. Reply with JSON only.\n\n${invalidJson}`;
+}
+
+function compactSentence(value: string | null): string | null {
+  if (!value) return null;
+  const compacted = value.replace(/\s+/g, " ").trim();
+  if (!compacted) return null;
+  const firstSentence = compacted.match(/^(.{1,180}?[.!?])(?:\s|$)/)?.[1] ?? compacted.slice(0, MAX_SENTENCE_CHARS);
+  return firstSentence.trim().slice(0, MAX_SENTENCE_CHARS);
+}
 
 /**
  * Synthesize search snippets into structured enrichment data using the in-browser LLM.
@@ -244,26 +310,54 @@ export async function synthesize(
 
   try {
     const log = dlog("llm");
-    const response = await engineInstance.chat.completions.create({
-      messages: [
-        { role: "system", content: buildSystemPrompt(targetLanguage, category) },
-        {
-          role: "user",
-          content: buildUserPrompt(poiName, category, snippets, websitePreview),
-        },
-      ],
-      max_tokens: MAX_TOKENS,
-      temperature: TEMPERATURE,
-    });
+    let text: string | null = null;
+    let parsed: LlmSynthesis | null = null;
 
-    const text = response.choices?.[0]?.message?.content?.trim();
-    if (!text) return null;
+    for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
+      const response: { choices?: Array<{ message?: { content?: string | null } }> } = await engineInstance.chat.completions.create({
+        messages: attempt === 0
+          ? [
+              { role: "system", content: buildSystemPrompt(targetLanguage, category) },
+              {
+                role: "user",
+                content: buildUserPrompt(poiName, category, snippets, websitePreview),
+              },
+            ]
+          : [
+              { role: "system", content: buildSystemPrompt(targetLanguage, category) },
+              {
+                role: "user",
+                content: buildRepairPrompt(targetLanguage, text || ""),
+              },
+            ],
+        max_tokens: MAX_TOKENS,
+        temperature: TEMPERATURE,
+      });
 
-    const parsed = parseLlmOutput(text);
+      text = response.choices?.[0]?.message?.content?.trim() ?? null;
+      if (!text) return null;
+      parsed = parseLlmOutput(text);
+      const rejectionReason = getSynthesisRejectionReason(parsed, targetLanguage);
+      if (parsed) {
+        parsed.repaired = attempt > 0;
+        parsed.repairReason = rejectionReason;
+      }
+      if (rejectionReason) {
+        log.warn(`LLM output rejected for "${poiName}"`, {
+          attempt,
+          reason: rejectionReason,
+          rawOutput: text.slice(0, 240),
+        });
+      }
+      if (isSynthesisAcceptable(parsed, targetLanguage)) break;
+    }
+
+    if (!parsed) return null;
+    const rawOutput = text ?? "";
 
     // Debug: log LLM synthesis result
     log.info(`LLM synthesis for "${poiName}"`, {
-      rawOutput: text.slice(0, 300),
+      rawOutput: rawOutput.slice(0, 300),
       rating: parsed?.rating,
       description: parsed?.description?.slice(0, 100),
       review: parsed?.review?.slice(0, 100),
@@ -272,7 +366,7 @@ export async function synthesize(
 
     return parsed;
   } catch (err) {
-    console.error("[WebLLM] Synthesis failed:", err);
+    dlog("llm").error("[WebLLM] Synthesis failed", { err: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -289,8 +383,11 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
       cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
     }
 
-    // Try to find JSON object in the text
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    // Try to find JSON object in the text — use first { to last } to handle
+    // verbose LLM output that wraps the object in surrounding text.
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    const jsonMatch = firstBrace >= 0 && lastBrace > firstBrace ? [cleaned.slice(firstBrace, lastBrace + 1)] : null;
     if (!jsonMatch) return null;
 
     const parsed = JSON.parse(jsonMatch[0]);
@@ -309,18 +406,14 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
         : null,
       hours,
       hoursFlat,
-      description: typeof parsed.description === "string" && parsed.description.length > 0
-        ? parsed.description.slice(0, 300)
-        : null,
-      review: typeof parsed.review === "string" && parsed.review.length > 0
-        ? parsed.review.slice(0, 300)
-        : null,
+      description: compactSentence(typeof parsed.description === "string" ? parsed.description : null),
+      review: compactSentence(typeof parsed.review === "string" ? parsed.review : null),
       priceLevel: typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
         ? Math.round(parsed.priceLevel)
         : null,
     };
   } catch {
-    console.warn("[WebLLM] Failed to parse LLM output:", text.slice(0, 200));
+    dlog("llm").warn("[WebLLM] Failed to parse LLM output", { text: text.slice(0, 200) });
     return null;
   }
 }

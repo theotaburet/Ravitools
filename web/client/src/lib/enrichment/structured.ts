@@ -10,7 +10,7 @@ import type {
   PoiCategory,
 } from "../../types";
 import { classifySourcePlatform } from "./search";
-import { getEnrichmentContract } from "../poi-config";
+import { getEnrichmentContract, getEnrichabilityPolicy } from "../poi-config";
 
 // ---------------------------------------------------------------------------
 // Platform labels and priority (WS4: source strategy)
@@ -309,11 +309,14 @@ function buildSourceRollup(
   }
 
   if (websitePreview && (websitePreview.description || websitePreview.excerpt || websitePreview.title)) {
-    digests.push({
-      platform: "official_website",
-      brief: `Official site: ${shorten(websitePreview.description ?? websitePreview.excerpt ?? websitePreview.title ?? "", 180)}`,
-      url: websitePreview.finalUrl,
-    });
+    // Only add official_website digest if it wasn't already picked up via snippets
+    if (!groups.has("official_website")) {
+      digests.push({
+        platform: "official_website",
+        brief: `Official site: ${shorten(websitePreview.description ?? websitePreview.excerpt ?? websitePreview.title ?? "", 180)}`,
+        url: websitePreview.finalUrl,
+      });
+    }
   }
 
   // Sort by platform priority (WS4)
@@ -333,6 +336,8 @@ function buildCautions(
 ): string[] {
   const cautions: string[] = [];
   const contract = getEnrichmentContract(category);
+  const policy = getEnrichabilityPolicy(category);
+  const isFullEnrichment = policy === "full";
 
   if (sourceRollup.length === 0) {
     // Use contract-specific weak source formulation if available
@@ -342,9 +347,9 @@ function buildCautions(
       cautions.push("No identifiable review or discovery platform found.");
     }
   }
-  if (enrichment.rating == null) cautions.push("No explicit rating found in the collected sources.");
-  if (enrichment.hours == null) cautions.push("Opening hours were not confirmed from the collected sources.");
-  if (enrichment.reviewCount == null && enrichment.rating != null) cautions.push("Rating found, but review volume was not confirmed.");
+  if (isFullEnrichment && enrichment.rating == null) cautions.push("No explicit rating found in the collected sources.");
+  if (isFullEnrichment && enrichment.hours == null) cautions.push("Opening hours were not confirmed from the collected sources.");
+  if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null) cautions.push("Rating found, but review volume was not confirmed.");
 
   // Check source quality — only social platforms, no reputation sources
   const hasReputation = sourceRollup.some((d) => REPUTATION_PLATFORMS.has(d.platform));
@@ -520,4 +525,137 @@ export function buildSourceDigests(
   websitePreview?: WebsitePreview | null,
 ): EnrichmentSourceDigest[] {
   return buildSourceRollup(snippets, websitePreview);
+}
+
+// ---------------------------------------------------------------------------
+// Source-quality scoring — rank snippets by domain reliability before LLM
+// ---------------------------------------------------------------------------
+
+/**
+ * Domain-level quality scores (0–3).
+ * 3 = primary review/booking platform (high signal density)
+ * 2 = secondary directory, local tourism site, regional press
+ * 1 = generic directory, social profile, unknown domain
+ * 0 = noise (banking, login, spam patterns)
+ */
+const DOMAIN_QUALITY_SCORES: Array<{ pattern: RegExp; score: number }> = [
+  // Top-tier review/booking platforms
+  { pattern: /tripadvisor\.(com|fr|es|de|co\.uk)/, score: 3 },
+  { pattern: /yelp\.(com|fr|es|de|co\.uk)/, score: 3 },
+  { pattern: /booking\.com/, score: 3 },
+  { pattern: /google\.(com|fr|es|de)\/maps/, score: 3 },
+  { pattern: /maps\.google/, score: 3 },
+  { pattern: /airbnb\.(com|fr|es)/, score: 3 },
+  { pattern: /hotels\.com/, score: 3 },
+  // Good secondary sources
+  { pattern: /campingfrance\.com/, score: 2 },
+  { pattern: /campingsauvage\.net/, score: 2 },
+  { pattern: /refuges\.info/, score: 2 },
+  { pattern: /komoot\.(com|de|fr)/, score: 2 },
+  { pattern: /mairie-|commune-|ville-/, score: 2 },
+  { pattern: /office-de-tourisme|tourism|tourisme/, score: 2 },
+  { pattern: /viamichelin\.(com|fr)/, score: 2 },
+  { pattern: /lafourchette\.com|thefork\.com/, score: 2 },
+  { pattern: /pages-jaunes\.fr|pagesjaunes\.fr/, score: 2 },
+  { pattern: /cylex\.(fr|com)/, score: 2 },
+  { pattern: /restaurantguru\.com/, score: 2 },
+  { pattern: /foursquare\.com/, score: 2 },
+  // Noise / low signal
+  { pattern: /facebook\.com/, score: 1 },
+  { pattern: /instagram\.com/, score: 1 },
+  { pattern: /twitter\.com|x\.com/, score: 0 },
+  { pattern: /linkedin\.com/, score: 0 },
+  { pattern: /banking|unicredit|bpce|bnpparibas/, score: 0 },
+];
+
+/**
+ * Score a single snippet URL on a 0–3 quality scale.
+ * Used to rank snippets before passing them to the LLM.
+ */
+function scoreSnippetDomain(url: string): number {
+  const lower = url.toLowerCase();
+  for (const { pattern, score } of DOMAIN_QUALITY_SCORES) {
+    if (pattern.test(lower)) return score;
+  }
+  // Heuristic: URLs with path depth ≥ 2 are likely specific pages (better signal)
+  try {
+    const path = new URL(url).pathname;
+    const depth = path.split("/").filter(Boolean).length;
+    return depth >= 2 ? 1 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * Sort snippets by domain quality score (highest first), then by content length.
+ * Ensures the LLM sees the most reliable sources first when the prompt is trimmed.
+ * Zero-score snippets (noise) are removed entirely.
+ *
+ * Exported for testing.
+ */
+export function rankSnippetsByQuality(snippets: SearchSnippet[]): SearchSnippet[] {
+  return snippets
+    .map((s) => ({ snippet: s, score: scoreSnippetDomain(s.url) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || b.snippet.content.length - a.snippet.content.length)
+    .map(({ snippet }) => snippet);
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic hours extraction from snippets (multi-platform)
+// ---------------------------------------------------------------------------
+
+/** Normalize "8h30" or "08h30" or "8:30" to "08:30" */
+function normalizeTimeStr(raw: string): string {
+  const cleaned = raw.replace(/[hH]/, ":").replace(/\s/g, "");
+  const [h, m = "00"] = cleaned.split(":");
+  return `${h.padStart(2, "0")}:${m.padStart(2, "00").slice(0, 2)}`;
+}
+
+const DAY_MAP: Record<string, string> = {
+  monday: "Mon", lundi: "Mon", lun: "Mon", mo: "Mon", mon: "Mon",
+  tuesday: "Tue", mardi: "Tue", mar: "Tue", tu: "Tue", tue: "Tue",
+  wednesday: "Wed", mercredi: "Wed", mer: "Wed", we: "Wed", wed: "Wed",
+  thursday: "Thu", jeudi: "Thu", jeu: "Thu", th: "Thu", thu: "Thu",
+  friday: "Fri", vendredi: "Fri", ven: "Fri", fr: "Fri", fri: "Fri",
+  saturday: "Sat", samedi: "Sat", sam: "Sat", sa: "Sat", sat: "Sat",
+  sunday: "Sun", dimanche: "Sun", dim: "Sun", su: "Sun", sun: "Sun",
+};
+
+const HOURS_ROW_RE =
+  /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|mon|tue|wed|thu|fri|sat|sun|lun|mar|mer|jeu|ven|sam|dim)[\s.:–-]*([0-9]{1,2}[h:][0-9]{2})\s*[–\-–]\s*([0-9]{1,2}[h:][0-9]{2})|(?:fermé|closed|ferme)\s+le\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|mon|tue|wed|thu|fri|sat|sun|lun|mar|mer|jeu|ven|sam|dim)\b/gi;
+
+/**
+ * Extract structured opening-hours rows from raw snippet text.
+ * Returns null if fewer than 2 distinct days found (not enough signal).
+ *
+ * Exported for testing.
+ */
+export function extractStructuredHoursFromSnippets(snippets: SearchSnippet[]): import("../../types").OpeningHoursEntry[] | null {
+  const seen = new Map<string, import("../../types").OpeningHoursEntry>();
+
+  for (const snippet of snippets) {
+    const text = `${snippet.title} ${snippet.content}`;
+    HOURS_ROW_RE.lastIndex = 0;
+    for (const match of text.matchAll(HOURS_ROW_RE)) {
+      const dayRaw = (match[1] ?? match[4] ?? "").toLowerCase().trim();
+      const dayNorm = DAY_MAP[dayRaw];
+      if (!dayNorm) continue;
+
+      if (match[4]) {
+        // Closed day
+        if (!seen.has(dayNorm)) seen.set(dayNorm, { day: dayNorm, open: "closed", close: null });
+      } else if (match[2] && match[3]) {
+        const open = normalizeTimeStr(match[2]);
+        const close = normalizeTimeStr(match[3]);
+        if (!seen.has(dayNorm)) seen.set(dayNorm, { day: dayNorm, open, close });
+      }
+    }
+  }
+
+  if (seen.size < 2) return null;
+
+  const ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return [...seen.values()].sort((a, b) => ORDER.indexOf(a.day) - ORDER.indexOf(b.day));
 }

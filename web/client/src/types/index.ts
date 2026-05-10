@@ -270,8 +270,62 @@ export interface WebsitePreview {
   title: string | null;
   description: string | null;
   excerpt: string | null;
+  structuredData?: {
+    description: string | null;
+    telephone: string | null;
+    priceRange: string | null;
+    openingHours: string[];
+    rating: number | null;
+    reviewCount: number | null;
+  } | null;
   fetchedAt: string;
- }
+  }
+
+export interface GoogleMapsPreview {
+  url: string;
+  resolvedUrl: string | null;
+  title: string | null;
+  category: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  priceLevel: number | null;
+  hoursText: string | null;
+  /** Structured opening hours extracted from the expanded hours panel (7-day table). */
+  structuredHours: OpeningHoursEntry[] | null;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  snippet: string | null;
+  fetchedAt: string;
+}
+
+export interface GoogleMapsPreviewJob {
+  jobId: string;
+  status: "queued" | "running" | "done" | "error";
+  url: string;
+  /** Human-readable POI name for UI display */
+  poiName: string | null;
+  preview: GoogleMapsPreview | null;
+  error?: string | null;
+  /** ISO timestamp when the job started running */
+  startedAt: string | null;
+  /** Current attempt number (1-based) */
+  attempt: number;
+  /** ISO timestamp of next scheduled retry */
+  nextRetryAt: string | null;
+  /** Last extraction error message */
+  lastError: string | null;
+}
+
+export interface GoogleFallbackJobStats {
+  counts: {
+    queued: number;
+    running: number;
+    done: number;
+    error: number;
+  };
+  jobs: GoogleMapsPreviewJob[];
+}
 
 /** Rich geographic context from reverse geocoding, used for search query building and snippet filtering */
 export interface GeoContext {
@@ -358,6 +412,12 @@ export interface EnrichedData {
   structured?: EnrichmentStructuredContent;
   /** Engines that were unresponsive during search: [[engine_name, error_reason], ...] */
   unresponsiveEngines?: [string, string][];
+  /** Origin of description/review synthesis shown in the UI */
+  synthesisSource?: "llm" | "llm-repaired" | "deterministic";
+  /** Why LLM output was repaired or replaced */
+  synthesisReason?: string | null;
+  /** Field names whose values were sourced from Google Maps (e.g. ["openingHours", "rating", "address"]) */
+  googleMapsFields?: string[];
 }
 
 /** Overall enrichment job state */
@@ -365,12 +425,14 @@ export type EnrichmentJobStage =
   | "idle"
   | "loading-model" // downloading/initializing WebLLM
   | "running" // batch in progress
+  | "paused-captcha" // paused: all engines blocked, user must solve CAPTCHA manually
   | "done"
   | "error";
 
 /** Current phase within "running" stage */
 export type EnrichmentPhase =
   | "geocode-search" // fetching data from Nominatim + SearXNG
+  | "google-fallback" // waiting for slow Google Maps jobs
   | "synthesize"     // LLM inference
   | "retry"          // retrying failed POIs
   | "idle";          // not actively enriching
@@ -406,6 +468,14 @@ export interface EnrichmentJobState {
   phase: EnrichmentPhase;
   /** Estimated time remaining in seconds (null if not enough data) */
   etaSeconds: number | null;
+  /** Non-fatal warning shown during enrichment (degraded search, cooldown advice, etc.) */
+  warning?: string | null;
+  /** Status for slow Google Maps fallback queue/retries */
+  googleFallbackStatus?: string | null;
+  /** Server-side Google Maps queue stats */
+  googleFallbackStats?: GoogleFallbackJobStats | null;
+  /** URL to open in a new tab for manual CAPTCHA resolution (set when stage === "paused-captcha") */
+  captchaUrl?: string | null;
 }
 
 /** Palette of distinct trace colors (cycling) */

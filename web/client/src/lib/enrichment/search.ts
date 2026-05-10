@@ -2,7 +2,7 @@
 // SearXNG search adapter, Google Maps link builder, Nominatim reverse geocode
 // ---------------------------------------------------------------------------
 
-import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview, PoiCategory, GeoContext } from "../../types";
+import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview, PoiCategory, GeoContext, GoogleMapsPreview, GoogleMapsPreviewJob, GoogleFallbackJobStats } from "../../types";
 import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,157 @@ const MAX_SNIPPETS = 8;
 
 /** Timeout for search/geocode requests (ms) */
 const REQUEST_TIMEOUT = 15_000;
+
+/**
+ * Known-good SearXNG engines for POI enrichment.
+ * Keep this explicit so we don't silently fall back to noisy/broken defaults.
+ *
+ * Engines removed:
+ *   - yandex: constantly CAPTCHA'd, returns Russian/German noise
+ *   - mojeek: access denied in a loop, English-biased, no French local content
+ */
+const SEARXNG_ENGINES = "presearch,bing,aol";
+
+const ENGINE_COOLDOWN_MS = 30 * 60 * 1000;
+const ENGINE_FAILURE_THRESHOLD = 2;
+const ENGINE_FAILURE_PATTERNS = /(access denied|captcha|too many requests|http protocol error|timed out|network|forbidden)/i;
+const BAD_RESULT_PATTERNS = [
+  /my unicredit banking/i,
+  /internet banking/i,
+  /login/i,
+  /sign in/i,
+];
+
+const engineFailureState = new Map<string, { failures: number; suspendedUntil: number; lastReason: string }>();
+
+function getHealthyEngineList(): string {
+  const now = Date.now();
+  const healthy = SEARXNG_ENGINES
+    .split(",")
+    .map((engine) => engine.trim())
+    .filter(Boolean)
+    .filter((engine) => (engineFailureState.get(engine)?.suspendedUntil ?? 0) <= now);
+  return healthy.join(",") || SEARXNG_ENGINES;
+}
+
+function noteEngineFailures(unresponsiveEngines: [string, string][]): void {
+  const now = Date.now();
+  for (const [engine, reason] of unresponsiveEngines) {
+    if (!ENGINE_FAILURE_PATTERNS.test(reason)) continue;
+    const prev = engineFailureState.get(engine) ?? { failures: 0, suspendedUntil: 0, lastReason: reason };
+    const failures = prev.failures + 1;
+    const suspendedUntil = failures >= ENGINE_FAILURE_THRESHOLD ? now + ENGINE_COOLDOWN_MS : prev.suspendedUntil;
+    engineFailureState.set(engine, { failures, suspendedUntil, lastReason: reason });
+  }
+}
+
+function noteSuccessfulEngines(snippets: SearchSnippet[]): void {
+  for (const engine of new Set(snippets.map((snippet) => snippet.engine))) {
+    const prev = engineFailureState.get(engine);
+    if (!prev) continue;
+    engineFailureState.set(engine, { failures: 0, suspendedUntil: 0, lastReason: prev.lastReason });
+  }
+}
+
+/**
+ * Reset engine failure state entirely.
+ * Call on resetEnrichment() so new sessions start with a clean slate
+ * even if the previous session suspended engines.
+ */
+export function resetEngineFailureState(): void {
+  engineFailureState.clear();
+}
+
+/**
+ * Regex covering non-latin scripts: CJK, Cyrillic, Arabic, Hebrew, Hangul, Hiragana/Katakana, Devanagari.
+ * A snippet whose title or content is dominated by these characters is likely returned by a
+ * wrong-locale engine (e.g. Yandex/Baidu) and should be rejected.
+ */
+const NON_LATIN_SCRIPT_RE = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0590-\u05ff\u0900-\u097f]/;
+
+function isObviousNoiseSnippet(snippet: SearchSnippet, poi: POI, locality: string | null): boolean {
+  const title = snippet.title.toLowerCase();
+  const content = snippet.content.toLowerCase();
+  const url = snippet.url.toLowerCase();
+
+  if (BAD_RESULT_PATTERNS.some((pattern) => pattern.test(title) || pattern.test(content) || pattern.test(url))) {
+    return true;
+  }
+
+  // Reject snippets dominated by non-latin script (CJK, Cyrillic, Arabic, etc.)
+  // A single stray character is acceptable; reject only when the title or a long content prefix is non-latin.
+  const sampleText = `${snippet.title} ${snippet.content.slice(0, 200)}`;
+  const nonLatinChars = (sampleText.match(NON_LATIN_SCRIPT_RE) ?? []).length;
+  const nonLatinDensity = nonLatinChars / Math.max(sampleText.replace(/\s/g, "").length, 1);
+  if (nonLatinDensity > 0.15) {
+    dlog("search").info(`Non-latin script noise rejected: "${snippet.title}" (density ${nonLatinDensity.toFixed(2)})`, { url: snippet.url });
+    return true;
+  }
+
+  return false;
+}
+
+function extractStructuredWebsiteSnippets(websitePreview: WebsitePreview | null | undefined): SearchSnippet[] {
+  if (!websitePreview?.structuredData) return [];
+  const snippets: SearchSnippet[] = [];
+  const sourceUrl = websitePreview.finalUrl || websitePreview.url;
+  const sd = websitePreview.structuredData;
+
+  if (sd.description) {
+    snippets.push({
+      title: websitePreview.title ?? "Official site",
+      url: sourceUrl,
+      content: sd.description,
+      engine: "official_website",
+    });
+  }
+
+  if (sd.openingHours.length > 0) {
+    snippets.push({
+      title: "Official opening hours",
+      url: sourceUrl,
+      content: `Opening hours: ${sd.openingHours.join("; ")}`,
+      engine: "official_website",
+    });
+  }
+
+  if (sd.rating != null || sd.reviewCount != null || sd.priceRange) {
+    const facts = [
+      sd.rating != null ? `Rating ${sd.rating}/5` : null,
+      sd.reviewCount != null ? `${sd.reviewCount} reviews` : null,
+      sd.priceRange ? `Price ${sd.priceRange}` : null,
+    ].filter(Boolean).join(". ");
+    if (facts) {
+      snippets.push({
+        title: "Official structured data",
+        url: sourceUrl,
+        content: facts,
+        engine: "official_website",
+      });
+    }
+  }
+
+  return snippets;
+}
+
+function buildQueryVariants(
+  poi: POI,
+  locality: string | null,
+  geoContext?: GeoContext | null,
+): string[] {
+  const base = buildSearchQuery(poi, locality, geoContext);
+  const cleanName = cleanPoiNameForSearch(poi.name);
+
+  // Keep only 2 variants to reduce noise and request count:
+  //   1. Full geo-contextual query (most precise)
+  //   2. Quoted name + locality fallback (simpler, catches different title formats)
+  const variants = [
+    base,
+    [cleanName ? `"${cleanName}"` : null, locality].filter(Boolean).join(" "),
+  ].map((query) => query.trim()).filter(Boolean);
+
+  return [...new Set(variants)];
+}
 
 const OFFICIAL_SITE_TAGS = ["website", "contact:website", "url", "contact:web"] as const;
 
@@ -203,7 +354,7 @@ export async function fetchWebsitePreview(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
   if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
   try {
@@ -382,10 +533,11 @@ export function isSnippetGeographicallyCoherent(
   const contentLower = snippet.content.toLowerCase();
   const fullText = `${titleLower} ${contentLower}`;
 
-  // If snippet mentions the expected locality, county or state → keep it
+  // If snippet mentions the expected locality, county, state or country → keep it
   if (expectedLocality && fullText.includes(expectedLocality)) return true;
   if (expectedCounty && fullText.includes(expectedCounty)) return true;
   if (expectedState && fullText.includes(expectedState)) return true;
+  if (expectedCountry && fullText.includes(expectedCountry)) return true;
 
   // --- Title-based city detection ---
   // Tripadvisor, Google Maps, Booking titles often have "Name, City" pattern
@@ -400,18 +552,20 @@ export function isSnippetGeographicallyCoherent(
     const match = snippet.title.match(pattern);
     if (match) {
       const mentionedCity = match[1].trim().toLowerCase();
-      // Skip very short matches (noise) or matches that ARE the expected locality
+      // Skip very short matches (noise) or matches that ARE the expected locality/region
       if (mentionedCity.length < 3) continue;
       if (expectedLocality && mentionedCity === expectedLocality) return true;
       if (expectedCounty && mentionedCity === expectedCounty) return true;
+      if (expectedCountry && mentionedCity === expectedCountry) return true;
 
       // The title explicitly mentions a different city → suspicious
       // But only reject if it's NOT a substring of our expected locality
       if (expectedLocality && !expectedLocality.includes(mentionedCity) && !mentionedCity.includes(expectedLocality)) {
-        dlog("search").info(`Geographic mismatch: snippet "${snippet.title}" mentions "${mentionedCity}" but expected "${expectedLocality}"`, {
+        dlog("search").info(`Geographic mismatch: snippet "${snippet.title}" mentions "${mentionedCity}" but expected "${expectedLocality}" (${expectedCountry})`, {
           url: snippet.url,
           mentionedCity,
           expectedLocality,
+          expectedCountry,
         });
         return false;
       }
@@ -440,120 +594,312 @@ export async function searchPoi(
   maxRetries: number = 3,
   geoContext?: GeoContext | null,
 ): Promise<{ snippets: SearchSnippet[]; query: string; unresponsiveEngines: [string, string][] }> {
-  const query = buildSearchQuery(poi, locality, geoContext);
   let lastError: Error | null = null;
+  let lastUnresponsiveEngines: [string, string][] = [];
+  const queries = buildQueryVariants(poi, locality, geoContext);
+  const requestedEngines = getHealthyEngineList();
+  const log = dlog("search");
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (signal?.aborted) throw new Error("Cancelled");
-
-    if (attempt > 0) {
-      // Exponential backoff: 2s, 4s, 8s
-      const delayMs = 2000 * Math.pow(2, attempt - 1);
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-    // Combine external signal with our timeout
-    if (signal) {
-      signal.addEventListener("abort", () => controller.abort());
-    }
-
-    try {
-      const res = await fetch(`${apiBase}/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, language: "auto" }),
-        signal: controller.signal,
-      });
-
-      if (res.status === 429) {
-        lastError = new Error(`Search rate-limited (429)`);
-        continue; // retry with backoff
-      }
-
-      if (res.status === 502 || res.status === 503 || res.status === 504) {
-        lastError = new Error(`Search server error (${res.status})`);
-        continue; // retry on transient server errors
-      }
-
-      if (!res.ok) {
-        throw new Error(`Search failed: ${res.status} ${res.statusText}`);
-      }
-
-      const data: SearXNGResponse = await res.json();
-      const log = dlog("search");
-
-      // Convert to our snippet format, deduplicate (WS7: normalized URLs), limit
-      const seen = new Set<string>();
-      const rawSnippets: SearchSnippet[] = [];
-
-      for (const result of data.results) {
-        if (rawSnippets.length >= MAX_SNIPPETS * 2) break; // Over-fetch for filtering
-        if (!result.content?.trim()) continue;
-
-        // WS7: deduplicate by normalized URL (strips tracking params, www/m prefix, trailing /)
-        const normalizedUrl = normalizeUrlForDedup(result.url);
-        if (seen.has(normalizedUrl)) continue;
-        seen.add(normalizedUrl);
-
-        rawSnippets.push({
-          title: result.title || "",
-          url: result.url,
-          content: result.content.trim(),
-          engine: result.engine || "unknown",
-        });
-      }
-
-      // Geographic filtering: reject snippets from wrong locations
-      const snippets: SearchSnippet[] = [];
-      let filteredCount = 0;
-      for (const s of rawSnippets) {
-        if (snippets.length >= MAX_SNIPPETS) break;
-        if (isSnippetGeographicallyCoherent(s, geoContext ?? null, locality)) {
-          snippets.push(s);
-        } else {
-          filteredCount++;
-        }
-      }
-
-      // Debug: log raw search results for visibility
-      log.info(`SearXNG results for "${poi.name}"`, {
-        query,
-        totalResults: data.results.length,
-        rawKept: rawSnippets.length,
-        geoFiltered: filteredCount,
-        keptSnippets: snippets.length,
-        unresponsiveEngines: data.unresponsive_engines?.length ?? 0,
-      });
-      for (const s of snippets) {
-        log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
-      }
-      if (data.unresponsive_engines && data.unresponsive_engines.length > 0) {
-        log.info(`Unresponsive engines for "${poi.name}": ${data.unresponsive_engines.map(([e, r]) => `${e} (${r})`).join(", ")}`, {
-          engines: data.unresponsive_engines,
-        });
-      }
-
-      return { snippets, query, unresponsiveEngines: data.unresponsive_engines ?? [] };
-    } catch (err) {
-      clearTimeout(timeout);
+  for (const query of queries) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (signal?.aborted) throw new Error("Cancelled");
 
-      lastError = err instanceof Error ? err : new Error(String(err));
-
-      // Retry on network errors (ECONNREFUSED, fetch failed, etc.)
-      if (attempt < maxRetries && lastError.name !== "AbortError") {
-        continue;
+      if (attempt > 0) {
+        const delayMs = 2000 * Math.pow(2, attempt - 1);
+        await new Promise((r) => setTimeout(r, delayMs));
       }
-      throw lastError;
-    } finally {
-      clearTimeout(timeout);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      if (signal) {
+        signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+
+      try {
+        const res = await fetch(`${apiBase}/search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            language: "fr",
+            engines: requestedEngines,
+          }),
+          signal: controller.signal,
+        });
+
+        if (res.status === 429) {
+          lastError = new Error("Search rate-limited (429)");
+          continue;
+        }
+
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          lastError = new Error(`Search server error (${res.status})`);
+          continue;
+        }
+
+        if (!res.ok) {
+          throw new Error(`Search failed: ${res.status} ${res.statusText}`);
+        }
+
+        const data: SearXNGResponse = await res.json();
+        lastUnresponsiveEngines = data.unresponsive_engines ?? [];
+        noteEngineFailures(lastUnresponsiveEngines);
+
+        const seen = new Set<string>();
+        const rawSnippets: SearchSnippet[] = [];
+
+        for (const result of data.results) {
+          if (rawSnippets.length >= MAX_SNIPPETS * 2) break;
+          if (!result.content?.trim()) continue;
+
+          const normalizedUrl = normalizeUrlForDedup(result.url);
+          if (seen.has(normalizedUrl)) continue;
+          seen.add(normalizedUrl);
+
+          rawSnippets.push({
+            title: result.title || "",
+            url: result.url,
+            content: result.content.trim(),
+            engine: result.engine || "unknown",
+          });
+        }
+
+        const snippets: SearchSnippet[] = [];
+        let filteredCount = 0;
+        for (const s of rawSnippets) {
+          if (snippets.length >= MAX_SNIPPETS) break;
+          if (isObviousNoiseSnippet(s, poi, locality)) {
+            filteredCount++;
+            continue;
+          }
+          if (isSnippetGeographicallyCoherent(s, geoContext ?? null, locality)) {
+            snippets.push(s);
+          } else {
+            filteredCount++;
+          }
+        }
+
+        log.info(`SearXNG results for "${poi.name}"`, {
+          query,
+          requestedEngines,
+          totalResults: data.results.length,
+          rawKept: rawSnippets.length,
+          geoFiltered: filteredCount,
+          keptSnippets: snippets.length,
+          unresponsiveEngines: data.unresponsive_engines?.length ?? 0,
+        });
+        for (const s of snippets) {
+          log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
+        }
+        if (data.unresponsive_engines && data.unresponsive_engines.length > 0) {
+          log.info(`Unresponsive engines for "${poi.name}": ${data.unresponsive_engines.map(([e, r]) => `${e} (${r})`).join(", ")}`, {
+            engines: data.unresponsive_engines,
+          });
+        }
+
+        if (snippets.length > 0) {
+          noteSuccessfulEngines(snippets);
+          return { snippets, query, unresponsiveEngines: data.unresponsive_engines ?? [] };
+        }
+
+        return { snippets: [], query, unresponsiveEngines: data.unresponsive_engines ?? [] };
+      } catch (err) {
+        if (signal?.aborted) throw new Error("Cancelled");
+
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        if (/^Search failed: /i.test(lastError.message)) {
+          throw lastError;
+        }
+
+        if (attempt < maxRetries && lastError.name !== "AbortError") {
+          continue;
+        }
+
+        break;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
   }
 
-  throw lastError ?? new Error("Search failed after retries");
+  log.warn(`No useful snippets retained for "${poi.name}" after query fallbacks`, {
+    queriesTried: queries,
+    requestedEngines,
+    unresponsiveEngines: lastUnresponsiveEngines,
+  });
+  return { snippets: [], query: queries[queries.length - 1] ?? buildSearchQuery(poi, locality, geoContext), unresponsiveEngines: lastUnresponsiveEngines };
+}
+
+export function buildOfficialWebsiteSnippets(websitePreview: WebsitePreview | null | undefined): SearchSnippet[] {
+  return extractStructuredWebsiteSnippets(websitePreview);
+}
+
+export async function fetchGoogleMapsPreview(
+  url: string,
+  apiBase: string = "/api",
+  signal?: AbortSignal,
+): Promise<GoogleMapsPreview | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180_000);
+
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${apiBase}/google-maps-preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) return null;
+    return await res.json() as GoogleMapsPreview;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function enqueueGoogleMapsPreview(
+  url: string,
+  apiBase: string = "/api",
+  signal?: AbortSignal,
+  poiName?: string | null,
+): Promise<GoogleMapsPreviewJob | null> {
+  try {
+    const res = await fetch(`${apiBase}/google-maps-preview/jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, poiName: poiName ?? undefined }),
+      signal,
+    });
+    if (!res.ok) return null;
+    return await res.json() as GoogleMapsPreviewJob;
+  } catch {
+    return null;
+  }
+}
+
+export async function pollGoogleMapsPreviewJob(
+  jobId: string,
+  apiBase: string = "/api",
+  signal?: AbortSignal,
+): Promise<GoogleMapsPreviewJob | null> {
+  try {
+    const res = await fetch(`${apiBase}/google-maps-preview/jobs/${jobId}`, {
+      method: "GET",
+      signal,
+    });
+    if (!res.ok) return null;
+    return await res.json() as GoogleMapsPreviewJob;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGoogleMapsJobStats(
+  apiBase: string = "/api",
+  signal?: AbortSignal,
+): Promise<GoogleFallbackJobStats | null> {
+  try {
+    const res = await fetch(`${apiBase}/google-maps-preview/jobs`, {
+      method: "GET",
+      signal,
+    });
+    if (!res.ok) return null;
+    return await res.json() as GoogleFallbackJobStats;
+  } catch {
+    return null;
+  }
+}
+
+export function buildGoogleMapsSnippets(preview: GoogleMapsPreview | null | undefined): SearchSnippet[] {
+  if (!preview) return [];
+  const snippets: SearchSnippet[] = [];
+  const url = preview.resolvedUrl || preview.url;
+
+  if (preview.snippet) {
+    snippets.push({
+      title: preview.title ?? "Google Maps",
+      url,
+      content: preview.snippet,
+      engine: "google_maps",
+    });
+  }
+
+  // Prefer structured hours (full 7-day table) over collapsed hoursText when available
+  const hoursDisplay = preview.structuredHours?.length
+    ? preview.structuredHours
+        .map((e) => {
+          if (e.open.toLowerCase() === "closed") return `${e.day}: closed`;
+          if (e.close) return `${e.day}: ${e.open}-${e.close}`;
+          return `${e.day}: ${e.open}`;
+        })
+        .join("; ")
+    : preview.hoursText;
+
+  const facts = [
+    preview.category,
+    preview.rating != null ? `Rating ${preview.rating}/5` : null,
+    preview.reviewCount != null ? `${preview.reviewCount} reviews` : null,
+    preview.priceLevel != null ? `Price ${"$".repeat(preview.priceLevel)}` : null,
+    hoursDisplay,
+    preview.address,
+    preview.phone,
+  ].filter(Boolean).join(". ");
+
+  if (facts) {
+    snippets.push({
+      title: `${preview.title ?? "Google Maps"} facts`,
+      url,
+      content: facts,
+      engine: "google_maps",
+    });
+  }
+
+  return snippets;
+}
+
+export function countSuspendedHealthyEngines(): number {
+  const now = Date.now();
+  return [...engineFailureState.values()].filter((item) => item.suspendedUntil > now).length;
+}
+
+/**
+ * Returns true when every configured engine is currently suspended
+ * (CAPTCHA, access denied, rate-limited) and the batch should pause
+ * to let the user resolve the CAPTCHA manually.
+ */
+export function areAllEnginesSuspended(): boolean {
+  const allEngines = SEARXNG_ENGINES.split(",").map((e) => e.trim()).filter(Boolean);
+  if (allEngines.length === 0) return false;
+  const now = Date.now();
+  return allEngines.every((engine) => {
+    const state = engineFailureState.get(engine);
+    return state != null && state.suspendedUntil > now;
+  });
+}
+
+/**
+ * Build the URL to open in a browser tab for manual CAPTCHA resolution.
+ * Uses the SearXNG proxy endpoint so the user clears the block on the
+ * same IP/session as the enrichment requests.
+ * Falls back to the raw SearXNG instance URL if the apiBase is a relative path.
+ */
+export function buildCaptchaResolveUrl(apiBase: string = "/api"): string {
+  // Point the user at SearXNG's own search UI via the proxy base.
+  // The proxy is at /api/search; SearXNG UI root is typically at the root of
+  // the SearXNG instance — we expose it via a dedicated endpoint.
+  if (apiBase.startsWith("http")) {
+    return `${apiBase}/searxng-ui`;
+  }
+  // Relative path: build an absolute URL using the current origin
+  return `${window.location.origin}${apiBase}/searxng-ui`;
 }
 
 // ---------------------------------------------------------------------------
@@ -590,7 +936,7 @@ export async function reverseGeocode(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
   if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
   try {

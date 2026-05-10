@@ -3,7 +3,7 @@
 // Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { useRavitools } from "./hooks/useRavitools";
 import { useEnrichment } from "./hooks/useEnrichment";
 import { GpxUpload } from "./components/GpxUpload";
@@ -15,12 +15,15 @@ import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { DebugPanel } from "./components/DebugPanel";
 import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
 import type { TargetLanguage } from "./types";
+import { isRetryableEnrichmentResult } from "./lib/enrichment";
 
 const EnrichmentSandbox = lazy(() => import("./components/EnrichmentSandbox").then((module) => ({ default: module.EnrichmentSandbox })));
 
 export default function App() {
-  const sandboxMode = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).has("sandbox");
+  const sandboxMode = useMemo(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("sandbox"),
+    [],
+  );
   const {
     state,
     filteredPois,
@@ -39,6 +42,7 @@ export default function App() {
     startEnrichment,
     continueEnrichment,
     cancelEnrichment,
+    resumeAfterCaptcha,
     resetEnrichment,
     restoreEnrichments,
   } = useEnrichment();
@@ -108,11 +112,15 @@ export default function App() {
 
   const hasPois = state.pois.length > 0;
 
-  // Count POIs that still need enrichment (unenriched + errors)
-  const pendingEnrichmentCount = filteredPois.filter((poi) => {
-    const e = enrichments.get(poi.id);
-    return !e || e.status === "error";
-  }).length;
+  // Count POIs that still need enrichment (unenriched + retryable failures)
+  const pendingEnrichmentCount = useMemo(
+    () =>
+      filteredPois.filter((poi) => {
+        const e = enrichments.get(poi.id);
+        return isRetryableEnrichmentResult(e);
+      }).length,
+    [filteredPois, enrichments],
+  );
 
   const handleReset = useCallback(() => {
     reset();
@@ -137,6 +145,20 @@ export default function App() {
       <div className="app-layout">
         {/* Sidebar */}
         <aside className="sidebar">
+          {/* Category selector – pinned at top, never scrolls away */}
+          <CategoryFilter
+            activeCategories={state.activeCategories}
+            onToggle={toggleCategory}
+            onSelectAll={setAllCategories}
+            pois={state.pois}
+            showCounts={hasPois}
+            maxDistanceM={state.routeSettings.maxDistanceM}
+            onMaxDistanceChange={setMaxDistance}
+            targetLanguage={targetLanguage}
+          />
+
+          {/* Scrollable area for everything else */}
+          <div className="sidebar-scroll">
           {/* Resume prompt */}
           {showResumePrompt && (
             <div className="session-prompt">
@@ -153,18 +175,6 @@ export default function App() {
               </div>
             </div>
           )}
-
-          {/* Category selector – always visible */}
-          <CategoryFilter
-            activeCategories={state.activeCategories}
-            onToggle={toggleCategory}
-            onSelectAll={setAllCategories}
-            pois={state.pois}
-            showCounts={hasPois}
-            maxDistanceM={state.routeSettings.maxDistanceM}
-            onMaxDistanceChange={setMaxDistance}
-            targetLanguage={targetLanguage}
-          />
 
           {/* Upload area – show when idle, or at error with no traces loaded */}
           {((state.stage === "idle" || (state.stage === "error" && state.traces.length === 0)) && !showResumePrompt) && (
@@ -242,6 +252,7 @@ export default function App() {
               onStart={() => startEnrichment(filteredPois, targetLanguage, enrichAll)}
               onContinue={() => continueEnrichment(filteredPois, targetLanguage, enrichAll)}
               onCancel={cancelEnrichment}
+              onResumeAfterCaptcha={resumeAfterCaptcha}
             />
           )}
 
@@ -284,6 +295,7 @@ export default function App() {
 
           {/* Debug panel – always available */}
           <DebugPanel />
+          </div>
         </aside>
 
         {/* Map */}

@@ -20,6 +20,7 @@ import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
 import { translateCategory, translatePoiName } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
+import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
 
 interface Props {
   traces: TraceData[];
@@ -40,13 +41,14 @@ function FitBounds({ traces }: { traces: TraceData[] }) {
     const allPoints = traces.flatMap((t) => t.original);
     if (allPoints.length === 0) return;
 
-    const lats = allPoints.map((p) => p.lat);
-    const lons = allPoints.map((p) => p.lon);
-
-    const bounds: LatLngBoundsExpression = [
-      [Math.min(...lats), Math.min(...lons)],
-      [Math.max(...lats), Math.max(...lons)],
-    ];
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const p of allPoints) {
+      if (p.lat < minLat) minLat = p.lat;
+      if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lon < minLon) minLon = p.lon;
+      if (p.lon > maxLon) maxLon = p.lon;
+    }
+    const bounds: LatLngBoundsExpression = [[minLat, minLon], [maxLat, maxLon]];
 
     map.fitBounds(bounds, { padding: [40, 40] });
   }, [traces, map]);
@@ -73,9 +75,10 @@ function FlyToSelected({
     map.flyTo(latlng, Math.max(map.getZoom(), 14), { duration: 0.6 });
 
     // Open popup after fly animation
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       marker.openPopup();
     }, 650);
+    return () => clearTimeout(timer);
   }, [selectedPoiId, map, markerRefs]);
 
   return null;
@@ -276,6 +279,16 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                         {enrichment.review}
                       </div>
                     )}
+                    {getSynthesisLabel(enrichment) && (
+                      <div className="poi-popup-meta-row">
+                        <span className={getSynthesisBadgeClass(enrichment)}>{getSynthesisLabel(enrichment)}</span>
+                        {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
+                          <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
+                            Maps
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {/* Divergences & cautions (WS12) */}
                     {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
                       <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#dc2626", lineHeight: "1.3" }}>
@@ -323,6 +336,11 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                     )}
                   </>
                 )}
+                {isRetryableDegradedResult(enrichment) ? (
+                  <div className="poi-popup-retryable">
+                    Search degraded. Retry after cooldown or IP change.
+                  </div>
+                ) : null}
 
                 {poi.tags.website && (
                   <div className="text-xs">

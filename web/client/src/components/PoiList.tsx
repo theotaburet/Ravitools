@@ -2,12 +2,13 @@
 // POI list component (neobrutalist) – virtualized, with enrichment + selection
 // ---------------------------------------------------------------------------
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { translateCategory, translatePoiName } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
+import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
 
 /** Human-readable labels for skip reasons */
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
@@ -67,7 +68,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const sortedPois = sortPois(pois, sortMode);
+  const sortedPois = useMemo(() => sortPois(pois, sortMode), [pois, sortMode]);
 
   const virtualizer = useVirtualizer({
     count: sortedPois.length,
@@ -176,7 +177,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                   {(!enrichment || enrichment.status !== "done") && (() => {
                     const osmAvail = getAvailabilityTags(null, poi.tags.opening_hours, targetLanguage as "fr" | "en");
                     return osmAvail.length > 0 ? (
-                      <div className="poi-enrichment-meta" style={{ color: "#16a34a", fontWeight: 600 }}>
+                      <div className="poi-enrichment-meta poi-enrichment-meta-success">
                         {osmAvail.join(" · ")}
                       </div>
                     ) : null;
@@ -225,7 +226,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                           </tbody>
                         </table>
                       ) : enrichment.hours ? (
-                        <div className="poi-enrichment-meta" style={{ whiteSpace: "pre-line" }}>
+                        <div className="poi-enrichment-meta poi-enrichment-meta-preline">
                           {enrichment.hours
                             .split(/[;\n]|(?:\s\/\s)/)
                             .map((s) => s.trim())
@@ -236,7 +237,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                       {(() => {
                         const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
                         return avail.length > 0 ? (
-                          <div className="poi-enrichment-meta" style={{ color: "#16a34a", fontWeight: 600 }}>
+                          <div className="poi-enrichment-meta poi-enrichment-meta-success">
                             {avail.join(" · ")}
                           </div>
                         ) : null;
@@ -249,6 +250,16 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                       {enrichment.review && (
                         <div className="poi-enrichment-summary" style={{ fontStyle: "italic" }}>
                           {enrichment.review}
+                        </div>
+                      )}
+                      {getSynthesisLabel(enrichment) && (
+                        <div className="poi-enrichment-meta">
+                          <span className={getSynthesisBadgeClass(enrichment)}>{getSynthesisLabel(enrichment)}</span>
+                          {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
+                            <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
+                              Maps
+                            </span>
+                          )}
                         </div>
                       )}
 
@@ -297,7 +308,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                               className="poi-source-link"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {new URL(url).hostname}
+                              {(() => { try { return new URL(url).hostname; } catch { return url; } })()}
                             </a>
                           ))}
                         </div>
@@ -309,6 +320,9 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                   {enrichment && enrichment.status === "skipped" && enrichment.skipReason && (
                     <div className="poi-skip-reason">
                       {SKIP_REASON_LABELS[enrichment.skipReason]}
+                      {isRetryableDegradedResult(enrichment)
+                        ? " · retryable after cooldown/IP change"
+                        : ""}
                     </div>
                   )}
 

@@ -209,7 +209,8 @@ describe("searchPoi", () => {
     const body = JSON.parse(opts.body);
     expect(body.query).toContain('"Chez Marie"');
     expect(body.query).toContain("Lyon");
-    expect(body.language).toBe("auto");
+    expect(body.language).toBe("fr");
+    expect(body.engines).toBe("presearch,bing,aol");
   });
 
   it("trims whitespace from snippet content", async () => {

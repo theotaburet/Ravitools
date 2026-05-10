@@ -37,6 +37,8 @@ export function useRavitools() {
   activeCatsRef.current = state.activeCategories;
   const routeSettingsRef = useRef<RouteProcessingSettings>(state.routeSettings);
   routeSettingsRef.current = state.routeSettings;
+  const stateRef = useRef<AppState>(state);
+  stateRef.current = state;
 
   const update = useCallback(
     (partial: Partial<AppState>) =>
@@ -263,7 +265,7 @@ export function useRavitools() {
   // -----------------------------------------------------------------------
   const retryQuery = useCallback(async () => {
     const log = dlog("pipeline");
-    const currentTraces = (state as AppState).traces;
+    const currentTraces = stateRef.current.traces;
     if (currentTraces.length === 0) {
       log.warn("retryQuery called but no traces loaded");
       return;
@@ -337,7 +339,7 @@ export function useRavitools() {
       log.error(`Retry failed: ${message}`);
       update({ stage: "error", error: message, progress: "", progressRatio: null });
     }
-  }, [state, update]);
+  }, [update]);
 
   return {
     state,

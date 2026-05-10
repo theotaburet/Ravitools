@@ -55,3 +55,8 @@ htmlcov/
 coverage.xml
 .pytest_cache/
 .hypothesis/
+
+# Playwright
+web/client/test-results/
+web/client/playwright-report/
+web/client/e2e-*-report.json

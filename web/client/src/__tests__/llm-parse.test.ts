@@ -141,11 +141,11 @@ I hope this helps!`;
     expect(parseLlmOutput(input)!.priceLevel).toBe(3);
   });
 
-  it("truncates description to 300 characters", () => {
+  it("truncates description to 180 characters", () => {
     const longDescription = "A".repeat(400);
     const input = JSON.stringify({ rating: null, reviewCount: null, hours: null, description: longDescription, review: null, priceLevel: null });
     const result = parseLlmOutput(input);
-    expect(result!.description!.length).toBe(300);
+    expect(result!.description!.length).toBe(180);
   });
 
   // -------------------------------------------------------------------------
@@ -206,22 +206,44 @@ I hope this helps!`;
     expect(result!.priceLevel).toBeNull();
   });
 
-  it("handles extra unexpected fields without error", () => {
-    const input = JSON.stringify({
-      rating: 4.0,
-      reviewCount: null,
+  it("handles JSON wrapped in verbose LLM preamble text", () => {
+    // Simulates verbose LLM: "Here is the JSON: {...} Hope this helps!"
+    const json = JSON.stringify({
+      rating: 4.1,
+      reviewCount: 120,
       hours: null,
-      description: "Good.",
-      review: null,
+      description: "Cozy mountain refuge.",
+      review: "Very welcoming.",
       priceLevel: null,
-      unexpectedField: "should be ignored",
-      anotherOne: 42,
     });
+    const input = `Sure, here is the extracted information:\n${json}\nHope this helps!`;
+    const result = parseLlmOutput(input);
+    expect(result).not.toBeNull();
+    expect(result!.rating).toBe(4.1);
+    expect(result!.description).toBe("Cozy mountain refuge.");
+  });
+
+  it("returns null for clearly garbled/gibberish text", () => {
+    // No JSON object at all — pure LLM hallucination noise
+    expect(parseLlmOutput("aaaaaaaaaaaa bbbbbbbbbbb!!!!")).toBeNull();
+  });
+
+  it("accepts repaired JSON where outer text is trimmed", () => {
+    // LLM repair response that embeds valid JSON
+    const repaired = `{"rating":3.8,"reviewCount":null,"hours":null,"description":"Bon refuge en montagne.","review":null,"priceLevel":null}`;
+    const result = parseLlmOutput(repaired);
+    expect(result).not.toBeNull();
+    expect(result!.rating).toBe(3.8);
+    expect(result!.description).toBe("Bon refuge en montagne.");
+  });
+
+  it("handles JSON with trailing text after closing brace", () => {
+    // Some LLMs emit: {...} followed by explanation
+    const inner = `{"rating":4.0,"reviewCount":50,"hours":null,"description":"Nice place.","review":null,"priceLevel":2}`;
+    const input = `${inner}\n\nNote: data may be incomplete.`;
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(4.0);
-    expect(result!.description).toBe("Good.");
-    // Extra fields should not appear in the result
-    expect((result as unknown as Record<string, unknown>).unexpectedField).toBeUndefined();
+    expect(result!.priceLevel).toBe(2);
   });
 });

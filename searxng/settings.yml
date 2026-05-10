@@ -13,6 +13,8 @@ search:
   formats:
     - html
     - json
+  # Default language for queries where the client does not specify one
+  default_lang: fr
   # Increase default timeout so slower engines have time to respond
   default_timeout: 8
   # Reduce ban time so transient errors don't kill engines for long

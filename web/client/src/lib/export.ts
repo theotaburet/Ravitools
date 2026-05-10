@@ -203,6 +203,9 @@ export function buildGeoJsonObject(
             enrichment_sourceCount: enrichment.sourceCount,
             enrichment_sourceEngines: enrichment.sourceEngines.join(","),
             enrichment_confidence: enrichment.confidence,
+            enrichment_synthesisSource: enrichment.synthesisSource ?? null,
+            enrichment_synthesisReason: enrichment.synthesisReason ?? null,
+            enrichment_googleMapsFields: enrichment.googleMapsFields?.join(",") ?? null,
             enrichment_structured_headline: enrichment.structured?.headline ?? null,
             enrichment_structured_operationalSummary: enrichment.structured?.operationalSummary ?? null,
             enrichment_structured_practicalities: enrichment.structured?.practicalities.join(" | ") ?? null,
@@ -443,10 +446,10 @@ export function formatHoursHtml(raw: string): string {
     .filter((s) => s.length > 0);
 
   if (entries.length <= 1) {
-    return raw.trim();
+    return escapeXml(raw.trim());
   }
 
-  return entries.join("<br/>");
+  return entries.map((e) => escapeXml(e)).join("<br/>");
 }
 
 // ---------------------------------------------------------------------------
@@ -559,6 +562,8 @@ function formatPoiDescription(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.locality) parts.push(`Location: ${enrichment.locality}`);
     if (enrichment.sourceCount > 0) parts.push(`Sources: ${enrichment.sourceCount}`);
     if (enrichment.confidence > 0) parts.push(`Confidence: ${Math.round(enrichment.confidence * 100)}%`);
+    if (enrichment.synthesisSource) parts.push(`Synthesis: ${enrichment.synthesisSource}${enrichment.synthesisReason ? ` (${enrichment.synthesisReason})` : ""}`);
+    if (enrichment.googleMapsFields?.length) parts.push(`Google Maps fields: ${enrichment.googleMapsFields.join(", ")}`);
     if (enrichment.googleMapsUrl) parts.push(`Google Maps: ${enrichment.googleMapsUrl}`);
   } else {
     // Fallback to raw OSM tags
@@ -604,21 +609,25 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
     if (enrichment.structured?.sourceRollup?.length) {
       parts.push(...enrichment.structured.sourceRollup.map((digest) => `<b>Source - ${escapeXml(digest.platform)}:</b> ${escapeXml(digest.brief)}`));
     }
-    if (enrichment.locality) parts.push(`<b>Location:</b> ${enrichment.locality}`);
+    if (enrichment.locality) parts.push(`<b>Location:</b> ${escapeXml(enrichment.locality)}`);
     if (enrichment.sourceCount > 0) parts.push(`<b>Sources:</b> ${enrichment.sourceCount}`);
     if (enrichment.confidence > 0) parts.push(`<b>Confidence:</b> ${Math.round(enrichment.confidence * 100)}%`);
-    if (enrichment.googleMapsUrl) parts.push(`<a href="${enrichment.googleMapsUrl}">Google Maps</a>`);
+    if (enrichment.synthesisSource) parts.push(`<b>Synthesis:</b> ${escapeXml(enrichment.synthesisSource)}${enrichment.synthesisReason ? ` (${escapeXml(enrichment.synthesisReason)})` : ""}`);
+    if (enrichment.googleMapsFields?.length) parts.push(`<b>Google Maps fields:</b> ${escapeXml(enrichment.googleMapsFields.join(", "))}`);
+    if (enrichment.googleMapsUrl) parts.push(`<a href="${escapeXml(enrichment.googleMapsUrl)}">Google Maps</a>`);
   } else {
     if (poi.tags.opening_hours)
-      parts.push(`<b>Hours:</b> ${poi.tags.opening_hours}`);
+      parts.push(`<b>Hours:</b> ${escapeXml(poi.tags.opening_hours)}`);
   }
 
-  if (poi.tags.phone) parts.push(`<b>Phone:</b> ${poi.tags.phone}`);
-  if (poi.tags.website)
+  if (poi.tags.phone) parts.push(`<b>Phone:</b> ${escapeXml(poi.tags.phone)}`);
+  if (poi.tags.website) {
+    const safeUrl = /^https?:\/\//i.test(poi.tags.website) ? escapeXml(poi.tags.website) : "#";
     parts.push(
-      `<b>Web:</b> <a href="${poi.tags.website}">${poi.tags.website}</a>`,
+      `<b>Web:</b> <a href="${safeUrl}">${escapeXml(poi.tags.website)}</a>`,
     );
-  if (poi.tags.fee) parts.push(`<b>Fee:</b> ${poi.tags.fee}`);
+  }
+  if (poi.tags.fee) parts.push(`<b>Fee:</b> ${escapeXml(poi.tags.fee)}`);
 
   // Availability highlights
   const availabilityHtml = getAvailabilityTags(

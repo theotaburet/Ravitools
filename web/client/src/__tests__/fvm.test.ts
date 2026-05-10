@@ -554,7 +554,7 @@ describe("FVM-F: LLM Output Contract", () => {
     expect(parseLlmOutput(valid)!.rating).toBe(4.5);
   });
 
-  it("F5: parseLlmOutput truncates description to 300 chars", () => {
+  it("F5: parseLlmOutput truncates description to 180 chars", () => {
     const longDescription = "X".repeat(400);
     const input = JSON.stringify({
       rating: null,
@@ -565,10 +565,10 @@ describe("FVM-F: LLM Output Contract", () => {
       priceLevel: null,
     });
     const result = parseLlmOutput(input);
-    expect(result!.description!.length).toBe(300);
+    expect(result!.description!.length).toBe(180);
   });
 
-  it("F6: parseLlmOutput truncates review to 300 chars", () => {
+  it("F6: parseLlmOutput truncates review to 180 chars", () => {
     const longReview = "Y".repeat(400);
     const input = JSON.stringify({
       rating: null,
@@ -579,7 +579,7 @@ describe("FVM-F: LLM Output Contract", () => {
       priceLevel: null,
     });
     const result = parseLlmOutput(input);
-    expect(result!.review!.length).toBe(300);
+    expect(result!.review!.length).toBe(180);
   });
 });
 

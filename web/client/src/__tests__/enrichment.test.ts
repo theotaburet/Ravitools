@@ -604,6 +604,44 @@ describe("EnrichedData skipReason field", () => {
   });
 });
 
+describe("isRetryableEnrichmentResult", () => {
+  it("returns true for missing enrichment", async () => {
+    const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
+    expect(isRetryableEnrichmentResult(undefined)).toBe(true);
+  });
+
+  it("returns true for error enrichments", async () => {
+    const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
+    expect(isRetryableEnrichmentResult({ status: "error" })).toBe(true);
+  });
+
+  it("returns true for degraded no-results enrichments", async () => {
+    const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
+    expect(isRetryableEnrichmentResult({
+      status: "skipped",
+      skipReason: "no-results",
+      unresponsiveEngines: [["yandex", "CAPTCHA"]],
+    })).toBe(true);
+  });
+
+  it("returns false for stable no-results enrichments", async () => {
+    const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
+    expect(isRetryableEnrichmentResult({
+      status: "skipped",
+      skipReason: "no-results",
+      unresponsiveEngines: [],
+    })).toBe(false);
+  });
+
+  it("returns false for non-retryable skipped enrichments", async () => {
+    const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
+    expect(isRetryableEnrichmentResult({
+      status: "skipped",
+      skipReason: "low-value-category",
+    })).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Confidence scoring
 // ---------------------------------------------------------------------------

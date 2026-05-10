@@ -90,6 +90,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
               <span>Reviews: {result.reviewCount ?? "n/a"}</span>
               <span>Price: {result.priceLevel != null ? "$".repeat(result.priceLevel) : "n/a"}</span>
               <span>Confidence: {(result.confidence * 100).toFixed(0)}%</span>
+              <span>Source: {result.synthesisSource ?? "unknown"}</span>
+              <span>Reason: {result.synthesisReason ?? "none"}</span>
             </div>
             <div className="sandbox-block">
               <strong>Description</strong>
