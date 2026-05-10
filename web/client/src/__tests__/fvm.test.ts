@@ -814,14 +814,16 @@ describe("FVM-K: Export Validation", () => {
     expect(gpx).toContain("Excellent bistro with cyclist-friendly terrace");
   });
 
-  it("K2: GPX includes review", () => {
+  it("K2: GPX no longer includes review (compact format moves it to KML)", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Well-reviewed bistro with great terrace");
+    // review is intentionally dropped from the compact GPX <desc> to fit small screens.
+    expect(gpx).not.toContain("Well-reviewed bistro with great terrace");
   });
 
-  it("K3: GPX includes rating and price", () => {
+  it("K3: GPX includes rating and price (compact star format)", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("4.3/5");
+    // Compact format: "★4.3" instead of "4.3/5"
+    expect(gpx).toContain("★4.3");
     expect(gpx).toContain("$$");
   });
 
@@ -830,10 +832,10 @@ describe("FVM-K: Export Validation", () => {
     expect(gpx).toContain("Price information could not be confirmed.");
   });
 
-  it("K5: GPX includes sourceRollup", () => {
+  it("K5: GPX no longer includes sourceRollup (compact format moves it to KML)", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("google_maps");
-    expect(gpx).toContain("Well-reviewed bistro");
+    // sourceRollup is intentionally dropped from compact GPX. It remains in KML <description>.
+    expect(gpx).not.toContain("google_maps");
   });
 
   it("K5b: GPX no longer includes unknowns (compact format)", () => {

@@ -191,13 +191,11 @@ describe("export with enrichments", () => {
     ]);
 
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Rating: 4.2/5");
-    expect(gpx).toContain("87 reviews");
-    expect(gpx).toContain("French bistro");
-    expect(gpx).toContain("Mon-Fri");
+    // Compact GPX <desc> format: header line "<Category> · ★<rating> (<reviews>) · $$ · km..."
+    expect(gpx).toContain("★4.2 (87)");
     expect(gpx).toContain("$$");
     expect(gpx).toContain("Excellent French bistro");
-    expect(gpx).toContain("Tours");
+    expect(gpx).toContain("Mon-Fri");
   });
 
   it("KML export includes enrichment in description", async () => {
@@ -730,7 +728,7 @@ describe("computeConfidence", () => {
 
 describe("export with source metadata", () => {
   it("GPX text description includes Sources and Confidence", async () => {
-    const { buildGpxString } = await import("../lib/export");
+    const { buildGpxString, buildKmlString } = await import("../lib/export");
     const poi = makePoi();
     const enrichments = new Map([
       [
@@ -758,9 +756,16 @@ describe("export with source metadata", () => {
         },
       ],
     ]);
+    // Compact GPX <desc> intentionally drops Sources/Confidence (kept in KML).
     const gpx = buildGpxString([poi], [], enrichments);
-    expect(gpx).toContain("Sources: 3");
-    expect(gpx).toContain("Confidence: 55%");
+    expect(gpx).toContain("★4.0");
+    expect(gpx).toContain("A nice bistro.");
+    expect(gpx).not.toContain("Sources:");
+    expect(gpx).not.toContain("Confidence:");
+    // Verbose data remains in KML <description>.
+    const kml = buildKmlString([poi], [], enrichments);
+    expect(kml).toContain("Sources:");
+    expect(kml).toContain("Confidence:");
   });
 
   it("KML HTML description includes Sources and Confidence", async () => {
@@ -1091,5 +1096,193 @@ describe("enrichBatch pipeline", () => {
     expect(result.sourceCount).toBe(2);
     expect(result.sourceEngines).toContain("google");
     expect(result.sourceEngines).toContain("bing");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Compact GPX <desc> format — offline GPS readability contract
+// ---------------------------------------------------------------------------
+
+describe("formatPoiDescriptionCompact", () => {
+  it("produces a header with category, rating, price and distance", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi();
+    const desc = formatPoiDescriptionCompact(poi, {
+      rating: 4.5,
+      reviewCount: 200,
+      hours: null,
+      openingHours: null,
+      description: null,
+      review: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: 3,
+      googleMapsUrl: "https://maps.google.com",
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: "2026-05-10T00:00:00Z",
+      status: "done",
+      locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
+    });
+    const firstLine = desc.split("\n")[0];
+    expect(firstLine).toContain("Restaurant or Bar");
+    expect(firstLine).toContain("★4.5 (200)");
+    expect(firstLine).toContain("$$$");
+    expect(firstLine).toContain("km 5.0");
+    expect(firstLine).toContain("120m");
+  });
+
+  it("stays under 400 characters even with large enrichment", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi({ tags: { amenity: "restaurant", phone: "+33 1 23 45 67 89" } });
+    const longText = "lorem ipsum ".repeat(80);
+    const desc = formatPoiDescriptionCompact(poi, {
+      rating: 4.5,
+      reviewCount: 999,
+      hours: longText,
+      openingHours: null,
+      description: longText,
+      review: longText,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: 4,
+      googleMapsUrl: "https://maps.google.com",
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: "2026-05-10T00:00:00Z",
+      status: "done",
+      locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
+      structured: {
+        headline: null,
+        operationalSummary: null,
+        practicalities: [],
+        sourceRollup: [],
+        cautions: [longText, longText],
+        unknowns: [],
+        divergences: [],
+        sourceConfirmation: "none",
+      },
+    });
+    expect(desc.length).toBeLessThanOrEqual(400);
+  });
+
+  it("falls back to OSM tags when no enrichment is provided", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi({
+      tags: {
+        amenity: "restaurant",
+        opening_hours: "Mo-Fr 09:00-18:00; Sa 10:00-14:00",
+        phone: "+33 6 12 34 56 78",
+      },
+    });
+    const desc = formatPoiDescriptionCompact(poi);
+    // No enrichment → no rating, no description; OSM hours and phone surface.
+    expect(desc).not.toContain("★");
+    expect(desc).toContain("Restaurant or Bar");
+    expect(desc).toContain("☎");
+    expect(desc).toContain("Mo-Fr");
+  });
+
+  it("prefers phone over website when both are present", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi({
+      tags: {
+        amenity: "restaurant",
+        phone: "+33 6 11 22 33 44",
+        website: "https://example.com",
+      },
+    });
+    const desc = formatPoiDescriptionCompact(poi);
+    expect(desc).toContain("+33 6 11 22 33 44");
+    expect(desc).not.toContain("https://example.com");
+  });
+
+  it("uses website when phone is missing", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://example.com" },
+    });
+    const desc = formatPoiDescriptionCompact(poi);
+    expect(desc).toContain("https://example.com");
+  });
+
+  it("formats structured opening hours compactly", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi();
+    const desc = formatPoiDescriptionCompact(poi, {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      openingHours: [
+        { day: "Monday", open: "08:00", close: "18:00" },
+        { day: "Tuesday", open: "08:00", close: "18:00" },
+        { day: "Sunday", open: "closed", close: null },
+      ],
+      description: null,
+      review: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      googleMapsUrl: "",
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: "2026-05-10T00:00:00Z",
+      status: "done",
+      locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
+    });
+    expect(desc).toContain("Mo 8-18");
+    expect(desc).toContain("Tu 8-18");
+    expect(desc).toContain("Su closed");
+  });
+
+  it("includes only the first caution to save space", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const poi = makePoi();
+    const desc = formatPoiDescriptionCompact(poi, {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      openingHours: null,
+      description: null,
+      review: null,
+      summary: null,
+      translatedSummary: null,
+      specialty: null,
+      priceLevel: null,
+      googleMapsUrl: "",
+      sourceUrls: [],
+      rawSnippets: [],
+      enrichedAt: "2026-05-10T00:00:00Z",
+      status: "done",
+      locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
+      structured: {
+        headline: null,
+        operationalSummary: null,
+        practicalities: [],
+        sourceRollup: [],
+        cautions: ["First warning", "Second warning", "Third warning"],
+        unknowns: [],
+        divergences: [],
+        sourceConfirmation: "none",
+      },
+    });
+    expect(desc).toContain("⚠ First warning");
+    expect(desc).not.toContain("Second warning");
+    expect(desc).not.toContain("Third warning");
   });
 });
