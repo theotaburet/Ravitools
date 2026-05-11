@@ -147,8 +147,8 @@ function elementToPoi(el: OverpassElement): POI | null {
 }
 
 function formatFallbackName(
-  category: string,
-  key: string,
+  _category: string,
+  _key: string,
   value: string,
 ): string {
   // Produce a readable name like "Drinking water" from "drinking_water"

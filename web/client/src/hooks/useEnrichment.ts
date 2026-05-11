@@ -417,7 +417,7 @@ export function useEnrichment() {
                 };
               });
             },
-            onPhaseProgress: (phase: EnrichmentPhase, etaSeconds: number | null) => {
+            onPhaseProgress: (_phase: EnrichmentPhase, etaSeconds: number | null) => {
               updateJob({ phase: "retry" as EnrichmentPhase, etaSeconds });
             },
             onWarning: (warning: string | null) => {

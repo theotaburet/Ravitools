@@ -11,7 +11,6 @@ import {
 } from "../lib/enrichment/search";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
 import {
-  ENRICHABILITY_POLICY,
   getEnrichabilityPolicy,
   countEnrichable,
   countFullEnrichable,
@@ -1022,7 +1021,7 @@ describe("enrichBatch pipeline", () => {
 
     // Make searchPoi abort after returning results so synthesis never starts
     const originalImpl = vi.mocked(searchPoi).getMockImplementation()!;
-    vi.mocked(searchPoi).mockImplementation(async (poi, locality, apiBase, signal) => {
+    vi.mocked(searchPoi).mockImplementation(async (poi, _locality, _apiBase, _signal) => {
       await new Promise((r) => setTimeout(r, 5));
       // Abort right after the first search completes — synthesis hasn't started
       controller.abort();

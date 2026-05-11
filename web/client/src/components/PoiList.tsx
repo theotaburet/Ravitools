@@ -2,7 +2,7 @@
 // POI list component (neobrutalist) – virtualized, with enrichment + selection
 // ---------------------------------------------------------------------------
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";

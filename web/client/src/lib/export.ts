@@ -493,9 +493,6 @@ export function isOpenSunday(hours: string | null | undefined, osmHours?: string
   return false;
 }
 
-/** Evening = has a closing time >= 20:00 */
-const EVENING_TIME = /\b(\d{1,2})[h:.]?(\d{2})?\s*$/;
-
 /**
  * Detect whether a POI is open in the evening (closing time >= 20:00).
  */

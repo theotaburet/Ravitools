@@ -5,7 +5,6 @@
 
 import type { EnrichmentJobState, TargetLanguage, EnrichedData } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
-import { countFullEnrichable, countEnrichable } from "../lib/poi-config";
 
 const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 

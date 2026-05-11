@@ -82,7 +82,7 @@ export function resetEngineFailureState(): void {
  */
 const NON_LATIN_SCRIPT_RE = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0590-\u05ff\u0900-\u097f]/;
 
-function isObviousNoiseSnippet(snippet: SearchSnippet, poi: POI, locality: string | null): boolean {
+function isObviousNoiseSnippet(snippet: SearchSnippet, _poi: POI, _locality: string | null): boolean {
   const title = snippet.title.toLowerCase();
   const content = snippet.content.toLowerCase();
   const url = snippet.url.toLowerCase();

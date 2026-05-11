@@ -31,14 +31,14 @@ export interface MountOptions {
   log: Logger;
 }
 
-type ParsedInput<T extends MapPreview> =
+type ParsedInput =
   | { url: string; poiName: string | null }
   | { error: string };
 
 function parseInput<T extends MapPreview>(
   body: unknown,
   plugin: MapScraperPlugin<T>,
-): ParsedInput<T> {
+): ParsedInput {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const rawUrl = typeof b.url === "string" ? b.url : null;
   const poiName = typeof b.poiName === "string" ? b.poiName : null;

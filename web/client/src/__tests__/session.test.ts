@@ -4,7 +4,7 @@
 
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { POI, EnrichedData, PoiCategory } from "../types";
 import { saveSession, loadSession, clearSession, hasSession } from "../lib/session";
 

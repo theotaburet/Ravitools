@@ -46,16 +46,6 @@ function poiCacheKey(poi: POI): string | null {
   return `${poi.osmType}/${poi.osmId}`;
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ms);
-  try {
-    return await promise;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 /**
  * Batch lookup: returns a Map keyed by `osm_type/osm_id` for the POIs that have
  * a cached enrichment. POIs without osmId/osmType are silently skipped.

@@ -55,13 +55,6 @@ const REPUTATION_PLATFORMS: Set<EnrichmentPlatform> = new Set([
   "google_maps", "tripadvisor", "yelp", "booking", "airbnb", "hotels_com",
 ]);
 
-/**
- * Platforms that provide operational facts (hours, contact, menus).
- */
-const OPERATIONAL_PLATFORMS: Set<EnrichmentPlatform> = new Set([
-  "official_website", "google_maps",
-]);
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -386,7 +379,7 @@ function buildUnknowns(
  */
 export function buildDivergences(
   snippets: SearchSnippet[],
-  enrichment: Pick<EnrichedData, "hours" | "rating">,
+  _enrichment: Pick<EnrichedData, "hours" | "rating">,
 ): string[] {
   const divergences: string[] = [];
 
