@@ -8,7 +8,6 @@ import pino from "pino";
 import { chromium, type Browser } from "playwright";
 import { getBrowserContext, saveBrowserState, closeBrowserContext } from "./browser-context.js";
 import {
-  fetchGoogleMapsPreviewOnce as scraperFetchGoogleMapsPreviewOnce,
   parseGoogleMapsHoursRow,
   normalizeDay,
   normalizeTimeString,
@@ -17,10 +16,8 @@ import {
   cleanGoogleMapsHours,
   extractPriceLevelFromText,
   GOOGLE_MAPS_PROXY_URL,
-  type GoogleMapsPreview as GoogleMapsPreviewType,
 } from "./scrapers/google-maps.js";
 import {
-  fetchYandexMapsPreviewOnce as scraperFetchYandexMapsPreviewOnce,
   buildYandexMapsUrl,
   parseYandexMapsHoursRow,
   normalizeYandexDay,
@@ -29,10 +26,8 @@ import {
   extractYandexMapsReviewCount,
   cleanYandexMapsHours,
   YANDEX_MAPS_PROXY_URL,
-  type YandexMapsPreview as YandexMapsPreviewType,
 } from "./scrapers/yandex-maps.js";
-import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mountAllScrapers } from "./scrapers/registry.js";
 import { lookup } from "node:dns/promises";
 import {
   initDb,
@@ -97,9 +92,6 @@ const RATE_LIMIT_WINDOW_MS = parseInt(
 );
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "60", 10);
 
-// Google Maps rate controls (configurable via env)
-const GOOGLE_MAPS_JOBS_TTL_MS = parseInt(process.env.GOOGLE_MAPS_JOBS_TTL_MS || String(7 * 24 * 3600 * 1000), 10); // 7 days
-
 const log = pino({
   transport:
     process.env.NODE_ENV !== "production"
@@ -116,92 +108,7 @@ type WebsiteStructuredData = {
   reviewCount: number | null;
 };
 
-type GoogleMapsPreview = GoogleMapsPreviewType;
-type YandexMapsPreview = YandexMapsPreviewType;
-
-type GoogleMapsPreviewJob = {
-  jobId: string;
-  status: "queued" | "running" | "done" | "error";
-  url: string;
-  /** Human-readable POI name for UI display (extracted from URL or set at queue time) */
-  poiName: string | null;
-  preview: GoogleMapsPreview | null;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-  /** ISO timestamp when the job actually started running */
-  startedAt: string | null;
-  /** Current attempt number (1-based) */
-  attempt: number;
-  /** ISO timestamp of next scheduled retry (null if not waiting for retry) */
-  nextRetryAt: string | null;
-  /** Last extraction error message before final failure or current attempt error */
-  lastError: string | null;
-};
-
-/**
- * Yandex Maps preview job — mirror of GoogleMapsPreviewJob with a different
- * preview payload type. Kept separate (no shared base interface yet) to keep
- * the diff focused; can be unified later if the shape stays in sync.
- */
-type YandexMapsPreviewJob = {
-  jobId: string;
-  status: "queued" | "running" | "done" | "error";
-  url: string;
-  poiName: string | null;
-  preview: YandexMapsPreview | null;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-  startedAt: string | null;
-  attempt: number;
-  nextRetryAt: string | null;
-  lastError: string | null;
-};
-
 let browserPromise: Promise<Browser> | null = null;
-let googleMapsQueue: Promise<unknown> = Promise.resolve();
-
-const GOOGLE_MAPS_MIN_DELAY_MS = parseInt(process.env.GOOGLE_MAPS_MIN_DELAY_MS || "4000", 10);
-const GOOGLE_MAPS_MAX_DELAY_MS = parseInt(process.env.GOOGLE_MAPS_MAX_DELAY_MS || "12000", 10);
-const GOOGLE_MAPS_RETRIES = parseInt(process.env.GOOGLE_MAPS_RETRIES || "3", 10);
-
-const GOOGLE_MAPS_USER_AGENTS = [
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-];
-
-const GOOGLE_MAPS_LOCALES = ["fr-FR", "en-US", "es-ES"] as const;
-const GOOGLE_MAPS_JOBS_FILE = join(process.cwd(), ".cache", "google-maps-jobs.json");
-/**
- * Append-only JSONL file for failed Google Maps extractions.
- * Each line is a self-contained JSON record: url, poiName, attempts, lastError, failedAt.
- * Useful for debugging extraction failures without noise in normal logs.
- * Grows unbounded — rotate/truncate manually if needed (not critical for dev use).
- */
-const GOOGLE_MAPS_FAILURES_FILE = join(process.cwd(), ".cache", "google-maps-failures.jsonl");
-
-type GoogleMapsFailureRecord = {
-  url: string;
-  poiName: string | null;
-  attempts: number;
-  lastError: string | null;
-  failedAt: string;
-};
-
-function appendGoogleMapsFailure(record: GoogleMapsFailureRecord): void {
-  try {
-    const dir = dirname(GOOGLE_MAPS_FAILURES_FILE);
-    mkdirSync(dir, { recursive: true });
-    const line = JSON.stringify(record) + "\n";
-    appendFileSync(GOOGLE_MAPS_FAILURES_FILE, line, { encoding: "utf8" });
-    log.debug({ url: record.url, attempts: record.attempts, lastError: record.lastError }, "Google Maps: failure record appended");
-  } catch (err) {
-    log.warn({ err }, "Google Maps: failed to append failure record");
-  }
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -209,81 +116,6 @@ function sleep(ms: number): Promise<void> {
 
 function randomDelay(minMs: number, maxMs: number): number {
   return Math.floor(minMs + Math.random() * (maxMs - minMs));
-}
-
-function randomItem<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-function pruneStaleGoogleMapsJobs(): void {
-  const cutoff = Date.now() - GOOGLE_MAPS_JOBS_TTL_MS;
-  for (const key of googleMapsJobCache.keys()) {
-    const job = googleMapsJobCache.get<GoogleMapsPreviewJob>(key);
-    if (!job) continue;
-    const age = new Date(job.updatedAt).getTime();
-    // Only prune terminal jobs (done/error) that are older than the TTL
-    if ((job.status === "done" || job.status === "error") && age < cutoff) {
-      googleMapsJobCache.del(key);
-      log.debug({ jobId: job.jobId, age: Date.now() - age }, "Google Maps: pruned stale job");
-    }
-  }
-}
-
-function persistGoogleMapsJobs(): void {
-  pruneStaleGoogleMapsJobs();
-  const dir = dirname(GOOGLE_MAPS_JOBS_FILE);
-  mkdirSync(dir, { recursive: true });
-  const entries = googleMapsJobCache.keys()
-    .map((key) => googleMapsJobCache.get<GoogleMapsPreviewJob>(key))
-    .filter((job): job is GoogleMapsPreviewJob => Boolean(job));
-  const tmpFile = `${GOOGLE_MAPS_JOBS_FILE}.tmp`;
-  try {
-    writeFileSync(tmpFile, JSON.stringify(entries, null, 2), { encoding: "utf8", flag: "w" });
-    renameSync(tmpFile, GOOGLE_MAPS_JOBS_FILE);
-  } catch (err) {
-    log.warn({ err }, "Google Maps: failed to persist jobs (atomic write failed)");
-    try { unlinkSync(tmpFile); } catch { /* ignore */ }
-  }
-}
-
-function loadPersistedGoogleMapsJobs(): void {
-  if (!existsSync(GOOGLE_MAPS_JOBS_FILE)) return;
-  try {
-    const raw = readFileSync(GOOGLE_MAPS_JOBS_FILE, "utf8");
-    const jobs = JSON.parse(raw) as GoogleMapsPreviewJob[];
-    const cutoff = Date.now() - GOOGLE_MAPS_JOBS_TTL_MS;
-    let recovered = 0;
-    let skipped = 0;
-    for (const job of jobs) {
-      // Skip jobs older than TTL (stale pruning on load)
-      if ((job.status === "done" || job.status === "error") && new Date(job.updatedAt).getTime() < cutoff) {
-        skipped++;
-        continue;
-      }
-      // Jobs that were "running" at shutdown were interrupted — mark as error
-      const recoveredStatus = job.status === "running" ? "error" : job.status;
-      const recoveredError = job.status === "running"
-        ? "Job interrupted by server restart"
-        : job.error;
-      googleMapsJobCache.set(job.jobId, {
-        ...job,
-        status: recoveredStatus,
-        error: recoveredError,
-        lastError: job.status === "running" ? "Job interrupted by server restart" : job.lastError,
-        updatedAt: job.status === "running" ? new Date().toISOString() : job.updatedAt,
-      });
-      recovered++;
-    }
-    log.info({ recovered, skipped }, "Google Maps: restored jobs from disk");
-  } catch (err) {
-    log.warn({ err }, "Failed to restore Google Maps jobs from disk");
-  }
-}
-
-async function withGoogleMapsQueue<T>(task: () => Promise<T>): Promise<T> {
-  const run = googleMapsQueue.then(task, task);
-  googleMapsQueue = run.then(() => undefined, () => undefined);
-  return run;
 }
 
 function parseJsonLdBlocks(html: string): unknown[] {
@@ -380,372 +212,9 @@ async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
-async function fetchGoogleMapsPreview(
-  url: string,
-  onAttemptUpdate?: (attempt: number, nextRetryAt: string | null, lastError: string | null) => void,
-): Promise<GoogleMapsPreview | null> {
-  return withGoogleMapsQueue(async () => {
-    for (let attempt = 1; attempt <= GOOGLE_MAPS_RETRIES; attempt++) {
-      const initialDelay = randomDelay(GOOGLE_MAPS_MIN_DELAY_MS, GOOGLE_MAPS_MAX_DELAY_MS);
-      log.info({ url, attempt, initialDelay }, "Google Maps preview: waiting before attempt");
-      onAttemptUpdate?.(attempt, null, null);
-      await sleep(initialDelay);
-
-      let lastError: string | null = null;
-      const result = await fetchGoogleMapsPreviewOnce(url, attempt).catch((err) => {
-        lastError = err instanceof Error ? err.message : String(err);
-        log.warn({ err, url, attempt }, "Google Maps preview attempt failed");
-        return null;
-      });
-
-      if (result) return result;
-
-      if (attempt < GOOGLE_MAPS_RETRIES) {
-        const retryDelay = randomDelay(8_000 * attempt, 20_000 * attempt);
-        const nextRetryAt = new Date(Date.now() + retryDelay).toISOString();
-        log.warn({ url, attempt, retryDelay, nextRetryAt }, "Google Maps preview: backing off before retry");
-        onAttemptUpdate?.(attempt, nextRetryAt, lastError);
-        await sleep(retryDelay);
-      } else {
-        onAttemptUpdate?.(attempt, null, lastError);
-      }
-    }
-
-    return null;
-  });
-}
-
-async function queueGoogleMapsPreviewJob(url: string, poiName?: string | null): Promise<GoogleMapsPreviewJob> {
-  const crypto = await import("crypto");
-  const jobId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  const job: GoogleMapsPreviewJob = {
-    jobId,
-    status: "queued",
-    url,
-    poiName: poiName ?? null,
-    preview: null,
-    error: null,
-    createdAt,
-    updatedAt: createdAt,
-    startedAt: null,
-    attempt: 0,
-    nextRetryAt: null,
-    lastError: null,
-  };
-  googleMapsJobCache.set(jobId, job);
-  persistGoogleMapsJobs();
-
-  void (async () => {
-    const startedAt = new Date().toISOString();
-    const runningJob: GoogleMapsPreviewJob = {
-      ...job,
-      status: "running",
-      startedAt,
-      attempt: 1,
-      updatedAt: startedAt,
-    };
-    googleMapsJobCache.set(jobId, runningJob);
-    persistGoogleMapsJobs();
-
-    const onAttemptUpdate = (attempt: number, nextRetryAt: string | null, lastError: string | null) => {
-      const current = googleMapsJobCache.get<GoogleMapsPreviewJob>(jobId);
-      if (!current) return;
-      googleMapsJobCache.set(jobId, {
-        ...current,
-        attempt,
-        nextRetryAt,
-        lastError: lastError ?? current.lastError,
-        updatedAt: new Date().toISOString(),
-      });
-      persistGoogleMapsJobs();
-    };
-
-    try {
-      const preview = await fetchGoogleMapsPreview(url, onAttemptUpdate);
-      const current = googleMapsJobCache.get<GoogleMapsPreviewJob>(jobId) ?? runningJob;
-      if (!preview) {
-        appendGoogleMapsFailure({
-          url,
-          poiName: poiName ?? null,
-          attempts: current.attempt,
-          lastError: current.lastError ?? "no data returned",
-          failedAt: new Date().toISOString(),
-        });
-      }
-      googleMapsJobCache.set(jobId, {
-        ...current,
-        status: preview ? "done" : "error",
-        preview,
-        error: preview ? null : "Google Maps preview returned no data",
-        nextRetryAt: null,
-        updatedAt: new Date().toISOString(),
-      });
-      persistGoogleMapsJobs();
-    } catch (err) {
-      const current = googleMapsJobCache.get<GoogleMapsPreviewJob>(jobId) ?? runningJob;
-      const message = err instanceof Error ? err.message : "Unknown Google Maps error";
-      appendGoogleMapsFailure({
-        url,
-        poiName: poiName ?? null,
-        attempts: current.attempt,
-        lastError: message,
-        failedAt: new Date().toISOString(),
-      });
-      googleMapsJobCache.set(jobId, {
-        ...current,
-        status: "error",
-        preview: null,
-        error: message,
-        lastError: message,
-        nextRetryAt: null,
-        updatedAt: new Date().toISOString(),
-      });
-      persistGoogleMapsJobs();
-    }
-  })();
-
-  return job;
-}
-
-async function fetchGoogleMapsPreviewOnce(url: string, attempt: number): Promise<GoogleMapsPreview | null> {
-  const browser = await getBrowser();
-  return scraperFetchGoogleMapsPreviewOnce(url, attempt, browser, { log, sleep, randomDelay });
-}
-
-// ---------------------------------------------------------------------------
-// Yandex Maps job system — mirror of the Google one above.
-//
-// Same retry/persistence/queue semantics; separate state so a stuck Yandex
-// job never blocks Google traffic and vice versa. Yandex coverage is sparse
-// outside CIS/EU/Turkey, so failures are expected and degrade gracefully.
-// ---------------------------------------------------------------------------
-
-let yandexMapsQueue: Promise<unknown> = Promise.resolve();
-
-const YANDEX_MAPS_MIN_DELAY_MS = parseInt(process.env.YANDEX_MAPS_MIN_DELAY_MS || "4000", 10);
-const YANDEX_MAPS_MAX_DELAY_MS = parseInt(process.env.YANDEX_MAPS_MAX_DELAY_MS || "12000", 10);
-const YANDEX_MAPS_RETRIES = parseInt(process.env.YANDEX_MAPS_RETRIES || "3", 10);
-const YANDEX_MAPS_JOBS_TTL_MS = parseInt(process.env.YANDEX_MAPS_JOBS_TTL_MS || String(7 * 24 * 3600 * 1000), 10);
-const YANDEX_MAPS_JOBS_FILE = join(process.cwd(), ".cache", "yandex-maps-jobs.json");
-const YANDEX_MAPS_FAILURES_FILE = join(process.cwd(), ".cache", "yandex-maps-failures.jsonl");
-
-type YandexMapsFailureRecord = {
-  url: string;
-  poiName: string | null;
-  attempts: number;
-  lastError: string | null;
-  failedAt: string;
-};
-
-function appendYandexMapsFailure(record: YandexMapsFailureRecord): void {
-  try {
-    const dir = dirname(YANDEX_MAPS_FAILURES_FILE);
-    mkdirSync(dir, { recursive: true });
-    appendFileSync(YANDEX_MAPS_FAILURES_FILE, JSON.stringify(record) + "\n", { encoding: "utf8" });
-    log.debug({ url: record.url, attempts: record.attempts, lastError: record.lastError }, "Yandex Maps: failure record appended");
-  } catch (err) {
-    log.warn({ err }, "Yandex Maps: failed to append failure record");
-  }
-}
-
-function pruneStaleYandexMapsJobs(): void {
-  const cutoff = Date.now() - YANDEX_MAPS_JOBS_TTL_MS;
-  for (const key of yandexMapsJobCache.keys()) {
-    const job = yandexMapsJobCache.get<YandexMapsPreviewJob>(key);
-    if (!job) continue;
-    const age = new Date(job.updatedAt).getTime();
-    if ((job.status === "done" || job.status === "error") && age < cutoff) {
-      yandexMapsJobCache.del(key);
-      log.debug({ jobId: job.jobId, age: Date.now() - age }, "Yandex Maps: pruned stale job");
-    }
-  }
-}
-
-function persistYandexMapsJobs(): void {
-  pruneStaleYandexMapsJobs();
-  const dir = dirname(YANDEX_MAPS_JOBS_FILE);
-  mkdirSync(dir, { recursive: true });
-  const entries = yandexMapsJobCache.keys()
-    .map((key) => yandexMapsJobCache.get<YandexMapsPreviewJob>(key))
-    .filter((job): job is YandexMapsPreviewJob => Boolean(job));
-  const tmpFile = `${YANDEX_MAPS_JOBS_FILE}.tmp`;
-  try {
-    writeFileSync(tmpFile, JSON.stringify(entries, null, 2), { encoding: "utf8", flag: "w" });
-    renameSync(tmpFile, YANDEX_MAPS_JOBS_FILE);
-  } catch (err) {
-    log.warn({ err }, "Yandex Maps: failed to persist jobs (atomic write failed)");
-    try { unlinkSync(tmpFile); } catch { /* ignore */ }
-  }
-}
-
-function loadPersistedYandexMapsJobs(): void {
-  if (!existsSync(YANDEX_MAPS_JOBS_FILE)) return;
-  try {
-    const raw = readFileSync(YANDEX_MAPS_JOBS_FILE, "utf8");
-    const jobs = JSON.parse(raw) as YandexMapsPreviewJob[];
-    const cutoff = Date.now() - YANDEX_MAPS_JOBS_TTL_MS;
-    let recovered = 0;
-    let skipped = 0;
-    for (const job of jobs) {
-      if ((job.status === "done" || job.status === "error") && new Date(job.updatedAt).getTime() < cutoff) {
-        skipped++;
-        continue;
-      }
-      const recoveredStatus = job.status === "running" ? "error" : job.status;
-      const recoveredError = job.status === "running" ? "Job interrupted by server restart" : job.error;
-      yandexMapsJobCache.set(job.jobId, {
-        ...job,
-        status: recoveredStatus,
-        error: recoveredError,
-        lastError: job.status === "running" ? "Job interrupted by server restart" : job.lastError,
-        updatedAt: job.status === "running" ? new Date().toISOString() : job.updatedAt,
-      });
-      recovered++;
-    }
-    log.info({ recovered, skipped }, "Yandex Maps: restored jobs from disk");
-  } catch (err) {
-    log.warn({ err }, "Failed to restore Yandex Maps jobs from disk");
-  }
-}
-
-async function withYandexMapsQueue<T>(task: () => Promise<T>): Promise<T> {
-  const run = yandexMapsQueue.then(task, task);
-  yandexMapsQueue = run.then(() => undefined, () => undefined);
-  return run;
-}
-
-async function fetchYandexMapsPreview(
-  url: string,
-  onAttemptUpdate?: (attempt: number, nextRetryAt: string | null, lastError: string | null) => void,
-): Promise<YandexMapsPreview | null> {
-  return withYandexMapsQueue(async () => {
-    for (let attempt = 1; attempt <= YANDEX_MAPS_RETRIES; attempt++) {
-      const initialDelay = randomDelay(YANDEX_MAPS_MIN_DELAY_MS, YANDEX_MAPS_MAX_DELAY_MS);
-      log.info({ url, attempt, initialDelay }, "Yandex Maps preview: waiting before attempt");
-      onAttemptUpdate?.(attempt, null, null);
-      await sleep(initialDelay);
-
-      let lastError: string | null = null;
-      const result = await fetchYandexMapsPreviewOnce(url, attempt).catch((err) => {
-        lastError = err instanceof Error ? err.message : String(err);
-        log.warn({ err, url, attempt }, "Yandex Maps preview attempt failed");
-        return null;
-      });
-
-      if (result) return result;
-
-      if (attempt < YANDEX_MAPS_RETRIES) {
-        const retryDelay = randomDelay(8_000 * attempt, 20_000 * attempt);
-        const nextRetryAt = new Date(Date.now() + retryDelay).toISOString();
-        log.warn({ url, attempt, retryDelay, nextRetryAt }, "Yandex Maps preview: backing off before retry");
-        onAttemptUpdate?.(attempt, nextRetryAt, lastError);
-        await sleep(retryDelay);
-      } else {
-        onAttemptUpdate?.(attempt, null, lastError);
-      }
-    }
-    return null;
-  });
-}
-
-async function queueYandexMapsPreviewJob(url: string, poiName?: string | null): Promise<YandexMapsPreviewJob> {
-  const crypto = await import("crypto");
-  const jobId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  const job: YandexMapsPreviewJob = {
-    jobId,
-    status: "queued",
-    url,
-    poiName: poiName ?? null,
-    preview: null,
-    error: null,
-    createdAt,
-    updatedAt: createdAt,
-    startedAt: null,
-    attempt: 0,
-    nextRetryAt: null,
-    lastError: null,
-  };
-  yandexMapsJobCache.set(jobId, job);
-  persistYandexMapsJobs();
-
-  void (async () => {
-    const startedAt = new Date().toISOString();
-    const runningJob: YandexMapsPreviewJob = {
-      ...job,
-      status: "running",
-      startedAt,
-      attempt: 1,
-      updatedAt: startedAt,
-    };
-    yandexMapsJobCache.set(jobId, runningJob);
-    persistYandexMapsJobs();
-
-    const onAttemptUpdate = (attempt: number, nextRetryAt: string | null, lastError: string | null) => {
-      const current = yandexMapsJobCache.get<YandexMapsPreviewJob>(jobId);
-      if (!current) return;
-      yandexMapsJobCache.set(jobId, {
-        ...current,
-        attempt,
-        nextRetryAt,
-        lastError: lastError ?? current.lastError,
-        updatedAt: new Date().toISOString(),
-      });
-      persistYandexMapsJobs();
-    };
-
-    try {
-      const preview = await fetchYandexMapsPreview(url, onAttemptUpdate);
-      const current = yandexMapsJobCache.get<YandexMapsPreviewJob>(jobId) ?? runningJob;
-      if (!preview) {
-        appendYandexMapsFailure({
-          url,
-          poiName: poiName ?? null,
-          attempts: current.attempt,
-          lastError: current.lastError ?? "no data returned",
-          failedAt: new Date().toISOString(),
-        });
-      }
-      yandexMapsJobCache.set(jobId, {
-        ...current,
-        status: preview ? "done" : "error",
-        preview,
-        error: preview ? null : "Yandex Maps preview returned no data",
-        nextRetryAt: null,
-        updatedAt: new Date().toISOString(),
-      });
-      persistYandexMapsJobs();
-    } catch (err) {
-      const current = yandexMapsJobCache.get<YandexMapsPreviewJob>(jobId) ?? runningJob;
-      const message = err instanceof Error ? err.message : "Unknown Yandex Maps error";
-      appendYandexMapsFailure({
-        url,
-        poiName: poiName ?? null,
-        attempts: current.attempt,
-        lastError: message,
-        failedAt: new Date().toISOString(),
-      });
-      yandexMapsJobCache.set(jobId, {
-        ...current,
-        status: "error",
-        preview: null,
-        error: message,
-        lastError: message,
-        nextRetryAt: null,
-        updatedAt: new Date().toISOString(),
-      });
-      persistYandexMapsJobs();
-    }
-  })();
-
-  return job;
-}
-
-async function fetchYandexMapsPreviewOnce(url: string, attempt: number): Promise<YandexMapsPreview | null> {
-  const browser = await getBrowser();
-  return scraperFetchYandexMapsPreviewOnce(url, attempt, browser, { log, sleep, randomDelay });
-}
+// All map-preview scraping (Google Maps, Yandex Maps) now lives in the
+// generic scraper plugin system mounted via mountAllScrapers().
+// See web/server/src/scrapers/registry.ts and job-system.ts.
 
 // ---------------------------------------------------------------------------
 // Caches
@@ -770,37 +239,16 @@ const geocodeCache = new NodeCache({
   maxKeys: 5000,
 });
 
-const googleMapsCache = new NodeCache({
-  stdTTL: 60 * 60 * 24 * 14,
-  checkperiod: 3600,
-  maxKeys: 2000,
-});
-
-const googleMapsJobCache = new NodeCache({
-  stdTTL: 60 * 60 * 24,
-  checkperiod: 3600,
-  maxKeys: 5000,
-});
-
-const yandexMapsCache = new NodeCache({
-  stdTTL: 60 * 60 * 24 * 14,
-  checkperiod: 3600,
-  maxKeys: 2000,
-});
-
-const yandexMapsJobCache = new NodeCache({
-  stdTTL: 60 * 60 * 24,
-  checkperiod: 3600,
-  maxKeys: 5000,
-});
-
 // ---------------------------------------------------------------------------
 // Express app
 // ---------------------------------------------------------------------------
 const app = express();
 
-loadPersistedGoogleMapsJobs();
-loadPersistedYandexMapsJobs();
+// Scraper plugin systems (Google Maps, Yandex Maps, ...) — see
+// web/server/src/scrapers/registry.ts for the full list. Each plugin gets
+// its own NodeCache + persistent jobs file + retry queue + 5 endpoints
+// mounted at both `/scrape/{name}` (canonical) and a legacy alias path.
+// Mounted further down once the rate limiter is configured.
 
 app.use(helmet());
 app.use(compression());
@@ -834,6 +282,19 @@ const enrichLimiter = rateLimit({
   message: {
     error: "Too many enrichment requests. Please wait.",
   },
+});
+
+// ---------------------------------------------------------------------------
+// Mount all map scraper plugins (Google Maps, Yandex Maps, ...)
+// Each plugin gets endpoints at both `/scrape/{name}` (canonical) and a
+// legacy alias path (e.g. `/google-maps-preview`) for backward compatibility.
+// See web/server/src/scrapers/registry.ts for the plugin list.
+// ---------------------------------------------------------------------------
+const scraperRegistry = mountAllScrapers({
+  app,
+  deps: { log, sleep, randomDelay, getBrowser },
+  limiter: enrichLimiter,
+  log,
 });
 
 // ---------------------------------------------------------------------------
@@ -1307,261 +768,9 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
   }
 });
 
-app.post("/google-maps-preview", enrichLimiter, async (req, res) => {
-  try {
-    const { url } = req.body as { url?: string };
-    if (!url || typeof url !== "string") {
-      res.status(400).json({ error: "Missing 'url' in request body" });
-      return;
-    }
+// Map scraper endpoints (/google-maps-preview*, /yandex-maps-preview*,
+// /scrape/{name}*) are mounted via mountAllScrapers() above.
 
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      res.status(400).json({ error: "Invalid URL" });
-      return;
-    }
-
-    if (!/^www\.google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(parsedUrl.hostname) || !parsedUrl.pathname.startsWith("/maps/")) {
-      res.status(400).json({ error: "Only Google Maps URLs are supported" });
-      return;
-    }
-
-    const cacheKey = `gmaps:${parsedUrl.toString()}`;
-    const cached = googleMapsCache.get<GoogleMapsPreview>(cacheKey);
-    if (cached) {
-      res.setHeader("X-Cache", "HIT");
-      res.json(cached);
-      return;
-    }
-
-    const preview = await fetchGoogleMapsPreview(parsedUrl.toString());
-    if (!preview) {
-      res.status(502).json({ error: "Failed to extract Google Maps preview" });
-      return;
-    }
-
-    googleMapsCache.set(cacheKey, preview);
-    res.setHeader("X-Cache", "MISS");
-    res.json(preview);
-  } catch (err: unknown) {
-    log.error({ err }, "Google Maps preview error");
-    res.status(502).json({ error: "Failed to fetch Google Maps preview" });
-  }
-});
-
-app.post("/google-maps-preview/jobs", enrichLimiter, async (req, res) => {
-  try {
-    const { url, poiName } = req.body as { url?: string; poiName?: string };
-    if (!url || typeof url !== "string") {
-      res.status(400).json({ error: "Missing 'url' in request body" });
-      return;
-    }
-
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      res.status(400).json({ error: "Invalid URL" });
-      return;
-    }
-
-    if (!/^www\.google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(parsedUrl.hostname) || !parsedUrl.pathname.startsWith("/maps/")) {
-      res.status(400).json({ error: "Only Google Maps URLs are supported" });
-      return;
-    }
-
-    const job = await queueGoogleMapsPreviewJob(parsedUrl.toString(), typeof poiName === "string" ? poiName : null);
-    res.status(202).json(job);
-  } catch (err: unknown) {
-    log.error({ err }, "Google Maps preview job queue error");
-    res.status(502).json({ error: "Failed to queue Google Maps preview" });
-  }
-});
-
-app.delete("/google-maps-preview/jobs/:jobId", enrichLimiter, (req, res) => {
-  const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-  const job = googleMapsJobCache.get<GoogleMapsPreviewJob>(jobId);
-  if (!job) {
-    res.status(404).json({ error: "Google Maps preview job not found" });
-    return;
-  }
-  if (job.status === "running") {
-    // Mark as cancelled (stored as error with a sentinel message); cannot abort in-flight Playwright page
-    googleMapsJobCache.set(jobId, {
-      ...job,
-      status: "error",
-      error: "Cancelled by user",
-      lastError: "Cancelled by user",
-      nextRetryAt: null,
-      updatedAt: new Date().toISOString(),
-    });
-  } else {
-    googleMapsJobCache.del(jobId);
-  }
-  persistGoogleMapsJobs();
-  log.info({ jobId, previousStatus: job.status }, "Google Maps preview job cancelled");
-  res.status(204).send();
-});
-
-app.get("/google-maps-preview/jobs/:jobId", enrichLimiter, (req, res) => {
-  const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-  const job = googleMapsJobCache.get<GoogleMapsPreviewJob>(jobId);
-  if (!job) {
-    res.status(404).json({ error: "Google Maps preview job not found" });
-    return;
-  }
-  res.json(job);
-});
-
-app.get("/google-maps-preview/jobs", enrichLimiter, (_req, res) => {
-  const jobs = googleMapsJobCache.keys()
-    .map((key) => googleMapsJobCache.get<GoogleMapsPreviewJob>(key))
-    .filter((job): job is GoogleMapsPreviewJob => Boolean(job));
-  const counts = {
-    queued: jobs.filter((job) => job.status === "queued").length,
-    running: jobs.filter((job) => job.status === "running").length,
-    done: jobs.filter((job) => job.status === "done").length,
-    error: jobs.filter((job) => job.status === "error").length,
-  };
-  res.json({ counts, jobs: jobs.slice(-20).reverse() });
-});
-
-// ---------------------------------------------------------------------------
-// Yandex Maps preview endpoints — mirror of the Google ones above.
-//
-// POST /yandex-maps-preview     synchronous fetch (returns full preview)
-// POST /yandex-maps-preview/jobs        queue a background fetch
-// GET  /yandex-maps-preview/jobs/:id    poll job status
-// DELETE /yandex-maps-preview/jobs/:id  cancel a job (best-effort)
-// GET  /yandex-maps-preview/jobs        list recent jobs (for debug UI)
-//
-// Accepts EITHER a fully-built yandex.com/maps URL OR { poiName, lat, lon }
-// in which case the URL is built server-side via buildYandexMapsUrl.
-// ---------------------------------------------------------------------------
-
-function parseYandexInput(body: unknown): { url: string; poiName: string | null } | { error: string } {
-  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
-  const rawUrl = typeof b.url === "string" ? b.url : null;
-  const poiName = typeof b.poiName === "string" ? b.poiName : null;
-
-  if (rawUrl) {
-    let parsed: URL;
-    try {
-      parsed = new URL(rawUrl);
-    } catch {
-      return { error: "Invalid URL" };
-    }
-    if (!/^(www\.)?yandex\.[a-z]{2,3}$/.test(parsed.hostname) || !parsed.pathname.startsWith("/maps")) {
-      return { error: "Only yandex.com/maps URLs are supported" };
-    }
-    return { url: parsed.toString(), poiName };
-  }
-
-  // Fallback: build from name + coords
-  const lat = typeof b.lat === "number" ? b.lat : Number(b.lat);
-  const lon = typeof b.lon === "number" ? b.lon : Number(b.lon);
-  if (!poiName || !Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return { error: "Provide either 'url' or { poiName, lat, lon }" };
-  }
-  const built = buildYandexMapsUrl(poiName, lat, lon);
-  if (!built) return { error: "Failed to build Yandex Maps URL (check name/coords)" };
-  return { url: built, poiName };
-}
-
-app.post("/yandex-maps-preview", enrichLimiter, async (req, res) => {
-  try {
-    const parsed = parseYandexInput(req.body);
-    if ("error" in parsed) {
-      res.status(400).json({ error: parsed.error });
-      return;
-    }
-
-    const cacheKey = `ymaps:${parsed.url}`;
-    const cached = yandexMapsCache.get<YandexMapsPreview>(cacheKey);
-    if (cached) {
-      res.setHeader("X-Cache", "HIT");
-      res.json(cached);
-      return;
-    }
-
-    const preview = await fetchYandexMapsPreview(parsed.url);
-    if (!preview) {
-      res.status(502).json({ error: "Failed to extract Yandex Maps preview" });
-      return;
-    }
-
-    yandexMapsCache.set(cacheKey, preview);
-    res.setHeader("X-Cache", "MISS");
-    res.json(preview);
-  } catch (err: unknown) {
-    log.error({ err }, "Yandex Maps preview error");
-    res.status(502).json({ error: "Failed to fetch Yandex Maps preview" });
-  }
-});
-
-app.post("/yandex-maps-preview/jobs", enrichLimiter, async (req, res) => {
-  try {
-    const parsed = parseYandexInput(req.body);
-    if ("error" in parsed) {
-      res.status(400).json({ error: parsed.error });
-      return;
-    }
-    const job = await queueYandexMapsPreviewJob(parsed.url, parsed.poiName);
-    res.status(202).json(job);
-  } catch (err: unknown) {
-    log.error({ err }, "Yandex Maps preview job queue error");
-    res.status(502).json({ error: "Failed to queue Yandex Maps preview" });
-  }
-});
-
-app.delete("/yandex-maps-preview/jobs/:jobId", enrichLimiter, (req, res) => {
-  const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-  const job = yandexMapsJobCache.get<YandexMapsPreviewJob>(jobId);
-  if (!job) {
-    res.status(404).json({ error: "Yandex Maps preview job not found" });
-    return;
-  }
-  if (job.status === "running") {
-    yandexMapsJobCache.set(jobId, {
-      ...job,
-      status: "error",
-      error: "Cancelled by user",
-      lastError: "Cancelled by user",
-      nextRetryAt: null,
-      updatedAt: new Date().toISOString(),
-    });
-  } else {
-    yandexMapsJobCache.del(jobId);
-  }
-  persistYandexMapsJobs();
-  log.info({ jobId, previousStatus: job.status }, "Yandex Maps preview job cancelled");
-  res.status(204).send();
-});
-
-app.get("/yandex-maps-preview/jobs/:jobId", enrichLimiter, (req, res) => {
-  const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-  const job = yandexMapsJobCache.get<YandexMapsPreviewJob>(jobId);
-  if (!job) {
-    res.status(404).json({ error: "Yandex Maps preview job not found" });
-    return;
-  }
-  res.json(job);
-});
-
-app.get("/yandex-maps-preview/jobs", enrichLimiter, (_req, res) => {
-  const jobs = yandexMapsJobCache.keys()
-    .map((key) => yandexMapsJobCache.get<YandexMapsPreviewJob>(key))
-    .filter((job): job is YandexMapsPreviewJob => Boolean(job));
-  const counts = {
-    queued: jobs.filter((job) => job.status === "queued").length,
-    running: jobs.filter((job) => job.status === "running").length,
-    done: jobs.filter((job) => job.status === "done").length,
-    error: jobs.filter((job) => job.status === "error").length,
-  };
-  res.json({ counts, jobs: jobs.slice(-20).reverse() });
-});
 
 // ---------------------------------------------------------------------------
 // POI enrichment cache (Postgres + PostGIS)
@@ -1748,7 +957,12 @@ export default app;
 // Test-only exports (used by server unit tests)
 // Not part of the public API.
 // ---------------------------------------------------------------------------
+// Convenience accessors so tests don't have to dig into the registry map.
+const googleMapsSystem = scraperRegistry.systems.get("google-maps")!;
+const yandexMapsSystem = scraperRegistry.systems.get("yandex-maps")!;
+
 export const _testExports = {
+  // Pure helpers (Google)
   parseGoogleMapsHoursRow,
   normalizeDay,
   normalizeTimeString,
@@ -1756,14 +970,16 @@ export const _testExports = {
   extractGoogleMapsReviewCount,
   cleanGoogleMapsHours,
   extractPriceLevelFromText,
-  googleMapsJobCache,
-  persistGoogleMapsJobs,
-  loadPersistedGoogleMapsJobs,
-  GOOGLE_MAPS_JOBS_FILE,
   GOOGLE_MAPS_PROXY_URL,
-  GOOGLE_MAPS_FAILURES_FILE,
-  appendGoogleMapsFailure,
-  // Yandex
+  // Google scraper system (back-compat shape for legacy tests)
+  googleMapsJobCache: googleMapsSystem.jobCache,
+  persistGoogleMapsJobs: googleMapsSystem.persist,
+  loadPersistedGoogleMapsJobs: googleMapsSystem.load,
+  GOOGLE_MAPS_JOBS_FILE: googleMapsSystem.jobsFile,
+  GOOGLE_MAPS_FAILURES_FILE: googleMapsSystem.failuresFile,
+  appendGoogleMapsFailure: (record: { url: string; poiName: string | null; attempts: number; lastError: string; failedAt: string }) =>
+    googleMapsSystem.appendFailure({ source: "google-maps", ...record }),
+  // Pure helpers (Yandex)
   buildYandexMapsUrl,
   parseYandexMapsHoursRow,
   normalizeYandexDay,
@@ -1771,11 +987,15 @@ export const _testExports = {
   extractYandexMapsRating,
   extractYandexMapsReviewCount,
   cleanYandexMapsHours,
-  yandexMapsJobCache,
-  persistYandexMapsJobs,
-  loadPersistedYandexMapsJobs,
-  YANDEX_MAPS_JOBS_FILE,
   YANDEX_MAPS_PROXY_URL,
-  YANDEX_MAPS_FAILURES_FILE,
-  appendYandexMapsFailure,
+  // Yandex scraper system
+  yandexMapsJobCache: yandexMapsSystem.jobCache,
+  persistYandexMapsJobs: yandexMapsSystem.persist,
+  loadPersistedYandexMapsJobs: yandexMapsSystem.load,
+  YANDEX_MAPS_JOBS_FILE: yandexMapsSystem.jobsFile,
+  YANDEX_MAPS_FAILURES_FILE: yandexMapsSystem.failuresFile,
+  appendYandexMapsFailure: (record: { url: string; poiName: string | null; attempts: number; lastError: string; failedAt: string }) =>
+    yandexMapsSystem.appendFailure({ source: "yandex-maps", ...record }),
+  // Generic registry access (for new plugin-aware tests)
+  getScraperSystem: (name: string) => scraperRegistry.systems.get(name),
 };

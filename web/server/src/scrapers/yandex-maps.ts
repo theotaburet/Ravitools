@@ -525,3 +525,50 @@ export async function fetchYandexMapsPreviewOnce(
     saveBrowserState().catch(() => undefined);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Plugin export — wires this scraper into the generic plugin system.
+// See web/server/src/scrapers/types.ts for the contract.
+// ---------------------------------------------------------------------------
+
+import type { MapScraperPlugin, ScraperDeps } from "./types.js";
+
+export const yandexMapsPlugin: MapScraperPlugin<YandexMapsPreview> = {
+  name: "yandex-maps",
+  displayName: "Yandex Maps",
+
+  validateUrl(url: string): string | null {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+    if (
+      !/^(www\.)?yandex\.[a-z]{2,3}$/.test(parsed.hostname) ||
+      !parsed.pathname.startsWith("/maps")
+    ) {
+      return null;
+    }
+    return parsed.toString();
+  },
+
+  buildUrl(poiName, lat, lon): string | null {
+    return buildYandexMapsUrl(poiName, lat, lon);
+  },
+
+  async fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<YandexMapsPreview | null> {
+    const browser = await deps.getBrowser();
+    return fetchYandexMapsPreviewOnce(url, attempt, browser, {
+      log: deps.log,
+      sleep: deps.sleep,
+      randomDelay: deps.randomDelay,
+    });
+  },
+
+  minDelayMs: parseInt(process.env.YANDEX_MAPS_MIN_DELAY_MS || "4000", 10),
+  maxDelayMs: parseInt(process.env.YANDEX_MAPS_MAX_DELAY_MS || "12000", 10),
+  retries: parseInt(process.env.YANDEX_MAPS_RETRIES || "3", 10),
+  previewCacheTtlSec: 60 * 60 * 24 * 14, // 14 days
+  jobsTtlMs: parseInt(process.env.YANDEX_MAPS_JOBS_TTL_MS || String(7 * 24 * 3600 * 1000), 10),
+};

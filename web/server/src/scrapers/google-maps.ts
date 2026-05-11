@@ -490,3 +490,50 @@ export async function fetchGoogleMapsPreviewOnce(
     saveBrowserState().catch(() => undefined);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Plugin export — wires this scraper into the generic plugin system.
+// See web/server/src/scrapers/types.ts for the contract.
+// ---------------------------------------------------------------------------
+
+import type { MapScraperPlugin, ScraperDeps } from "./types.js";
+
+export const googleMapsPlugin: MapScraperPlugin<GoogleMapsPreview> = {
+  name: "google-maps",
+  displayName: "Google Maps",
+
+  validateUrl(url: string): string | null {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+    if (
+      !/^www\.google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(parsed.hostname) ||
+      !parsed.pathname.startsWith("/maps/")
+    ) {
+      return null;
+    }
+    return parsed.toString();
+  },
+
+  // Google Maps URLs are typically inserted directly (e.g. from a SearXNG
+  // result snippet). Programmatic search is possible but currently unused;
+  // omit `buildUrl` so callers must supply a URL.
+
+  async fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<GoogleMapsPreview | null> {
+    const browser = await deps.getBrowser();
+    return fetchGoogleMapsPreviewOnce(url, attempt, browser, {
+      log: deps.log,
+      sleep: deps.sleep,
+      randomDelay: deps.randomDelay,
+    });
+  },
+
+  minDelayMs: parseInt(process.env.GOOGLE_MAPS_MIN_DELAY_MS || "4000", 10),
+  maxDelayMs: parseInt(process.env.GOOGLE_MAPS_MAX_DELAY_MS || "12000", 10),
+  retries: parseInt(process.env.GOOGLE_MAPS_RETRIES || "3", 10),
+  previewCacheTtlSec: 60 * 60 * 24 * 14, // 14 days
+  jobsTtlMs: parseInt(process.env.GOOGLE_MAPS_JOBS_TTL_MS || String(7 * 24 * 3600 * 1000), 10),
+};
