@@ -251,6 +251,7 @@ export async function queryAllPois(
 
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
+  let dedupedCount = 0; // running count of cross-chunk duplicates dropped (AUDIT C+1)
 
   // Track which chunk indices still need to be fetched
   let pendingIndices = queries.map((_, i) => i);
@@ -300,6 +301,7 @@ export async function queryAllPois(
               newCount++;
             }
           }
+          dedupedCount += result.elements.length - newCount;
           log.debug(`Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`);
         } else {
           failedThisRound.push(batch[results.indexOf(r)]);
@@ -326,7 +328,7 @@ export async function queryAllPois(
   endTotal();
   log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`, {
     totalElements: allElements.length,
-    totalDeduped: queries.length > 0 ? seenIds.size - allElements.length : 0,
+    totalDeduped: dedupedCount,
     failedChunks: finalFailed,
     totalChunks: queries.length,
     retryRounds: retryRound - 1,

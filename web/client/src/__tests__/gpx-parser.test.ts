@@ -8,6 +8,7 @@ import {
   parseGpx,
   haversine,
   computePathLength,
+  computeElevationStats,
   simplifyTrace,
   distanceToTrace,
   TraceIndex,
@@ -281,5 +282,26 @@ describe("TraceIndex", () => {
       `speedup=${speedup.toFixed(1)}x`
     );
     expect(speedup).toBeGreaterThan(5);
+  });
+});
+
+describe("computeElevationStats (AUDIT C2)", () => {
+  const at = (ele: number | undefined): TracePoint => ({ lat: 45, lon: 5, ele });
+
+  it("accumulates gain/loss over points that have elevation", () => {
+    const { gain, loss } = computeElevationStats([at(100), at(150), at(120)]);
+    expect(gain).toBe(50);
+    expect(loss).toBe(30);
+  });
+
+  it("skips only the segment touching a missing point, not the whole stat", () => {
+    // A single GPS dropout in the middle must NOT zero everything.
+    const { gain, loss } = computeElevationStats([at(100), at(150), at(undefined), at(200), at(180)]);
+    expect(gain).toBe(50); // 100->150 counted; 150->? and ?->200 skipped; 200->180 is loss
+    expect(loss).toBe(20);
+  });
+
+  it("returns zero only when no consecutive elevated pair exists", () => {
+    expect(computeElevationStats([at(undefined), at(100)])).toEqual({ gain: 0, loss: 0 });
   });
 });

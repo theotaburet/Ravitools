@@ -60,9 +60,11 @@ export interface SessionSnapshot {
 
 /**
  * Save current session state to localStorage.
- * Silently no-ops if localStorage is unavailable.
+ * Returns false (and warns) if the write fails — e.g. quota exceeded — so callers
+ * can tell the user that "resume session" won't work, instead of failing silently
+ * (AUDIT §5). A visible toast is deferred until a notification surface exists (M3).
  */
-export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): void {
+export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): boolean {
   try {
     const data: PersistedSession = {
       version: SCHEMA_VERSION,
@@ -76,8 +78,10 @@ export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): void {
       routeSettings: snapshot.routeSettings,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // localStorage full or unavailable — silently skip
+    return true;
+  } catch (err) {
+    console.warn("Ravitools: session save failed (localStorage full or unavailable); resume won't work this session.", err);
+    return false;
   }
 }
 

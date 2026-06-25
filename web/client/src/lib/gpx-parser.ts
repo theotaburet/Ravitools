@@ -9,12 +9,24 @@ import { TRACE_COLORS } from "../types";
 /** Auto-incrementing counter for trace IDs */
 let traceIdCounter = 0;
 
+// ponytail: bound input to avoid memory blowups and Overpass chunk explosion on a
+// pathological GPX (AUDIT §5). Generous — a long multi-day route stays well under these.
+// Raise if a legit route is ever rejected.
+const MAX_GPX_CHARS = 25_000_000; // ~25 MB of XML
+const MAX_TRACE_POINTS = 300_000;
+
 /**
  * Parse a GPX file string into structured trace data.
  * Handles tracks, routes, and waypoints.
  * Assigns a unique id and cycling color to each trace.
  */
 export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
+  if (xmlString.length > MAX_GPX_CHARS) {
+    throw new Error(
+      `GPX file too large (${Math.round(xmlString.length / 1_000_000)} MB, max ${MAX_GPX_CHARS / 1_000_000} MB)`,
+    );
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, "application/xml");
 
@@ -49,6 +61,12 @@ export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
 
   if (points.length === 0) {
     throw new Error("No track or route points found in GPX file");
+  }
+
+  if (points.length > MAX_TRACE_POINTS) {
+    throw new Error(
+      `GPX has too many points (${points.length}, max ${MAX_TRACE_POINTS}). Simplify the track before importing.`,
+    );
   }
 
   const totalDistanceM = computePathLength(points);
@@ -121,7 +139,9 @@ export function computeElevationStats(points: TracePoint[]): { gain: number; los
   for (let i = 1; i < points.length; i++) {
     const prev = points[i - 1];
     const curr = points[i];
-    if (prev.ele == null || curr.ele == null) return { gain: 0, loss: 0 };
+    // ponytail: skip only segments touching a point without elevation, instead of
+    // discarding the whole stat on a single GPS dropout (AUDIT C2).
+    if (prev.ele == null || curr.ele == null) continue;
     const diff = curr.ele - prev.ele;
     if (Math.abs(diff) >= 2) {
       if (diff > 0) gain += diff;
