@@ -34,7 +34,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 │   │  Enrichissement POI   │                               │  │
 │   │  • Reverse geocode ───┤ POST /api/geocode             │  │
 │   │  • Web search ────────┤ POST /api/search              │  │
-│   │  • LLM synthesis ──── WebLLM (Qwen2.5-1.5B, WebGPU)  │  │
+│   │  • LLM synthesis ──── WebLLM (Qwen2.5-3B, WebGPU)  │  │
 │   │  • Rating, hours, summary, Google Maps link           │  │
 │   └───────────────────────────────────────────────────────┘  │
 │                                                              │
@@ -82,7 +82,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 | Map rendering | `components/RouteMap.tsx` | Leaflet via react-leaflet |
 | Export | `lib/export.ts` | GPX/KML/GeoJSON/OsmAnd/KMZ generated in-browser |
 | Enrichment search | `lib/enrichment/search.ts` | Builds search queries, Google Maps URLs |
-| LLM synthesis | `lib/enrichment/llm.ts` | WebLLM (Qwen2.5-1.5B via WebGPU) |
+| LLM synthesis | `lib/enrichment/llm.ts` | WebLLM (Qwen2.5-3B via WebGPU) |
 | Enrichment orchestration | `lib/enrichment/enricher.ts` | Batch: geocode → search → synthesize per POI |
 
 ### Server (VPS)
@@ -109,7 +109,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 6. **Config as code**: POI categories and tag matchers are defined in `lib/poi-config.ts`. Changes to categories are a code change, not a runtime config change.
 
-7. **In-browser LLM**: enrichment synthesis runs via WebLLM (Qwen2.5-1.5B-Instruct q4f16, ~1.6 GB VRAM). No external LLM API needed. Requires WebGPU (Chrome/Edge/Safari). Firefox fallback: raw snippets without synthesis.
+7. **In-browser LLM**: enrichment synthesis runs via WebLLM (Qwen2.5-3B-Instruct q4f16, ~2.5 GB VRAM). No external LLM API needed. Requires WebGPU (Chrome/Edge/Safari). Firefox fallback: raw snippets without synthesis.
 
 ## Stack
 

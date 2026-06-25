@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // WebLLM integration – in-browser LLM for POI snippet synthesis
-// Uses @mlc-ai/web-llm with Qwen2.5-1.5B-Instruct (q4f16_1-MLC)
+// Uses @mlc-ai/web-llm with Qwen2.5-3B-Instruct (q4f16_1-MLC)
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
@@ -64,11 +64,15 @@ export function isWebGpuAvailable(): boolean {
 let engineInstance: any = null;
 let engineReady = false;
 
-const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+// ponytail: Qwen2.5-3B-Instruct is the sweet spot for this constrained JSON-extraction task
+// (better JSON adherence + FR than the 1.5B, same API, no Qwen3 <think> pitfall). ~2.5GB VRAM.
+// Bigger/newer option if your GPU has headroom: "Qwen3-4B-q4f16_1-MLC" (~3.4GB) — but then you
+// MUST disable thinking mode or it emits <think> blocks that break JSON parsing.
+const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
 
 /**
  * Initialize the WebLLM engine and download/cache the model.
- * This can take 30s-2min on first load (1.6GB download).
+ * This can take 30s-2min on first load (~2.5GB download/VRAM for Qwen2.5-3B).
  * Subsequent loads use the browser cache (~2s).
  */
 export async function initEngine(
