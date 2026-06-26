@@ -71,7 +71,10 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M2 — Enrichment hardening (CORE)  ·  size L  ·  depends on M1
+## M2 — Enrichment hardening (CORE)  ·  size L  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+
+> Done: S8 dedicated scraper rate limiter; C9 confidence rebalance (+tests); WebLLM download failure already handled in `initEngine`.
+> Remaining: trust/provenance UI display + LLM disclaimer (couples with i18n); scraper-blocked UX signal; `useEnrichment`/`useRavitools` hook tests. Decision-gate: enrichment accuracy/disclaimer policy.
 
 **Goal:** bring enrichment from WIP to a dependable, trustworthy v1 feature — the headline of v1.
 
@@ -96,7 +99,10 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M3 — UX, accessibility & i18n  ·  size M  ·  depends on M1 (overlaps M2)
+## M3 — UX, accessibility & i18n  ·  size M  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+
+> Done: U1/U+1 a11y (marker names, button types, aria-expanded, file-input label, aria-live); U5 empty state; U4 slider debounce + memo(PoiList); U6 small-phone breakpoint + touch targets.
+> Remaining: U2 full UI i18n (FR+EN string table across all components — large, mechanical); U3 EnrichmentPanel split; broader React.memo with stable callbacks; component tests. Decision-gate: a11y depth.
 
 **Goal:** pleasant, FR/EN, keyboard-usable, responsive.
 
@@ -115,7 +121,10 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M4 — Export matrix & finish  ·  size S–M  ·  depends on M2, M3
+## M4 — Export matrix & finish  ·  size S–M  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+
+> Done: S1 startup URL validation; S2 constant-time admin key; S9 docker secret via env + Dockerfile HEALTHCHECK; OSM ODbL attribution (map + GPX `<copyright>`).
+> Remaining: deprecated `EnrichedData` field cleanup; export device-matrix validation (Garmin/Wahoo/OsmAnd/COROS — needs real hardware, can't be automated).
 
 **Goal:** make good on the export promise + final tidy before calling it v1.
 
