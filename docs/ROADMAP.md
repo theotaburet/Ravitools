@@ -26,7 +26,10 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M0 — Foundation & guardrails  ·  size S  ·  no external deps
+## M0 — Foundation & guardrails  ·  size S  ·  ✅ DONE (branch `chore/m0-foundation`)
+
+> Done: CI (typecheck+test gate, advisory lint), biome + scripts, LICENSE (MIT), .editorconfig.
+> Deferred: T5 coverage (reporting only); repo hygiene R2 (doc dedup) / R3 (skills dirs); tasks_archive kept per AGENTS.md.
 
 **Goal:** safety net + repo hygiene so every later change is checked, and the "en bordel" surface is cleaned.
 
@@ -43,7 +46,11 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M1 — Correctness & crash-safety  ·  size M  ·  depends on M0
+## M1 — Correctness & crash-safety  ·  size M  ·  ✅ DONE (branch `chore/m0-foundation`)
+
+> Done: ErrorBoundary + global rejection handler; GPX size/point guards; localStorage-quota surfaced;
+> C1 cos(lat) projection, C2 elevation, C4 cache TTL, C5 observable cache, C6 session validation, C+1 dedup log;
+> S4 closeDb, S5 browserPromise reset, S+1, S6 HTML cap, S7 JSON validation, T+1 504. +5 regression tests; all green.
 
 **Goal:** kill the silent data bugs and make the app fail gracefully instead of white-screening.
 
