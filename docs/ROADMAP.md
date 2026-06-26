@@ -102,7 +102,8 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 ## M3 — UX, accessibility & i18n  ·  size M  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
 
 > Done: U1/U+1 a11y (marker names, button types, aria-expanded, file-input label, aria-live); U5 empty state; U4 slider debounce + memo(PoiList); U6 small-phone breakpoint + touch targets.
-> Remaining: U2 full UI i18n (FR+EN string table across all components — large, mechanical); U3 EnrichmentPanel split; broader React.memo with stable callbacks; component tests. Decision-gate: a11y depth.
+> U2 i18n: core chrome **done** (i18n.ts `t()` table + App shell / GpxUpload / CategoryFilter / PoiList in FR+EN). Remaining: EnrichmentPanel / ExportPanel / DebugPanel strings + POI enrichment-detail labels (reviews/closed/sources/skip reasons).
+> Remaining: U3 EnrichmentPanel split; broader React.memo with stable callbacks; component tests. Decision-gate: a11y depth.
 
 **Goal:** pleasant, FR/EN, keyboard-usable, responsive.
 
