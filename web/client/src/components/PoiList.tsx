@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
-import { translateCategory, translatePoiName } from "../lib/i18n";
+import { translateCategory, translatePoiName, t } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
 import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
 
@@ -30,12 +30,6 @@ function confidenceLabel(c: number): string {
 
 /** Sort mode for the POI list */
 type SortMode = "distance" | "category" | "name";
-
-const SORT_LABELS: Record<SortMode, string> = {
-  distance: "Distance to route",
-  category: "Category",
-  name: "Name (A-Z)",
-};
 
 function sortPois(pois: POI[], mode: SortMode): POI[] {
   const sorted = [...pois];
@@ -93,7 +87,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
         className="neo-box"
         style={{ padding: "1rem", textAlign: "center", color: "#6b6b6b", fontFamily: "monospace" }}
       >
-        No POIs match the active filters.
+        {t("poi.empty", targetLanguage)}
       </div>
     );
   }
@@ -122,15 +116,15 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
   return (
     <div className="neo-box overflow-hidden">
       <div className="poi-list-header">
-        <span>POIs along route ({pois.length})</span>
+        <span>{t("poi.alongRoute", targetLanguage)} ({pois.length})</span>
         <button
           type="button"
           className="poi-sort-btn"
           onClick={cycleSortMode}
-          aria-label={`Change sort order, currently ${SORT_LABELS[sortMode]}`}
-          title="Change sort order"
+          aria-label={`${t("poi.changeSort", targetLanguage)}: ${t(`poi.sort.${sortMode}`, targetLanguage)}`}
+          title={t("poi.changeSort", targetLanguage)}
         >
-          ↕ {SORT_LABELS[sortMode]}
+          ↕ {t(`poi.sort.${sortMode}`, targetLanguage)}
         </button>
       </div>
       <div
@@ -198,7 +192,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                   {/* In-progress enrichment indicator */}
                   {isEnriching && (!enrichment || enrichment.status !== "done") && (
                     <div className="poi-enrichment-meta poi-enriching-indicator">
-                      <span className="spinner-sm" /> Searching...
+                      <span className="spinner-sm" /> {t("poi.searching", targetLanguage)}
                     </div>
                   )}
 

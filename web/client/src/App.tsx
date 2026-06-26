@@ -14,6 +14,7 @@ import { PoiList } from "./components/PoiList";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { DebugPanel } from "./components/DebugPanel";
 import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
+import { t } from "./lib/i18n";
 import type { TargetLanguage } from "./types";
 import { isRetryableEnrichmentResult } from "./lib/enrichment";
 
@@ -138,7 +139,7 @@ export default function App() {
         </h1>
         <span className="neo-tag bg-lime">beta</span>
         <p className="text-sm text-muted hidden sm:block">
-          Find useful POIs along your cycling route
+          {t("app.subtitle", targetLanguage)}
         </p>
       </header>
 
@@ -163,14 +164,14 @@ export default function App() {
           {showResumePrompt && (
             <div className="session-prompt">
               <p className="session-prompt-text">
-                You have a saved session. Resume where you left off?
+                {t("session.prompt", targetLanguage)}
               </p>
               <div className="session-prompt-actions">
                 <button type="button" className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
-                  Resume
+                  {t("session.resume", targetLanguage)}
                 </button>
                 <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
-                  Start fresh
+                  {t("session.fresh", targetLanguage)}
                 </button>
               </div>
             </div>
@@ -178,7 +179,7 @@ export default function App() {
 
           {/* Upload area – show when idle, or at error with no traces loaded */}
           {((state.stage === "idle" || (state.stage === "error" && state.traces.length === 0)) && !showResumePrompt) && (
-            <GpxUpload onFiles={processFiles} disabled={isProcessing} />
+            <GpxUpload onFiles={processFiles} disabled={isProcessing} lang={targetLanguage} />
           )}
 
           {/* Status / Progress */}
@@ -210,11 +211,11 @@ export default function App() {
           {state.warning && (
             <div className="warning-box">
               <p>
-                <span className="font-black uppercase">Warning:</span>{" "}
+                <span className="font-black uppercase">{t("status.warning", targetLanguage)}</span>{" "}
                 {state.warning}
               </p>
               <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                Retry failed chunks
+                {t("action.retryChunks", targetLanguage)}
               </button>
             </div>
           )}
@@ -223,17 +224,17 @@ export default function App() {
           {state.error && (
             <div className="error-box">
               <p>
-                <span className="font-black uppercase">Error:</span>{" "}
+                <span className="font-black uppercase">{t("status.error", targetLanguage)}</span>{" "}
                 {state.error}
               </p>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {state.traces.length > 0 && (
                   <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                    Retry query
+                    {t("action.retryQuery", targetLanguage)}
                   </button>
                 )}
                 <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
-                  {state.traces.length > 0 ? "Start over" : "Try again"}
+                  {state.traces.length > 0 ? t("action.startOver", targetLanguage) : t("action.tryAgain", targetLanguage)}
                 </button>
               </div>
             </div>

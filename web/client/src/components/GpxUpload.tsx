@@ -4,13 +4,16 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
+import { t } from "../lib/i18n";
+import type { TargetLanguage } from "../types";
 
 interface Props {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
+  lang?: TargetLanguage;
 }
 
-export function GpxUpload({ onFiles, disabled }: Props) {
+export function GpxUpload({ onFiles, disabled, lang = "en" }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(
@@ -67,9 +70,9 @@ export function GpxUpload({ onFiles, disabled }: Props) {
       </svg>
 
       <p className="text-lg font-black uppercase tracking-tight">
-        Drop your .GPX files here
+        {t("upload.drop", lang)}
       </p>
-      <p className="text-sm text-muted font-mono">or click to browse (multiple files OK)</p>
+      <p className="text-sm text-muted font-mono">{t("upload.browse", lang)}</p>
 
       <input
         type="file"

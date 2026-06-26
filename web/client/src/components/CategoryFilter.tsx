@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { PoiCategory, POI, TargetLanguage } from "../types";
 import { POI_CATEGORIES } from "../lib/poi-config";
-import { translateCategory } from "../lib/i18n";
+import { translateCategory, t } from "../lib/i18n";
 
 interface Props {
   activeCategories: Set<PoiCategory>;
@@ -70,7 +70,7 @@ export function CategoryFilter({
       >
         <span className="flex items-center gap-2">
           <span className="filter-collapse-icon" aria-hidden="true">{collapsed ? "+" : "\u2212"}</span>
-          {showCounts ? "Filter POIs" : "Categories to search"}
+          {showCounts ? t("filter.titleFilter", targetLanguage) : t("filter.titleSearch", targetLanguage)}
           {collapsed && (
             <span className="filter-collapsed-count">{activeCount}/{POI_CATEGORIES.length}</span>
           )}
@@ -83,14 +83,14 @@ export function CategoryFilter({
             onSelectAll(!allOn);
           }}
         >
-          {allOn ? "None" : "All"}
+          {allOn ? t("filter.none", targetLanguage) : t("filter.all", targetLanguage)}
         </button>
       </div>
       {!collapsed && (
         <div className="filter-body">
           <div className="px-4 py-3 border-b-2 border-black bg-white">
             <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
-              <span>Max distance to route</span>
+              <span>{t("filter.maxDistance", targetLanguage)}</span>
               <span>{displayDist}m</span>
             </div>
             <input
@@ -104,12 +104,12 @@ export function CategoryFilter({
               className="mt-3 w-full"
             />
             <p className="mt-2 text-xs text-muted">
-              Narrow for fewer urban POIs, wider for sparse rural routes.
+              {t("filter.distanceHint", targetLanguage)}
             </p>
           </div>
 
           {/* Essential categories */}
-          <div className="filter-section-label">Essential</div>
+          <div className="filter-section-label">{t("filter.essential", targetLanguage)}</div>
           {essentialCats.map((cat) => (
             <CategoryRow
               key={cat.category}
@@ -122,7 +122,7 @@ export function CategoryFilter({
           ))}
 
           {/* Optional categories */}
-          <div className="filter-section-label">Optional</div>
+          <div className="filter-section-label">{t("filter.optional", targetLanguage)}</div>
           {optionalCats.map((cat) => (
             <CategoryRow
               key={cat.category}

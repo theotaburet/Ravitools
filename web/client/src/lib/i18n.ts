@@ -64,6 +64,45 @@ export function translateCategory(category: PoiCategory, lang: TargetLanguage): 
 }
 
 // ---------------------------------------------------------------------------
+// UI chrome strings (AUDIT U2) — keyed table, FR + EN. English is the fallback.
+// ---------------------------------------------------------------------------
+
+const UI: Record<string, Record<TargetLanguage, string>> = {
+  "app.subtitle": { en: "Find useful POIs along your cycling route", fr: "Trouvez les POI utiles le long de votre itinéraire vélo" },
+  "session.prompt": { en: "You have a saved session. Resume where you left off?", fr: "Une session est enregistrée. Reprendre où vous en étiez ?" },
+  "session.resume": { en: "Resume", fr: "Reprendre" },
+  "session.fresh": { en: "Start fresh", fr: "Recommencer" },
+  "status.warning": { en: "Warning:", fr: "Attention :" },
+  "status.error": { en: "Error:", fr: "Erreur :" },
+  "action.retryChunks": { en: "Retry failed chunks", fr: "Réessayer les blocs échoués" },
+  "action.retryQuery": { en: "Retry query", fr: "Relancer la requête" },
+  "action.startOver": { en: "Start over", fr: "Tout recommencer" },
+  "action.tryAgain": { en: "Try again", fr: "Réessayer" },
+  "upload.drop": { en: "Drop your .GPX files here", fr: "Déposez vos fichiers .GPX ici" },
+  "upload.browse": { en: "or click to browse (multiple files OK)", fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)" },
+  "filter.titleFilter": { en: "Filter POIs", fr: "Filtrer les POI" },
+  "filter.titleSearch": { en: "Categories to search", fr: "Catégories à rechercher" },
+  "filter.all": { en: "All", fr: "Tout" },
+  "filter.none": { en: "None", fr: "Aucun" },
+  "filter.maxDistance": { en: "Max distance to route", fr: "Distance max. à l'itinéraire" },
+  "filter.distanceHint": { en: "Narrow for fewer urban POIs, wider for sparse rural routes.", fr: "Réduisez pour moins de POI urbains, élargissez pour les routes rurales." },
+  "filter.essential": { en: "Essential", fr: "Essentiels" },
+  "filter.optional": { en: "Optional", fr: "Optionnels" },
+  "poi.alongRoute": { en: "POIs along route", fr: "POI le long de l'itinéraire" },
+  "poi.changeSort": { en: "Change sort order", fr: "Changer le tri" },
+  "poi.sort.distance": { en: "Distance to route", fr: "Distance à l'itinéraire" },
+  "poi.sort.category": { en: "Category", fr: "Catégorie" },
+  "poi.sort.name": { en: "Name (A-Z)", fr: "Nom (A-Z)" },
+  "poi.empty": { en: "No POIs match the active filters.", fr: "Aucun POI ne correspond aux filtres actifs." },
+  "poi.searching": { en: "Searching...", fr: "Recherche..." },
+};
+
+/** Translate a UI chrome string; falls back to English, then the key itself. */
+export function t(key: string, lang: TargetLanguage): string {
+  return UI[key]?.[lang] ?? UI[key]?.en ?? key;
+}
+
+// ---------------------------------------------------------------------------
 // Generic POI name translations
 // These are OSM tag-derived names that appear as POI names when no
 // real business name is set. We translate them for display purposes.
