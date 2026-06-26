@@ -22,7 +22,10 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: ${{ matrix.package }}/package-lock.json
-      - run: npm ci
+      # npm install, not npm ci: vitest@4 pulls a nested vite needing esbuild@0.28,
+      # and npm ci chokes (EBADPLATFORM) on esbuild's cross-platform optionalDeps.
+      # npm install respects the lock but skips wrong-platform optionals correctly.
+      - run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
       - name: Test
