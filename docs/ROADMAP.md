@@ -71,10 +71,11 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M2 — Enrichment hardening (CORE)  ·  size L  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+## M2 — Enrichment hardening (CORE)  ·  size L  ·  ✅ DONE (branch `chore/m0-foundation`)
 
-> Done: S8 dedicated scraper rate limiter; C9 confidence rebalance (+tests); WebLLM download failure already handled in `initEngine`; LLM disclaimer (panel note + AI-badge tooltip, FR/EN) — neutral default text, policy can refine later.
-> Remaining: fuller provenance/confidence surfacing; scraper-blocked UX signal; `useEnrichment`/`useRavitools` hook tests. Decision-gate: enrichment accuracy/disclaimer policy (default shipped, refine if desired).
+> Done: S8 dedicated scraper rate limiter; C9 confidence rebalance (+tests); WebLLM download failure handled in `initEngine`; LLM disclaimer (panel note + AI-badge tooltip, FR/EN).
+> Done (this pass): provenance surfacing — confidence % + `sourceConfirmation` badge in PoiList (FR/EN); scraper-blocked signal — scrapers throw a `BLOCKED:`-tagged error → `/jobs` `blocked` count → EnrichmentPanel hint (server tests added); hook tests for `useRavitools` (pipeline/warning/error/filter) + `useEnrichment` (cache-hit short-circuit, model-load→done, CAPTCHA pause/resume).
+> Decision-gate (still open, non-blocking): enrichment accuracy/disclaimer wording (safe default shipped, refine if desired).
 
 **Goal:** bring enrichment from WIP to a dependable, trustworthy v1 feature — the headline of v1.
 
@@ -99,11 +100,13 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M3 — UX, accessibility & i18n  ·  size M  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+## M3 — UX, accessibility & i18n  ·  size M  ·  ✅ DONE (branch `chore/m0-foundation`)
 
 > Done: U1/U+1 a11y (marker names, button types, aria-expanded, file-input label, aria-live); U5 empty state; U4 slider debounce + memo(PoiList); U6 small-phone breakpoint + touch targets.
-> U2 i18n: **done** for all user-facing UI (i18n.ts `t()` table + App / GpxUpload / CategoryFilter / PoiList incl. enrichment-detail labels / EnrichmentPanel / ExportPanel in FR+EN). DebugPanel left in EN (dev-only diagnostic tool — not end-user facing).
-> Remaining: U3 EnrichmentPanel split; broader React.memo with stable callbacks; component tests. Decision-gate: a11y depth.
+> U2 i18n: done for all user-facing UI (i18n.ts `t()` table + App / GpxUpload / CategoryFilter / PoiList incl. enrichment-detail labels / EnrichmentPanel / ExportPanel in FR+EN). DebugPanel left in EN (dev-only).
+> Done (this pass): broader memo — `enrichingPoiIds` stabilized via `useMemo` so `memo(PoiList)` actually holds (the inline ternary was defeating it); component tests for GpxUpload / CategoryFilter / EnrichmentPanel (added React Testing Library).
+> **U3 (split EnrichmentPanel): deliberately NOT done — `wontfix`.** Two independent reviews + the lazy-code principle agree the full split is net-negative: it adds ~6 prop-threaded subcomponents (~600 lines of boilerplate) without reducing complexity, and the one block that looked duplicated (engine-failures) is rendered exactly once. The 454-line component is a coherent, clearly-commented state-machine renderer. Revisit only when a concrete feature (e.g. a new stage) actually needs a sub-component.
+> Decision-gate (still open, non-blocking): a11y depth (AA-basics shipped).
 
 **Goal:** pleasant, FR/EN, keyboard-usable, responsive.
 
@@ -122,10 +125,11 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ---
 
-## M4 — Export matrix & finish  ·  size S–M  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
+## M4 — Export matrix & finish  ·  size S–M  ·  ✅ DONE (code) (branch `chore/m0-foundation`)
 
 > Done: S1 startup URL validation; S2 constant-time admin key; S9 docker secret via env + Dockerfile HEALTHCHECK; OSM ODbL attribution (map + GPX `<copyright>`).
-> Remaining: deprecated `EnrichedData` field cleanup; export device-matrix validation (Garmin/Wahoo/OsmAnd/COROS — needs real hardware, can't be automated).
+> Done (this pass): deprecated `EnrichedData` fields removed (summary/translatedSummary/specialty/essentials → description/review) incl. dead `buildEssentialsText` and GeoJSON backward-compat columns (−266 LOC net); tests migrated.
+> Remaining (manual, cannot be automated): export device-matrix validation on real Garmin/Wahoo/OsmAnd/COROS hardware — load a generated `.gpx`/`.kmz` on each and confirm POIs render; document the COROS DURA custom-POI limitation.
 
 **Goal:** make good on the export promise + final tidy before calling it v1.
 
