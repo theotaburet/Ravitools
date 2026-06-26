@@ -368,14 +368,8 @@ export interface EnrichedData {
   openingHours: OpeningHoursEntry[] | null;
   /** One-sentence description in target language (compact LLM output). Merges what was previously summary + specialty. */
   description: string | null;
-  /** One-sentence review synthesis in target language (compact LLM output). Replaces essentials. */
+  /** One-sentence review synthesis in target language (compact LLM output). */
   review: string | null;
-  /** @deprecated Use `description` instead. Short summary of the place, synthesized from snippets in source language. */
-  summary: string | null;
-  /** @deprecated Use `description` instead. Summary translated/rewritten in the user's target language. */
-  translatedSummary: string | null;
-  /** @deprecated Merged into `description`. Type/cuisine/specialty. */
-  specialty: string | null;
   /** Price level (1-4 scale, null if unknown). Extracted from snippets, not verified. */
   priceLevel: number | null;
   /** Direct Google Maps link */
@@ -404,8 +398,6 @@ export interface EnrichedData {
   sourceEngines: string[];
   /** Confidence score 0-1 based on source count, agreement, and structured field presence */
   confidence: number;
-  /** @deprecated Use `review` instead. Main user-facing synthesis in target language. */
-  essentials?: string | null;
   /** Short per-platform digest when the sources are identifiable */
   sourceDigests?: EnrichmentSourceDigest[];
   /** Working official website preview when a fetch succeeded */

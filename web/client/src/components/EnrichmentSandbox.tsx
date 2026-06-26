@@ -160,16 +160,6 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                 </div>
               </>
             )}
-
-            {/* Deprecated fields (backward compat display) */}
-            {(result.summary || result.specialty || result.essentials) && (
-              <div className="sandbox-block" style={{ opacity: 0.5 }}>
-                <strong>Legacy Fields</strong>
-                <p>summary: {result.summary ?? "—"}</p>
-                <p>specialty: {result.specialty ?? "—"}</p>
-                <p>essentials: {result.essentials ?? "—"}</p>
-              </div>
-            )}
           </div>
 
           <div className="sandbox-card">

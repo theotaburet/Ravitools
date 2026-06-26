@@ -195,11 +195,6 @@ export function buildGeoJsonObject(
               : null,
             enrichment_description: enrichment.description,
             enrichment_review: enrichment.review,
-            // Backward compat: keep old field names populated
-            enrichment_summary: enrichment.summary,
-            enrichment_translatedSummary: enrichment.translatedSummary,
-            enrichment_essentials: enrichment.essentials ?? null,
-            enrichment_specialty: enrichment.specialty,
             enrichment_priceLevel: enrichment.priceLevel,
             enrichment_googleMapsUrl: enrichment.googleMapsUrl,
             enrichment_locality: enrichment.locality,
