@@ -125,4 +125,13 @@ describe("t (UI strings)", () => {
       expect(t(key, "en")).not.toBe(key);
     }
   });
+
+  it("has a translation for every dynamic confidence-level key", () => {
+    // PoiList builds `poi.confidence.${confidenceLabel(c)}` — confidenceLabel returns these.
+    for (const level of ["high", "medium", "low", "none"]) {
+      const key = `poi.confidence.${level}`;
+      expect(t(key, "fr")).not.toBe(key);
+      expect(t(key, "en")).not.toBe(key);
+    }
+  });
 });

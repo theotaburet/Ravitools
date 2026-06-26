@@ -284,12 +284,31 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                         </div>
                       )}
 
-                      {/* Confidence + sources */}
+                      {/* Confidence + source confirmation + sources */}
                       {enrichment.sourceCount > 0 && (
                         <div className="poi-confidence-row">
                           <span className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}>
-                            {confidenceLabel(enrichment.confidence)}
+                            {t(`poi.confidence.${confidenceLabel(enrichment.confidence)}`, targetLanguage)}
+                            {" "}{Math.round(enrichment.confidence * 100)}%
                           </span>
+                          {enrichment.structured?.sourceConfirmation && enrichment.structured.sourceConfirmation !== "none" && (
+                            <span
+                              className={
+                                enrichment.structured.sourceConfirmation === "reviews-only"
+                                  ? "poi-badge"
+                                  : "poi-badge poi-badge-maps"
+                              }
+                            >
+                              {t(
+                                enrichment.structured.sourceConfirmation === "both"
+                                  ? "poi.confirm.both"
+                                  : enrichment.structured.sourceConfirmation === "official"
+                                    ? "poi.confirm.official"
+                                    : "poi.confirm.reviewsOnly",
+                                targetLanguage,
+                              )}
+                            </span>
+                          )}
                           <button
                             type="button"
                             className="poi-sources-toggle"
