@@ -130,6 +130,12 @@ export default function App() {
     clearSession();
   }, [reset, resetEnrichment]);
 
+  // Stable ref so the inline ternary stops defeating memo(PoiList) every render
+  const enrichingPoiIds = useMemo(
+    () => (enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null),
+    [enrichmentJob.stage, enrichmentJob.activePoiIds],
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -292,7 +298,7 @@ export default function App() {
               enrichments={enrichments}
               selectedPoiId={selectedPoiId}
               onSelectPoi={setSelectedPoiId}
-              enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
+              enrichingPoiIds={enrichingPoiIds}
               targetLanguage={targetLanguage}
             />
           )}
@@ -310,7 +316,7 @@ export default function App() {
             enrichments={enrichments}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
-            enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
+            enrichingPoiIds={enrichingPoiIds}
             targetLanguage={targetLanguage}
           />
         </main>
