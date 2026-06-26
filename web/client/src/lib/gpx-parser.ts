@@ -345,18 +345,23 @@ function distanceToSegment(
   a: TracePoint,
   b: TracePoint,
 ): number {
-  const dx = b.lon - a.lon;
+  // ponytail: work in a locally-isometric frame — scale longitude by cos(lat) so the
+  // projection isn't distorted away from the equator (AUDIT C1). 1° lon = cos(lat)·1° lat
+  // in meters; the final distance stays haversine.
+  const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  const dLon = b.lon - a.lon;
+  const dx = dLon * k;
   const dy = b.lat - a.lat;
   const lenSq = dx * dx + dy * dy;
 
   if (lenSq === 0) return haversine(p, a);
 
-  let t = ((p.lon - a.lon) * dx + (p.lat - a.lat) * dy) / lenSq;
+  let t = ((p.lon - a.lon) * k * dx + (p.lat - a.lat) * dy) / lenSq;
   t = Math.max(0, Math.min(1, t));
 
   const proj: TracePoint = {
     lat: a.lat + t * dy,
-    lon: a.lon + t * dx,
+    lon: a.lon + t * dLon,
   };
 
   return haversine(p, proj);

@@ -74,14 +74,23 @@ export async function lookupPoiBatch(
       body: JSON.stringify({ keys, max_age_days: maxAgeDays }),
       signal: controller.signal,
     });
-    if (!res.ok) return result;
+    // ponytail: still degrade gracefully (empty Map), but don't do it *silently* —
+    // a cache outage looks identical to an all-miss otherwise (AUDIT C5).
+    if (!res.ok) {
+      console.warn(`Ravitools: POI cache unavailable (HTTP ${res.status}) — enriching without it`);
+      return result;
+    }
     const body = (await res.json()) as BatchResponse;
-    if (!Array.isArray(body?.results)) return result;
+    if (!Array.isArray(body?.results)) {
+      console.warn("Ravitools: POI cache returned a malformed body — enriching without it");
+      return result;
+    }
     for (const r of body.results) {
       result.set(`${r.osm_type}/${r.osm_id}`, r);
     }
     return result;
-  } catch {
+  } catch (err) {
+    console.warn("Ravitools: POI cache request failed — enriching without it", err);
     return result;
   } finally {
     clearTimeout(timeout);

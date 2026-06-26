@@ -305,3 +305,19 @@ describe("computeElevationStats (AUDIT C2)", () => {
     expect(computeElevationStats([at(undefined), at(100)])).toEqual({ gain: 0, loss: 0 });
   });
 });
+
+describe("distanceToTrace projection at high latitude (AUDIT C1)", () => {
+  it("scales longitude by cos(lat) instead of treating degrees as Cartesian", () => {
+    // Diagonal segment at 60°N, where 1° lon is ~half of 1° lat in meters.
+    const trace: TracePoint[] = [
+      { lat: 60, lon: 0 },
+      { lat: 60.02, lon: 0.02 },
+    ];
+    const point: TracePoint = { lat: 60, lon: 0.02 };
+    const d = distanceToTrace(point, trace);
+    // Correct cos-lat projection puts the foot ~1 km away; the old raw-degree
+    // projection over-shoots and reports ~1.24 km. The band excludes the old value.
+    expect(d).toBeGreaterThan(800);
+    expect(d).toBeLessThan(1150);
+  });
+});

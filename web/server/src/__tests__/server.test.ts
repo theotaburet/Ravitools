@@ -154,17 +154,14 @@ describe("/overpass", () => {
   it("returns 504 on timeout (AbortError)", async () => {
     const query = uniqueQuery("timeout");
     const abortErr = new DOMException("The operation was aborted.", "AbortError");
-    // AbortError propagates past the per-URL catch into the outer catch
-    mockFetch.mockRejectedValueOnce(abortErr);
+    // AbortError now re-throws past the per-URL catch into the outer catch → 504 (AUDIT T+1).
     mockFetch.mockRejectedValueOnce(abortErr);
 
     const res = await request(app)
       .post("/overpass")
       .send({ data: query });
-    // Both URLs fail with the same abort → overpassRes stays undefined → 502
-    // (AbortError is caught inside the for-loop, not the outer try-catch)
-    expect(res.status).toBe(502);
-    expect(res.body.error).toMatch(/Overpass API error/);
+    expect(res.status).toBe(504);
+    expect(res.body.error).toMatch(/timed out/);
   });
 
   it("returns 502 on generic fetch failure", async () => {

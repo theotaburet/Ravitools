@@ -14,7 +14,10 @@ const PROXY_BASE =
   "/api";
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
-const overpassResultCache = new Map<string, OverpassResponse>();
+// ponytail: TTL so stale OSM data isn't served for the whole page lifetime (AUDIT C4).
+// OSM POIs don't change minute-to-minute; 1h is plenty for a planning session.
+const OVERPASS_CACHE_TTL_MS = 60 * 60 * 1000;
+const overpassResultCache = new Map<string, { value: OverpassResponse; ts: number }>();
 
 /** Evict oldest entries when cache exceeds max size (simple FIFO). */
 function cacheSet(key: string, value: OverpassResponse) {
@@ -23,7 +26,18 @@ function cacheSet(key: string, value: OverpassResponse) {
     const oldest = overpassResultCache.keys().next().value;
     if (oldest !== undefined) overpassResultCache.delete(oldest);
   }
-  overpassResultCache.set(key, value);
+  overpassResultCache.set(key, { value, ts: Date.now() });
+}
+
+/** Read a cache entry, dropping it if older than the TTL. */
+function cacheGet(key: string): OverpassResponse | undefined {
+  const entry = overpassResultCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > OVERPASS_CACHE_TTL_MS) {
+    overpassResultCache.delete(key);
+    return undefined;
+  }
+  return entry.value;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +144,7 @@ export async function queryOverpass(
   retries: number = 3,
 ): Promise<OverpassResponse> {
   const log = dlog("overpass");
-  const cached = overpassResultCache.get(query);
+  const cached = cacheGet(query);
   if (cached) {
     log.info("Client cache hit", { elements: cached.elements.length, queryChars: query.length });
     return cached;

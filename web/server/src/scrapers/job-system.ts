@@ -277,9 +277,6 @@ export function createScraperJobSystem<T extends MapPreview>(
         attempt: 1,
         updatedAt: startedAt,
       };
-      jobCache.set(jobId, runningJob);
-      persist();
-
       const onAttemptUpdate = (
         attempt: number,
         nextRetryAt: string | null,
@@ -298,6 +295,10 @@ export function createScraperJobSystem<T extends MapPreview>(
       };
 
       try {
+        // Initial running-state write inside try so a persist() throw can't escape
+        // the IIFE unhandled (AUDIT S+1).
+        jobCache.set(jobId, runningJob);
+        persist();
         const preview = await fetchSync(url, onAttemptUpdate);
         const current = jobCache.get<ScraperJob<T>>(jobId) ?? runningJob;
         if (!preview) {

@@ -35,6 +35,7 @@ import {
   getPoi,
   getPoisBatch,
   upsertPoi,
+  closeDb,
   type OsmType,
   type PoiKey,
 } from "./db.js";
@@ -120,7 +121,9 @@ function randomDelay(minMs: number, maxMs: number): number {
 
 function parseJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
-  const matches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  // ponytail: cap regex work on untrusted fetched HTML (AUDIT S6).
+  const capped = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html;
+  const matches = capped.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
   for (const match of matches) {
     const raw = match[1]?.trim();
     if (!raw) continue;
@@ -207,7 +210,12 @@ async function getBrowser(): Promise<Browser> {
       launchOptions.proxy = { server: GOOGLE_MAPS_PROXY_URL };
       log.info({ proxy: GOOGLE_MAPS_PROXY_URL }, "Google Maps browser: using proxy");
     }
-    browserPromise = chromium.launch(launchOptions);
+    // ponytail: clear the slot if launch rejects, else a single failed launch is
+    // cached forever and scrapers never recover until restart (AUDIT S5).
+    browserPromise = chromium.launch(launchOptions).catch((e) => {
+      browserPromise = null;
+      throw e;
+    });
   }
   return browserPromise;
 }
@@ -428,7 +436,9 @@ app.post("/overpass", limiter, async (req, res) => {
           signal: controller.signal,
         });
         if (overpassRes.ok) break;
-      } catch {
+      } catch (err) {
+        // A timeout must surface as 504, not be swallowed into a 502 (AUDIT T+1).
+        if (err instanceof Error && err.name === "AbortError") throw err;
         log.warn({ url }, "Overpass fetch failed, trying next");
       }
     }
@@ -450,6 +460,16 @@ app.post("/overpass", limiter, async (req, res) => {
     }
 
     const data = await overpassRes.text();
+
+    // Don't cache/serve a non-JSON body (e.g. an HTML error page returned with 200)
+    // as application/json (AUDIT S7).
+    try {
+      JSON.parse(data);
+    } catch {
+      log.warn({ usedUrl, bytes: data.length }, "Overpass returned a non-JSON body");
+      res.status(502).json({ error: "Overpass returned a non-JSON response" });
+      return;
+    }
 
     // Cache the response
     cache.set(cacheKey, data);
@@ -945,6 +965,9 @@ if (process.env.NODE_ENV !== "test") {
         log.info("Playwright browser closed");
       } catch { /* already closed */ }
     }
+    try {
+      await closeDb(); // drain the pg pool (AUDIT S4)
+    } catch { /* ignore */ }
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

@@ -108,6 +108,26 @@ export function loadSession(): SessionSnapshot | null {
       return null;
     }
 
+    // Per-element validation — a partially-corrupt or older payload can pass the array
+    // checks above yet still crash downstream when fields are missing (AUDIT C6).
+    const tracesOk = data.traces.every(
+      (t) =>
+        !!t &&
+        Array.isArray((t as { original?: unknown }).original) &&
+        Array.isArray((t as { simplified?: unknown }).simplified),
+    );
+    const poisOk = data.pois.every(
+      (p) =>
+        !!p &&
+        typeof (p as { lat?: unknown }).lat === "number" &&
+        typeof (p as { lon?: unknown }).lon === "number" &&
+        (p as { category?: unknown }).category != null,
+    );
+    if (!tracesOk || !poisOk) {
+      clearSession();
+      return null;
+    }
+
     return {
       activeCategories: new Set(data.activeCategories),
       traces: data.traces,
