@@ -67,6 +67,9 @@ ${trkpts}
   <metadata>
     <name>Ravitools POIs</name>
     <desc>Points of interest along your cycling route</desc>
+    <copyright author="OpenStreetMap contributors">
+      <license>https://opendatacommons.org/licenses/odbl/</license>
+    </copyright>
     <time>${new Date().toISOString()}</time>
   </metadata>
 ${wpts}${trkSections}

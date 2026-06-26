@@ -29,6 +29,7 @@ import {
 } from "./scrapers/yandex-maps.js";
 import { mountAllScrapers } from "./scrapers/registry.js";
 import { lookup } from "node:dns/promises";
+import { timingSafeEqual } from "node:crypto";
 import {
   initDb,
   isDbAvailable,
@@ -80,6 +81,16 @@ const SEARXNG_URL =
   process.env.SEARXNG_URL || "http://localhost:8888";
 const NOMINATIM_URL =
   process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
+
+// AUDIT S1: fail fast on a malformed upstream URL from env (config typo) rather than
+// discovering it on the first request. (Not a public-IP check — SearXNG is intentionally local.)
+for (const [name, url] of Object.entries({ OVERPASS_URL, OVERPASS_FALLBACK_URL, SEARXNG_URL, NOMINATIM_URL })) {
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(`Invalid ${name}: "${url}" is not a valid URL`);
+  }
+}
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || "86400", 10); // 24h default
 const SEARCH_CACHE_TTL = parseInt(process.env.SEARCH_CACHE_TTL || "604800", 10); // 7 days
 const GEOCODE_CACHE_TTL = parseInt(process.env.GEOCODE_CACHE_TTL || "2592000", 10); // 30 days
@@ -377,9 +388,17 @@ app.get("/cache/stats", (_req, res) => {
 });
 
 /** Flush the search cache — useful after engine configuration changes */
+/** Constant-time secret compare so the admin key can't be probed by timing (AUDIT S2). */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 app.delete("/cache/search", (req, res) => {
   const adminKey = process.env.ADMIN_API_KEY;
-  if (adminKey && req.headers["x-admin-key"] !== adminKey) {
+  const provided = req.headers["x-admin-key"];
+  if (adminKey && !(typeof provided === "string" && timingSafeEqualStr(provided, adminKey))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

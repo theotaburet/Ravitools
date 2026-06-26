@@ -121,7 +121,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
       scrollWheelZoom={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
