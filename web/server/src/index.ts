@@ -292,6 +292,17 @@ const enrichLimiter = rateLimit({
   },
 });
 
+/** Stricter limiter for the expensive Playwright scraper endpoints (AUDIT S8). */
+const scraperLimiter = rateLimit({
+  windowMs: 60_000,
+  max: Number(process.env.SCRAPER_RATE_LIMIT ?? 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many scraper requests. Please wait.",
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Mount all map scraper plugins (Google Maps, Yandex Maps, ...)
 // Each plugin gets endpoints at both `/scrape/{name}` (canonical) and a
@@ -301,7 +312,7 @@ const enrichLimiter = rateLimit({
 const scraperRegistry = mountAllScrapers({
   app,
   deps: { log, sleep, randomDelay, getBrowser },
-  limiter: enrichLimiter,
+  limiter: scraperLimiter,
   log,
 });
 

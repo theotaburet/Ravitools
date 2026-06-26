@@ -931,10 +931,10 @@ export function isGenericPoiName(name: string | undefined | null): boolean {
  * review volume weight, and platform diversity.
  *
  * Components (sum, capped at 1.0):
- *   sourceFactor   (0-0.40): snippet count, saturates at ~6
+ *   sourceFactor   (0-0.25): snippet count, saturates at ~6
  *   diversityFactor(0-0.15): distinct search engines
  *   fieldFactor    (0-0.20): each non-null structured field adds weight
- *   officialBonus  (0-0.10): official website presence
+ *   officialBonus  (0-0.15): official website presence
  *   qualityFactor  (0-0.15): snippet content quality (avg length, URL diversity)
  */
 export function computeConfidence(enrichment: {
@@ -950,8 +950,10 @@ export function computeConfidence(enrichment: {
   const snippetCount = enrichment.rawSnippets.length;
   if (snippetCount === 0) return 0;
 
-  // --- Source count factor (0-0.40): diminishing returns beyond 6 snippets ---
-  const sourceFactor = Math.min(snippetCount / 15, 0.40);
+  // --- Source count factor (0-0.25): diminishing returns, saturates at ~6 snippets ---
+  // ponytail: capped lower than before so raw snippet count no longer dominates over
+  // authoritative sources (AUDIT C9). 6/24 = 0.25.
+  const sourceFactor = Math.min(snippetCount / 24, 0.25);
 
   // --- Engine diversity factor (0-0.15): multiple engines = higher confidence ---
   const engines = new Set(enrichment.rawSnippets.map((s) => s.engine));
@@ -966,8 +968,8 @@ export function computeConfidence(enrichment: {
   if (enrichment.review != null) fieldFactor += 0.04;
   fieldFactor = Math.min(fieldFactor, 0.20);
 
-  // --- Official website bonus (0-0.10) ---
-  const officialBonus = enrichment.officialWebsite ? 0.10 : 0;
+  // --- Official website bonus (0-0.15): an official source is worth more than snippet volume (AUDIT C9) ---
+  const officialBonus = enrichment.officialWebsite ? 0.15 : 0;
 
   // --- Snippet quality factor (0-0.15) ---
   let qualityFactor = 0;
