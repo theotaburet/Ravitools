@@ -18,6 +18,7 @@ import type {
   MapScraperPlugin,
   ScraperDeps,
 } from "../scrapers/types.js";
+import { BLOCKED_ERROR_PREFIX, isBlockedError } from "../scrapers/types.js";
 
 const log = pino({ level: "silent" });
 
@@ -224,6 +225,31 @@ describe("createScraperJobSystem — persist/load roundtrip", () => {
     const reloaded = sys2.jobCache.get("interrupted-1") as { status: string; error: string | null };
     expect(reloaded.status).toBe("error");
     expect(reloaded.error).toMatch(/interrupted/i);
+  });
+});
+
+describe("blocked detection (M2 scraper-blocked signal)", () => {
+  it("isBlockedError matches the sentinel prefix and nothing else", () => {
+    expect(isBlockedError(`${BLOCKED_ERROR_PREFIX} Google CAPTCHA`)).toBe(true);
+    expect(isBlockedError("no data returned")).toBe(false);
+    expect(isBlockedError(null)).toBe(false);
+    expect(isBlockedError(undefined)).toBe(false);
+  });
+
+  it("a BLOCKED-tagged throw surfaces as a blocked lastError on the job", async () => {
+    const plugin = makePlugin(
+      async () => {
+        throw new Error(`${BLOCKED_ERROR_PREFIX} test captcha`);
+      },
+      { retries: 2 },
+    );
+    const sys = createScraperJobSystem(plugin, baseDeps);
+    const job = await sys.queueJob("https://mock.test/blocked", "Blocked POI");
+    await new Promise((r) => setTimeout(r, 30));
+
+    const finished = sys.jobCache.get(job.jobId) as typeof job;
+    expect(finished.status).toBe("error");
+    expect(isBlockedError(finished.lastError)).toBe(true);
   });
 });
 

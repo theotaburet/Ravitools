@@ -323,6 +323,8 @@ export interface GoogleFallbackJobStats {
     running: number;
     done: number;
     error: number;
+    /** Jobs blocked by CAPTCHA/anti-bot (subset of error/running). Optional: older servers omit it. */
+    blocked?: number;
   };
   jobs: GoogleMapsPreviewJob[];
 }

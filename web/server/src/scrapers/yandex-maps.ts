@@ -393,7 +393,7 @@ export async function fetchYandexMapsPreviewOnce(
     );
     if (isYandexCaptcha(page.url(), initialBody)) {
       log.warn({ url, attempt, pageUrl: page.url() }, "Yandex Maps preview blocked by CAPTCHA");
-      return null;
+      throw new Error(`${BLOCKED_ERROR_PREFIX} Yandex Maps CAPTCHA`);
     }
 
     // Search URL lands on a list of cards — click the first one to open the
@@ -532,6 +532,7 @@ export async function fetchYandexMapsPreviewOnce(
 // ---------------------------------------------------------------------------
 
 import type { MapScraperPlugin, ScraperDeps } from "./types.js";
+import { BLOCKED_ERROR_PREFIX } from "./types.js";
 
 export const yandexMapsPlugin: MapScraperPlugin<YandexMapsPreview> = {
   name: "yandex-maps",

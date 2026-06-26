@@ -125,6 +125,13 @@ export function EnrichmentPanel({
         </div>
       )}
 
+      {/* Scraper blocked signal (M2): CAPTCHA/anti-bot on Google/Yandex */}
+      {(job.googleFallbackStats?.counts.blocked ?? 0) > 0 && (
+        <div className="enrichment-notice" style={{ backgroundColor: "#fee2e2", borderColor: "#ef4444" }}>
+          ⚠ {t("enrich.scraperBlocked", targetLanguage)}
+        </div>
+      )}
+
       {job.googleFallbackStats && (job.googleFallbackStats.counts.queued > 0 || job.googleFallbackStats.counts.running > 0) && (
         <div className="enrichment-notice" style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}>
           {t("enrich.googleQueue", targetLanguage)} {job.googleFallbackStats.counts.queued} {t("enrich.queued", targetLanguage)}, {job.googleFallbackStats.counts.running} {t("enrich.running", targetLanguage)}

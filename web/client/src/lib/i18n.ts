@@ -130,6 +130,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.aiSynthesis": { en: " + AI synthesis", fr: " + synthèse IA" },
   "enrich.noWebgpu": { en: "No WebGPU — raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.", fr: "Pas de WebGPU — extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète." },
   "enrich.searxngUnavailable": { en: "SearXNG unavailable — search enrichment disabled. Start SearXNG:", fr: "SearXNG indisponible — enrichissement par recherche désactivé. Démarrez SearXNG :" },
+  "enrich.scraperBlocked": {
+    en: "Map scraper blocked (CAPTCHA / anti-bot). Some POIs may stay un-enriched — wait a few minutes or change your IP, then retry.",
+    fr: "Scraper de cartes bloqué (CAPTCHA / anti-bot). Certains POI peuvent rester non enrichis — attendez quelques minutes ou changez d'IP, puis réessayez.",
+  },
   "enrich.googleQueue": { en: "Google queue:", fr: "File Google :" },
   "enrich.queued": { en: "queued", fr: "en file" },
   "enrich.running": { en: "running", fr: "en cours" },
