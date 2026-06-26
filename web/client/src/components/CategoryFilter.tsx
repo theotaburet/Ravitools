@@ -5,7 +5,7 @@
 // Sticky header + collapsible body to stay accessible in long sidebars.
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { PoiCategory, POI, TargetLanguage } from "../types";
 import { POI_CATEGORIES } from "../lib/poi-config";
 import { translateCategory } from "../lib/i18n";
@@ -39,6 +39,17 @@ export function CategoryFilter({
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
 
+  // AUDIT U4: keep the slider snappy but only re-process POIs ~once per 150ms,
+  // instead of on every pixel of drag.
+  const [displayDist, setDisplayDist] = useState(maxDistanceM);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => setDisplayDist(maxDistanceM), [maxDistanceM]);
+  const handleDistChange = (v: number) => {
+    setDisplayDist(v);
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => onMaxDistanceChange(v), 150);
+  };
+
   const counts = new Map<PoiCategory, number>();
   if (showCounts) {
     for (const poi of pois) {
@@ -54,16 +65,18 @@ export function CategoryFilter({
       <div
         className="filter-header"
         onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
         style={{ cursor: "pointer" }}
       >
         <span className="flex items-center gap-2">
-          <span className="filter-collapse-icon">{collapsed ? "+" : "\u2212"}</span>
+          <span className="filter-collapse-icon" aria-hidden="true">{collapsed ? "+" : "\u2212"}</span>
           {showCounts ? "Filter POIs" : "Categories to search"}
           {collapsed && (
             <span className="filter-collapsed-count">{activeCount}/{POI_CATEGORIES.length}</span>
           )}
         </span>
         <button
+          type="button"
           className="neo-btn-sm neo-btn-secondary"
           onClick={(e) => {
             e.stopPropagation();
@@ -78,15 +91,16 @@ export function CategoryFilter({
           <div className="px-4 py-3 border-b-2 border-black bg-white">
             <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
               <span>Max distance to route</span>
-              <span>{maxDistanceM}m</span>
+              <span>{displayDist}m</span>
             </div>
             <input
               type="range"
               min={300}
               max={3000}
               step={100}
-              value={maxDistanceM}
-              onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
+              value={displayDist}
+              onChange={(e) => handleDistChange(Number(e.target.value))}
+              aria-label="Max distance to route in meters"
               className="mt-3 w-full"
             />
             <p className="mt-2 text-xs text-muted">

@@ -176,9 +176,11 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
           isEnriching ? "poi-marker-enriching" : "",
         ].filter(Boolean).join(" ");
 
+        // AUDIT U1: give the marker an accessible name (was an unlabeled emoji div).
+        const markerLabel = (poi.name || poi.category).replace(/"/g, "&quot;");
         const icon = L.divIcon({
           className: "poi-marker-icon",
-          html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px">${emoji}</div>`,
+          html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
           popupAnchor: [0, -size / 2],

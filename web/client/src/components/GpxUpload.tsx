@@ -59,6 +59,7 @@ export function GpxUpload({ onFiles, disabled }: Props) {
         strokeLinecap="round"
         strokeLinejoin="round"
         className="text-black"
+        aria-hidden="true"
       >
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
@@ -76,6 +77,7 @@ export function GpxUpload({ onFiles, disabled }: Props) {
         multiple
         onChange={handleChange}
         disabled={disabled}
+        aria-label="Upload GPX files"
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
     </div>

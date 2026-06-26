@@ -2,7 +2,7 @@
 // POI list component (neobrutalist) – virtualized, with enrichment + selection
 // ---------------------------------------------------------------------------
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
@@ -63,7 +63,7 @@ interface Props {
   targetLanguage?: TargetLanguage;
 }
 
-export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
+function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -86,7 +86,17 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
     }
   }, [selectedPoiId, sortedPois, virtualizer]);
 
-  if (pois.length === 0) return null;
+  if (pois.length === 0) {
+    // AUDIT U5: don't render nothing — tell the user why the list is empty.
+    return (
+      <div
+        className="neo-box"
+        style={{ padding: "1rem", textAlign: "center", color: "#6b6b6b", fontFamily: "monospace" }}
+      >
+        No POIs match the active filters.
+      </div>
+    );
+  }
 
   const toggleSources = (e: React.MouseEvent, poiId: string) => {
     e.stopPropagation();
@@ -114,8 +124,10 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
       <div className="poi-list-header">
         <span>POIs along route ({pois.length})</span>
         <button
+          type="button"
           className="poi-sort-btn"
           onClick={cycleSortMode}
+          aria-label={`Change sort order, currently ${SORT_LABELS[sortMode]}`}
           title="Change sort order"
         >
           ↕ {SORT_LABELS[sortMode]}
@@ -286,8 +298,10 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                             {confidenceLabel(enrichment.confidence)}
                           </span>
                           <button
+                            type="button"
                             className="poi-sources-toggle"
                             onClick={(e) => toggleSources(e, poi.id)}
+                            aria-expanded={showSources}
                           >
                             {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
                             {" "}
@@ -345,3 +359,5 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
     </div>
   );
 }
+
+export const PoiList = memo(PoiListInner);

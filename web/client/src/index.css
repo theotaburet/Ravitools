@@ -1105,6 +1105,34 @@ body {
   }
 }
 
+/* AUDIT U6: small-phone breakpoint + touch targets */
+@media (max-width: 480px) {
+  .sidebar {
+    max-height: 55vh;
+    padding: 0.5rem;
+  }
+  .map-container {
+    min-height: 45vh;
+  }
+  .filter-panel {
+    max-height: 45vh;
+  }
+}
+
+/* Bigger tap targets on touch devices (44px min) */
+@media (hover: none) and (pointer: coarse) {
+  .neo-btn-sm,
+  .poi-sort-btn,
+  .poi-sources-toggle,
+  .filter-item {
+    min-height: 44px;
+  }
+  .filter-item input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Trace legend overlay (shown on map when multiple traces loaded)
    --------------------------------------------------------------------------- */

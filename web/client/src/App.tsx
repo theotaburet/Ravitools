@@ -166,10 +166,10 @@ export default function App() {
                 You have a saved session. Resume where you left off?
               </p>
               <div className="session-prompt-actions">
-                <button className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
+                <button type="button" className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
                   Resume
                 </button>
-                <button className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
+                <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
                   Start fresh
                 </button>
               </div>
@@ -185,6 +185,8 @@ export default function App() {
           {state.progress && (
             <div
               className={`status-bar ${state.stage === "error" ? "error" : ""}`}
+              role="status"
+              aria-live="polite"
             >
               {isProcessing && <span className="spinner" />}
               <div style={{ flex: 1 }}>
@@ -211,7 +213,7 @@ export default function App() {
                 <span className="font-black uppercase">Warning:</span>{" "}
                 {state.warning}
               </p>
-              <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+              <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
                 Retry failed chunks
               </button>
             </div>
@@ -226,11 +228,11 @@ export default function App() {
               </p>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {state.traces.length > 0 && (
-                  <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                  <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
                     Retry query
                   </button>
                 )}
-                <button className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
+                <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
                   {state.traces.length > 0 ? "Start over" : "Try again"}
                 </button>
               </div>
