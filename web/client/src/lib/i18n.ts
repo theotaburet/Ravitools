@@ -161,6 +161,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.remaining": { en: "remaining", fr: "restants" },
   "enrich.enginesDegradedSingular": { en: "search engine degraded", fr: "moteur de recherche dégradé" },
   "enrich.enginesDegradedPlural": { en: "search engines degraded", fr: "moteurs de recherche dégradés" },
+  "enrich.aiDisclaimer": { en: "AI-generated summaries can be wrong — check hours/prices before relying on them.", fr: "Les résumés générés par IA peuvent être faux — vérifiez horaires/prix avant de vous y fier." },
   "enrich.error": { en: "Error:", fr: "Erreur :" },
   "enrich.enrichedBeforeError": { en: "enriched before error", fr: "enrichis avant l'erreur" },
   "enrich.retry": { en: "Retry", fr: "Réessayer" },

@@ -91,6 +91,13 @@ export function EnrichmentPanel({
         {job.webGpuAvailable ? t("enrich.aiSynthesis", targetLanguage) : ""}
       </p>
 
+      {/* Trust: AI summaries are not authoritative (M2) */}
+      {job.webGpuAvailable && (
+        <p className="enrichment-notice" style={{ backgroundColor: "#f3f4f6", borderColor: "#9ca3af" }}>
+          ⓘ {t("enrich.aiDisclaimer", targetLanguage)}
+        </p>
+      )}
+
       {/* WebGPU status */}
       {!job.webGpuAvailable && (
         <div className="enrichment-notice">

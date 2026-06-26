@@ -250,7 +250,16 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                       )}
                       {getSynthesisLabel(enrichment) && (
                         <div className="poi-enrichment-meta">
-                          <span className={getSynthesisBadgeClass(enrichment)}>{getSynthesisLabel(enrichment)}</span>
+                          <span
+                            className={getSynthesisBadgeClass(enrichment)}
+                            title={
+                              enrichment.synthesisSource === "llm" || enrichment.synthesisSource === "llm-repaired"
+                                ? t("enrich.aiDisclaimer", targetLanguage)
+                                : undefined
+                            }
+                          >
+                            {getSynthesisLabel(enrichment)}
+                          </span>
                           {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
                             <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
                               Maps

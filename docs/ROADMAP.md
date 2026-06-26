@@ -73,8 +73,8 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ## M2 — Enrichment hardening (CORE)  ·  size L  ·  ◑ PARTIAL (branch `chore/m0-foundation`)
 
-> Done: S8 dedicated scraper rate limiter; C9 confidence rebalance (+tests); WebLLM download failure already handled in `initEngine`.
-> Remaining: trust/provenance UI display + LLM disclaimer (couples with i18n); scraper-blocked UX signal; `useEnrichment`/`useRavitools` hook tests. Decision-gate: enrichment accuracy/disclaimer policy.
+> Done: S8 dedicated scraper rate limiter; C9 confidence rebalance (+tests); WebLLM download failure already handled in `initEngine`; LLM disclaimer (panel note + AI-badge tooltip, FR/EN) — neutral default text, policy can refine later.
+> Remaining: fuller provenance/confidence surfacing; scraper-blocked UX signal; `useEnrichment`/`useRavitools` hook tests. Decision-gate: enrichment accuracy/disclaimer policy (default shipped, refine if desired).
 
 **Goal:** bring enrichment from WIP to a dependable, trustworthy v1 feature — the headline of v1.
 
