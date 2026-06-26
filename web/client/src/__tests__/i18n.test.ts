@@ -114,4 +114,15 @@ describe("t (UI strings)", () => {
     expect(t("session.resume", "de")).toBe("Resume");
     expect(t("does.not.exist", "fr")).toBe("does.not.exist");
   });
+
+  it("has a translation for every dynamic skip-reason key", () => {
+    // PoiList builds these keys as `poi.skip.${reason}` — a missing one would
+    // silently render the key string instead of a label.
+    const reasons = ["unnamed", "generic-name", "low-value-category", "no-results", "rate-limited", "cancelled"];
+    for (const r of reasons) {
+      const key = `poi.skip.${r}`;
+      expect(t(key, "fr")).not.toBe(key);
+      expect(t(key, "en")).not.toBe(key);
+    }
+  });
 });

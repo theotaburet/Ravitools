@@ -5,6 +5,7 @@
 
 import type { EnrichmentJobState, TargetLanguage, EnrichedData } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
+import { t } from "../lib/i18n";
 
 const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 
@@ -84,25 +85,24 @@ export function EnrichmentPanel({
 
   return (
     <div className="enrichment-panel">
-      <h3>Enrich POIs</h3>
+      <h3>{t("enrich.title", targetLanguage)}</h3>
       <p className="text-xs text-muted font-mono mb-3">
-        Add ratings, hours, reviews via web search
-        {job.webGpuAvailable ? " + AI synthesis" : ""}
+        {t("enrich.subtitle", targetLanguage)}
+        {job.webGpuAvailable ? t("enrich.aiSynthesis", targetLanguage) : ""}
       </p>
 
       {/* WebGPU status */}
       {!job.webGpuAvailable && (
         <div className="enrichment-notice">
-          No WebGPU — raw search snippets only (no AI synthesis).
-          Use Chrome/Edge for full experience.
+          {t("enrich.noWebgpu", targetLanguage)}
         </div>
       )}
 
       {/* SearXNG status */}
       {!job.searxngAvailable && (
         <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
-          SearXNG unavailable — search enrichment disabled.
-          Start SearXNG: <code>docker run -d -p 8888:8080 --rm searxng/searxng</code>
+          {t("enrich.searxngUnavailable", targetLanguage)}{" "}
+          <code>docker run -d -p 8888:8080 --rm searxng/searxng</code>
         </div>
       )}
 
@@ -120,7 +120,7 @@ export function EnrichmentPanel({
 
       {job.googleFallbackStats && (job.googleFallbackStats.counts.queued > 0 || job.googleFallbackStats.counts.running > 0) && (
         <div className="enrichment-notice" style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}>
-          Google queue: {job.googleFallbackStats.counts.queued} queued, {job.googleFallbackStats.counts.running} running
+          {t("enrich.googleQueue", targetLanguage)} {job.googleFallbackStats.counts.queued} {t("enrich.queued", targetLanguage)}, {job.googleFallbackStats.counts.running} {t("enrich.running", targetLanguage)}
           {job.googleFallbackStats.jobs.length > 0 && (
             <div className="text-xs font-mono mt-1">
               {job.googleFallbackStats.jobs
@@ -139,7 +139,7 @@ export function EnrichmentPanel({
       {/* Language selector */}
       {!isRunning && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-mono text-muted">Summary language:</span>
+          <span className="text-xs font-mono text-muted">{t("enrich.summaryLanguage", targetLanguage)}</span>
           <div className="flex gap-1">
             {LANGUAGES.map((lang) => (
               <button
@@ -164,7 +164,7 @@ export function EnrichmentPanel({
             className="neo-checkbox"
           />
           <span className={enrichAll ? "text-foreground" : "text-muted"}>
-            Enrich everything (slower)
+            {t("enrich.enrichEverything", targetLanguage)}
           </span>
         </label>
       )}
@@ -174,16 +174,16 @@ export function EnrichmentPanel({
         <div className="flex flex-col gap-2">
           {!enrichAll && poiCount > 0 && (
             <div className="text-xs font-mono text-muted">
-              {poiCount} POIs total — enrichment targets high-value categories
+              {poiCount} {t("enrich.poisTotalHint", targetLanguage)}
             </div>
           )}
           <button
             className="neo-btn-primary w-full"
             onClick={onStart}
             disabled={!job.searxngAvailable}
-            title={!job.searxngAvailable ? "Start SearXNG to enable enrichment" : undefined}
+            title={!job.searxngAvailable ? t("enrich.startSearxngTitle", targetLanguage) : undefined}
           >
-            Enrich {enrichAll ? `all ${poiCount}` : `${poiCount}`} POIs
+            {t("enrich.enrichButton", targetLanguage)} {enrichAll ? `${t("enrich.all", targetLanguage)} ${poiCount}` : `${poiCount}`} {t("enrich.poisWord", targetLanguage)}
           </button>
         </div>
       )}
@@ -192,8 +192,8 @@ export function EnrichmentPanel({
       {job.stage === "idle" && enrichedCount > 0 && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-mono text-muted">
-            {enrichedCount}/{poiCount} POIs enriched
-            {pendingCount > 0 && ` — ${pendingCount} retryable remaining`}
+            {enrichedCount}/{poiCount} {t("enrich.poisEnriched", targetLanguage)}
+            {pendingCount > 0 && ` — ${pendingCount} ${t("enrich.retryableRemaining", targetLanguage)}`}
           </div>
           {pendingCount > 0 && (
             <button
@@ -201,7 +201,7 @@ export function EnrichmentPanel({
               onClick={onContinue}
               disabled={!job.searxngAvailable}
             >
-              Continue enrichment ({pendingCount} retryable)
+              {t("enrich.continue", targetLanguage)} ({pendingCount} {t("enrich.retryable", targetLanguage)})
             </button>
           )}
           <button
@@ -209,7 +209,7 @@ export function EnrichmentPanel({
             onClick={onStart}
             disabled={!job.searxngAvailable}
           >
-            Re-enrich all ({poiCount})
+            {t("enrich.reEnrichAll", targetLanguage)} ({poiCount})
           </button>
         </div>
       )}
@@ -221,8 +221,8 @@ export function EnrichmentPanel({
             <span className="spinner" />
             <span>
               {job.webGpuAvailable
-                ? `Loading AI model... ${Math.round(job.modelLoadProgress * 100)}%`
-                : "Preparing enrichment..."}
+                ? `${t("enrich.loadingModel", targetLanguage)} ${Math.round(job.modelLoadProgress * 100)}%`
+                : t("enrich.preparing", targetLanguage)}
             </span>
           </div>
           <div className="progress-bar-track">
@@ -235,7 +235,7 @@ export function EnrichmentPanel({
             className="neo-btn-sm neo-btn-secondary"
             onClick={onCancel}
           >
-            Cancel
+            {t("enrich.cancel", targetLanguage)}
           </button>
         </div>
       )}
@@ -247,46 +247,46 @@ export function EnrichmentPanel({
             <span className="spinner" />
             <span>
               {job.phase === "geocode-search"
-                ? "Searching..."
+                ? t("enrich.phaseSearching", targetLanguage)
                 : job.phase === "google-fallback"
-                  ? "Google fallback queue..."
+                  ? t("enrich.phaseGoogle", targetLanguage)
                 : job.phase === "synthesize"
-                  ? "AI synthesis..."
+                  ? t("enrich.phaseSynth", targetLanguage)
                   : job.phase === "retry"
-                    ? "Retrying failed..."
-                    : "Enriching..."}{" "}
+                    ? t("enrich.phaseRetry", targetLanguage)
+                    : t("enrich.phaseEnriching", targetLanguage)}{" "}
               {job.completed}/{job.total}
             </span>
           </div>
           {job.phase === "google-fallback" && (
             <div className="text-xs text-muted font-mono">
-              Google Maps can take 30-90s per place. Still running — please wait.
+              {t("enrich.googleWait", targetLanguage)}
             </div>
           )}
           {job.currentPoiName && (
             <div className="text-xs text-muted font-mono truncate">
               {job.activePoiIds.size > 1
-                ? `Processing ${job.activePoiIds.size} POIs (${job.currentPoiName}...)`
-                : `Current: ${job.currentPoiName}`}
+                ? `${t("enrich.processing", targetLanguage)} ${job.activePoiIds.size} ${t("enrich.poisWord", targetLanguage)} (${job.currentPoiName}...)`
+                : `${t("enrich.current", targetLanguage)} ${job.currentPoiName}`}
             </div>
           )}
           {(job.errorCount > 0 || job.skippedCount > 0) && (
             <div className="text-xs font-mono" style={{ display: "flex", gap: "0.75rem" }}>
               {job.errorCount > 0 && (
                 <span style={{ color: "var(--color-danger)" }}>
-                  {job.errorCount} error{job.errorCount > 1 ? "s" : ""}
+                  {job.errorCount} {t("enrich.errorWord", targetLanguage)}{job.errorCount > 1 ? "s" : ""}
                 </span>
               )}
               {job.skippedCount > 0 && (
                 <span style={{ color: "var(--color-muted)" }}>
-                  {job.skippedCount} skipped
+                  {job.skippedCount} {t("enrich.skipped", targetLanguage)}
                 </span>
               )}
             </div>
           )}
           {job.etaSeconds != null && job.etaSeconds > 0 && (
             <div className="text-xs text-muted font-mono">
-              ETA: {formatEta(job.etaSeconds)}
+              {t("enrich.eta", targetLanguage)} {formatEta(job.etaSeconds)}
             </div>
           )}
           <div className="progress-bar-track">
@@ -302,7 +302,7 @@ export function EnrichmentPanel({
             className="neo-btn-sm neo-btn-secondary"
             onClick={onCancel}
           >
-            Stop
+            {t("enrich.stop", targetLanguage)}
           </button>
         </div>
       )}
@@ -311,9 +311,9 @@ export function EnrichmentPanel({
       {isPausedCaptcha && (
         <div className="flex flex-col gap-2">
           <div className="enrichment-notice" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
-            <strong>All search engines blocked (CAPTCHA / access denied).</strong>
+            <strong>{t("enrich.captchaBlocked", targetLanguage)}</strong>
             <br />
-            Open SearXNG in a new tab, complete the CAPTCHA, then come back and resume.
+            {t("enrich.captchaInstructions", targetLanguage)}
           </div>
           {job.captchaUrl && (
             <a
@@ -323,20 +323,20 @@ export function EnrichmentPanel({
               className="neo-btn-primary w-full text-center"
               style={{ display: "block" }}
             >
-              Open SearXNG — solve CAPTCHA
+              {t("enrich.openSearxng", targetLanguage)}
             </a>
           )}
           <button
             className="neo-btn-primary w-full"
             onClick={onResumeAfterCaptcha}
           >
-            Resume enrichment ({pendingCount} remaining)
+            {t("enrich.resume", targetLanguage)} ({pendingCount} {t("enrich.remaining", targetLanguage)})
           </button>
           <button
             className="neo-btn-sm neo-btn-secondary"
             onClick={onCancel}
           >
-            Cancel
+            {t("enrich.cancel", targetLanguage)}
           </button>
         </div>
       )}
@@ -345,18 +345,18 @@ export function EnrichmentPanel({
       {isDone && (
         <div className="flex flex-col gap-2">
           <div className="enrichment-done">
-            Enriched {enrichedCount}/{poiCount} POIs
+            {enrichedCount}/{poiCount} {t("enrich.poisEnriched", targetLanguage)}
           </div>
           {(job.errorCount > 0 || job.skippedCount > 0) && (
             <div className="text-xs font-mono" style={{ display: "flex", gap: "0.75rem" }}>
               {job.errorCount > 0 && (
                 <span style={{ color: "var(--color-danger)" }}>
-                  {job.errorCount} error{job.errorCount > 1 ? "s" : ""}
+                  {job.errorCount} {t("enrich.errorWord", targetLanguage)}{job.errorCount > 1 ? "s" : ""}
                 </span>
               )}
               {job.skippedCount > 0 && (
                 <span style={{ color: "var(--color-muted)" }}>
-                  {job.skippedCount} skipped
+                  {job.skippedCount} {t("enrich.skipped", targetLanguage)}
                 </span>
               )}
             </div>
@@ -376,7 +376,7 @@ export function EnrichmentPanel({
               onClick={onContinue}
               disabled={!job.searxngAvailable}
             >
-              Continue enrichment ({pendingCount} retryable)
+              {t("enrich.continue", targetLanguage)} ({pendingCount} {t("enrich.retryable", targetLanguage)})
             </button>
           )}
           <button
@@ -384,7 +384,7 @@ export function EnrichmentPanel({
             onClick={onStart}
             disabled={!job.searxngAvailable}
           >
-            Re-enrich all
+            {t("enrich.reEnrichAll", targetLanguage)}
           </button>
         </div>
       )}
@@ -393,7 +393,8 @@ export function EnrichmentPanel({
       {hasUnresponsiveEngines && (isDone || isRunning || hasError) && (
         <details className="engine-failures">
           <summary className="engine-failures-summary">
-            {unresponsiveEngineMap.size} search engine{unresponsiveEngineMap.size > 1 ? "s" : ""} degraded
+            {unresponsiveEngineMap.size}{" "}
+            {t(unresponsiveEngineMap.size > 1 ? "enrich.enginesDegradedPlural" : "enrich.enginesDegradedSingular", targetLanguage)}
           </summary>
           <ul className="engine-failures-list">
             {[...unresponsiveEngineMap.entries()].map(([engine, reason]) => (
@@ -410,11 +411,11 @@ export function EnrichmentPanel({
       {hasError && (
         <div className="flex flex-col gap-2">
           <div className="text-xs text-danger font-bold font-mono">
-            Error: {job.error}
+            {t("enrich.error", targetLanguage)} {job.error}
           </div>
           {enrichedCount > 0 && (
             <div className="text-xs text-muted font-mono">
-              {enrichedCount}/{poiCount} enriched before error
+              {enrichedCount}/{poiCount} {t("enrich.enrichedBeforeError", targetLanguage)}
             </div>
           )}
           {pendingCount > 0 ? (
@@ -422,14 +423,14 @@ export function EnrichmentPanel({
               className="neo-btn-sm neo-btn-primary"
               onClick={onContinue}
             >
-              Continue ({pendingCount} retryable)
+              {t("enrich.continueShort", targetLanguage)} ({pendingCount} {t("enrich.retryable", targetLanguage)})
             </button>
           ) : (
             <button
               className="neo-btn-sm neo-btn-primary"
               onClick={onStart}
             >
-              Retry
+              {t("enrich.retry", targetLanguage)}
             </button>
           )}
         </div>

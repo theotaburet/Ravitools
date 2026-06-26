@@ -4,21 +4,11 @@
 
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
+import type { POI, EnrichedData, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { translateCategory, translatePoiName, t } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
 import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
-
-/** Human-readable labels for skip reasons */
-const SKIP_REASON_LABELS: Record<SkipReason, string> = {
-  "unnamed": "Unnamed POI",
-  "generic-name": "Generic name",
-  "low-value-category": "Low-value category",
-  "no-results": "No search results found",
-  "rate-limited": "Rate limited",
-  "cancelled": "Cancelled",
-};
 
 /** Format confidence as a label */
 function confidenceLabel(c: number): string {
@@ -209,7 +199,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                           </span>
                         )}
                         {enrichment.reviewCount != null && (
-                          <span> ({enrichment.reviewCount} reviews)</span>
+                          <span> ({enrichment.reviewCount} {t("poi.reviews", targetLanguage)})</span>
                         )}
                         {enrichment.priceLevel != null && (
                           <span>
@@ -225,7 +215,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                               <tr key={i}>
                                 <td className="poi-hours-day">{entry.day}</td>
                                 <td className="poi-hours-time">
-                                  {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                                  {entry.open === "closed" ? t("poi.closed", targetLanguage) : `${entry.open}–${entry.close ?? ""}`}
                                 </td>
                               </tr>
                             ))}
@@ -297,7 +287,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                             onClick={(e) => toggleSources(e, poi.id)}
                             aria-expanded={showSources}
                           >
-                            {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}{enrichment.sourceCount > 1 ? "s" : ""}
                             {" "}
                             {showSources ? "▲" : "▼"}
                           </button>
@@ -327,9 +317,9 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                   {/* Skip reason */}
                   {enrichment && enrichment.status === "skipped" && enrichment.skipReason && (
                     <div className="poi-skip-reason">
-                      {SKIP_REASON_LABELS[enrichment.skipReason]}
+                      {t(`poi.skip.${enrichment.skipReason}`, targetLanguage)}
                       {isRetryableDegradedResult(enrichment)
-                        ? " · retryable after cooldown/IP change"
+                        ? t("poi.skipRetryable", targetLanguage)
                         : ""}
                     </div>
                   )}

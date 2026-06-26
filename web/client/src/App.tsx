@@ -274,13 +274,14 @@ export default function App() {
               pois={filteredPois}
               traces={state.traces}
               enrichments={enrichments}
+              targetLanguage={targetLanguage}
             />
           )}
 
           {/* Reset button */}
           {state.stage === "done" && (
-            <button className="neo-btn-secondary w-full" onClick={handleReset}>
-              Load new GPX files
+            <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
+              {t("action.loadNew", targetLanguage)}
             </button>
           )}
 

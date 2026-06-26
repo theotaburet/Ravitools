@@ -100,7 +100,7 @@ export function CategoryFilter({
               step={100}
               value={displayDist}
               onChange={(e) => handleDistChange(Number(e.target.value))}
-              aria-label="Max distance to route in meters"
+              aria-label={t("filter.maxDistance", targetLanguage)}
               className="mt-3 w-full"
             />
             <p className="mt-2 text-xs text-muted">
