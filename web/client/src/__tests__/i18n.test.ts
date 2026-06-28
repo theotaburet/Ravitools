@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { describe, it, expect } from "vitest";
-import { translateCategory, translatePoiName } from "../lib/i18n";
+import { translateCategory, translatePoiName, t } from "../lib/i18n";
 import type { PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -92,5 +92,46 @@ describe("translatePoiName", () => {
   it("returns original name for unknown language", () => {
     // @ts-expect-error – testing runtime fallback
     expect(translatePoiName("bakery", "de")).toBe("bakery");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// t() — UI chrome strings (AUDIT U2)
+// ---------------------------------------------------------------------------
+
+describe("t (UI strings)", () => {
+  it("returns the French string for fr", () => {
+    expect(t("session.resume", "fr")).toBe("Reprendre");
+    expect(t("filter.all", "fr")).toBe("Tout");
+  });
+
+  it("returns the English string for en", () => {
+    expect(t("session.resume", "en")).toBe("Resume");
+  });
+
+  it("falls back to English for an unknown language, then to the key", () => {
+    // @ts-expect-error – testing runtime fallback
+    expect(t("session.resume", "de")).toBe("Resume");
+    expect(t("does.not.exist", "fr")).toBe("does.not.exist");
+  });
+
+  it("has a translation for every dynamic skip-reason key", () => {
+    // PoiList builds these keys as `poi.skip.${reason}` — a missing one would
+    // silently render the key string instead of a label.
+    const reasons = ["unnamed", "generic-name", "low-value-category", "no-results", "rate-limited", "cancelled"];
+    for (const r of reasons) {
+      const key = `poi.skip.${r}`;
+      expect(t(key, "fr")).not.toBe(key);
+      expect(t(key, "en")).not.toBe(key);
+    }
+  });
+
+  it("has a translation for every dynamic confidence-level key", () => {
+    // PoiList builds `poi.confidence.${confidenceLabel(c)}` — confidenceLabel returns these.
+    for (const level of ["high", "medium", "low", "none"]) {
+      const key = `poi.confidence.${level}`;
+      expect(t(key, "fr")).not.toBe(key);
+      expect(t(key, "en")).not.toBe(key);
+    }
   });
 });

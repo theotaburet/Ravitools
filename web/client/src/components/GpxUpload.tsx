@@ -4,13 +4,16 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
+import { t } from "../lib/i18n";
+import type { TargetLanguage } from "../types";
 
 interface Props {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
+  lang?: TargetLanguage;
 }
 
-export function GpxUpload({ onFiles, disabled }: Props) {
+export function GpxUpload({ onFiles, disabled, lang = "en" }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(
@@ -59,6 +62,7 @@ export function GpxUpload({ onFiles, disabled }: Props) {
         strokeLinecap="round"
         strokeLinejoin="round"
         className="text-black"
+        aria-hidden="true"
       >
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
@@ -66,9 +70,9 @@ export function GpxUpload({ onFiles, disabled }: Props) {
       </svg>
 
       <p className="text-lg font-black uppercase tracking-tight">
-        Drop your .GPX files here
+        {t("upload.drop", lang)}
       </p>
-      <p className="text-sm text-muted font-mono">or click to browse (multiple files OK)</p>
+      <p className="text-sm text-muted font-mono">{t("upload.browse", lang)}</p>
 
       <input
         type="file"
@@ -76,6 +80,7 @@ export function GpxUpload({ onFiles, disabled }: Props) {
         multiple
         onChange={handleChange}
         disabled={disabled}
+        aria-label="Upload GPX files"
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
     </div>

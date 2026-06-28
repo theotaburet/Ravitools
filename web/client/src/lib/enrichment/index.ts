@@ -9,4 +9,4 @@ export { isWebGpuAvailable, initEngine, isEngineReady, unloadEngine, synthesize 
 export type { LlmSynthesis, ModelLoadProgressCallback } from "./llm";
 export { enrichPoi, enrichBatch, computeConfidence, isRetryableEnrichmentResult } from "./enricher";
 export type { EnrichmentProgressCallback, PoiStartCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";
-export { buildSourceDigests, buildEssentialsText, buildStructuredContent, buildDivergences, determineSourceConfirmation, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";
+export { buildSourceDigests, buildStructuredContent, buildDivergences, determineSourceConfirmation, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";

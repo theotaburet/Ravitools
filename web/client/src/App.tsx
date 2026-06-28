@@ -14,6 +14,7 @@ import { PoiList } from "./components/PoiList";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { DebugPanel } from "./components/DebugPanel";
 import { saveSession, loadSession, clearSession, hasSession } from "./lib/session";
+import { t } from "./lib/i18n";
 import type { TargetLanguage } from "./types";
 import { isRetryableEnrichmentResult } from "./lib/enrichment";
 
@@ -129,6 +130,12 @@ export default function App() {
     clearSession();
   }, [reset, resetEnrichment]);
 
+  // Stable ref so the inline ternary stops defeating memo(PoiList) every render
+  const enrichingPoiIds = useMemo(
+    () => (enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null),
+    [enrichmentJob.stage, enrichmentJob.activePoiIds],
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -138,7 +145,7 @@ export default function App() {
         </h1>
         <span className="neo-tag bg-lime">beta</span>
         <p className="text-sm text-muted hidden sm:block">
-          Find useful POIs along your cycling route
+          {t("app.subtitle", targetLanguage)}
         </p>
       </header>
 
@@ -163,14 +170,14 @@ export default function App() {
           {showResumePrompt && (
             <div className="session-prompt">
               <p className="session-prompt-text">
-                You have a saved session. Resume where you left off?
+                {t("session.prompt", targetLanguage)}
               </p>
               <div className="session-prompt-actions">
-                <button className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
-                  Resume
+                <button type="button" className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
+                  {t("session.resume", targetLanguage)}
                 </button>
-                <button className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
-                  Start fresh
+                <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleDismissResume}>
+                  {t("session.fresh", targetLanguage)}
                 </button>
               </div>
             </div>
@@ -178,13 +185,15 @@ export default function App() {
 
           {/* Upload area – show when idle, or at error with no traces loaded */}
           {((state.stage === "idle" || (state.stage === "error" && state.traces.length === 0)) && !showResumePrompt) && (
-            <GpxUpload onFiles={processFiles} disabled={isProcessing} />
+            <GpxUpload onFiles={processFiles} disabled={isProcessing} lang={targetLanguage} />
           )}
 
           {/* Status / Progress */}
           {state.progress && (
             <div
               className={`status-bar ${state.stage === "error" ? "error" : ""}`}
+              role="status"
+              aria-live="polite"
             >
               {isProcessing && <span className="spinner" />}
               <div style={{ flex: 1 }}>
@@ -208,11 +217,11 @@ export default function App() {
           {state.warning && (
             <div className="warning-box">
               <p>
-                <span className="font-black uppercase">Warning:</span>{" "}
+                <span className="font-black uppercase">{t("status.warning", targetLanguage)}</span>{" "}
                 {state.warning}
               </p>
-              <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                Retry failed chunks
+              <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                {t("action.retryChunks", targetLanguage)}
               </button>
             </div>
           )}
@@ -221,17 +230,17 @@ export default function App() {
           {state.error && (
             <div className="error-box">
               <p>
-                <span className="font-black uppercase">Error:</span>{" "}
+                <span className="font-black uppercase">{t("status.error", targetLanguage)}</span>{" "}
                 {state.error}
               </p>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {state.traces.length > 0 && (
-                  <button className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                    Retry query
+                  <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                    {t("action.retryQuery", targetLanguage)}
                   </button>
                 )}
-                <button className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
-                  {state.traces.length > 0 ? "Start over" : "Try again"}
+                <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={handleReset}>
+                  {state.traces.length > 0 ? t("action.startOver", targetLanguage) : t("action.tryAgain", targetLanguage)}
                 </button>
               </div>
             </div>
@@ -271,13 +280,14 @@ export default function App() {
               pois={filteredPois}
               traces={state.traces}
               enrichments={enrichments}
+              targetLanguage={targetLanguage}
             />
           )}
 
           {/* Reset button */}
           {state.stage === "done" && (
-            <button className="neo-btn-secondary w-full" onClick={handleReset}>
-              Load new GPX files
+            <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
+              {t("action.loadNew", targetLanguage)}
             </button>
           )}
 
@@ -288,7 +298,7 @@ export default function App() {
               enrichments={enrichments}
               selectedPoiId={selectedPoiId}
               onSelectPoi={setSelectedPoiId}
-              enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
+              enrichingPoiIds={enrichingPoiIds}
               targetLanguage={targetLanguage}
             />
           )}
@@ -306,7 +316,7 @@ export default function App() {
             enrichments={enrichments}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
-            enrichingPoiIds={enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null}
+            enrichingPoiIds={enrichingPoiIds}
             targetLanguage={targetLanguage}
           />
         </main>

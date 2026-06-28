@@ -9,7 +9,7 @@ import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, f
 import { synthesize, isEngineReady, flattenHours } from "./llm";
 import { getEnrichabilityPolicy } from "../poi-config";
 import { dlog } from "../debug-log";
-import { buildEssentialsText, buildSourceDigests, buildStructuredContent, extractPriceLevel, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";
+import { buildSourceDigests, buildStructuredContent, extractPriceLevel, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";
 
 const DEGRADE_STOP_THRESHOLD = 4;
 
@@ -128,14 +128,10 @@ function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "stat
     openingHours: null,
     description: null,
     review: null,
-    summary: null,
-    translatedSummary: null,
-    specialty: null,
     priceLevel: null,
     googleMapsUrl: buildGoogleMapsUrl(poi),
     sourceUrls: [],
     rawSnippets: [],
-    essentials: null,
     sourceDigests: [],
     officialWebsite: null,
     structured: {
@@ -331,10 +327,6 @@ export async function enrichPoi(
           openingHours: synthesis.hours ?? googleMapsStructuredHours,
           description: synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
           review: synthesis.review ?? buildDeterministicShortReview(deterministicRating, deterministicReviewCount, targetLanguage),
-          // Legacy compat: populate summary/translatedSummary from description
-          summary: synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
-          translatedSummary: synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
-          specialty: null,
           // LLM price first, fallback to snippet extraction
           priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
@@ -345,7 +337,6 @@ export async function enrichPoi(
           sourceCount: snippets.length,
           sourceEngines: extractEngines(snippets),
           confidence: 0,
-          essentials: synthesis.review ?? buildDeterministicShortReview(deterministicRating, deterministicReviewCount, targetLanguage),
           sourceDigests,
           officialWebsite,
           unresponsiveEngines,
@@ -354,7 +345,6 @@ export async function enrichPoi(
           googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
         };
         result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
-        result.essentials = result.essentials ?? buildEssentialsText(result.structured);
         result.confidence = computeConfidence(result);
         return result;
       }
@@ -391,7 +381,6 @@ export async function enrichPoi(
       googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
     };
     noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
-    noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
     noLlmResult.confidence = computeConfidence(noLlmResult);
     return noLlmResult;
   } catch (err) {
@@ -734,10 +723,6 @@ export async function enrichBatch(
               openingHours: synthesis.hours ?? googleMapsStructuredHours ?? null,
               description: synthesis.description,
               review: synthesis.review,
-              // Legacy compat: populate summary/translatedSummary from description
-              summary: synthesis.description,
-              translatedSummary: synthesis.description,
-              specialty: null,
               // LLM price first, fallback to snippet extraction
               priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
               googleMapsUrl, sourceUrls, rawSnippets: snippets,
@@ -748,7 +733,6 @@ export async function enrichBatch(
               sourceCount: snippets.length,
               sourceEngines: extractEngines(snippets),
               confidence: 0,
-              essentials: synthesis.review,
               sourceDigests,
               officialWebsite,
               unresponsiveEngines,
@@ -757,7 +741,6 @@ export async function enrichBatch(
               googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
             };
             result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
-            result.essentials = result.essentials ?? buildEssentialsText(result.structured);
             result.confidence = computeConfidence(result);
             emitResult(poi, result);
             onPhaseProgress?.("synthesize", computeEta());
@@ -779,8 +762,6 @@ export async function enrichBatch(
           openingHours: detStructuredHours ?? null,
           description: buildDeterministicShortDescription(poi, targetLanguage),
           review: buildDeterministicShortReview(detRating, detReviewCount, targetLanguage),
-          summary: buildDeterministicShortDescription(poi, targetLanguage),
-          translatedSummary: buildDeterministicShortDescription(poi, targetLanguage),
           priceLevel: snippetPriceLevel,
           googleMapsUrl, sourceUrls, rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
@@ -798,7 +779,6 @@ export async function enrichBatch(
           googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
         };
         noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
-        noLlmResult.essentials = buildEssentialsText(noLlmResult.structured);
         noLlmResult.confidence = computeConfidence(noLlmResult);
         emitResult(poi, noLlmResult);
         onPhaseProgress?.("synthesize", computeEta());
@@ -931,10 +911,10 @@ export function isGenericPoiName(name: string | undefined | null): boolean {
  * review volume weight, and platform diversity.
  *
  * Components (sum, capped at 1.0):
- *   sourceFactor   (0-0.40): snippet count, saturates at ~6
+ *   sourceFactor   (0-0.25): snippet count, saturates at ~6
  *   diversityFactor(0-0.15): distinct search engines
  *   fieldFactor    (0-0.20): each non-null structured field adds weight
- *   officialBonus  (0-0.10): official website presence
+ *   officialBonus  (0-0.15): official website presence
  *   qualityFactor  (0-0.15): snippet content quality (avg length, URL diversity)
  */
 export function computeConfidence(enrichment: {
@@ -950,8 +930,10 @@ export function computeConfidence(enrichment: {
   const snippetCount = enrichment.rawSnippets.length;
   if (snippetCount === 0) return 0;
 
-  // --- Source count factor (0-0.40): diminishing returns beyond 6 snippets ---
-  const sourceFactor = Math.min(snippetCount / 15, 0.40);
+  // --- Source count factor (0-0.25): diminishing returns, saturates at ~6 snippets ---
+  // ponytail: capped lower than before so raw snippet count no longer dominates over
+  // authoritative sources (AUDIT C9). 6/24 = 0.25.
+  const sourceFactor = Math.min(snippetCount / 24, 0.25);
 
   // --- Engine diversity factor (0-0.15): multiple engines = higher confidence ---
   const engines = new Set(enrichment.rawSnippets.map((s) => s.engine));
@@ -966,8 +948,8 @@ export function computeConfidence(enrichment: {
   if (enrichment.review != null) fieldFactor += 0.04;
   fieldFactor = Math.min(fieldFactor, 0.20);
 
-  // --- Official website bonus (0-0.10) ---
-  const officialBonus = enrichment.officialWebsite ? 0.10 : 0;
+  // --- Official website bonus (0-0.15): an official source is worth more than snippet volume (AUDIT C9) ---
+  const officialBonus = enrichment.officialWebsite ? 0.15 : 0;
 
   // --- Snippet quality factor (0-0.15) ---
   let qualityFactor = 0;

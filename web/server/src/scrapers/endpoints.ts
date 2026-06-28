@@ -20,6 +20,7 @@
 
 import type { Express, RequestHandler } from "express";
 import type { MapPreview, MapScraperPlugin, ScraperJob } from "./types.js";
+import { isBlockedError } from "./types.js";
 import type { ScraperJobSystem } from "./job-system.js";
 import type { Logger } from "pino";
 
@@ -186,6 +187,9 @@ export function mountScraperEndpoints<T extends MapPreview>(
       running: jobs.filter((j) => j.status === "running").length,
       done: jobs.filter((j) => j.status === "done").length,
       error: jobs.filter((j) => j.status === "error").length,
+      // Blocked is a subset signal (CAPTCHA/anti-bot), counted across any status
+      // whose lastError carries the BLOCKED_ sentinel — surfaced as a UI hint.
+      blocked: jobs.filter((j) => isBlockedError(j.lastError)).length,
     };
     res.json({ counts, jobs: jobs.slice(-20).reverse() });
   });

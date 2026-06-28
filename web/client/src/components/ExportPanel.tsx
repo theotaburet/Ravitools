@@ -3,7 +3,7 @@
 // Two sections: GPS devices + Smartphone offline apps
 // ---------------------------------------------------------------------------
 
-import type { POI, TraceData, EnrichedData } from "../types";
+import type { POI, TraceData, EnrichedData, TargetLanguage } from "../types";
 import {
   exportToGpx,
   exportToKml,
@@ -11,14 +11,16 @@ import {
   exportToOsmAndGpx,
   exportToKmz,
 } from "../lib/export";
+import { t } from "../lib/i18n";
 
 interface Props {
   pois: POI[];
   traces: TraceData[];
   enrichments?: Map<string, EnrichedData>;
+  targetLanguage?: TargetLanguage;
 }
 
-export function ExportPanel({ pois, traces, enrichments }: Props) {
+export function ExportPanel({ pois, traces, enrichments, targetLanguage = "en" }: Props) {
   if (pois.length === 0) return null;
 
   const firstName = traces[0]?.name;
@@ -30,11 +32,11 @@ export function ExportPanel({ pois, traces, enrichments }: Props) {
 
   return (
     <div className="export-panel">
-      <h3>Export for GPS</h3>
+      <h3>{t("export.gps", targetLanguage)}</h3>
       <p className="text-xs text-muted font-mono mb-3">
-        {pois.length} POIs ready
+        {pois.length} {t("export.poisReady", targetLanguage)}
         {traces.length > 1 && ` (${traces.length} traces)`}
-        {enrichments && enrichments.size > 0 && ` (${enrichments.size} enriched)`}
+        {enrichments && enrichments.size > 0 && ` (${enrichments.size} ${t("export.enriched", targetLanguage)})`}
       </p>
 
       {/* GPS device exports */}
@@ -61,9 +63,9 @@ export function ExportPanel({ pois, traces, enrichments }: Props) {
 
       {/* Smartphone offline apps */}
       <div className="export-divider" />
-      <h3>Export for Smartphone</h3>
+      <h3>{t("export.smartphone", targetLanguage)}</h3>
       <p className="text-xs text-muted font-mono mb-3">
-        Offline maps apps (OsmAnd, Organic Maps, Guru Maps)
+        {t("export.offlineApps", targetLanguage)}
       </p>
       <div className="flex flex-col gap-2">
         <button
@@ -81,16 +83,13 @@ export function ExportPanel({ pois, traces, enrichments }: Props) {
       </div>
 
       <p className="text-xs text-muted mt-3 leading-snug">
-        <strong>OsmAnd GPX</strong> includes custom icons and colors per
-        category. Other apps import it as standard GPX.
+        <strong>OsmAnd GPX</strong> {t("export.osmandBody", targetLanguage)}
         <br />
-        <strong>KMZ</strong> groups POIs by category in folders — best for
-        Organic Maps and Guru Maps.
+        <strong>KMZ</strong> {t("export.kmzBody", targetLanguage)}
         {enrichments && enrichments.size > 0 && (
           <>
             <br />
-            <strong>Enriched data</strong> (ratings, hours, reviews) is included
-            in export descriptions.
+            <strong>{t("export.enrichedLabel", targetLanguage)}</strong> {t("export.enrichedBody", targetLanguage)}
           </>
         )}
       </p>

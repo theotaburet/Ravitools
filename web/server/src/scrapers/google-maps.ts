@@ -389,7 +389,7 @@ export async function fetchGoogleMapsPreviewOnce(
     const initialText = parseGoogleMapsText(await page.locator("body").innerText({ timeout: 5_000 }).catch(() => ""));
     if (/(captcha|unusual traffic|not a robot)/i.test(initialText ?? "")) {
       log.warn({ url, attempt, pageUrl: page.url(), initialText: initialText?.slice(0, 200) }, "Google Maps preview blocked by CAPTCHA/traffic checks");
-      return null;
+      throw new Error(`${BLOCKED_ERROR_PREFIX} Google Maps CAPTCHA / traffic check`);
     }
 
     if (page.url().includes("/maps/search/") || /results/i.test(initialText ?? "")) {
@@ -497,6 +497,7 @@ export async function fetchGoogleMapsPreviewOnce(
 // ---------------------------------------------------------------------------
 
 import type { MapScraperPlugin, ScraperDeps } from "./types.js";
+import { BLOCKED_ERROR_PREFIX } from "./types.js";
 
 export const googleMapsPlugin: MapScraperPlugin<GoogleMapsPreview> = {
   name: "google-maps",

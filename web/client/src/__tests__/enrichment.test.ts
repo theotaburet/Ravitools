@@ -161,9 +161,6 @@ describe("export with enrichments", () => {
           openingHours: null,
           description: "Excellent French bistro, cyclist-friendly terrace.",
           review: "Le Petit Zinc is a food stop near the route.",
-          summary: "Excellent French bistro, cyclist-friendly terrace.",
-          translatedSummary: null,
-          specialty: "French bistro",
           priceLevel: 2,
           googleMapsUrl: "https://www.google.com/maps/search/Le+Petit+Zinc",
           sourceUrls: ["https://example.com"],
@@ -174,7 +171,6 @@ describe("export with enrichments", () => {
           sourceCount: 0,
           sourceEngines: [],
           confidence: 0,
-          essentials: "Le Petit Zinc is a food stop near the route.",
           structured: {
             headline: "Excellent French bistro, cyclist-friendly terrace.",
             operationalSummary: "Reputation signals present.",
@@ -210,9 +206,6 @@ describe("export with enrichments", () => {
           openingHours: null,
           description: "Good Italian place to eat.",
           review: "Good place to eat.",
-          summary: "Good place to eat.",
-          translatedSummary: null,
-          specialty: "Italian",
           priceLevel: null,
           googleMapsUrl: "https://www.google.com/maps/search/test",
           sourceUrls: [],
@@ -223,7 +216,6 @@ describe("export with enrichments", () => {
           sourceCount: 0,
           sourceEngines: [],
           confidence: 0,
-          essentials: "Good place to eat.",
           structured: {
             headline: "Good place to eat.",
             operationalSummary: "Reputation signals present.",
@@ -257,9 +249,6 @@ describe("export with enrichments", () => {
           openingHours: null,
           description: "Always open.",
           review: "Toujours ouvert.",
-          summary: "Always open.",
-          translatedSummary: "Toujours ouvert.",
-          specialty: "Cafe",
           priceLevel: 1,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: [],
@@ -270,7 +259,6 @@ describe("export with enrichments", () => {
           sourceCount: 3,
           sourceEngines: ["google", "bing"],
           confidence: 0.55,
-          essentials: "Toujours ouvert.",
           structured: {
             headline: "Toujours ouvert.",
             operationalSummary: "Coverage: Google Maps, Yelp.",
@@ -292,16 +280,12 @@ describe("export with enrichments", () => {
     expect(props.enrichment_rating).toBe(4.5);
     expect(props.enrichment_reviewCount).toBe(100);
     expect(props.enrichment_hours).toBe("24/7");
-    expect(props.enrichment_summary).toBe("Always open.");
-    expect(props.enrichment_translatedSummary).toBe("Toujours ouvert.");
-    expect(props.enrichment_specialty).toBe("Cafe");
     expect(props.enrichment_priceLevel).toBe(1);
     expect(props.enrichment_locality).toBe("Paris");
     expect(props.enrichment_googleMapsUrl).toBe("https://maps.google.com");
     expect(props.enrichment_sourceCount).toBe(3);
     expect(props.enrichment_sourceEngines).toBe("google,bing");
     expect(props.enrichment_confidence).toBe(0.55);
-    expect(props.enrichment_essentials).toBe("Toujours ouvert.");
     expect(props.enrichment_structured_headline).toBe("Toujours ouvert.");
     expect(props.enrichment_structured_practicalities).toContain("Type: Cafe");
   });
@@ -338,7 +322,7 @@ describe("target language types", () => {
 });
 
 describe("export with translated summary", () => {
-  it("GPX export prefers translatedSummary over summary", async () => {
+  it("GPX export outputs description", async () => {
     const { buildGpxString } = await import("../lib/export");
     const poi = makePoi();
     const enrichments = new Map([
@@ -351,9 +335,6 @@ describe("export with translated summary", () => {
           openingHours: null,
           description: "Excellent bistro with terrace.",
           review: null,
-          summary: "Excellent bistrot avec terrasse.",
-          translatedSummary: "Excellent bistro with terrace.",
-          specialty: "French",
           priceLevel: 2,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: [],
@@ -373,7 +354,7 @@ describe("export with translated summary", () => {
     expect(gpx).not.toContain("Excellent bistrot avec terrasse.");
   });
 
-  it("GPX export falls back to summary when translatedSummary is null", async () => {
+  it("GPX export outputs description when present", async () => {
     const { buildGpxString } = await import("../lib/export");
     const poi = makePoi();
     const enrichments = new Map([
@@ -386,9 +367,6 @@ describe("export with translated summary", () => {
           openingHours: null,
           description: "Un bon endroit.",
           review: null,
-          summary: "Un bon endroit.",
-          translatedSummary: null,
-          specialty: null,
           priceLevel: null,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: [],
@@ -407,43 +385,7 @@ describe("export with translated summary", () => {
     expect(gpx).toContain("Un bon endroit.");
   });
 
-  it("GeoJSON export includes both summary and translatedSummary", async () => {
-    const { buildGeoJsonObject } = await import("../lib/export");
-    const poi = makePoi();
-    const enrichments = new Map([
-      [
-        "test-poi-1",
-        {
-          rating: null,
-          reviewCount: null,
-          hours: null,
-          openingHours: null,
-          description: "Original language summary.",
-          review: null,
-          summary: "Original language summary.",
-          translatedSummary: "Résumé en français.",
-          specialty: null,
-          priceLevel: null,
-          googleMapsUrl: "https://maps.google.com",
-          sourceUrls: [],
-          rawSnippets: [],
-          enrichedAt: "2026-04-12T00:00:00Z",
-          status: "done" as const,
-          locality: null,
-          sourceCount: 0,
-          sourceEngines: [],
-          confidence: 0,
-        },
-      ],
-    ]);
-
-    const geojson = buildGeoJsonObject([poi], enrichments);
-    const props = geojson.features[0].properties!;
-    expect(props.enrichment_summary).toBe("Original language summary.");
-    expect(props.enrichment_translatedSummary).toBe("Résumé en français.");
-  });
-
-  it("KML export prefers translatedSummary over summary in HTML description", async () => {
+  it("KML export outputs description in HTML description", async () => {
     const { buildKmlString } = await import("../lib/export");
     const poi = makePoi();
     const enrichments = new Map([
@@ -456,9 +398,6 @@ describe("export with translated summary", () => {
           openingHours: null,
           description: "Good Italian restaurant.",
           review: null,
-          summary: "Buon ristorante italiano.",
-          translatedSummary: "Good Italian restaurant.",
-          specialty: null,
           priceLevel: null,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: [],
@@ -581,9 +520,6 @@ describe("EnrichedData skipReason field", () => {
       openingHours: null,
       description: null,
       review: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
       priceLevel: null,
       googleMapsUrl: "https://maps.google.com",
       sourceUrls: [],
@@ -739,9 +675,6 @@ describe("export with source metadata", () => {
           openingHours: null,
           description: "A nice bistro.",
           review: null,
-          summary: "A nice bistro.",
-          translatedSummary: null,
-          specialty: null,
           priceLevel: null,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: ["https://a.com", "https://b.com", "https://c.com"],
@@ -780,9 +713,6 @@ describe("export with source metadata", () => {
           openingHours: null,
           description: "Ok place.",
           review: null,
-          summary: "Ok place.",
-          translatedSummary: null,
-          specialty: null,
           priceLevel: null,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: ["https://a.com"],
@@ -814,9 +744,6 @@ describe("export with source metadata", () => {
           openingHours: null,
           description: null,
           review: null,
-          summary: null,
-          translatedSummary: null,
-          specialty: null,
           priceLevel: null,
           googleMapsUrl: "https://maps.google.com",
           sourceUrls: [],
@@ -1113,9 +1040,6 @@ describe("formatPoiDescriptionCompact", () => {
       openingHours: null,
       description: null,
       review: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
       priceLevel: 3,
       googleMapsUrl: "https://maps.google.com",
       sourceUrls: [],
@@ -1146,9 +1070,6 @@ describe("formatPoiDescriptionCompact", () => {
       openingHours: null,
       description: longText,
       review: longText,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
       priceLevel: 4,
       googleMapsUrl: "https://maps.google.com",
       sourceUrls: [],
@@ -1227,9 +1148,6 @@ describe("formatPoiDescriptionCompact", () => {
       ],
       description: null,
       review: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
       priceLevel: null,
       googleMapsUrl: "",
       sourceUrls: [],
@@ -1256,9 +1174,6 @@ describe("formatPoiDescriptionCompact", () => {
       openingHours: null,
       description: null,
       review: null,
-      summary: null,
-      translatedSummary: null,
-      specialty: null,
       priceLevel: null,
       googleMapsUrl: "",
       sourceUrls: [],

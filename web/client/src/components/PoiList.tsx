@@ -2,23 +2,13 @@
 // POI list component (neobrutalist) – virtualized, with enrichment + selection
 // ---------------------------------------------------------------------------
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { POI, EnrichedData, SkipReason, TargetLanguage } from "../types";
+import type { POI, EnrichedData, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
-import { translateCategory, translatePoiName } from "../lib/i18n";
+import { translateCategory, translatePoiName, t } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
 import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
-
-/** Human-readable labels for skip reasons */
-const SKIP_REASON_LABELS: Record<SkipReason, string> = {
-  "unnamed": "Unnamed POI",
-  "generic-name": "Generic name",
-  "low-value-category": "Low-value category",
-  "no-results": "No search results found",
-  "rate-limited": "Rate limited",
-  "cancelled": "Cancelled",
-};
 
 /** Format confidence as a label */
 function confidenceLabel(c: number): string {
@@ -30,12 +20,6 @@ function confidenceLabel(c: number): string {
 
 /** Sort mode for the POI list */
 type SortMode = "distance" | "category" | "name";
-
-const SORT_LABELS: Record<SortMode, string> = {
-  distance: "Distance to route",
-  category: "Category",
-  name: "Name (A-Z)",
-};
 
 function sortPois(pois: POI[], mode: SortMode): POI[] {
   const sorted = [...pois];
@@ -63,7 +47,7 @@ interface Props {
   targetLanguage?: TargetLanguage;
 }
 
-export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
+function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -86,7 +70,17 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
     }
   }, [selectedPoiId, sortedPois, virtualizer]);
 
-  if (pois.length === 0) return null;
+  if (pois.length === 0) {
+    // AUDIT U5: don't render nothing — tell the user why the list is empty.
+    return (
+      <div
+        className="neo-box"
+        style={{ padding: "1rem", textAlign: "center", color: "#6b6b6b", fontFamily: "monospace" }}
+      >
+        {t("poi.empty", targetLanguage)}
+      </div>
+    );
+  }
 
   const toggleSources = (e: React.MouseEvent, poiId: string) => {
     e.stopPropagation();
@@ -112,13 +106,15 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
   return (
     <div className="neo-box overflow-hidden">
       <div className="poi-list-header">
-        <span>POIs along route ({pois.length})</span>
+        <span>{t("poi.alongRoute", targetLanguage)} ({pois.length})</span>
         <button
+          type="button"
           className="poi-sort-btn"
           onClick={cycleSortMode}
-          title="Change sort order"
+          aria-label={`${t("poi.changeSort", targetLanguage)}: ${t(`poi.sort.${sortMode}`, targetLanguage)}`}
+          title={t("poi.changeSort", targetLanguage)}
         >
-          ↕ {SORT_LABELS[sortMode]}
+          ↕ {t(`poi.sort.${sortMode}`, targetLanguage)}
         </button>
       </div>
       <div
@@ -186,7 +182,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                   {/* In-progress enrichment indicator */}
                   {isEnriching && (!enrichment || enrichment.status !== "done") && (
                     <div className="poi-enrichment-meta poi-enriching-indicator">
-                      <span className="spinner-sm" /> Searching...
+                      <span className="spinner-sm" /> {t("poi.searching", targetLanguage)}
                     </div>
                   )}
 
@@ -203,7 +199,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                           </span>
                         )}
                         {enrichment.reviewCount != null && (
-                          <span> ({enrichment.reviewCount} reviews)</span>
+                          <span> ({enrichment.reviewCount} {t("poi.reviews", targetLanguage)})</span>
                         )}
                         {enrichment.priceLevel != null && (
                           <span>
@@ -219,7 +215,7 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                               <tr key={i}>
                                 <td className="poi-hours-day">{entry.day}</td>
                                 <td className="poi-hours-time">
-                                  {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                                  {entry.open === "closed" ? t("poi.closed", targetLanguage) : `${entry.open}–${entry.close ?? ""}`}
                                 </td>
                               </tr>
                             ))}
@@ -254,7 +250,16 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                       )}
                       {getSynthesisLabel(enrichment) && (
                         <div className="poi-enrichment-meta">
-                          <span className={getSynthesisBadgeClass(enrichment)}>{getSynthesisLabel(enrichment)}</span>
+                          <span
+                            className={getSynthesisBadgeClass(enrichment)}
+                            title={
+                              enrichment.synthesisSource === "llm" || enrichment.synthesisSource === "llm-repaired"
+                                ? t("enrich.aiDisclaimer", targetLanguage)
+                                : undefined
+                            }
+                          >
+                            {getSynthesisLabel(enrichment)}
+                          </span>
                           {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
                             <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
                               Maps
@@ -279,17 +284,38 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                         </div>
                       )}
 
-                      {/* Confidence + sources */}
+                      {/* Confidence + source confirmation + sources */}
                       {enrichment.sourceCount > 0 && (
                         <div className="poi-confidence-row">
                           <span className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}>
-                            {confidenceLabel(enrichment.confidence)}
+                            {t(`poi.confidence.${confidenceLabel(enrichment.confidence)}`, targetLanguage)}
+                            {" "}{Math.round(enrichment.confidence * 100)}%
                           </span>
+                          {enrichment.structured?.sourceConfirmation && enrichment.structured.sourceConfirmation !== "none" && (
+                            <span
+                              className={
+                                enrichment.structured.sourceConfirmation === "reviews-only"
+                                  ? "poi-badge"
+                                  : "poi-badge poi-badge-maps"
+                              }
+                            >
+                              {t(
+                                enrichment.structured.sourceConfirmation === "both"
+                                  ? "poi.confirm.both"
+                                  : enrichment.structured.sourceConfirmation === "official"
+                                    ? "poi.confirm.official"
+                                    : "poi.confirm.reviewsOnly",
+                                targetLanguage,
+                              )}
+                            </span>
+                          )}
                           <button
+                            type="button"
                             className="poi-sources-toggle"
                             onClick={(e) => toggleSources(e, poi.id)}
+                            aria-expanded={showSources}
                           >
-                            {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}{enrichment.sourceCount > 1 ? "s" : ""}
                             {" "}
                             {showSources ? "▲" : "▼"}
                           </button>
@@ -319,9 +345,9 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
                   {/* Skip reason */}
                   {enrichment && enrichment.status === "skipped" && enrichment.skipReason && (
                     <div className="poi-skip-reason">
-                      {SKIP_REASON_LABELS[enrichment.skipReason]}
+                      {t(`poi.skip.${enrichment.skipReason}`, targetLanguage)}
                       {isRetryableDegradedResult(enrichment)
-                        ? " · retryable after cooldown/IP change"
+                        ? t("poi.skipRetryable", targetLanguage)
                         : ""}
                     </div>
                   )}
@@ -345,3 +371,5 @@ export function PoiList({ pois, enrichments, selectedPoiId, onSelectPoi, enrichi
     </div>
   );
 }
+
+export const PoiList = memo(PoiListInner);

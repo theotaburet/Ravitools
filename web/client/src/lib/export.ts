@@ -67,6 +67,9 @@ ${trkpts}
   <metadata>
     <name>Ravitools POIs</name>
     <desc>Points of interest along your cycling route</desc>
+    <copyright author="OpenStreetMap contributors">
+      <license>https://opendatacommons.org/licenses/odbl/</license>
+    </copyright>
     <time>${new Date().toISOString()}</time>
   </metadata>
 ${wpts}${trkSections}
@@ -192,11 +195,6 @@ export function buildGeoJsonObject(
               : null,
             enrichment_description: enrichment.description,
             enrichment_review: enrichment.review,
-            // Backward compat: keep old field names populated
-            enrichment_summary: enrichment.summary,
-            enrichment_translatedSummary: enrichment.translatedSummary,
-            enrichment_essentials: enrichment.essentials ?? null,
-            enrichment_specialty: enrichment.specialty,
             enrichment_priceLevel: enrichment.priceLevel,
             enrichment_googleMapsUrl: enrichment.googleMapsUrl,
             enrichment_locality: enrichment.locality,

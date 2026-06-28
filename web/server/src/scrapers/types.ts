@@ -86,6 +86,18 @@ export type ScraperFailureRecord = {
   failedAt: string;
 };
 
+/**
+ * Sentinel prefix for "scraper was blocked" errors (CAPTCHA / anti-bot / 429).
+ * A plugin's `fetchOnce` throws `new Error(\`${BLOCKED_ERROR_PREFIX} ...\`)` so
+ * the block reaches the job's `lastError` (instead of an opaque null) and the
+ * `/jobs` endpoint can report a `blocked` count to the client.
+ */
+export const BLOCKED_ERROR_PREFIX = "BLOCKED:";
+
+export function isBlockedError(message: string | null | undefined): boolean {
+  return typeof message === "string" && message.startsWith(BLOCKED_ERROR_PREFIX);
+}
+
 // ---------------------------------------------------------------------------
 // Shared dependencies injected into plugins (logger, sleep, randomDelay,
 // browser supplier). Plugins are kept dependency-free so tests can mock
@@ -131,8 +143,9 @@ export interface MapScraperPlugin<T extends MapPreview = MapPreview> {
 
   /**
    * Run the actual extraction once. Throws on hard failures (network, page
-   * crashes), returns null on soft failures (CAPTCHA, no results found,
-   * blocked). The job system handles retries; this method should not.
+   * crashes); throws a `BLOCKED_ERROR_PREFIX`-tagged error when the page is
+   * blocked (CAPTCHA / anti-bot); returns null on plain "no results found".
+   * The job system handles retries; this method should not.
    */
   fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<T | null>;
 

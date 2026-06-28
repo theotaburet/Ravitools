@@ -14,7 +14,10 @@ const PROXY_BASE =
   "/api";
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
-const overpassResultCache = new Map<string, OverpassResponse>();
+// ponytail: TTL so stale OSM data isn't served for the whole page lifetime (AUDIT C4).
+// OSM POIs don't change minute-to-minute; 1h is plenty for a planning session.
+const OVERPASS_CACHE_TTL_MS = 60 * 60 * 1000;
+const overpassResultCache = new Map<string, { value: OverpassResponse; ts: number }>();
 
 /** Evict oldest entries when cache exceeds max size (simple FIFO). */
 function cacheSet(key: string, value: OverpassResponse) {
@@ -23,7 +26,18 @@ function cacheSet(key: string, value: OverpassResponse) {
     const oldest = overpassResultCache.keys().next().value;
     if (oldest !== undefined) overpassResultCache.delete(oldest);
   }
-  overpassResultCache.set(key, value);
+  overpassResultCache.set(key, { value, ts: Date.now() });
+}
+
+/** Read a cache entry, dropping it if older than the TTL. */
+function cacheGet(key: string): OverpassResponse | undefined {
+  const entry = overpassResultCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > OVERPASS_CACHE_TTL_MS) {
+    overpassResultCache.delete(key);
+    return undefined;
+  }
+  return entry.value;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +144,7 @@ export async function queryOverpass(
   retries: number = 3,
 ): Promise<OverpassResponse> {
   const log = dlog("overpass");
-  const cached = overpassResultCache.get(query);
+  const cached = cacheGet(query);
   if (cached) {
     log.info("Client cache hit", { elements: cached.elements.length, queryChars: query.length });
     return cached;
@@ -251,6 +265,7 @@ export async function queryAllPois(
 
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
+  let dedupedCount = 0; // running count of cross-chunk duplicates dropped (AUDIT C+1)
 
   // Track which chunk indices still need to be fetched
   let pendingIndices = queries.map((_, i) => i);
@@ -300,6 +315,7 @@ export async function queryAllPois(
               newCount++;
             }
           }
+          dedupedCount += result.elements.length - newCount;
           log.debug(`Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`);
         } else {
           failedThisRound.push(batch[results.indexOf(r)]);
@@ -326,7 +342,7 @@ export async function queryAllPois(
   endTotal();
   log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`, {
     totalElements: allElements.length,
-    totalDeduped: queries.length > 0 ? seenIds.size - allElements.length : 0,
+    totalDeduped: dedupedCount,
     failedChunks: finalFailed,
     totalChunks: queries.length,
     retryRounds: retryRound - 1,

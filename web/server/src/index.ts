@@ -29,12 +29,14 @@ import {
 } from "./scrapers/yandex-maps.js";
 import { mountAllScrapers } from "./scrapers/registry.js";
 import { lookup } from "node:dns/promises";
+import { timingSafeEqual } from "node:crypto";
 import {
   initDb,
   isDbAvailable,
   getPoi,
   getPoisBatch,
   upsertPoi,
+  closeDb,
   type OsmType,
   type PoiKey,
 } from "./db.js";
@@ -79,6 +81,16 @@ const SEARXNG_URL =
   process.env.SEARXNG_URL || "http://localhost:8888";
 const NOMINATIM_URL =
   process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
+
+// AUDIT S1: fail fast on a malformed upstream URL from env (config typo) rather than
+// discovering it on the first request. (Not a public-IP check — SearXNG is intentionally local.)
+for (const [name, url] of Object.entries({ OVERPASS_URL, OVERPASS_FALLBACK_URL, SEARXNG_URL, NOMINATIM_URL })) {
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(`Invalid ${name}: "${url}" is not a valid URL`);
+  }
+}
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || "86400", 10); // 24h default
 const SEARCH_CACHE_TTL = parseInt(process.env.SEARCH_CACHE_TTL || "604800", 10); // 7 days
 const GEOCODE_CACHE_TTL = parseInt(process.env.GEOCODE_CACHE_TTL || "2592000", 10); // 30 days
@@ -120,7 +132,9 @@ function randomDelay(minMs: number, maxMs: number): number {
 
 function parseJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
-  const matches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  // ponytail: cap regex work on untrusted fetched HTML (AUDIT S6).
+  const capped = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html;
+  const matches = capped.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
   for (const match of matches) {
     const raw = match[1]?.trim();
     if (!raw) continue;
@@ -207,7 +221,12 @@ async function getBrowser(): Promise<Browser> {
       launchOptions.proxy = { server: GOOGLE_MAPS_PROXY_URL };
       log.info({ proxy: GOOGLE_MAPS_PROXY_URL }, "Google Maps browser: using proxy");
     }
-    browserPromise = chromium.launch(launchOptions);
+    // ponytail: clear the slot if launch rejects, else a single failed launch is
+    // cached forever and scrapers never recover until restart (AUDIT S5).
+    browserPromise = chromium.launch(launchOptions).catch((e) => {
+      browserPromise = null;
+      throw e;
+    });
   }
   return browserPromise;
 }
@@ -284,6 +303,17 @@ const enrichLimiter = rateLimit({
   },
 });
 
+/** Stricter limiter for the expensive Playwright scraper endpoints (AUDIT S8). */
+const scraperLimiter = rateLimit({
+  windowMs: 60_000,
+  max: Number(process.env.SCRAPER_RATE_LIMIT ?? 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many scraper requests. Please wait.",
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Mount all map scraper plugins (Google Maps, Yandex Maps, ...)
 // Each plugin gets endpoints at both `/scrape/{name}` (canonical) and a
@@ -293,7 +323,7 @@ const enrichLimiter = rateLimit({
 const scraperRegistry = mountAllScrapers({
   app,
   deps: { log, sleep, randomDelay, getBrowser },
-  limiter: enrichLimiter,
+  limiter: scraperLimiter,
   log,
 });
 
@@ -358,9 +388,17 @@ app.get("/cache/stats", (_req, res) => {
 });
 
 /** Flush the search cache — useful after engine configuration changes */
+/** Constant-time secret compare so the admin key can't be probed by timing (AUDIT S2). */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 app.delete("/cache/search", (req, res) => {
   const adminKey = process.env.ADMIN_API_KEY;
-  if (adminKey && req.headers["x-admin-key"] !== adminKey) {
+  const provided = req.headers["x-admin-key"];
+  if (adminKey && !(typeof provided === "string" && timingSafeEqualStr(provided, adminKey))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -428,7 +466,9 @@ app.post("/overpass", limiter, async (req, res) => {
           signal: controller.signal,
         });
         if (overpassRes.ok) break;
-      } catch {
+      } catch (err) {
+        // A timeout must surface as 504, not be swallowed into a 502 (AUDIT T+1).
+        if (err instanceof Error && err.name === "AbortError") throw err;
         log.warn({ url }, "Overpass fetch failed, trying next");
       }
     }
@@ -450,6 +490,16 @@ app.post("/overpass", limiter, async (req, res) => {
     }
 
     const data = await overpassRes.text();
+
+    // Don't cache/serve a non-JSON body (e.g. an HTML error page returned with 200)
+    // as application/json (AUDIT S7).
+    try {
+      JSON.parse(data);
+    } catch {
+      log.warn({ usedUrl, bytes: data.length }, "Overpass returned a non-JSON body");
+      res.status(502).json({ error: "Overpass returned a non-JSON response" });
+      return;
+    }
 
     // Cache the response
     cache.set(cacheKey, data);
@@ -945,6 +995,9 @@ if (process.env.NODE_ENV !== "test") {
         log.info("Playwright browser closed");
       } catch { /* already closed */ }
     }
+    try {
+      await closeDb(); // drain the pg pool (AUDIT S4)
+    } catch { /* ignore */ }
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

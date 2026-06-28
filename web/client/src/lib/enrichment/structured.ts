@@ -240,19 +240,17 @@ function inferCategoryLead(poi: POI): string {
 // ---------------------------------------------------------------------------
 
 function buildPracticalities(
-  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "specialty" | "priceLevel" | "locality">,
+  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "priceLevel" | "locality">,
   targetLanguage: TargetLanguage,
   poi: POI,
 ): string[] {
   const facts: string[] = [];
-  if (enrichment.specialty) facts.push(`Type: ${enrichment.specialty}`);
 
-  // Fallback: use OSM tag as specialty when LLM didn't extract one
-  if (!enrichment.specialty) {
-    const osmType = poi.tags.cuisine ?? poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? null;
-    if (osmType && osmType !== poi.name.toLowerCase()) {
-      facts.push(`Type (OSM): ${osmType.replace(/_/g, " ")}`);
-    }
+  // Type hint from the OSM tag (the LLM-extracted "specialty" field was removed;
+  // the one-sentence `description` now carries cuisine/type when known).
+  const osmType = poi.tags.cuisine ?? poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? null;
+  if (osmType && osmType !== poi.name.toLowerCase()) {
+    facts.push(`Type (OSM): ${osmType.replace(/_/g, " ")}`);
   }
 
   if (enrichment.rating != null) {
@@ -358,11 +356,11 @@ function buildCautions(
 // ---------------------------------------------------------------------------
 
 function buildUnknowns(
-  enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount" | "specialty">,
+  _enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount">,
   sourceRollup: EnrichmentSourceDigest[],
 ): string[] {
   const unknowns: string[] = [];
-  if (enrichment.specialty == null && sourceRollup.length > 0) {
+  if (sourceRollup.length > 0) {
     unknowns.push("Exact type or specialty could not be determined from sources.");
   }
   return unknowns.slice(0, 2);
@@ -459,13 +457,13 @@ export function determineSourceConfirmation(
 
 export function buildStructuredContent(
   poi: POI,
-  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "specialty" | "summary" | "translatedSummary" | "priceLevel" | "locality">,
+  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "description" | "priceLevel" | "locality">,
   snippets: SearchSnippet[],
   websitePreview: WebsitePreview | null | undefined,
   targetLanguage: TargetLanguage,
 ): EnrichmentStructuredContent {
   const sourceRollup = buildSourceRollup(snippets, websitePreview);
-  const lead = enrichment.translatedSummary ?? enrichment.summary ?? inferCategoryLead(poi);
+  const lead = enrichment.description ?? inferCategoryLead(poi);
   const practicalities = buildPracticalities(enrichment, targetLanguage, poi);
   const cautions = buildCautions(enrichment, sourceRollup, poi.category);
   const unknowns = buildUnknowns(enrichment, sourceRollup);
@@ -473,7 +471,6 @@ export function buildStructuredContent(
   const sourceConfirmation = determineSourceConfirmation(sourceRollup);
 
   const operationalSummaryParts = [
-    enrichment.specialty ? `Best read as ${enrichment.specialty}.` : null,
     enrichment.hours ? `Hours available.` : `Hours unclear.`,
     enrichment.rating != null ? `Reputation signals present.` : `Reputation signals limited.`,
     sourceRollup.length > 0 ? `Coverage: ${sourceRollup.map((item) => PLATFORM_LABELS[item.platform]).join(", ")}.` : null,
@@ -494,23 +491,6 @@ export function buildStructuredContent(
     divergences,
     sourceConfirmation,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Essentials text builder (WS9: derived field from structured)
-// ---------------------------------------------------------------------------
-
-export function buildEssentialsText(structured: EnrichmentStructuredContent): string | null {
-  const parts = [
-    structured.headline,
-    structured.operationalSummary,
-    structured.practicalities.length > 0 ? `Key facts: ${structured.practicalities.join("; ")}.` : null,
-    structured.divergences.length > 0 ? `Divergences: ${structured.divergences.join(" ")}` : null,
-    structured.cautions.length > 0 ? `Cautions: ${structured.cautions.join(" ")}` : null,
-    structured.unknowns.length > 0 ? `Unknown: ${structured.unknowns.join(" ")}` : null,
-  ];
-  const joined = uniqueStrings(parts).join(" ");
-  return joined ? shorten(joined, 700) : null;
 }
 
 export function buildSourceDigests(

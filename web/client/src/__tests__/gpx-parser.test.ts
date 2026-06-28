@@ -8,6 +8,7 @@ import {
   parseGpx,
   haversine,
   computePathLength,
+  computeElevationStats,
   simplifyTrace,
   distanceToTrace,
   TraceIndex,
@@ -281,5 +282,42 @@ describe("TraceIndex", () => {
       `speedup=${speedup.toFixed(1)}x`
     );
     expect(speedup).toBeGreaterThan(5);
+  });
+});
+
+describe("computeElevationStats (AUDIT C2)", () => {
+  const at = (ele: number | undefined): TracePoint => ({ lat: 45, lon: 5, ele });
+
+  it("accumulates gain/loss over points that have elevation", () => {
+    const { gain, loss } = computeElevationStats([at(100), at(150), at(120)]);
+    expect(gain).toBe(50);
+    expect(loss).toBe(30);
+  });
+
+  it("skips only the segment touching a missing point, not the whole stat", () => {
+    // A single GPS dropout in the middle must NOT zero everything.
+    const { gain, loss } = computeElevationStats([at(100), at(150), at(undefined), at(200), at(180)]);
+    expect(gain).toBe(50); // 100->150 counted; 150->? and ?->200 skipped; 200->180 is loss
+    expect(loss).toBe(20);
+  });
+
+  it("returns zero only when no consecutive elevated pair exists", () => {
+    expect(computeElevationStats([at(undefined), at(100)])).toEqual({ gain: 0, loss: 0 });
+  });
+});
+
+describe("distanceToTrace projection at high latitude (AUDIT C1)", () => {
+  it("scales longitude by cos(lat) instead of treating degrees as Cartesian", () => {
+    // Diagonal segment at 60°N, where 1° lon is ~half of 1° lat in meters.
+    const trace: TracePoint[] = [
+      { lat: 60, lon: 0 },
+      { lat: 60.02, lon: 0.02 },
+    ];
+    const point: TracePoint = { lat: 60, lon: 0.02 };
+    const d = distanceToTrace(point, trace);
+    // Correct cos-lat projection puts the foot ~1 km away; the old raw-degree
+    // projection over-shoots and reports ~1.24 km. The band excludes the old value.
+    expect(d).toBeGreaterThan(800);
+    expect(d).toBeLessThan(1150);
   });
 });
