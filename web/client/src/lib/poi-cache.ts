@@ -9,12 +9,14 @@
 // pipeline keeps working as if no cache existed.
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData } from "../types";
+import type { EnrichedData, POI } from "../types";
 
 const API_BASE = "/api";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_AGE_DAYS = 90;
+/** AUDIT R11: must stay ≤ the server's MAX_BATCH_KEYS (200). */
+const BATCH_CHUNK_SIZE = 200;
 
 export interface CachedEnrichment {
   osm_type: "node" | "way" | "relation";
@@ -36,9 +38,15 @@ interface BatchResponse {
 }
 
 /** A POI is cacheable iff it has both osmType and osmId from OSM. */
-export function isCacheablePoi(poi: POI): poi is POI & { osmId: number; osmType: "node" | "way" | "relation" } {
-  return typeof poi.osmId === "number" && Number.isFinite(poi.osmId) && poi.osmId > 0
-    && (poi.osmType === "node" || poi.osmType === "way" || poi.osmType === "relation");
+export function isCacheablePoi(
+  poi: POI,
+): poi is POI & { osmId: number; osmType: "node" | "way" | "relation" } {
+  return (
+    typeof poi.osmId === "number" &&
+    Number.isFinite(poi.osmId) &&
+    poi.osmId > 0 &&
+    (poi.osmType === "node" || poi.osmType === "way" || poi.osmType === "relation")
+  );
 }
 
 function poiCacheKey(poi: POI): string | null {
@@ -65,66 +73,66 @@ export async function lookupPoiBatch(
     osm_id: String(p.osmId),
   }));
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${API_BASE}/poi/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keys, max_age_days: maxAgeDays }),
-      signal: controller.signal,
-    });
-    // ponytail: still degrade gracefully (empty Map), but don't do it *silently* —
-    // a cache outage looks identical to an all-miss otherwise (AUDIT C5).
-    if (!res.ok) {
-      console.warn(`Ravitools: POI cache unavailable (HTTP ${res.status}) — enriching without it`);
-      return result;
+  // AUDIT R11: the server rejects >MAX_BATCH_KEYS (200) with a 400 — chunk and merge
+  // so large routes still benefit from the cache. A failed chunk degrades to a miss.
+  for (let i = 0; i < keys.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = keys.slice(i, i + BATCH_CHUNK_SIZE);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_BASE}/poi/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: chunk, max_age_days: maxAgeDays }),
+        signal: controller.signal,
+      });
+      // ponytail: still degrade gracefully (empty Map), but don't do it *silently* —
+      // a cache outage looks identical to an all-miss otherwise (AUDIT C5).
+      if (!res.ok) {
+        console.warn(
+          `Ravitools: POI cache unavailable (HTTP ${res.status}) — enriching without it`,
+        );
+        continue;
+      }
+      const body = (await res.json()) as BatchResponse;
+      if (!Array.isArray(body?.results)) {
+        console.warn("Ravitools: POI cache returned a malformed body — enriching without it");
+        continue;
+      }
+      for (const r of body.results) {
+        result.set(`${r.osm_type}/${r.osm_id}`, r);
+      }
+    } catch (err) {
+      console.warn("Ravitools: POI cache request failed — enriching without it", err);
+    } finally {
+      clearTimeout(timeout);
     }
-    const body = (await res.json()) as BatchResponse;
-    if (!Array.isArray(body?.results)) {
-      console.warn("Ravitools: POI cache returned a malformed body — enriching without it");
-      return result;
-    }
-    for (const r of body.results) {
-      result.set(`${r.osm_type}/${r.osm_id}`, r);
-    }
-    return result;
-  } catch (err) {
-    console.warn("Ravitools: POI cache request failed — enriching without it", err);
-    return result;
-  } finally {
-    clearTimeout(timeout);
   }
+  return result;
 }
 
 /**
  * Push an enrichment result to the shared cache.
  * No-op (returns false) if the POI has no osm identifier or any error occurs.
  */
-export async function uploadPoiEnrichment(
-  poi: POI,
-  enrichment: EnrichedData,
-): Promise<boolean> {
+export async function uploadPoiEnrichment(poi: POI, enrichment: EnrichedData): Promise<boolean> {
   if (!isCacheablePoi(poi)) return false;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   try {
-    const res = await fetch(
-      `${API_BASE}/poi/${poi.osmType}/${poi.osmId}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: poi.category,
-          lat: poi.lat,
-          lon: poi.lon,
-          name: poi.name,
-          enrichment,
-        }),
-        signal: controller.signal,
-      },
-    );
+    const res = await fetch(`${API_BASE}/poi/${poi.osmType}/${poi.osmId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: poi.category,
+        lat: poi.lat,
+        lon: poi.lon,
+        name: poi.name,
+        enrichment,
+      }),
+      signal: controller.signal,
+    });
     return res.ok;
   } catch {
     return false;

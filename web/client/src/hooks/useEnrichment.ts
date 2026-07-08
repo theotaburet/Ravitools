@@ -3,21 +3,27 @@
 // Manages: model loading → batch enrichment → retry failed → results
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import type { POI, EnrichedData, EnrichmentJobState, TargetLanguage, EnrichmentPhase } from "../types";
-import {
-  isWebGpuAvailable,
-  initEngine,
-  unloadEngine,
-  enrichBatch,
-  isRetryableEnrichmentResult,
-  fetchGoogleMapsJobStats,
-  buildCaptchaResolveUrl,
-  areAllEnginesSuspended,
-  resetEngineFailureState,
-} from "../lib/enrichment";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dlog } from "../lib/debug-log";
-import { lookupPoiBatch, uploadPoiEnrichment, getPoiCacheKey } from "../lib/poi-cache";
+import {
+  areAllEnginesSuspended,
+  buildCaptchaResolveUrl,
+  enrichBatch,
+  fetchGoogleMapsJobStats,
+  initEngine,
+  isRetryableEnrichmentResult,
+  isWebGpuAvailable,
+  resetEngineFailureState,
+  unloadEngine,
+} from "../lib/enrichment";
+import { getPoiCacheKey, lookupPoiBatch, uploadPoiEnrichment } from "../lib/poi-cache";
+import type {
+  EnrichedData,
+  EnrichmentJobState,
+  EnrichmentPhase,
+  POI,
+  TargetLanguage,
+} from "../types";
 
 const API_BASE = "/api";
 
@@ -62,30 +68,30 @@ export function useEnrichment() {
     ...INITIAL_JOB,
     webGpuAvailable: isWebGpuAvailable(),
   });
-  const [enrichments, setEnrichments] = useState<Map<string, EnrichedData>>(
-    new Map(),
-  );
+  const [enrichments, setEnrichments] = useState<Map<string, EnrichedData>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
   /** Ref mirror of enrichments for synchronous reads (e.g. filtering in continueEnrichment) */
   const enrichmentsRef = useRef<Map<string, EnrichedData>>(new Map());
   /** Stored params to resume after CAPTCHA resolution */
-  const pausedParamsRef = useRef<{ pois: POI[]; targetLanguage: TargetLanguage; enrichAll: boolean } | null>(null);
+  const pausedParamsRef = useRef<{
+    pois: POI[];
+    targetLanguage: TargetLanguage;
+    enrichAll: boolean;
+  } | null>(null);
 
   /** Update enrichments state + ref mirror together */
   const updateEnrichments = useCallback(
     (updater: (prev: Map<string, EnrichedData>) => Map<string, EnrichedData>) => {
-      setEnrichments((prev) => {
-        const next = updater(prev);
-        enrichmentsRef.current = next;
-        return next;
-      });
+      // AUDIT R17: update the ref synchronously — the retry loop reads it right
+      // after enrichBatch resolves, before React has rendered the setState.
+      enrichmentsRef.current = updater(enrichmentsRef.current);
+      setEnrichments(enrichmentsRef.current);
     },
     [],
   );
 
   const updateJob = useCallback(
-    (partial: Partial<EnrichmentJobState>) =>
-      setJob((prev) => ({ ...prev, ...partial })),
+    (partial: Partial<EnrichmentJobState>) => setJob((prev) => ({ ...prev, ...partial })),
     [],
   );
 
@@ -122,7 +128,7 @@ export function useEnrichment() {
    * Start enrichment for a list of POIs.
    * 1. Load WebLLM model (if WebGPU available)
    * 2. Run batch enrichment (search + geocode + LLM per POI)
-    * 3. Auto-retry transient failures (errors + degraded no-results) up to MAX_RETRY_PASSES times
+   * 3. Auto-retry transient failures (errors + degraded no-results) up to MAX_RETRY_PASSES times
    * 4. Update enrichments map incrementally
    * @param targetLanguage - language for LLM synthesis output (default: "en")
    * @param enrichAll - override enrichability policy to "full" for all categories
@@ -164,7 +170,9 @@ export function useEnrichment() {
             if (reusedIds.length > 0) {
               const reusedSet = new Set(reusedIds);
               poisToEnrich = pois.filter((p) => !reusedSet.has(p.id));
-              log.info(`Shared cache reused ${reusedIds.length}/${pois.length} POIs; ${poisToEnrich.length} to enrich`);
+              log.info(
+                `Shared cache reused ${reusedIds.length}/${pois.length} POIs; ${poisToEnrich.length} to enrich`,
+              );
             }
           }
         } catch (err) {
@@ -355,11 +363,14 @@ export function useEnrichment() {
           if (retryablePois.length === 0) break;
 
           const retryStaggerMs = 500 * RETRY_STAGGER_MULTIPLIER * retryPass;
-          log.info(`Retry pass ${retryPass}/${MAX_RETRY_PASSES}: ${retryablePois.length} retryable POIs (stagger=${retryStaggerMs}ms)`, {
-            retryPass,
-            retryableCount: retryablePois.length,
-            staggerMs: retryStaggerMs,
-          });
+          log.info(
+            `Retry pass ${retryPass}/${MAX_RETRY_PASSES}: ${retryablePois.length} retryable POIs (stagger=${retryStaggerMs}ms)`,
+            {
+              retryPass,
+              retryableCount: retryablePois.length,
+              staggerMs: retryStaggerMs,
+            },
+          );
 
           updateJob({
             phase: "retry",
@@ -407,10 +418,9 @@ export function useEnrichment() {
                 nextActive.delete(poiId);
                 return {
                   ...prev,
-                  completed: prev.completed + 1,
-                  errorCount: retrySucceeded
-                    ? Math.max(0, prev.errorCount - 1)
-                    : prev.errorCount,
+                  // AUDIT R17: retries re-report already-counted POIs — never exceed total
+                  completed: Math.min(prev.completed + 1, prev.total),
+                  errorCount: retrySucceeded ? Math.max(0, prev.errorCount - 1) : prev.errorCount,
                   currentPoiName: retrySucceeded ? null : prev.currentPoiName,
                   currentPoiId: retrySucceeded ? null : prev.currentPoiId,
                   activePoiIds: nextActive,
@@ -453,8 +463,7 @@ export function useEnrichment() {
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
-        const message =
-          err instanceof Error ? err.message : "Unknown enrichment error";
+        const message = err instanceof Error ? err.message : "Unknown enrichment error";
         // "all-engines-suspended" is handled via onAllEnginesSuspended callback
         // which already set the stage to "paused-captcha"; don't overwrite it.
         if (message === "all-engines-suspended") return;
@@ -508,11 +517,14 @@ export function useEnrichment() {
       });
 
       const log = dlog("enrichment");
-      log.info(`Continue enrichment: ${pendingPois.length} remaining out of ${allPois.length} total`, {
-        total: allPois.length,
-        alreadyDone: allPois.length - pendingPois.length,
-        pending: pendingPois.length,
-      });
+      log.info(
+        `Continue enrichment: ${pendingPois.length} remaining out of ${allPois.length} total`,
+        {
+          total: allPois.length,
+          alreadyDone: allPois.length - pendingPois.length,
+          pending: pendingPois.length,
+        },
+      );
 
       if (pendingPois.length === 0) {
         // Nothing to do — everything is already enriched
@@ -557,21 +569,18 @@ export function useEnrichment() {
   /**
    * Restore enrichments from a saved session (no model load, no batch).
    */
-  const restoreEnrichments = useCallback(
-    (saved: Map<string, EnrichedData>) => {
-      enrichmentsRef.current = saved;
-      setEnrichments(saved);
-      if (saved.size > 0) {
-        setJob((prev) => ({
-          ...prev,
-          stage: "done",
-          total: saved.size,
-          completed: saved.size,
-        }));
-      }
-    },
-    [],
-  );
+  const restoreEnrichments = useCallback((saved: Map<string, EnrichedData>) => {
+    enrichmentsRef.current = saved;
+    setEnrichments(saved);
+    if (saved.size > 0) {
+      setJob((prev) => ({
+        ...prev,
+        stage: "done",
+        total: saved.size,
+        completed: saved.size,
+      }));
+    }
+  }, []);
 
   return {
     job,

@@ -4,13 +4,18 @@
 // Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useRef } from "react";
-import type { AppState, POI, PoiCategory, TraceData, RouteProcessingSettings } from "../types";
-import { parseGpx } from "../lib/gpx-parser";
-import { queryAllPois, type OverpassElement, type QueryAllPoisResult, type QueryProgress } from "../lib/overpass";
-import { processElements } from "../lib/poi-processor";
-import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
+import { useCallback, useRef, useState } from "react";
 import { dlog } from "../lib/debug-log";
+import { parseGpx } from "../lib/gpx-parser";
+import {
+  type OverpassElement,
+  type QueryAllPoisResult,
+  type QueryProgress,
+  queryAllPois,
+} from "../lib/overpass";
+import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
+import { processElements } from "../lib/poi-processor";
+import type { AppState, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: 1500,
@@ -41,15 +46,20 @@ export function useRavitools() {
   stateRef.current = state;
 
   const update = useCallback(
-    (partial: Partial<AppState>) =>
-      setState((prev) => ({ ...prev, ...partial })),
+    (partial: Partial<AppState>) => setState((prev) => ({ ...prev, ...partial })),
     [],
   );
+
+  // AUDIT R19: restored sessions have no raw Overpass elements — keep the
+  // restored POI superset so the distance slider can still re-filter.
+  // ponytail: bounded by the radius used before restore; going wider needs a re-upload.
+  const restoredPoisRef = useRef<POI[]>([]);
 
   // Reset
   const reset = useCallback(() => {
     abortRef.current?.abort();
     rawElementsRef.current = [];
+    restoredPoisRef.current = [];
     routeSettingsRef.current = DEFAULT_ROUTE_SETTINGS;
     setState(INITIAL_STATE);
   }, []);
@@ -63,6 +73,7 @@ export function useRavitools() {
       routeSettings: RouteProcessingSettings;
     }) => {
       routeSettingsRef.current = restored.routeSettings;
+      restoredPoisRef.current = restored.pois; // AUDIT R19
       setState((prev) => ({
         ...prev,
         stage: "done" as const,
@@ -105,6 +116,17 @@ export function useRavitools() {
         prev.traces.length === 0 ||
         rawElementsRef.current.length === 0
       ) {
+        // AUDIT R19: after a session restore there are no raw elements, but we
+        // can still re-filter the restored superset by distance.
+        if (prev.stage === "done" && prev.traces.length > 0 && restoredPoisRef.current.length > 0) {
+          const pois = restoredPoisRef.current.filter((p) => p.distanceToTrace <= maxDistanceM);
+          return {
+            ...prev,
+            routeSettings,
+            pois,
+            progress: `Found ${pois.length} POIs within ${maxDistanceM}m of your route${prev.traces.length > 1 ? "s" : ""}`,
+          };
+        }
         return { ...prev, routeSettings };
       }
 
@@ -128,9 +150,7 @@ export function useRavitools() {
   }, []);
 
   // Filtered POIs based on active categories
-  const filteredPois = state.pois.filter((p) =>
-    state.activeCategories.has(p.category),
-  );
+  const filteredPois = state.pois.filter((p) => state.activeCategories.has(p.category));
 
   // -----------------------------------------------------------------------
   // Main pipeline – processes one or more GPX files
@@ -147,7 +167,11 @@ export function useRavitools() {
 
       try {
         // Stage 1: Parse all GPX files
-        update({ stage: "parsing", error: null, progress: `Reading ${files.length} GPX file${files.length > 1 ? "s" : ""}...` });
+        update({
+          stage: "parsing",
+          error: null,
+          progress: `Reading ${files.length} GPX file${files.length > 1 ? "s" : ""}...`,
+        });
 
         const endParse = log.time("GPX parsing");
         const traces: TraceData[] = [];
@@ -158,12 +182,15 @@ export function useRavitools() {
           if (!trace.name) {
             trace.name = files[i].name.replace(/\.gpx$/i, "");
           }
-          log.info(`Parsed "${trace.name}": ${trace.original.length} pts → ${trace.simplified.length} simplified, ${(trace.totalDistanceM / 1000).toFixed(1)} km`, {
-            name: trace.name,
-            originalPoints: trace.original.length,
-            simplifiedPoints: trace.simplified.length,
-            distanceKm: Math.round(trace.totalDistanceM / 100) / 10,
-          });
+          log.info(
+            `Parsed "${trace.name}": ${trace.original.length} pts → ${trace.simplified.length} simplified, ${(trace.totalDistanceM / 1000).toFixed(1)} km`,
+            {
+              name: trace.name,
+              originalPoints: trace.original.length,
+              simplifiedPoints: trace.simplified.length,
+              distanceKm: Math.round(trace.totalDistanceM / 100) / 10,
+            },
+          );
           traces.push(trace);
         }
         endParse();
@@ -196,7 +223,8 @@ export function useRavitools() {
           1000,
           selectedCategories,
           (p: QueryProgress) => {
-            const retryLabel = p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
+            const retryLabel =
+              p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
             update({
               progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
               progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
@@ -236,9 +264,10 @@ export function useRavitools() {
         if (ctrl.signal.aborted) return;
 
         // Build warning if some chunks failed
-        const chunkWarning = queryResult.failedChunks > 0
-          ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
-          : null;
+        const chunkWarning =
+          queryResult.failedChunks > 0
+            ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+            : null;
 
         update({
           stage: "done",
@@ -249,8 +278,7 @@ export function useRavitools() {
         });
       } catch (err) {
         if (ctrl.signal.aborted) return;
-        const message =
-          err instanceof Error ? err.message : "Unknown error occurred";
+        const message = err instanceof Error ? err.message : "Unknown error occurred";
         log.error(`Pipeline error: ${message}`);
         // Keep traces visible on the map so the user can see what was loaded
         // and retry without re-uploading. Stage goes to "error" but traces persist.
@@ -285,14 +313,18 @@ export function useRavitools() {
         warning: null,
       });
 
-      log.info("Retrying Overpass query", { traces: currentTraces.length, simplifiedPoints: allSimplified.length });
+      log.info("Retrying Overpass query", {
+        traces: currentTraces.length,
+        simplifiedPoints: allSimplified.length,
+      });
 
       const queryResult: QueryAllPoisResult = await queryAllPois(
         allSimplified,
         1000,
         selectedCategories,
         (p: QueryProgress) => {
-          const retryLabel = p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
+          const retryLabel =
+            p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
           update({
             progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
             progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
@@ -322,9 +354,10 @@ export function useRavitools() {
       if (ctrl.signal.aborted) return;
 
       // Build warning if some chunks failed
-      const chunkWarning = queryResult.failedChunks > 0
-        ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
-        : null;
+      const chunkWarning =
+        queryResult.failedChunks > 0
+          ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+          : null;
 
       update({
         stage: "done",

@@ -3,7 +3,7 @@
 // Port of gpx_smoother.py logic to TypeScript
 // ---------------------------------------------------------------------------
 
-import type { TracePoint, TraceData } from "../types";
+import type { TraceData, TracePoint } from "../types";
 import { TRACE_COLORS } from "../types";
 
 /** Auto-incrementing counter for trace IDs */
@@ -36,8 +36,7 @@ export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
   }
 
   // Extract name from metadata
-  const nameEl =
-    doc.querySelector("metadata > name") ?? doc.querySelector("trk > name");
+  const nameEl = doc.querySelector("metadata > name") ?? doc.querySelector("trk > name");
   const name = nameEl?.textContent ?? undefined;
 
   // Collect points from all tracks and segments
@@ -115,9 +114,7 @@ export function haversine(a: TracePoint, b: TracePoint): number {
   const dLon = toRad(b.lon - a.lon);
   const sinDLat = Math.sin(dLat / 2);
   const sinDLon = Math.sin(dLon / 2);
-  const h =
-    sinDLat * sinDLat +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinDLon * sinDLon;
+  const h = sinDLat * sinDLat + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinDLon * sinDLon;
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
@@ -162,10 +159,7 @@ export function computeElevationStats(points: TracePoint[]): { gain: number; los
  * @param spacingM - Desired spacing in meters (default 500m)
  * @returns Resampled trace with uniform spacing
  */
-export function simplifyTrace(
-  points: TracePoint[],
-  spacingM: number = 500,
-): TracePoint[] {
+export function simplifyTrace(points: TracePoint[], spacingM: number = 500): TracePoint[] {
   if (points.length < 2) return [...points];
 
   // Cumulative distances
@@ -203,10 +197,7 @@ export function simplifyTrace(
     result.push({
       lat: p0.lat + t * (p1.lat - p0.lat),
       lon: p0.lon + t * (p1.lon - p0.lon),
-      ele:
-        p0.ele !== undefined && p1.ele !== undefined
-          ? p0.ele + t * (p1.ele - p0.ele)
-          : p0.ele,
+      ele: p0.ele !== undefined && p1.ele !== undefined ? p0.ele + t * (p1.ele - p0.ele) : p0.ele,
     });
   }
 
@@ -218,10 +209,7 @@ export function simplifyTrace(
  * Used for filtering POIs by actual proximity to the route, not just
  * proximity to sampled points.
  */
-export function distanceToTrace(
-  point: TracePoint,
-  trace: TracePoint[],
-): number {
+export function distanceToTrace(point: TracePoint, trace: TracePoint[]): number {
   let minDist = Infinity;
   for (let i = 0; i < trace.length - 1; i++) {
     const d = distanceToSegment(point, trace[i], trace[i + 1]);
@@ -316,11 +304,7 @@ export class TraceIndex {
         for (const ref of bucket) {
           if (tested.has(ref.idx)) continue;
           tested.add(ref.idx);
-          const d = distanceToSegment(
-            point,
-            this.points[ref.idx],
-            this.points[ref.idx + 1],
-          );
+          const d = distanceToSegment(point, this.points[ref.idx], this.points[ref.idx + 1]);
           if (d < minDist) minDist = d;
         }
       }
@@ -340,11 +324,7 @@ export class TraceIndex {
  * Projects the point onto the segment in lat/lon space then computes
  * haversine distance to the projected point.
  */
-function distanceToSegment(
-  p: TracePoint,
-  a: TracePoint,
-  b: TracePoint,
-): number {
+function distanceToSegment(p: TracePoint, a: TracePoint, b: TracePoint): number {
   // ponytail: work in a locally-isometric frame — scale longitude by cos(lat) so the
   // projection isn't distorted away from the equator (AUDIT C1). 1° lon = cos(lat)·1° lat
   // in meters; the final distance stays haversine.
@@ -383,10 +363,7 @@ function distanceToSegment(
  *
  * @returns Distance along the trace (meters) from the start to the POI's projection
  */
-export function alongTraceProjection(
-  point: TracePoint,
-  trace: TracePoint[],
-): number {
+export function alongTraceProjection(point: TracePoint, trace: TracePoint[]): number {
   if (trace.length === 0) return 0;
   if (trace.length === 1) return 0;
 
@@ -399,20 +376,23 @@ export function alongTraceProjection(
     const b = trace[i + 1];
     const segLen = haversine(a, b);
 
-    // Project point onto segment
-    const dx = b.lon - a.lon;
+    // Project point onto segment — same cos(lat) longitude scaling as
+    // distanceToSegment (AUDIT R21), else travel order flips at high latitude.
+    const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+    const dLon = b.lon - a.lon;
+    const dx = dLon * k;
     const dy = b.lat - a.lat;
     const lenSq = dx * dx + dy * dy;
 
     let t = 0;
     if (lenSq > 0) {
-      t = ((point.lon - a.lon) * dx + (point.lat - a.lat) * dy) / lenSq;
+      t = ((point.lon - a.lon) * k * dx + (point.lat - a.lat) * dy) / lenSq;
       t = Math.max(0, Math.min(1, t));
     }
 
     const proj: TracePoint = {
       lat: a.lat + t * dy,
-      lon: a.lon + t * dx,
+      lon: a.lon + t * dLon,
     };
 
     const d = haversine(point, proj);

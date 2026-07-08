@@ -3,14 +3,14 @@
 // ---------------------------------------------------------------------------
 
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  parseGpx,
-  haversine,
-  computePathLength,
   computeElevationStats,
-  simplifyTrace,
+  computePathLength,
   distanceToTrace,
+  haversine,
+  parseGpx,
+  simplifyTrace,
   TraceIndex,
 } from "../lib/gpx-parser";
 import type { TracePoint } from "../types";
@@ -118,7 +118,7 @@ describe("simplifyTrace", () => {
   it("should return at least 2 points", () => {
     const points: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8700, lon: 2.3800 },
+      { lat: 48.87, lon: 2.38 },
     ];
     const result = simplifyTrace(points, 10000);
     expect(result.length).toBeGreaterThanOrEqual(2);
@@ -151,7 +151,7 @@ describe("distanceToTrace", () => {
   it("should return 0 for a point on the trace", () => {
     const trace: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8700, lon: 2.3800 },
+      { lat: 48.87, lon: 2.38 },
     ];
     const d = distanceToTrace(trace[0], trace);
     expect(d).toBeLessThan(1);
@@ -160,7 +160,7 @@ describe("distanceToTrace", () => {
   it("should return a reasonable distance for a point near the trace", () => {
     const trace: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8700, lon: 2.3522 },
+      { lat: 48.87, lon: 2.3522 },
     ];
     // Point 0.01 degrees east (~750m at this latitude)
     const point: TracePoint = { lat: 48.8633, lon: 2.3622 };
@@ -174,9 +174,9 @@ describe("TraceIndex", () => {
   it("should return same distance as brute-force distanceToTrace", () => {
     const trace: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8600, lon: 2.3600 },
-      { lat: 48.8650, lon: 2.3700 },
-      { lat: 48.8700, lon: 2.3800 },
+      { lat: 48.86, lon: 2.36 },
+      { lat: 48.865, lon: 2.37 },
+      { lat: 48.87, lon: 2.38 },
     ];
     const index = new TraceIndex(trace);
     const point: TracePoint = { lat: 48.862, lon: 2.365 };
@@ -189,7 +189,7 @@ describe("TraceIndex", () => {
   it("should return 0 for a point on the trace", () => {
     const trace: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8700, lon: 2.3800 },
+      { lat: 48.87, lon: 2.38 },
     ];
     const index = new TraceIndex(trace);
     const d = index.distanceTo(trace[0]);
@@ -213,7 +213,7 @@ describe("TraceIndex", () => {
   it("should match brute-force for a point far from trace", () => {
     const trace: TracePoint[] = [
       { lat: 48.8566, lon: 2.3522 },
-      { lat: 48.8700, lon: 2.3800 },
+      { lat: 48.87, lon: 2.38 },
     ];
     const index = new TraceIndex(trace);
     // Point far away — should fallback to brute force
@@ -278,8 +278,8 @@ describe("TraceIndex", () => {
     // Log for visibility
     console.log(
       `TraceIndex benchmark: brute=${bruteMs.toFixed(0)}ms, ` +
-      `index=${indexTotalMs.toFixed(0)}ms (build=${indexBuildMs.toFixed(0)}ms + query=${indexQueryMs.toFixed(0)}ms), ` +
-      `speedup=${speedup.toFixed(1)}x`
+        `index=${indexTotalMs.toFixed(0)}ms (build=${indexBuildMs.toFixed(0)}ms + query=${indexQueryMs.toFixed(0)}ms), ` +
+        `speedup=${speedup.toFixed(1)}x`,
     );
     expect(speedup).toBeGreaterThan(5);
   });
@@ -296,7 +296,13 @@ describe("computeElevationStats (AUDIT C2)", () => {
 
   it("skips only the segment touching a missing point, not the whole stat", () => {
     // A single GPS dropout in the middle must NOT zero everything.
-    const { gain, loss } = computeElevationStats([at(100), at(150), at(undefined), at(200), at(180)]);
+    const { gain, loss } = computeElevationStats([
+      at(100),
+      at(150),
+      at(undefined),
+      at(200),
+      at(180),
+    ]);
     expect(gain).toBe(50); // 100->150 counted; 150->? and ?->200 skipped; 200->180 is loss
     expect(loss).toBe(20);
   });
@@ -319,5 +325,31 @@ describe("distanceToTrace projection at high latitude (AUDIT C1)", () => {
     // projection over-shoots and reports ~1.24 km. The band excludes the old value.
     expect(d).toBeGreaterThan(800);
     expect(d).toBeLessThan(1150);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R21: alongTraceProjection must use the same cos(lat) longitude scaling as
+// distanceToSegment — raw degrees flip POI travel order at high latitude
+// ---------------------------------------------------------------------------
+
+describe("alongTraceProjection cos(lat) scaling (R21)", () => {
+  it("keeps travel order on a diagonal segment at 70°N", async () => {
+    const { alongTraceProjection } = await import("../lib/gpx-parser");
+    // Diagonal segment: 45° heading in real (locally-isometric) space
+    const trace = [
+      { lat: 70, lon: 0 },
+      { lat: 71, lon: 3 },
+    ];
+    // Q sits ON the trace at fraction 0.45
+    const q = { lat: 70.45, lon: 1.35 };
+    // P sits at real fraction 0.5, offset perpendicular (in real space)
+    const p = { lat: 70.6418, lon: 1.0761 };
+
+    const alongQ = alongTraceProjection(q, trace);
+    const alongP = alongTraceProjection(p, trace);
+
+    // P projects farther along the trace than Q — the bug reverses them
+    expect(alongP).toBeGreaterThan(alongQ);
   });
 });

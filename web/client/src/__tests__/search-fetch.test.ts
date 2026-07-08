@@ -2,9 +2,9 @@
 // Tests for searchPoi – mock global fetch to test the real function logic
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { POI } from "../types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchPoi } from "../lib/enrichment/search";
+import type { POI } from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,7 +33,9 @@ function makePoi(overrides: Partial<POI> = {}): POI {
 }
 
 /** Build a successful SearXNG response body */
-function makeSearxResponse(results: Array<{ title: string; url: string; content?: string; engine: string }>) {
+function makeSearxResponse(
+  results: Array<{ title: string; url: string; content?: string; engine: string }>,
+) {
   return {
     results,
     query: "test",
@@ -65,10 +67,11 @@ describe("searchPoi", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => makeSearxResponse([
-        { title: "Review 1", url: "https://a.com", content: "Great place", engine: "google" },
-        { title: "Review 2", url: "https://b.com", content: "Nice food", engine: "bing" },
-      ]),
+      json: async () =>
+        makeSearxResponse([
+          { title: "Review 1", url: "https://a.com", content: "Great place", engine: "google" },
+          { title: "Review 2", url: "https://b.com", content: "Nice food", engine: "bing" },
+        ]),
     });
 
     const result = await searchPoi(makePoi(), "Tours", "/api");
@@ -84,11 +87,12 @@ describe("searchPoi", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => makeSearxResponse([
-        { title: "A", url: "https://same.com", content: "First", engine: "google" },
-        { title: "B", url: "https://same.com", content: "Duplicate", engine: "bing" },
-        { title: "C", url: "https://other.com", content: "Different", engine: "google" },
-      ]),
+      json: async () =>
+        makeSearxResponse([
+          { title: "A", url: "https://same.com", content: "First", engine: "google" },
+          { title: "B", url: "https://same.com", content: "Duplicate", engine: "bing" },
+          { title: "C", url: "https://other.com", content: "Different", engine: "google" },
+        ]),
     });
 
     const result = await searchPoi(makePoi(), null, "/api");
@@ -101,11 +105,12 @@ describe("searchPoi", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => makeSearxResponse([
-        { title: "No content", url: "https://a.com", content: "", engine: "google" },
-        { title: "Only spaces", url: "https://b.com", content: "   ", engine: "google" },
-        { title: "Has content", url: "https://c.com", content: "Real content", engine: "google" },
-      ]),
+      json: async () =>
+        makeSearxResponse([
+          { title: "No content", url: "https://a.com", content: "", engine: "google" },
+          { title: "Only spaces", url: "https://b.com", content: "   ", engine: "google" },
+          { title: "Has content", url: "https://c.com", content: "Real content", engine: "google" },
+        ]),
     });
 
     const result = await searchPoi(makePoi(), null, "/api");
@@ -138,9 +143,10 @@ describe("searchPoi", () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => makeSearxResponse([
-          { title: "After retry", url: "https://a.com", content: "Worked", engine: "google" },
-        ]),
+        json: async () =>
+          makeSearxResponse([
+            { title: "After retry", url: "https://a.com", content: "Worked", engine: "google" },
+          ]),
       });
 
     const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
@@ -155,9 +161,10 @@ describe("searchPoi", () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => makeSearxResponse([
-          { title: "OK", url: "https://a.com", content: "Good", engine: "google" },
-        ]),
+        json: async () =>
+          makeSearxResponse([
+            { title: "OK", url: "https://a.com", content: "Good", engine: "google" },
+          ]),
       });
 
     const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
@@ -172,18 +179,24 @@ describe("searchPoi", () => {
       statusText: "Bad Request",
     });
 
-    await expect(searchPoi(makePoi(), null, "/api", undefined, 0)).rejects.toThrow("Search failed: 400");
+    await expect(searchPoi(makePoi(), null, "/api", undefined, 0)).rejects.toThrow(
+      "Search failed: 400",
+    );
   });
 
   it("throws when signal is already aborted", async () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(searchPoi(makePoi(), null, "/api", controller.signal)).rejects.toThrow("Cancelled");
+    await expect(searchPoi(makePoi(), null, "/api", controller.signal)).rejects.toThrow(
+      "Cancelled",
+    );
   });
 
   it("returns empty array when SearXNG returns no results", async () => {
-    fetchMock.mockResolvedValueOnce({
+    // AUDIT R13: searchPoi now tries every query variant on a 0-snippet
+    // response, so the empty result must be mocked for all calls, not once.
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => makeSearxResponse([]),
@@ -194,7 +207,7 @@ describe("searchPoi", () => {
   });
 
   it("sends correct request body with query", async () => {
-    fetchMock.mockResolvedValueOnce({
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => makeSearxResponse([]),
@@ -202,7 +215,6 @@ describe("searchPoi", () => {
 
     await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon", "/api");
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/search");
     expect(opts.method).toBe("POST");
@@ -217,9 +229,10 @@ describe("searchPoi", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => makeSearxResponse([
-        { title: "T", url: "https://a.com", content: "  padded content  ", engine: "g" },
-      ]),
+      json: async () =>
+        makeSearxResponse([
+          { title: "T", url: "https://a.com", content: "  padded content  ", engine: "g" },
+        ]),
     });
 
     const result = await searchPoi(makePoi(), null, "/api");

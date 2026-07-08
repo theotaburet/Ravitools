@@ -4,9 +4,9 @@
 // are mocked so we drive transitions without WebGPU, SearXNG, or the network.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
-import type { POI, EnrichedData } from "../types";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { EnrichedData, POI } from "../types";
 
 const mocks = vi.hoisted(() => ({
   isWebGpuAvailable: vi.fn(() => false),
@@ -40,14 +40,23 @@ vi.mock("../lib/poi-cache", () => ({
   getPoiCacheKey: mocks.getPoiCacheKey,
 }));
 vi.mock("../lib/debug-log", () => ({
-  dlog: () => ({ time: () => () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  dlog: () => ({
+    time: () => () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 
 import { useEnrichment } from "../hooks/useEnrichment";
 
 const poi = (id: string): POI =>
   ({ id, category: "Restaurant or Bar", name: id }) as unknown as POI;
-const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+const flush = () =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -115,5 +124,51 @@ describe("useEnrichment", () => {
     await flush(); // let the un-awaited continueEnrichment chain settle
     expect(result.current.job.stage).toBe("done");
     expect(result.current.job.captchaUrl).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R17: a retry pass must never push completed past total ("12/10", bar >100%)
+// ---------------------------------------------------------------------------
+
+describe("retry progress clamp (R17)", () => {
+  it("never reports completed > total after a retry pass", async () => {
+    vi.useFakeTimers();
+    try {
+      const degraded = { status: "error" } as unknown as EnrichedData;
+      const done = { status: "done" } as unknown as EnrichedData;
+      (
+        mocks.isRetryableEnrichmentResult as unknown as {
+          mockImplementation: (impl: (e: unknown) => boolean) => void;
+        }
+      ).mockImplementation((e: unknown) => e === degraded);
+      type BatchArgs = [
+        POI[],
+        { onProgress: (id: string, e: EnrichedData, c?: number, t?: number) => void },
+      ];
+      const batchMock = mocks.enrichBatch as unknown as {
+        mockImplementationOnce: (impl: (...args: BatchArgs) => Promise<void>) => typeof batchMock;
+      };
+      batchMock
+        .mockImplementationOnce(async (pois, opts) => {
+          opts.onProgress(pois[0].id, degraded, 1, 1);
+        })
+        .mockImplementationOnce(async (pois, opts) => {
+          opts.onProgress(pois[0].id, done);
+        });
+
+      const { result } = renderHook(() => useEnrichment());
+      await act(async () => {
+        const started = result.current.startEnrichment([poi("a")]);
+        await vi.advanceTimersByTimeAsync(20_000);
+        await started;
+      });
+
+      // the retry pass must actually have run for this test to mean anything
+      expect(mocks.enrichBatch).toHaveBeenCalledTimes(2);
+      expect(result.current.job.completed).toBeLessThanOrEqual(result.current.job.total);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

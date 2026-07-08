@@ -74,72 +74,72 @@ Scope of the automated `/goal` run: **P0–P3**. P4 (UI/UX) needs visual verific
 
 ## P2 — Correctness bugs (regression test each)
 
-- [ ] **R10** [MED] Cancelled/deleted scrape jobs are resurrected by the still-running background runner (`get() ?? runningJob`, then unconditional `done`).
+- [x] **R10** [MED] Cancelled/deleted scrape jobs are resurrected by the still-running background runner (`get() ?? runningJob`, then unconditional `done`).
   - Files: `web/server/src/scrapers/job-system.ts:314`; `web/server/src/scrapers/endpoints.ts:152`.
   - Fix: before the runner writes a terminal status, re-read the job and bail if it's `cancelled`/absent. Track a cancelled set or check a tombstone.
   - Verify: test that DELETE during a run leaves the job cancelled after the runner resolves.
 
-- [ ] **R11** [MED] `lookupPoiBatch` sends all POIs in one request; server rejects >200 keys (400) → large routes never use the cache.
+- [x] **R11** [MED] `lookupPoiBatch` sends all POIs in one request; server rejects >200 keys (400) → large routes never use the cache.
   - Files: `web/client/src/lib/poi-cache.ts:63`; server cap `web/server/src/index.ts:890` (`MAX_BATCH_KEYS`).
   - Fix: chunk the client batch into ≤200-key requests and merge results.
   - Verify: test that a 250-POI lookup issues 2 requests and returns merged hits.
 
-- [ ] **R12** [MED] Failed context creation is cached forever in `contextPromise` (never cleared on rejection); `browser` arg ignored on later calls.
+- [x] **R12** [MED] Failed context creation is cached forever in `contextPromise` (never cleared on rejection); `browser` arg ignored on later calls.
   - File: `web/server/src/browser-context.ts:85`.
   - Fix: clear `contextPromise` on rejection (mirror the browser-slot fix S5); rebind context if the browser changed/crashed.
   - Verify: test that a first `newContext()` rejection doesn't poison the second call.
 
-- [ ] **R13** [MED] `searchPoi` returns on first variant with 0 kept snippets → fallback variant is dead code except on throw.
+- [x] **R13** [MED] `searchPoi` returns on first variant with 0 kept snippets → fallback variant is dead code except on throw.
   - File: `web/client/src/lib/enrichment/search.ts:706`.
   - Fix: only short-circuit when snippets were actually kept; otherwise fall through to the next variant.
   - Verify: test that a first-variant-empty case triggers the second variant.
 
-- [ ] **R14** [MED] `/search` cache key omits `language` → wrong-locale results served for 7 days.
+- [x] **R14** [MED] `/search` cache key omits `language` → wrong-locale results served for 7 days.
   - File: `web/server/src/index.ts:541`.
   - Fix: include `language` in the cache key.
   - Verify: test that fr/en of the same query produce distinct keys.
 
-- [ ] **R15** [MED] `formatOpeningHoursCompact` renders `close == null` as "closed" → "open daily" exported as "All closed".
+- [x] **R15** [MED] `formatOpeningHoursCompact` renders `close == null` as "closed" → "open daily" exported as "All closed".
   - File: `web/client/src/lib/export.ts:584`.
   - Fix: when `open` is a legacy free-text string (not a time) or `close` is null-but-open, render the raw open text, not "closed".
   - Verify: test the legacy-string hours case exports non-"closed" text.
 
-- [ ] **R16** [MED] Google-fallback 10s deadline is below the scraper's own 4–12s pre-page sleep + serial queue → fallback never contributes but burns quota.
+- [x] **R16** [MED] Google-fallback 10s deadline is below the scraper's own 4–12s pre-page sleep + serial queue → fallback never contributes but burns quota.
   - Files: `web/client/src/lib/enrichment/enricher.ts:17`; server `google-maps.ts:535-536`, `job-system.ts` queue.
   - Fix (decision): raise the client poll deadline to match realistic job latency (e.g. 60–90s, matching the UI's own warning), OR gate the fallback behind an explicit opt-in so it isn't fired-and-abandoned. Pick one.
   - Verify: note the chosen deadline; test the poll loop respects it.
 
-- [ ] **R17** [LOW] Retry pass does `completed: prev.completed + 1` after completed already == total → "12/10", bar >100%.
+- [x] **R17** [LOW] Retry pass does `completed: prev.completed + 1` after completed already == total → "12/10", bar >100%.
   - File: `web/client/src/hooks/useEnrichment.ts:410`.
   - Fix: clamp `completed` to `total`, or track retry progress separately.
   - Verify: test that completed never exceeds total.
 
-- [ ] **R18** [LOW] No in-flight guard on `initEngine` → double-click "Re-enrich all" during load downloads the ~2.5GB model twice, leaks the first engine.
+- [x] **R18** [LOW] No in-flight guard on `initEngine` → double-click "Re-enrich all" during load downloads the ~2.5GB model twice, leaks the first engine.
   - File: `web/client/src/lib/enrichment/llm.ts:91`.
   - Fix: memoize the in-flight `CreateMLCEngine` promise; second caller awaits the same one.
   - Verify: test that two concurrent `initEngine()` calls invoke the factory once.
 
-- [ ] **R19** [LOW] Slider `setMaxDistance` is a silent no-op after session restore (`rawElementsRef` empty).
+- [x] **R19** [LOW] Slider `setMaxDistance` is a silent no-op after session restore (`rawElementsRef` empty).
   - File: `web/client/src/hooks/useRavitools.ts:103`.
   - Fix: persist/restore raw elements (or reprocess from stored POIs) so the slider reprocesses after resume; if truly unsupported, disable the slider with a tooltip.
   - Verify: test/manual that dragging after restore changes the POI set (or the control is disabled).
 
-- [ ] **R20** [LOW] `abort` listeners registered per fetch attempt, never removed → thousands retained on big batches.
+- [x] **R20** [LOW] `abort` listeners registered per fetch attempt, never removed → thousands retained on big batches.
   - File: `web/client/src/lib/enrichment/search.ts:616` (also `:357`, `:939`).
   - Fix: use `AbortSignal.timeout()` / `{ once: true }` / remove listeners in `finally`. (Folds into R25.)
   - Verify: covered by R25's refactor; no listener growth in a batch test.
 
-- [ ] **R21** [LOW] `alongTraceProjection` projects in raw lat/lon without `cos(lat)` scaling (unlike `distanceToSegment`, fixed in C1) → wrong POI travel-order at high latitude.
+- [x] **R21** [LOW] `alongTraceProjection` projects in raw lat/lon without `cos(lat)` scaling (unlike `distanceToSegment`, fixed in C1) → wrong POI travel-order at high latitude.
   - File: `web/client/src/lib/gpx-parser.ts:409`.
   - Fix: apply the same `cos(lat)` longitude scaling used by `distanceToSegment`.
   - Verify: test that projection order matches `distanceToSegment` near a high-latitude bend.
 
-- [ ] **R22** [LOW] `Number(null) === 0` passes coord validation → scrape at `0,0`.
+- [x] **R22** [LOW] `Number(null) === 0` passes coord validation → scrape at `0,0`.
   - File: `web/server/src/scrapers/endpoints.ts:66`.
   - Fix: reject null/undefined/NaN lat|lon with 400 (use `Number.isFinite` on already-typed numbers, not `Number(x)`).
   - Verify: test that null coords return 400.
 
-- [ ] **R23** [LOW] After MAX_REPAIR_ATTEMPTS a still-rejected LLM synthesis is returned and used anyway.
+- [x] **R23** [LOW] After MAX_REPAIR_ATTEMPTS a still-rejected LLM synthesis is returned and used anyway.
   - File: `web/client/src/lib/enrichment/llm.ts:356`.
   - Fix: on final rejection, return null and let the deterministic builder take over.
   - Verify: test that a persistently-bad output falls back to deterministic.

@@ -2,14 +2,14 @@
 // Tests for poi-cache (shared Postgres cache client)
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  isCacheablePoi,
   getPoiCacheKey,
+  isCacheablePoi,
   lookupPoiBatch,
   uploadPoiEnrichment,
 } from "../lib/poi-cache";
-import type { POI, EnrichedData } from "../types";
+import type { EnrichedData, POI } from "../types";
 
 const BASE_POI: POI = {
   id: "p1",
@@ -103,10 +103,13 @@ describe("lookupPoiBatch", () => {
       enriched_at: new Date().toISOString(),
       is_stale: false,
     };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ requested: 1, hits: 1, misses: 0, results: [cached] }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ requested: 1, hits: 1, misses: 0, results: [cached] }),
+      }),
+    );
 
     const result = await lookupPoiBatch([BASE_POI]);
     expect(result.size).toBe(1);
@@ -115,7 +118,10 @@ describe("lookupPoiBatch", () => {
   });
 
   it("returns empty Map on 503", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) }),
+    );
     const result = await lookupPoiBatch([BASE_POI]);
     expect(result.size).toBe(0);
   });
@@ -166,5 +172,51 @@ describe("uploadPoiEnrichment", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
     const ok = await uploadPoiEnrichment(BASE_POI, BASE_ENRICHMENT);
     expect(ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R11: batches over the server's 200-key cap must be chunked and merged
+// ---------------------------------------------------------------------------
+
+describe("lookupPoiBatch chunking (R11)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("chunks 250 POIs into 2 requests and merges results", async () => {
+    const pois = Array.from({ length: 250 }, (_, i) => ({
+      ...BASE_POI,
+      id: `p${i}`,
+      osmId: i + 1,
+    }));
+    const fetchSpy = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        keys: { osm_type: string; osm_id: string }[];
+      };
+      return {
+        ok: true,
+        json: async () => ({
+          requested: body.keys.length,
+          hits: body.keys.length,
+          misses: 0,
+          results: body.keys.map((k) => ({
+            osm_type: k.osm_type,
+            osm_id: k.osm_id,
+            enrichment: BASE_ENRICHMENT,
+          })),
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await lookupPoiBatch(pois);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const sizes = fetchSpy.mock.calls.map(
+      (c) => (JSON.parse(String((c[1] as RequestInit).body)) as { keys: unknown[] }).keys.length,
+    );
+    expect(sizes).toEqual([200, 50]);
+    expect(result.size).toBe(250);
   });
 });

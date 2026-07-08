@@ -301,7 +301,10 @@ export function createScraperJobSystem<T extends MapPreview>(
         safeSet(jobCache, jobId, runningJob);
         persist();
         const preview = await fetchSync(url, onAttemptUpdate);
-        const current = jobCache.get<ScraperJob<T>>(jobId) ?? runningJob;
+        // AUDIT R10: a DELETE mid-run tombstones the job (cancelled) or removes
+        // it — never resurrect it with a terminal status.
+        const current = jobCache.get<ScraperJob<T>>(jobId);
+        if (current?.status !== "running") return;
         if (!preview) {
           appendFailure({
             source: plugin.name,
@@ -322,7 +325,8 @@ export function createScraperJobSystem<T extends MapPreview>(
         });
         persist();
       } catch (err) {
-        const current = jobCache.get<ScraperJob<T>>(jobId) ?? runningJob;
+        const current = jobCache.get<ScraperJob<T>>(jobId);
+        if (current?.status !== "running") return; // AUDIT R10: cancelled/deleted mid-run
         const message = err instanceof Error ? err.message : `Unknown ${plugin.displayName} error`;
         appendFailure({
           source: plugin.name,

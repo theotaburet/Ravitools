@@ -542,9 +542,10 @@ app.post("/search", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // Cache key includes engines to avoid returning cached results from different engine sets
+    // Cache key includes engines and language (AUDIT R14) so different engine
+    // sets or locales never share a cached result.
     const crypto = await import("crypto");
-    const cacheInput = engines ? `${query}|engines=${engines}` : query;
+    const cacheInput = `${query}|lang=${language || "auto"}${engines ? `|engines=${engines}` : ""}`;
     const cacheKey = `search:${crypto.createHash("md5").update(cacheInput).digest("hex")}`;
 
     const cached = searchCache.get<string>(cacheKey);

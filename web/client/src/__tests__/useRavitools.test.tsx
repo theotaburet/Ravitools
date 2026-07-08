@@ -4,8 +4,8 @@
 // drive transitions without GPX files, the network, or the DOM.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { POI, TraceData } from "../types";
 
 const parseGpx = vi.fn();
@@ -14,9 +14,17 @@ const processElements = vi.fn();
 
 vi.mock("../lib/gpx-parser", () => ({ parseGpx: (...a: unknown[]) => parseGpx(...a) }));
 vi.mock("../lib/overpass", () => ({ queryAllPois: (...a: unknown[]) => queryAllPois(...a) }));
-vi.mock("../lib/poi-processor", () => ({ processElements: (...a: unknown[]) => processElements(...a) }));
+vi.mock("../lib/poi-processor", () => ({
+  processElements: (...a: unknown[]) => processElements(...a),
+}));
 vi.mock("../lib/debug-log", () => ({
-  dlog: () => ({ time: () => () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  dlog: () => ({
+    time: () => () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 
 import { useRavitools } from "../hooks/useRavitools";
@@ -92,5 +100,33 @@ describe("useRavitools", () => {
 
     act(() => result.current.toggleCategory("Water" as POI["category"]));
     expect(result.current.filteredPois.map((p) => p.id)).toEqual(["b"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R19: the distance slider must keep working after a session restore
+// (rawElementsRef is empty — refilter from the restored POI superset)
+// ---------------------------------------------------------------------------
+
+describe("setMaxDistance after restore (R19)", () => {
+  it("re-filters restored POIs when the slider moves", () => {
+    const { result } = renderHook(() => useRavitools());
+    const near = { ...poi("near", "Water"), distanceToTrace: 100 } as POI;
+    const far = { ...poi("far", "Water"), distanceToTrace: 900 } as POI;
+    act(() => {
+      result.current.restoreState({
+        traces: [trace],
+        pois: [near, far],
+        activeCategories: new Set(["Water"]) as Set<POI["category"]>,
+        routeSettings: { maxDistanceM: 1000 },
+      });
+    });
+
+    act(() => result.current.setMaxDistance(200));
+    expect(result.current.state.pois.map((p) => p.id)).toEqual(["near"]);
+
+    // back up within the restored radius: the far POI reappears
+    act(() => result.current.setMaxDistance(1000));
+    expect(result.current.state.pois).toHaveLength(2);
   });
 });

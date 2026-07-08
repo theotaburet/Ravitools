@@ -179,3 +179,41 @@ describe("browser-context", () => {
     expect(newContextSpy.mock.calls[0][0].storageState).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// R12: a failed context creation must not poison later calls; a new browser
+// instance must get a fresh context
+// ---------------------------------------------------------------------------
+
+describe("browser-context — failure recovery (R12)", () => {
+  it("retries after a first newContext rejection", async () => {
+    const mod = await import("../browser-context");
+    mod._resetBrowserContextForTests();
+
+    const ctx = makeFakeContext();
+    const newContext = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("browser crashed"))
+      .mockResolvedValue(ctx);
+    const browser = { newContext } as unknown as import("playwright").Browser;
+
+    await expect(mod.getBrowserContext(browser)).rejects.toThrow("browser crashed");
+    const second = await mod.getBrowserContext(browser);
+    expect(second).toBe(ctx);
+    expect(newContext).toHaveBeenCalledTimes(2);
+  });
+
+  it("rebinds when a different browser instance is passed", async () => {
+    const mod = await import("../browser-context");
+    mod._resetBrowserContextForTests();
+
+    const ctx1 = makeFakeContext();
+    const ctx2 = makeFakeContext();
+    const b1 = makeFakeBrowser(ctx1);
+    const b2 = makeFakeBrowser(ctx2);
+
+    const c1 = await mod.getBrowserContext(b1);
+    const c2 = await mod.getBrowserContext(b2);
+    expect(c1).not.toBe(c2);
+  });
+});

@@ -4,7 +4,13 @@
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 // ---------------------------------------------------------------------------
 
-import type { SearchSnippet, TargetLanguage, WebsitePreview, PoiCategory, OpeningHoursEntry } from "../../types";
+import type {
+  OpeningHoursEntry,
+  PoiCategory,
+  SearchSnippet,
+  TargetLanguage,
+  WebsitePreview,
+} from "../../types";
 import { dlog } from "../debug-log";
 import { getEnrichmentContract } from "../poi-config";
 
@@ -29,12 +35,21 @@ export interface LlmSynthesis {
   repairReason?: string | null;
 }
 
-function getSynthesisRejectionReason(parsed: LlmSynthesis | null, targetLanguage: TargetLanguage): string | null {
+function getSynthesisRejectionReason(
+  parsed: LlmSynthesis | null,
+  targetLanguage: TargetLanguage,
+): string | null {
   if (!parsed) return "invalid-json";
-  if (!looksLikeTargetLanguage(parsed.description, targetLanguage) || !looksLikeTargetLanguage(parsed.review, targetLanguage)) {
+  if (
+    !looksLikeTargetLanguage(parsed.description, targetLanguage) ||
+    !looksLikeTargetLanguage(parsed.review, targetLanguage)
+  ) {
     return "bad-language";
   }
-  if ((parsed.description?.length ?? 0) > MAX_SENTENCE_CHARS || (parsed.review?.length ?? 0) > MAX_SENTENCE_CHARS) {
+  if (
+    (parsed.description?.length ?? 0) > MAX_SENTENCE_CHARS ||
+    (parsed.review?.length ?? 0) > MAX_SENTENCE_CHARS
+  ) {
     return "too-long";
   }
   if ([parsed.description, parsed.review].some((text) => isUnreadableText(text))) {
@@ -63,6 +78,8 @@ export function isWebGpuAvailable(): boolean {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic import, types not available at module level
 let engineInstance: any = null;
 let engineReady = false;
+/** AUDIT R18: in-flight load — concurrent initEngine() calls share one download. */
+let initPromise: Promise<boolean> | null = null;
 
 // ponytail: Qwen2.5-3B-Instruct is the sweet spot for this constrained JSON-extraction task
 // (better JSON adherence + FR than the 1.5B, same API, no Qwen3 <think> pitfall). ~2.5GB VRAM.
@@ -75,33 +92,42 @@ const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
  * This can take 30s-2min on first load (~2.5GB download/VRAM for Qwen2.5-3B).
  * Subsequent loads use the browser cache (~2s).
  */
-export async function initEngine(
-  onProgress?: ModelLoadProgressCallback,
-): Promise<boolean> {
+export async function initEngine(onProgress?: ModelLoadProgressCallback): Promise<boolean> {
   if (engineReady && engineInstance) return true;
 
   if (!isWebGpuAvailable()) {
     return false;
   }
 
-  try {
-    // Dynamic import to keep main bundle small
-    const webllm = await import("@mlc-ai/web-llm");
+  // AUDIT R18: a second caller (double-click "Re-enrich all") must await the
+  // same in-flight load, not start a second ~2.5GB download.
+  if (initPromise) return initPromise;
 
-    engineInstance = await webllm.CreateMLCEngine(MODEL_ID, {
-      initProgressCallback: (report: { progress: number; text: string }) => {
-        onProgress?.(report.progress);
-      },
-    });
+  initPromise = (async () => {
+    try {
+      // Dynamic import to keep main bundle small
+      const webllm = await import("@mlc-ai/web-llm");
 
-    engineReady = true;
-    return true;
-  } catch (err) {
-    dlog("llm").error("[WebLLM] Engine init failed", { err: err instanceof Error ? err.message : String(err) });
-    engineReady = false;
-    engineInstance = null;
-    return false;
-  }
+      engineInstance = await webllm.CreateMLCEngine(MODEL_ID, {
+        initProgressCallback: (report: { progress: number; text: string }) => {
+          onProgress?.(report.progress);
+        },
+      });
+
+      engineReady = true;
+      return true;
+    } catch (err) {
+      dlog("llm").error("[WebLLM] Engine init failed", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+      engineReady = false;
+      engineInstance = null;
+      return false;
+    } finally {
+      initPromise = null;
+    }
+  })();
+  return initPromise;
 }
 
 /**
@@ -130,6 +156,7 @@ export async function unloadEngine(): Promise<void> {
 export function resetLlmState(): void {
   engineInstance = null;
   engineReady = false;
+  initPromise = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +175,10 @@ function buildContractBlock(
   bannedPatterns: readonly string[],
 ): string {
   const priorityList = priorities.map((p, i) => `  ${i + 1}. ${p}`).join("\n");
-  const signalList = valuableSignals.slice(0, 5).map((s) => `  - ${s}`).join("\n");
+  const signalList = valuableSignals
+    .slice(0, 5)
+    .map((s) => `  - ${s}`)
+    .join("\n");
   const bannedList = bannedPatterns.map((b) => `  - ${b}`).join("\n");
 
   return `
@@ -181,13 +211,26 @@ export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: str
 
   // WS8: inject contract-specific instructions if available
   const contract = category ? getEnrichmentContract(category as PoiCategory) : null;
-  const contractBlock = contract ? buildContractBlock(contract.category, contract.priorities, contract.valuableSignals, contract.bannedPatterns) : "";
+  const contractBlock = contract
+    ? buildContractBlock(
+        contract.category,
+        contract.priorities,
+        contract.valuableSignals,
+        contract.bannedPatterns,
+      )
+    : "";
 
   // Price emphasis for commercial categories
-  const commercialCategories = new Set(["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"]);
-  const priceBlock = category && commercialCategories.has(category)
-    ? `\n- "priceLevel": IMPORTANT for this category. Look for price indicators: €€/$$$ symbols, "inexpensive"/"moderate"/"expensive", explicit prices (15€, $20), Booking/Airbnb tariffs. 1=budget, 2=moderate, 3=upscale, 4=luxury.`
-    : "";
+  const commercialCategories = new Set([
+    "Restaurant or Bar",
+    "Food shop",
+    "Sleeping place",
+    "Gears",
+  ]);
+  const priceBlock =
+    category && commercialCategories.has(category)
+      ? `\n- "priceLevel": IMPORTANT for this category. Look for price indicators: €€/$$$ symbols, "inexpensive"/"moderate"/"expensive", explicit prices (15€, $20), Booking/Airbnb tariffs. 1=budget, 2=moderate, 3=upscale, 4=luxury.`
+      : "";
 
   return `You are a travel assistant. Given web search snippets about a place, extract a compact summary for a cyclist.
 
@@ -225,10 +268,7 @@ function buildUserPrompt(
   websitePreview?: WebsitePreview | null,
 ): string {
   const snippetText = snippets
-    .map(
-      (s, i) =>
-        `[${i + 1}] ${s.title}\n${s.content}\n(source: ${s.engine})`,
-    )
+    .map((s, i) => `[${i + 1}] ${s.title}\n${s.content}\n(source: ${s.engine})`)
     .join("\n\n");
 
   const websiteText = websitePreview
@@ -263,14 +303,21 @@ function looksLikeTargetLanguage(text: string | null, targetLanguage: TargetLang
   const lower = text.toLowerCase();
   if (targetLanguage === "en") {
     // Reject if clearly Spanish or French
-    return !/(\buna\b|\best[aeo]s?\b|\bhorarios?\b|\bopiniones\b|\brestaurante\b|\bcomer\b|\babierto\b|\bcerrado\b|\bc'est\b|\btrès\b|\bc'était\b|\bnotre\b|\bsont\b|\bavec\b|\bpour\b|\bdepuis\b|\bcette\b|\bvous\b|\bouverte?\b|\bfermée?\b)/i.test(lower);
+    return !/(\buna\b|\best[aeo]s?\b|\bhorarios?\b|\bopiniones\b|\brestaurante\b|\bcomer\b|\babierto\b|\bcerrado\b|\bc'est\b|\btrès\b|\bc'était\b|\bnotre\b|\bsont\b|\bavec\b|\bpour\b|\bdepuis\b|\bcette\b|\bvous\b|\bouverte?\b|\bfermée?\b)/i.test(
+      lower,
+    );
   }
   // Reject if clearly English — use unambiguous multi-word English-only phrases that don't
   // appear in French text (avoid single words like "restaurant", "open", "good").
-  return !/(\breviews?\b|\bopening hours\b|\bclosed on\b|\bopen daily\b|\bopen every day\b|\brated\b|\brated \d|\bworth a visit\b|\bgreat place\b|\bthis place\b|\bnice place\b|\bgreat food\b|\bhighly recommend\b|\bmust try\b|\bstaff was\b|\bvery good\b|\bvery nice\b|\bthe food\b|\bthe place\b|\bthe staff\b|\bi loved\b|\bi visited\b|\bwe had\b|\bwe went\b)/i.test(lower);
+  return !/(\breviews?\b|\bopening hours\b|\bclosed on\b|\bopen daily\b|\bopen every day\b|\brated\b|\brated \d|\bworth a visit\b|\bgreat place\b|\bthis place\b|\bnice place\b|\bgreat food\b|\bhighly recommend\b|\bmust try\b|\bstaff was\b|\bvery good\b|\bvery nice\b|\bthe food\b|\bthe place\b|\bthe staff\b|\bi loved\b|\bi visited\b|\bwe had\b|\bwe went\b)/i.test(
+    lower,
+  );
 }
 
-function isSynthesisAcceptable(parsed: LlmSynthesis | null, targetLanguage: TargetLanguage): boolean {
+function isSynthesisAcceptable(
+  parsed: LlmSynthesis | null,
+  targetLanguage: TargetLanguage,
+): boolean {
   return getSynthesisRejectionReason(parsed, targetLanguage) == null;
 }
 
@@ -280,7 +327,8 @@ function isUnreadableText(text: string | null): boolean {
   if (compact.length < 4) return true;
   if (/([!?.,])\1{3,}/.test(compact)) return true;
   if (/([a-zA-Z])\1{5,}/.test(compact)) return true;
-  const weirdRatio = (compact.match(/[^\p{L}\p{N}\s.,:;!?()'"\-/%&]/gu) ?? []).length / compact.length;
+  const weirdRatio =
+    (compact.match(/[^\p{L}\p{N}\s.,:;!?()'"\-/%&]/gu) ?? []).length / compact.length;
   return weirdRatio > 0.15;
 }
 
@@ -293,7 +341,8 @@ function compactSentence(value: string | null): string | null {
   if (!value) return null;
   const compacted = value.replace(/\s+/g, " ").trim();
   if (!compacted) return null;
-  const firstSentence = compacted.match(/^(.{1,180}?[.!?])(?:\s|$)/)?.[1] ?? compacted.slice(0, MAX_SENTENCE_CHARS);
+  const firstSentence =
+    compacted.match(/^(.{1,180}?[.!?])(?:\s|$)/)?.[1] ?? compacted.slice(0, MAX_SENTENCE_CHARS);
   return firstSentence.trim().slice(0, MAX_SENTENCE_CHARS);
 }
 
@@ -318,25 +367,27 @@ export async function synthesize(
     let parsed: LlmSynthesis | null = null;
 
     for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
-      const response: { choices?: Array<{ message?: { content?: string | null } }> } = await engineInstance.chat.completions.create({
-        messages: attempt === 0
-          ? [
-              { role: "system", content: buildSystemPrompt(targetLanguage, category) },
-              {
-                role: "user",
-                content: buildUserPrompt(poiName, category, snippets, websitePreview),
-              },
-            ]
-          : [
-              { role: "system", content: buildSystemPrompt(targetLanguage, category) },
-              {
-                role: "user",
-                content: buildRepairPrompt(targetLanguage, text || ""),
-              },
-            ],
-        max_tokens: MAX_TOKENS,
-        temperature: TEMPERATURE,
-      });
+      const response: { choices?: Array<{ message?: { content?: string | null } }> } =
+        await engineInstance.chat.completions.create({
+          messages:
+            attempt === 0
+              ? [
+                  { role: "system", content: buildSystemPrompt(targetLanguage, category) },
+                  {
+                    role: "user",
+                    content: buildUserPrompt(poiName, category, snippets, websitePreview),
+                  },
+                ]
+              : [
+                  { role: "system", content: buildSystemPrompt(targetLanguage, category) },
+                  {
+                    role: "user",
+                    content: buildRepairPrompt(targetLanguage, text || ""),
+                  },
+                ],
+          max_tokens: MAX_TOKENS,
+          temperature: TEMPERATURE,
+        });
 
       text = response.choices?.[0]?.message?.content?.trim() ?? null;
       if (!text) return null;
@@ -357,6 +408,9 @@ export async function synthesize(
     }
 
     if (!parsed) return null;
+    // AUDIT R23: repairs exhausted and still rejected → let the deterministic
+    // builder take over instead of shipping a bad synthesis.
+    if (!isSynthesisAcceptable(parsed, targetLanguage)) return null;
     const rawOutput = text ?? "";
 
     // Debug: log LLM synthesis result
@@ -370,7 +424,9 @@ export async function synthesize(
 
     return parsed;
   } catch (err) {
-    dlog("llm").error("[WebLLM] Synthesis failed", { err: err instanceof Error ? err.message : String(err) });
+    dlog("llm").error("[WebLLM] Synthesis failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -391,7 +447,8 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
     // verbose LLM output that wraps the object in surrounding text.
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
-    const jsonMatch = firstBrace >= 0 && lastBrace > firstBrace ? [cleaned.slice(firstBrace, lastBrace + 1)] : null;
+    const jsonMatch =
+      firstBrace >= 0 && lastBrace > firstBrace ? [cleaned.slice(firstBrace, lastBrace + 1)] : null;
     if (!jsonMatch) return null;
 
     const parsed = JSON.parse(jsonMatch[0]);
@@ -402,19 +459,24 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
 
     // Validate and coerce types
     return {
-      rating: typeof parsed.rating === "number" && parsed.rating >= 1 && parsed.rating <= 5
-        ? Math.round(parsed.rating * 10) / 10
-        : null,
-      reviewCount: typeof parsed.reviewCount === "number" && parsed.reviewCount >= 0
-        ? Math.round(parsed.reviewCount)
-        : null,
+      rating:
+        typeof parsed.rating === "number" && parsed.rating >= 1 && parsed.rating <= 5
+          ? Math.round(parsed.rating * 10) / 10
+          : null,
+      reviewCount:
+        typeof parsed.reviewCount === "number" && parsed.reviewCount >= 0
+          ? Math.round(parsed.reviewCount)
+          : null,
       hours,
       hoursFlat,
-      description: compactSentence(typeof parsed.description === "string" ? parsed.description : null),
+      description: compactSentence(
+        typeof parsed.description === "string" ? parsed.description : null,
+      ),
       review: compactSentence(typeof parsed.review === "string" ? parsed.review : null),
-      priceLevel: typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
-        ? Math.round(parsed.priceLevel)
-        : null,
+      priceLevel:
+        typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
+          ? Math.round(parsed.priceLevel)
+          : null,
     };
   } catch {
     dlog("llm").warn("[WebLLM] Failed to parse LLM output", { text: text.slice(0, 200) });

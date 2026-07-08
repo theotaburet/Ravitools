@@ -1266,3 +1266,15 @@ describe("extractDeterministicRating (R3)", () => {
     expect(extractDeterministicRating([], website)).toBe(4.6);
   });
 });
+
+// ---------------------------------------------------------------------------
+// R16 (decision): Google fallback poll deadline must cover realistic job
+// latency (serial queue + 4-12s pre-page sleep) — 90s, never back to 10s
+// ---------------------------------------------------------------------------
+
+describe("Google fallback deadline (R16)", () => {
+  it("poll deadline is at least 60s", async () => {
+    const { GOOGLE_FALLBACK_TIMEOUT_MS } = await import("../lib/enrichment/enricher");
+    expect(GOOGLE_FALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+  });
+});

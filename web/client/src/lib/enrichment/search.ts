@@ -2,7 +2,17 @@
 // SearXNG search adapter, Google Maps link builder, Nominatim reverse geocode
 // ---------------------------------------------------------------------------
 
-import type { POI, SearchSnippet, EnrichmentPlatform, WebsitePreview, PoiCategory, GeoContext, GoogleMapsPreview, GoogleMapsPreviewJob, GoogleFallbackJobStats } from "../../types";
+import type {
+  EnrichmentPlatform,
+  GeoContext,
+  GoogleFallbackJobStats,
+  GoogleMapsPreview,
+  GoogleMapsPreviewJob,
+  POI,
+  PoiCategory,
+  SearchSnippet,
+  WebsitePreview,
+} from "../../types";
 import { dlog } from "../debug-log";
 
 // ---------------------------------------------------------------------------
@@ -27,20 +37,18 @@ const SEARXNG_ENGINES = "presearch,bing,aol";
 
 const ENGINE_COOLDOWN_MS = 30 * 60 * 1000;
 const ENGINE_FAILURE_THRESHOLD = 2;
-const ENGINE_FAILURE_PATTERNS = /(access denied|captcha|too many requests|http protocol error|timed out|network|forbidden)/i;
-const BAD_RESULT_PATTERNS = [
-  /my unicredit banking/i,
-  /internet banking/i,
-  /login/i,
-  /sign in/i,
-];
+const ENGINE_FAILURE_PATTERNS =
+  /(access denied|captcha|too many requests|http protocol error|timed out|network|forbidden)/i;
+const BAD_RESULT_PATTERNS = [/my unicredit banking/i, /internet banking/i, /login/i, /sign in/i];
 
-const engineFailureState = new Map<string, { failures: number; suspendedUntil: number; lastReason: string }>();
+const engineFailureState = new Map<
+  string,
+  { failures: number; suspendedUntil: number; lastReason: string }
+>();
 
 function getHealthyEngineList(): string {
   const now = Date.now();
-  const healthy = SEARXNG_ENGINES
-    .split(",")
+  const healthy = SEARXNG_ENGINES.split(",")
     .map((engine) => engine.trim())
     .filter(Boolean)
     .filter((engine) => (engineFailureState.get(engine)?.suspendedUntil ?? 0) <= now);
@@ -51,9 +59,14 @@ function noteEngineFailures(unresponsiveEngines: [string, string][]): void {
   const now = Date.now();
   for (const [engine, reason] of unresponsiveEngines) {
     if (!ENGINE_FAILURE_PATTERNS.test(reason)) continue;
-    const prev = engineFailureState.get(engine) ?? { failures: 0, suspendedUntil: 0, lastReason: reason };
+    const prev = engineFailureState.get(engine) ?? {
+      failures: 0,
+      suspendedUntil: 0,
+      lastReason: reason,
+    };
     const failures = prev.failures + 1;
-    const suspendedUntil = failures >= ENGINE_FAILURE_THRESHOLD ? now + ENGINE_COOLDOWN_MS : prev.suspendedUntil;
+    const suspendedUntil =
+      failures >= ENGINE_FAILURE_THRESHOLD ? now + ENGINE_COOLDOWN_MS : prev.suspendedUntil;
     engineFailureState.set(engine, { failures, suspendedUntil, lastReason: reason });
   }
 }
@@ -80,14 +93,23 @@ export function resetEngineFailureState(): void {
  * A snippet whose title or content is dominated by these characters is likely returned by a
  * wrong-locale engine (e.g. Yandex/Baidu) and should be rejected.
  */
-const NON_LATIN_SCRIPT_RE = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0590-\u05ff\u0900-\u097f]/;
+const NON_LATIN_SCRIPT_RE =
+  /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0590-\u05ff\u0900-\u097f]/;
 
-function isObviousNoiseSnippet(snippet: SearchSnippet, _poi: POI, _locality: string | null): boolean {
+function isObviousNoiseSnippet(
+  snippet: SearchSnippet,
+  _poi: POI,
+  _locality: string | null,
+): boolean {
   const title = snippet.title.toLowerCase();
   const content = snippet.content.toLowerCase();
   const url = snippet.url.toLowerCase();
 
-  if (BAD_RESULT_PATTERNS.some((pattern) => pattern.test(title) || pattern.test(content) || pattern.test(url))) {
+  if (
+    BAD_RESULT_PATTERNS.some(
+      (pattern) => pattern.test(title) || pattern.test(content) || pattern.test(url),
+    )
+  ) {
     return true;
   }
 
@@ -97,14 +119,19 @@ function isObviousNoiseSnippet(snippet: SearchSnippet, _poi: POI, _locality: str
   const nonLatinChars = (sampleText.match(NON_LATIN_SCRIPT_RE) ?? []).length;
   const nonLatinDensity = nonLatinChars / Math.max(sampleText.replace(/\s/g, "").length, 1);
   if (nonLatinDensity > 0.15) {
-    dlog("search").info(`Non-latin script noise rejected: "${snippet.title}" (density ${nonLatinDensity.toFixed(2)})`, { url: snippet.url });
+    dlog("search").info(
+      `Non-latin script noise rejected: "${snippet.title}" (density ${nonLatinDensity.toFixed(2)})`,
+      { url: snippet.url },
+    );
     return true;
   }
 
   return false;
 }
 
-function extractStructuredWebsiteSnippets(websitePreview: WebsitePreview | null | undefined): SearchSnippet[] {
+function extractStructuredWebsiteSnippets(
+  websitePreview: WebsitePreview | null | undefined,
+): SearchSnippet[] {
   if (!websitePreview?.structuredData) return [];
   const snippets: SearchSnippet[] = [];
   const sourceUrl = websitePreview.finalUrl || websitePreview.url;
@@ -133,7 +160,9 @@ function extractStructuredWebsiteSnippets(websitePreview: WebsitePreview | null 
       sd.rating != null ? `Rating ${sd.rating}/5` : null,
       sd.reviewCount != null ? `${sd.reviewCount} reviews` : null,
       sd.priceRange ? `Price ${sd.priceRange}` : null,
-    ].filter(Boolean).join(". ");
+    ]
+      .filter(Boolean)
+      .join(". ");
     if (facts) {
       snippets.push({
         title: "Official structured data",
@@ -158,10 +187,9 @@ function buildQueryVariants(
   // Keep only 2 variants to reduce noise and request count:
   //   1. Full geo-contextual query (most precise)
   //   2. Quoted name + locality fallback (simpler, catches different title formats)
-  const variants = [
-    base,
-    [cleanName ? `"${cleanName}"` : null, locality].filter(Boolean).join(" "),
-  ].map((query) => query.trim()).filter(Boolean);
+  const variants = [base, [cleanName ? `"${cleanName}"` : null, locality].filter(Boolean).join(" ")]
+    .map((query) => query.trim())
+    .filter(Boolean);
 
   return [...new Set(variants)];
 }
@@ -175,13 +203,31 @@ const OFFICIAL_SITE_TAGS = ["website", "contact:website", "url", "contact:web"] 
  * (WS5: harden official website detection)
  */
 const REJECTED_OFFICIAL_DOMAINS = new Set([
-  "facebook.com", "instagram.com", "twitter.com", "x.com",
-  "google.com", "yelp.com", "yelp.fr",
-  "tripadvisor.com", "tripadvisor.fr", "tripadvisor.de", "tripadvisor.es", "tripadvisor.it", "tripadvisor.co.uk",
+  "facebook.com",
+  "instagram.com",
+  "twitter.com",
+  "x.com",
+  "google.com",
+  "yelp.com",
+  "yelp.fr",
+  "tripadvisor.com",
+  "tripadvisor.fr",
+  "tripadvisor.de",
+  "tripadvisor.es",
+  "tripadvisor.it",
+  "tripadvisor.co.uk",
   "booking.com",
-  "hotels.com", "airbnb.com", "airbnb.fr", "expedia.com", "expedia.fr",
-  "foursquare.com", "pagesjaunes.fr", "komoot.com",
-  "linkedin.com", "youtube.com", "tiktok.com",
+  "hotels.com",
+  "airbnb.com",
+  "airbnb.fr",
+  "expedia.com",
+  "expedia.fr",
+  "foursquare.com",
+  "pagesjaunes.fr",
+  "komoot.com",
+  "linkedin.com",
+  "youtube.com",
+  "tiktok.com",
 ]);
 
 /**
@@ -189,9 +235,7 @@ const REJECTED_OFFICIAL_DOMAINS = new Set([
  * A hostname starting with one of these followed by a dot is rejected.
  * Catches tripadvisor.*, airbnb.*, etc. without enumerating all TLDs.
  */
-const REJECTED_DOMAIN_PREFIXES = [
-  "tripadvisor", "airbnb", "expedia", "yelp", "booking",
-];
+const REJECTED_DOMAIN_PREFIXES = ["tripadvisor", "airbnb", "expedia", "yelp", "booking"];
 
 // ---------------------------------------------------------------------------
 // Google Maps link builder (no API key needed)
@@ -252,7 +296,10 @@ export function getOfficialWebsiteUrl(poi: POI): string | null {
  */
 export function isRejectedOfficialDomain(url: string): boolean {
   try {
-    const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
+    const hostname = new URL(url).hostname
+      .toLowerCase()
+      .replace(/^www\./, "")
+      .replace(/^m\./, "");
     // Exact match or subdomain match against known domains
     for (const rejected of REJECTED_OFFICIAL_DOMAINS) {
       if (hostname === rejected || hostname.endsWith(`.${rejected}`)) return true;
@@ -317,8 +364,16 @@ export function normalizeUrlForDedup(url: string): string {
     const parsed = new URL(url);
     // Strip common tracking parameters
     const trackingParams = [
-      "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-      "fbclid", "gclid", "ref", "source", "srsltid",
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+      "fbclid",
+      "gclid",
+      "ref",
+      "source",
+      "srsltid",
     ];
     for (const param of trackingParams) {
       parsed.searchParams.delete(param);
@@ -352,10 +407,9 @@ export async function fetchWebsitePreview(
 ): Promise<WebsitePreview | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
+  // AUDIT R20: remove the relay listener in finally — it leaks per attempt otherwise
+  const onAbort = () => controller.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
     const res = await fetch(`${apiBase}/fetch-page`, {
@@ -366,11 +420,12 @@ export async function fetchWebsitePreview(
     });
 
     if (!res.ok) return null;
-    return await res.json() as WebsitePreview;
+    return (await res.json()) as WebsitePreview;
   } catch {
     return null;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", onAbort); // AUDIT R20
   }
 }
 
@@ -409,9 +464,12 @@ interface SearXNGResponse {
  * Geographic filtering post-search handles false positives.
  * (WS6: search query quality)
  */
-const CATEGORY_SEARCH_BIAS: Record<string, {
-  contextKeywords: string;
-}> = {
+const CATEGORY_SEARCH_BIAS: Record<
+  string,
+  {
+    contextKeywords: string;
+  }
+> = {
   "Restaurant or Bar": {
     contextKeywords: "avis restaurant horaires",
   },
@@ -421,7 +479,7 @@ const CATEGORY_SEARCH_BIAS: Record<string, {
   "Sleeping place": {
     contextKeywords: "avis hébergement tarif",
   },
-  "Gears": {
+  Gears: {
     contextKeywords: "avis atelier vélo réparation",
   },
 };
@@ -473,7 +531,11 @@ export function buildSearchQuery(
   const geoTerms: string[] = [];
   if (locality) geoTerms.push(locality);
   if (geoContext?.county && geoContext.county !== locality) geoTerms.push(geoContext.county);
-  if (geoContext?.state && geoContext.state !== locality && geoContext.state !== geoContext?.county) {
+  if (
+    geoContext?.state &&
+    geoContext.state !== locality &&
+    geoContext.state !== geoContext?.county
+  ) {
     geoTerms.push(geoContext.state);
   }
   if (geoTerms.length > 0) {
@@ -543,9 +605,9 @@ export function isSnippetGeographicallyCoherent(
   // Tripadvisor, Google Maps, Booking titles often have "Name, City" pattern
   // e.g. "Deni's, Torrevieja" or "Hotel du Port - Lyon"
   const titleCityPatterns = [
-    /,\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*[-–:·]?\s*/,    // "Name, City"
-    /[-–]\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*$/,            // "Name - City"
-    /in\s+([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)/i,                 // "... in City"
+    /,\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*[-–:·]?\s*/, // "Name, City"
+    /[-–]\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)\s*$/, // "Name - City"
+    /in\s+([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)*)/i, // "... in City"
   ];
 
   for (const pattern of titleCityPatterns) {
@@ -560,13 +622,20 @@ export function isSnippetGeographicallyCoherent(
 
       // The title explicitly mentions a different city → suspicious
       // But only reject if it's NOT a substring of our expected locality
-      if (expectedLocality && !expectedLocality.includes(mentionedCity) && !mentionedCity.includes(expectedLocality)) {
-        dlog("search").info(`Geographic mismatch: snippet "${snippet.title}" mentions "${mentionedCity}" but expected "${expectedLocality}" (${expectedCountry})`, {
-          url: snippet.url,
-          mentionedCity,
-          expectedLocality,
-          expectedCountry,
-        });
+      if (
+        expectedLocality &&
+        !expectedLocality.includes(mentionedCity) &&
+        !mentionedCity.includes(expectedLocality)
+      ) {
+        dlog("search").info(
+          `Geographic mismatch: snippet "${snippet.title}" mentions "${mentionedCity}" but expected "${expectedLocality}" (${expectedCountry})`,
+          {
+            url: snippet.url,
+            mentionedCity,
+            expectedLocality,
+            expectedCountry,
+          },
+        );
         return false;
       }
     }
@@ -600,21 +669,19 @@ export async function searchPoi(
   const requestedEngines = getHealthyEngineList();
   const log = dlog("search");
 
-  for (const query of queries) {
+  queryLoop: for (const query of queries) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (signal?.aborted) throw new Error("Cancelled");
 
       if (attempt > 0) {
-        const delayMs = 2000 * Math.pow(2, attempt - 1);
+        const delayMs = 2000 * 2 ** (attempt - 1);
         await new Promise((r) => setTimeout(r, delayMs));
       }
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-      if (signal) {
-        signal.addEventListener("abort", () => controller.abort(), { once: true });
-      }
+      const onAbort = () => controller.abort(); // AUDIT R20
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       try {
         const res = await fetch(`${apiBase}/search`, {
@@ -693,9 +760,12 @@ export async function searchPoi(
           log.debug(`  [${s.engine}] ${s.title}`, { url: s.url, content: s.content.slice(0, 120) });
         }
         if (data.unresponsive_engines && data.unresponsive_engines.length > 0) {
-          log.info(`Unresponsive engines for "${poi.name}": ${data.unresponsive_engines.map(([e, r]) => `${e} (${r})`).join(", ")}`, {
-            engines: data.unresponsive_engines,
-          });
+          log.info(
+            `Unresponsive engines for "${poi.name}": ${data.unresponsive_engines.map(([e, r]) => `${e} (${r})`).join(", ")}`,
+            {
+              engines: data.unresponsive_engines,
+            },
+          );
         }
 
         if (snippets.length > 0) {
@@ -703,7 +773,9 @@ export async function searchPoi(
           return { snippets, query, unresponsiveEngines: data.unresponsive_engines ?? [] };
         }
 
-        return { snippets: [], query, unresponsiveEngines: data.unresponsive_engines ?? [] };
+        // AUDIT R13: 0 kept snippets is a soft miss — try the next query
+        // variant instead of returning (the fallback was dead code).
+        continue queryLoop;
       } catch (err) {
         if (signal?.aborted) throw new Error("Cancelled");
 
@@ -720,6 +792,7 @@ export async function searchPoi(
         break;
       } finally {
         clearTimeout(timeout);
+        signal?.removeEventListener("abort", onAbort); // AUDIT R20
       }
     }
   }
@@ -729,10 +802,16 @@ export async function searchPoi(
     requestedEngines,
     unresponsiveEngines: lastUnresponsiveEngines,
   });
-  return { snippets: [], query: queries[queries.length - 1] ?? buildSearchQuery(poi, locality, geoContext), unresponsiveEngines: lastUnresponsiveEngines };
+  return {
+    snippets: [],
+    query: queries[queries.length - 1] ?? buildSearchQuery(poi, locality, geoContext),
+    unresponsiveEngines: lastUnresponsiveEngines,
+  };
 }
 
-export function buildOfficialWebsiteSnippets(websitePreview: WebsitePreview | null | undefined): SearchSnippet[] {
+export function buildOfficialWebsiteSnippets(
+  websitePreview: WebsitePreview | null | undefined,
+): SearchSnippet[] {
   return extractStructuredWebsiteSnippets(websitePreview);
 }
 
@@ -743,10 +822,8 @@ export async function fetchGoogleMapsPreview(
 ): Promise<GoogleMapsPreview | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180_000);
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
+  const onAbort = () => controller.abort(); // AUDIT R20
+  signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
     const res = await fetch(`${apiBase}/google-maps-preview`, {
@@ -757,11 +834,12 @@ export async function fetchGoogleMapsPreview(
     });
 
     if (!res.ok) return null;
-    return await res.json() as GoogleMapsPreview;
+    return (await res.json()) as GoogleMapsPreview;
   } catch {
     return null;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", onAbort); // AUDIT R20
   }
 }
 
@@ -779,7 +857,7 @@ export async function enqueueGoogleMapsPreview(
       signal,
     });
     if (!res.ok) return null;
-    return await res.json() as GoogleMapsPreviewJob;
+    return (await res.json()) as GoogleMapsPreviewJob;
   } catch {
     return null;
   }
@@ -796,7 +874,7 @@ export async function pollGoogleMapsPreviewJob(
       signal,
     });
     if (!res.ok) return null;
-    return await res.json() as GoogleMapsPreviewJob;
+    return (await res.json()) as GoogleMapsPreviewJob;
   } catch {
     return null;
   }
@@ -812,13 +890,15 @@ export async function fetchGoogleMapsJobStats(
       signal,
     });
     if (!res.ok) return null;
-    return await res.json() as GoogleFallbackJobStats;
+    return (await res.json()) as GoogleFallbackJobStats;
   } catch {
     return null;
   }
 }
 
-export function buildGoogleMapsSnippets(preview: GoogleMapsPreview | null | undefined): SearchSnippet[] {
+export function buildGoogleMapsSnippets(
+  preview: GoogleMapsPreview | null | undefined,
+): SearchSnippet[] {
   if (!preview) return [];
   const snippets: SearchSnippet[] = [];
   const url = preview.resolvedUrl || preview.url;
@@ -851,7 +931,9 @@ export function buildGoogleMapsSnippets(preview: GoogleMapsPreview | null | unde
     hoursDisplay,
     preview.address,
     preview.phone,
-  ].filter(Boolean).join(". ");
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   if (facts) {
     snippets.push({
@@ -876,7 +958,9 @@ export function countSuspendedHealthyEngines(): number {
  * to let the user resolve the CAPTCHA manually.
  */
 export function areAllEnginesSuspended(): boolean {
-  const allEngines = SEARXNG_ENGINES.split(",").map((e) => e.trim()).filter(Boolean);
+  const allEngines = SEARXNG_ENGINES.split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
   if (allEngines.length === 0) return false;
   const now = Date.now();
   return allEngines.every((engine) => {
@@ -934,10 +1018,8 @@ export async function reverseGeocode(
 ): Promise<GeoContext | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
+  const onAbort = () => controller.abort(); // AUDIT R20
+  signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
     const res = await fetch(`${apiBase}/geocode`, {
@@ -972,12 +1054,15 @@ export async function reverseGeocode(
       county: addr.county ?? null,
       state: addr.state ?? null,
       country: addr.country ?? null,
-      countryCode: (data as { address?: { country_code?: string } }).address?.country_code?.toLowerCase() ?? null,
+      countryCode:
+        (data as { address?: { country_code?: string } }).address?.country_code?.toLowerCase() ??
+        null,
     };
   } catch {
     // Non-critical failure
     return null;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", onAbort); // AUDIT R20
   }
 }

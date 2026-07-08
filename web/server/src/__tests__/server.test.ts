@@ -595,3 +595,20 @@ describe("DELETE /cache/search (R7)", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// R14: /search cache key must include language
+// ---------------------------------------------------------------------------
+
+describe("/search cache key includes language (R14)", () => {
+  it("fr and en of the same query are cached separately", async () => {
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(fakeResponse(JSON.stringify({ results: [] })));
+    const q = "boulangerie R14";
+    const r1 = await request(app).post("/search").send({ query: q, language: "fr" });
+    expect(r1.headers["x-cache"]).toBe("MISS");
+    const r2 = await request(app).post("/search").send({ query: q, language: "en" });
+    expect(r2.headers["x-cache"]).toBe("MISS");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+});

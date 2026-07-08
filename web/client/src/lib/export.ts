@@ -4,13 +4,9 @@
 // Supports multiple traces (multi-GPX)
 // ---------------------------------------------------------------------------
 
-import type { POI, PoiCategory, TraceData, EnrichedData } from "../types";
+import type { EnrichedData, POI, PoiCategory, TraceData } from "../types";
+import { getOsmAndIcon, OSMAND_CATEGORY_BACKGROUNDS, OSMAND_CATEGORY_COLORS } from "./poi-config";
 import { starString } from "./stars";
-import {
-  OSMAND_CATEGORY_COLORS,
-  OSMAND_CATEGORY_BACKGROUNDS,
-  getOsmAndIcon,
-} from "./poi-config";
 
 // ---------------------------------------------------------------------------
 // GPX Export – produces a GPX file with waypoints for each POI
@@ -27,7 +23,11 @@ export function exportToGpx(
   downloadFile(gpxContent, `${filename}.gpx`, "application/gpx+xml");
 }
 
-export function buildGpxString(pois: POI[], traces: TraceData[], enrichments?: Map<string, EnrichedData>): string {
+export function buildGpxString(
+  pois: POI[],
+  traces: TraceData[],
+  enrichments?: Map<string, EnrichedData>,
+): string {
   const wpts = pois
     .map((poi) => {
       const desc = formatPoiDescriptionCompact(poi, enrichments?.get(poi.id));
@@ -91,7 +91,11 @@ export function exportToKml(
   downloadFile(kmlContent, `${filename}.kml`, "application/vnd.google-earth.kml+xml");
 }
 
-export function buildKmlString(pois: POI[], traces: TraceData[], enrichments?: Map<string, EnrichedData>): string {
+export function buildKmlString(
+  pois: POI[],
+  traces: TraceData[],
+  enrichments?: Map<string, EnrichedData>,
+): string {
   // Group POIs by category for folders
   const byCategory = new Map<string, POI[]>();
   for (const poi of pois) {
@@ -133,9 +137,7 @@ ${placemarks}
   const trackSections = traces
     .filter((t) => t.original.length > 0)
     .map((trace) => {
-      const coords = trace.original
-        .map((p) => `${p.lon},${p.lat},${p.ele ?? 0}`)
-        .join(" ");
+      const coords = trace.original.map((p) => `${p.lon},${p.lat},${p.ele ?? 0}`).join(" ");
       return `    <Placemark>
       <name>${escapeXml(trace.name ?? "Route")}</name>
       <Style>
@@ -171,11 +173,7 @@ export function exportToGeoJson(
   enrichments?: Map<string, EnrichedData>,
 ): void {
   const geojson = buildGeoJsonObject(pois, enrichments);
-  downloadFile(
-    JSON.stringify(geojson, null, 2),
-    `${filename}.geojson`,
-    "application/geo+json",
-  );
+  downloadFile(JSON.stringify(geojson, null, 2), `${filename}.geojson`, "application/geo+json");
 }
 
 export function buildGeoJsonObject(
@@ -186,35 +184,48 @@ export function buildGeoJsonObject(
     type: "FeatureCollection",
     features: pois.map((poi) => {
       const enrichment = enrichments?.get(poi.id);
-      const enrichmentProps = enrichment && enrichment.status === "done"
-        ? {
-            enrichment_rating: enrichment.rating,
-            enrichment_reviewCount: enrichment.reviewCount,
-            enrichment_hours: enrichment.hours,
-            enrichment_openingHours: enrichment.openingHours
-              ? enrichment.openingHours.map((e) => `${e.day}: ${e.open === "closed" ? "Closed" : `${e.open}-${e.close ?? ""}`}`).join("; ")
-              : null,
-            enrichment_description: enrichment.description,
-            enrichment_review: enrichment.review,
-            enrichment_priceLevel: enrichment.priceLevel,
-            enrichment_googleMapsUrl: enrichment.googleMapsUrl,
-            enrichment_locality: enrichment.locality,
-            enrichment_sourceCount: enrichment.sourceCount,
-            enrichment_sourceEngines: enrichment.sourceEngines.join(","),
-            enrichment_confidence: enrichment.confidence,
-            enrichment_synthesisSource: enrichment.synthesisSource ?? null,
-            enrichment_synthesisReason: enrichment.synthesisReason ?? null,
-            enrichment_googleMapsFields: enrichment.googleMapsFields?.join(",") ?? null,
-            enrichment_structured_headline: enrichment.structured?.headline ?? null,
-            enrichment_structured_operationalSummary: enrichment.structured?.operationalSummary ?? null,
-            enrichment_structured_practicalities: enrichment.structured?.practicalities.join(" | ") ?? null,
-            enrichment_structured_cautions: enrichment.structured?.cautions.join(" | ") ?? null,
-            enrichment_structured_unknowns: enrichment.structured?.unknowns.join(" | ") ?? null,
-            enrichment_structured_sourceRollup: enrichment.structured?.sourceRollup.map((digest) => `${digest.platform}: ${digest.brief}`).join(" | ") ?? null,
-            enrichment_structured_divergences: enrichment.structured?.divergences?.join(" | ") ?? null,
-            enrichment_structured_sourceConfirmation: enrichment.structured?.sourceConfirmation ?? null,
-          }
-        : {};
+      const enrichmentProps =
+        enrichment && enrichment.status === "done"
+          ? {
+              enrichment_rating: enrichment.rating,
+              enrichment_reviewCount: enrichment.reviewCount,
+              enrichment_hours: enrichment.hours,
+              enrichment_openingHours: enrichment.openingHours
+                ? enrichment.openingHours
+                    .map(
+                      (e) =>
+                        `${e.day}: ${e.open === "closed" ? "Closed" : `${e.open}-${e.close ?? ""}`}`,
+                    )
+                    .join("; ")
+                : null,
+              enrichment_description: enrichment.description,
+              enrichment_review: enrichment.review,
+              enrichment_priceLevel: enrichment.priceLevel,
+              enrichment_googleMapsUrl: enrichment.googleMapsUrl,
+              enrichment_locality: enrichment.locality,
+              enrichment_sourceCount: enrichment.sourceCount,
+              enrichment_sourceEngines: enrichment.sourceEngines.join(","),
+              enrichment_confidence: enrichment.confidence,
+              enrichment_synthesisSource: enrichment.synthesisSource ?? null,
+              enrichment_synthesisReason: enrichment.synthesisReason ?? null,
+              enrichment_googleMapsFields: enrichment.googleMapsFields?.join(",") ?? null,
+              enrichment_structured_headline: enrichment.structured?.headline ?? null,
+              enrichment_structured_operationalSummary:
+                enrichment.structured?.operationalSummary ?? null,
+              enrichment_structured_practicalities:
+                enrichment.structured?.practicalities.join(" | ") ?? null,
+              enrichment_structured_cautions: enrichment.structured?.cautions.join(" | ") ?? null,
+              enrichment_structured_unknowns: enrichment.structured?.unknowns.join(" | ") ?? null,
+              enrichment_structured_sourceRollup:
+                enrichment.structured?.sourceRollup
+                  .map((digest) => `${digest.platform}: ${digest.brief}`)
+                  .join(" | ") ?? null,
+              enrichment_structured_divergences:
+                enrichment.structured?.divergences?.join(" | ") ?? null,
+              enrichment_structured_sourceConfirmation:
+                enrichment.structured?.sourceConfirmation ?? null,
+            }
+          : {};
 
       return {
         type: "Feature",
@@ -366,20 +377,12 @@ export function buildKmzBlob(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function downloadFile(
-  content: string,
-  filename: string,
-  mimeType: string,
-): void {
+function downloadFile(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
   downloadBlob(blob, filename, mimeType);
 }
 
-function downloadBlob(
-  blob: Blob,
-  filename: string,
-  _mimeType: string,
-): void {
+function downloadBlob(blob: Blob, filename: string, _mimeType: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -462,7 +465,8 @@ const SUNDAY_PATTERNS = /\b(su|sun|sunday|dim|dimanche|do|domingo)\b/i;
 const SUNDAY_RANGE_PATTERNS = /\b(mo|mon|lu|lun)\s*[-–]\s*(su|sun|dim|do)\b|7\s*[j/]\s*[/]?\s*7/i;
 
 /** Patterns that explicitly say Sunday is closed */
-const SUNDAY_CLOSED = /\b(su|sun|sunday|dim|dimanche)\b[^;/\n]*\b(closed|fermé|geschlossen|cerrado)\b/i;
+const SUNDAY_CLOSED =
+  /\b(su|sun|sunday|dim|dimanche)\b[^;/\n]*\b(closed|fermé|geschlossen|cerrado)\b/i;
 
 /**
  * Detect whether a POI is open on Sunday, from either enrichment hours or OSM opening_hours.
@@ -484,7 +488,10 @@ export function isOpenSunday(hours: string | null | undefined, osmHours?: string
     // Check it's not followed by "closed"
     const sunMatch = lower.match(SUNDAY_PATTERNS);
     if (sunMatch) {
-      const afterSun = lower.slice(sunMatch.index! + sunMatch[0].length, sunMatch.index! + sunMatch[0].length + 30);
+      const afterSun = lower.slice(
+        sunMatch.index! + sunMatch[0].length,
+        sunMatch.index! + sunMatch[0].length + 30,
+      );
       if (!/closed|fermé|geschlossen|cerrado/.test(afterSun)) return true;
     }
   }
@@ -570,19 +577,30 @@ function formatOpeningHoursCompact(
 ): string {
   if (!entries.length) return "";
   const dayMap: Record<string, string> = {
-    monday: "Mo", tuesday: "Tu", wednesday: "We", thursday: "Th",
-    friday: "Fr", saturday: "Sa", sunday: "Su",
-    mon: "Mo", tue: "Tu", wed: "We", thu: "Th",
-    fri: "Fr", sat: "Sa", sun: "Su",
+    monday: "Mo",
+    tuesday: "Tu",
+    wednesday: "We",
+    thursday: "Th",
+    friday: "Fr",
+    saturday: "Sa",
+    sunday: "Su",
+    mon: "Mo",
+    tue: "Tu",
+    wed: "We",
+    thu: "Th",
+    fri: "Fr",
+    sat: "Sa",
+    sun: "Su",
   };
-  const shortenDay = (d: string) =>
-    d.replace(/[A-Za-z]+/g, (m) => dayMap[m.toLowerCase()] ?? m);
-  const shortenTime = (t: string) =>
-    t.replace(/\b0(\d):/g, "$1:").replace(/:00\b/g, "");
+  const shortenDay = (d: string) => d.replace(/[A-Za-z]+/g, (m) => dayMap[m.toLowerCase()] ?? m);
+  const shortenTime = (t: string) => t.replace(/\b0(\d):/g, "$1:").replace(/:00\b/g, "");
   return entries
     .map((e) => {
       const day = shortenDay(e.day);
-      if (e.open === "closed" || !e.close) return `${day} closed`;
+      if (e.open === "closed") return `${day} closed`;
+      // AUDIT R15: legacy free-text hours ("Open 24/7") have no close time —
+      // show the text rather than mislabeling the day as closed.
+      if (!e.close) return `${day} ${shortenTime(e.open)}`;
       return `${day} ${shortenTime(e.open)}-${shortenTime(e.close)}`;
     })
     .join(" · ");
@@ -613,24 +631,16 @@ function compactRawHours(raw: string): string {
  * Falls back gracefully when enrichment is missing or partial.
  * Output is hard-capped at COMPACT_DESC_MAX_CHARS (400) chars.
  */
-export function formatPoiDescriptionCompact(
-  poi: POI,
-  enrichment?: EnrichedData,
-): string {
+export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData): string {
   const lines: string[] = [];
 
   // L1 — header: category · rating · price · distance
   const headerBits: string[] = [poi.category];
   if (enrichment?.status === "done" && enrichment.rating != null) {
-    const reviewBit =
-      enrichment.reviewCount != null ? ` (${enrichment.reviewCount})` : "";
+    const reviewBit = enrichment.reviewCount != null ? ` (${enrichment.reviewCount})` : "";
     headerBits.push(`★${enrichment.rating.toFixed(1)}${reviewBit}`);
   }
-  if (
-    enrichment?.status === "done" &&
-    enrichment.priceLevel != null &&
-    enrichment.priceLevel > 0
-  ) {
+  if (enrichment?.status === "done" && enrichment.priceLevel != null && enrichment.priceLevel > 0) {
     headerBits.push("$".repeat(Math.min(enrichment.priceLevel, 4)));
   }
   headerBits.push(
@@ -690,9 +700,12 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
   if (enrichment && enrichment.status === "done") {
     if (enrichment.rating != null) {
       const stars = starString(enrichment.rating);
-      parts.push(`<b>Rating:</b> ${stars} ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
+      parts.push(
+        `<b>Rating:</b> ${stars} ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`,
+      );
     }
-    if (enrichment.priceLevel != null) parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
+    if (enrichment.priceLevel != null)
+      parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
     if (enrichment.hours) parts.push(`<b>Hours:</b><br/>${formatHoursHtml(enrichment.hours)}`);
     // New compact fields
     if (enrichment.description) parts.push(`<i>${escapeXml(enrichment.description)}</i>`);
@@ -705,25 +718,32 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
       parts.push(`<b>Divergences:</b> ${escapeXml(enrichment.structured.divergences.join(" "))}`);
     }
     if (enrichment.structured?.sourceRollup?.length) {
-      parts.push(...enrichment.structured.sourceRollup.map((digest) => `<b>Source - ${escapeXml(digest.platform)}:</b> ${escapeXml(digest.brief)}`));
+      parts.push(
+        ...enrichment.structured.sourceRollup.map(
+          (digest) => `<b>Source - ${escapeXml(digest.platform)}:</b> ${escapeXml(digest.brief)}`,
+        ),
+      );
     }
     if (enrichment.locality) parts.push(`<b>Location:</b> ${escapeXml(enrichment.locality)}`);
     if (enrichment.sourceCount > 0) parts.push(`<b>Sources:</b> ${enrichment.sourceCount}`);
-    if (enrichment.confidence > 0) parts.push(`<b>Confidence:</b> ${Math.round(enrichment.confidence * 100)}%`);
-    if (enrichment.synthesisSource) parts.push(`<b>Synthesis:</b> ${escapeXml(enrichment.synthesisSource)}${enrichment.synthesisReason ? ` (${escapeXml(enrichment.synthesisReason)})` : ""}`);
-    if (enrichment.googleMapsFields?.length) parts.push(`<b>Google Maps fields:</b> ${escapeXml(enrichment.googleMapsFields.join(", "))}`);
-    if (enrichment.googleMapsUrl) parts.push(`<a href="${escapeXml(enrichment.googleMapsUrl)}">Google Maps</a>`);
+    if (enrichment.confidence > 0)
+      parts.push(`<b>Confidence:</b> ${Math.round(enrichment.confidence * 100)}%`);
+    if (enrichment.synthesisSource)
+      parts.push(
+        `<b>Synthesis:</b> ${escapeXml(enrichment.synthesisSource)}${enrichment.synthesisReason ? ` (${escapeXml(enrichment.synthesisReason)})` : ""}`,
+      );
+    if (enrichment.googleMapsFields?.length)
+      parts.push(`<b>Google Maps fields:</b> ${escapeXml(enrichment.googleMapsFields.join(", "))}`);
+    if (enrichment.googleMapsUrl)
+      parts.push(`<a href="${escapeXml(enrichment.googleMapsUrl)}">Google Maps</a>`);
   } else {
-    if (poi.tags.opening_hours)
-      parts.push(`<b>Hours:</b> ${escapeXml(poi.tags.opening_hours)}`);
+    if (poi.tags.opening_hours) parts.push(`<b>Hours:</b> ${escapeXml(poi.tags.opening_hours)}`);
   }
 
   if (poi.tags.phone) parts.push(`<b>Phone:</b> ${escapeXml(poi.tags.phone)}`);
   if (poi.tags.website) {
     const safeUrl = /^https?:\/\//i.test(poi.tags.website) ? escapeXml(poi.tags.website) : "#";
-    parts.push(
-      `<b>Web:</b> <a href="${safeUrl}">${escapeXml(poi.tags.website)}</a>`,
-    );
+    parts.push(`<b>Web:</b> <a href="${safeUrl}">${escapeXml(poi.tags.website)}</a>`);
   }
   if (poi.tags.fee) parts.push(`<b>Fee:</b> ${escapeXml(poi.tags.fee)}`);
 
@@ -783,10 +803,7 @@ function mapCategoryToGpxSymbol(category: string): string {
 // See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
 // ---------------------------------------------------------------------------
 
-export function buildZipSingleFile(
-  filename: string,
-  data: Uint8Array,
-): Uint8Array {
+export function buildZipSingleFile(filename: string, data: Uint8Array): Uint8Array {
   const enc = new TextEncoder();
   const nameBytes = enc.encode(filename);
   const crc = crc32(data);

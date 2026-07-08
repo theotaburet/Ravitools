@@ -4,26 +4,69 @@
 // Uses staged pipeline: geocode+search with concurrency, LLM serial.
 // ---------------------------------------------------------------------------
 
-import type { POI, EnrichedData, EnrichmentStatus, TargetLanguage, EnrichabilityPolicy, EnrichmentPhase, SearchSnippet, GeoContext, OpeningHoursEntry, GoogleMapsPreview } from "../../types";
-import { buildGoogleMapsUrl, searchPoi, reverseGeocode, getOfficialWebsiteUrl, fetchWebsitePreview, buildOfficialWebsiteSnippets, countSuspendedHealthyEngines, areAllEnginesSuspended, buildCaptchaResolveUrl, enqueueGoogleMapsPreview, pollGoogleMapsPreviewJob, buildGoogleMapsSnippets } from "./search";
-import { synthesize, isEngineReady, flattenHours } from "./llm";
-import { getEnrichabilityPolicy } from "../poi-config";
+import type {
+  EnrichabilityPolicy,
+  EnrichedData,
+  EnrichmentPhase,
+  EnrichmentStatus,
+  GeoContext,
+  GoogleMapsPreview,
+  OpeningHoursEntry,
+  POI,
+  SearchSnippet,
+  TargetLanguage,
+} from "../../types";
 import { dlog } from "../debug-log";
-import { buildSourceDigests, buildStructuredContent, extractPriceLevel, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";
+import { getEnrichabilityPolicy } from "../poi-config";
+import { flattenHours, isEngineReady, synthesize } from "./llm";
+import {
+  areAllEnginesSuspended,
+  buildCaptchaResolveUrl,
+  buildGoogleMapsSnippets,
+  buildGoogleMapsUrl,
+  buildOfficialWebsiteSnippets,
+  countSuspendedHealthyEngines,
+  enqueueGoogleMapsPreview,
+  fetchWebsitePreview,
+  getOfficialWebsiteUrl,
+  pollGoogleMapsPreviewJob,
+  reverseGeocode,
+  searchPoi,
+} from "./search";
+import {
+  buildSourceDigests,
+  buildStructuredContent,
+  extractPriceLevel,
+  extractStructuredHoursFromSnippets,
+  rankSnippetsByQuality,
+} from "./structured";
 
 const DEGRADE_STOP_THRESHOLD = 4;
 
-/** Max time (ms) to wait for a Google Maps fallback job before moving on. */
-const GOOGLE_FALLBACK_TIMEOUT_MS = 10_000;
+/**
+ * Max time (ms) to wait for a Google Maps fallback job before moving on.
+ * AUDIT R16 (decision): 90s — the scraper sleeps 4-12s before each page and the
+ * queue is serial, so the old 10s deadline burned quota without ever landing.
+ */
+export const GOOGLE_FALLBACK_TIMEOUT_MS = 90_000;
 
 async function resolveGoogleMapsFallbackSnippets(
   poi: POI,
   apiBase: string,
   onGoogleFallbackStatus?: (status: string | null) => void,
   signal?: AbortSignal,
-): Promise<{ snippets: SearchSnippet[]; structuredHours: OpeningHoursEntry[] | null; preview: GoogleMapsPreview | null }> {
+): Promise<{
+  snippets: SearchSnippet[];
+  structuredHours: OpeningHoursEntry[] | null;
+  preview: GoogleMapsPreview | null;
+}> {
   onGoogleFallbackStatus?.(`Queued Google Maps fallback for ${poi.name}`);
-  const job = await enqueueGoogleMapsPreview(buildGoogleMapsUrl(poi), apiBase, signal, poi.name ?? null);
+  const job = await enqueueGoogleMapsPreview(
+    buildGoogleMapsUrl(poi),
+    apiBase,
+    signal,
+    poi.name ?? null,
+  );
   if (!job) {
     onGoogleFallbackStatus?.(`Google Maps fallback failed to queue for ${poi.name}`);
     return { snippets: [], structuredHours: null, preview: null };
@@ -34,7 +77,9 @@ async function resolveGoogleMapsFallbackSnippets(
   while (!signal?.aborted && current.status !== "done" && current.status !== "error") {
     if (Date.now() >= deadline) {
       onGoogleFallbackStatus?.(`Google Maps fallback timed out for ${poi.name} — moving on`);
-      dlog("enricher").info(`Google Maps fallback timed out after ${GOOGLE_FALLBACK_TIMEOUT_MS}ms for ${poi.name}`);
+      dlog("enricher").info(
+        `Google Maps fallback timed out after ${GOOGLE_FALLBACK_TIMEOUT_MS}ms for ${poi.name}`,
+      );
       return { snippets: [], structuredHours: null, preview: null };
     }
     onGoogleFallbackStatus?.(`Waiting in Google queue for ${poi.name} (${current.status})`);
@@ -44,7 +89,11 @@ async function resolveGoogleMapsFallbackSnippets(
     current = polled;
   }
 
-  onGoogleFallbackStatus?.(current.status === "done" ? `Google Maps fallback completed for ${poi.name}` : `Google Maps fallback failed for ${poi.name}`);
+  onGoogleFallbackStatus?.(
+    current.status === "done"
+      ? `Google Maps fallback completed for ${poi.name}`
+      : `Google Maps fallback failed for ${poi.name}`,
+  );
   const preview = current.preview;
   return {
     snippets: preview ? buildGoogleMapsSnippets(preview) : [],
@@ -57,7 +106,9 @@ async function resolveGoogleMapsFallbackSnippets(
  * Build the list of field names that were sourced from a Google Maps preview.
  * Only includes fields that are actually non-null/non-empty in the preview.
  */
-function buildGoogleMapsFields(preview: GoogleMapsPreview | null | undefined): string[] | undefined {
+function buildGoogleMapsFields(
+  preview: GoogleMapsPreview | null | undefined,
+): string[] | undefined {
   if (!preview) return undefined;
   const fields: string[] = [];
   if (preview.structuredHours?.length || preview.hoursText) fields.push("openingHours");
@@ -71,61 +122,102 @@ function buildGoogleMapsFields(preview: GoogleMapsPreview | null | undefined): s
   return fields.length > 0 ? fields : undefined;
 }
 
-export function extractDeterministicRating(snippets: SearchSnippet[], website: EnrichedData["officialWebsite"]): number | null {
+export function extractDeterministicRating(
+  snippets: SearchSnippet[],
+  website: EnrichedData["officialWebsite"],
+): number | null {
   // R3: a JSON-LD ratingValue outside [1,5] (e.g. 9.2 on a 10-scale) used to flow
   // through untouched and crash the star renderers. Drop it, fall back to snippets.
   const structured = website?.structuredData?.rating;
   if (structured != null && Number.isFinite(structured) && structured >= 1 && structured <= 5) {
     return Math.round(structured * 10) / 10;
   }
-  const matches = snippets.flatMap((snippet) => [...snippet.content.matchAll(/(\d(?:[.,]\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi)]);
+  const matches = snippets.flatMap((snippet) => [
+    ...snippet.content.matchAll(/(\d(?:[.,]\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi),
+  ]);
   const values = matches
     .map((match) => Number.parseFloat(match[1].replace(",", ".")))
     .filter((value) => value >= 1 && value <= 5);
   return values.length > 0 ? Math.round(values[0] * 10) / 10 : null;
 }
 
-function extractDeterministicReviewCount(snippets: SearchSnippet[], website: EnrichedData["officialWebsite"]): number | null {
+function extractDeterministicReviewCount(
+  snippets: SearchSnippet[],
+  website: EnrichedData["officialWebsite"],
+): number | null {
   if (website?.structuredData?.reviewCount != null) return website.structuredData.reviewCount;
-  const matches = snippets.flatMap((snippet) => [...snippet.content.matchAll(/(\d{1,5})\s+(?:reviews?|avis|opiniones)/gi)]);
-  const value = matches.map((match) => Number.parseInt(match[1], 10)).find((count) => Number.isFinite(count));
+  const matches = snippets.flatMap((snippet) => [
+    ...snippet.content.matchAll(/(\d{1,5})\s+(?:reviews?|avis|opiniones)/gi),
+  ]);
+  const value = matches
+    .map((match) => Number.parseInt(match[1], 10))
+    .find((count) => Number.isFinite(count));
   return value ?? null;
 }
 
-function extractDeterministicHours(snippets: SearchSnippet[], website: EnrichedData["officialWebsite"]): string | null {
-  if (website?.structuredData?.openingHours?.length) return website.structuredData.openingHours.join("; ");
-  const hit = snippets.map((snippet) => snippet.content.match(/((?:mon|tue|wed|thu|fri|sat|sun|lun|mar|mer|jeu|ven|sam|dim)[^.;]{0,80}\d{1,2}[:h]\d{2}[^.;]{0,40})/i)?.[1]).find(Boolean);
+function extractDeterministicHours(
+  snippets: SearchSnippet[],
+  website: EnrichedData["officialWebsite"],
+): string | null {
+  if (website?.structuredData?.openingHours?.length)
+    return website.structuredData.openingHours.join("; ");
+  const hit = snippets
+    .map(
+      (snippet) =>
+        snippet.content.match(
+          /((?:mon|tue|wed|thu|fri|sat|sun|lun|mar|mer|jeu|ven|sam|dim)[^.;]{0,80}\d{1,2}[:h]\d{2}[^.;]{0,40})/i,
+        )?.[1],
+    )
+    .find(Boolean);
   return hit?.trim() ?? null;
 }
 
 function buildDeterministicShortDescription(poi: POI, targetLanguage: TargetLanguage): string {
-  const type = (poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? poi.category).replace(/_/g, " ");
+  const type = (poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? poi.category).replace(
+    /_/g,
+    " ",
+  );
   return targetLanguage === "fr"
     ? `${poi.name}, ${type}, arrêt utile près de l'itinéraire.`.slice(0, 180)
     : `${poi.name}, ${type}, useful stop near the route.`.slice(0, 180);
 }
 
-function buildDeterministicShortReview(rating: number | null, reviewCount: number | null, targetLanguage: TargetLanguage): string | null {
+function buildDeterministicShortReview(
+  rating: number | null,
+  reviewCount: number | null,
+  targetLanguage: TargetLanguage,
+): string | null {
   if (rating == null && reviewCount == null) return null;
   if (targetLanguage === "fr") {
-    if (rating != null && reviewCount != null) return `Avis web: ${rating.toFixed(1)}/5 sur ${reviewCount} avis.`;
+    if (rating != null && reviewCount != null)
+      return `Avis web: ${rating.toFixed(1)}/5 sur ${reviewCount} avis.`;
     if (rating != null) return `Avis web: ${rating.toFixed(1)}/5.`;
     return `Volume d'avis confirmé: ${reviewCount}.`;
   }
-  if (rating != null && reviewCount != null) return `Web reviews: ${rating.toFixed(1)}/5 from ${reviewCount} reviews.`;
+  if (rating != null && reviewCount != null)
+    return `Web reviews: ${rating.toFixed(1)}/5 from ${reviewCount} reviews.`;
   if (rating != null) return `Web reviews: ${rating.toFixed(1)}/5.`;
   return `Review volume confirmed: ${reviewCount}.`;
 }
 
-export function isRetryableEnrichmentResult(enrichment: Pick<EnrichedData, "status" | "skipReason" | "unresponsiveEngines"> | undefined): boolean {
+export function isRetryableEnrichmentResult(
+  enrichment: Pick<EnrichedData, "status" | "skipReason" | "unresponsiveEngines"> | undefined,
+): boolean {
   if (!enrichment) return true;
   if (enrichment.status === "error") return true;
-  return enrichment.status === "skipped"
-    && enrichment.skipReason === "no-results"
-    && (enrichment.unresponsiveEngines?.length ?? 0) > 0;
+  return (
+    enrichment.status === "skipped" &&
+    enrichment.skipReason === "no-results" &&
+    (enrichment.unresponsiveEngines?.length ?? 0) > 0
+  );
 }
 
-function createBaseEnrichment(poi: POI): Omit<EnrichedData, "enrichedAt" | "status" | "locality" | "sourceCount" | "sourceEngines" | "confidence"> {
+function createBaseEnrichment(
+  poi: POI,
+): Omit<
+  EnrichedData,
+  "enrichedAt" | "status" | "locality" | "sourceCount" | "sourceEngines" | "confidence"
+> {
   return {
     rating: null,
     reviewCount: null,
@@ -237,8 +329,12 @@ export async function enrichPoi(
     return {
       ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
-      status: "skipped", skipReason: "low-value-category", locality: null,
-      sourceCount: 0, sourceEngines: [], confidence: 0,
+      status: "skipped",
+      skipReason: "low-value-category",
+      locality: null,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
     };
   }
 
@@ -263,9 +359,12 @@ export async function enrichPoi(
       return {
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
-        status: "done", locality,
+        status: "done",
+        locality,
         geoContext,
-        sourceCount: 0, sourceEngines: [], confidence: 0,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
         officialWebsite,
       };
     }
@@ -286,7 +385,12 @@ export async function enrichPoi(
     let googleMapsStructuredHours: OpeningHoursEntry[] | null = null;
     let googleMapsPreview: GoogleMapsPreview | null = null;
     if (shouldUseGoogleFallback) {
-      const googleResult = await resolveGoogleMapsFallbackSnippets(poi, apiBase, undefined, options.signal);
+      const googleResult = await resolveGoogleMapsFallbackSnippets(
+        poi,
+        apiBase,
+        undefined,
+        options.signal,
+      );
       snippets = [...snippets, ...googleResult.snippets].slice(0, 8);
       googleMapsStructuredHours = googleResult.structuredHours;
       googleMapsPreview = googleResult.preview;
@@ -300,10 +404,14 @@ export async function enrichPoi(
       return {
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
-        status: "skipped", skipReason: "no-results", locality,
+        status: "skipped",
+        skipReason: "no-results",
+        locality,
         geoContext,
         searchQuery,
-        sourceCount: 0, sourceEngines: [], confidence: 0,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
         officialWebsite,
         unresponsiveEngines,
       };
@@ -315,7 +423,13 @@ export async function enrichPoi(
     const sourceUrls = snippets.map((s) => s.url);
 
     if (isEngineReady()) {
-      const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage, officialWebsite);
+      const synthesis = await synthesize(
+        poi.name,
+        poi.category,
+        snippets,
+        targetLanguage,
+        officialWebsite,
+      );
 
       if (options.signal?.aborted) throw new Error("Cancelled");
 
@@ -330,13 +444,23 @@ export async function enrichPoi(
           reviewCount: synthesis.reviewCount ?? deterministicReviewCount,
           hours: synthesis.hoursFlat ?? deterministicHours,
           openingHours: synthesis.hours ?? googleMapsStructuredHours,
-          description: synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
-          review: synthesis.review ?? buildDeterministicShortReview(deterministicRating, deterministicReviewCount, targetLanguage),
+          description:
+            synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
+          review:
+            synthesis.review ??
+            buildDeterministicShortReview(
+              deterministicRating,
+              deterministicReviewCount,
+              targetLanguage,
+            ),
           // LLM price first, fallback to snippet extraction
           priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
-          googleMapsUrl, sourceUrls, rawSnippets: snippets,
+          googleMapsUrl,
+          sourceUrls,
+          rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
-          status: "done" as const, locality,
+          status: "done" as const,
+          locality,
           geoContext,
           searchQuery,
           sourceCount: snippets.length,
@@ -345,11 +469,17 @@ export async function enrichPoi(
           sourceDigests,
           officialWebsite,
           unresponsiveEngines,
-          synthesisSource: synthesis.repaired ? "llm-repaired" as const : "llm" as const,
+          synthesisSource: synthesis.repaired ? ("llm-repaired" as const) : ("llm" as const),
           synthesisReason: synthesis.repairReason ?? null,
           googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
         };
-        result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
+        result.structured = buildStructuredContent(
+          poi,
+          result,
+          snippets,
+          officialWebsite,
+          targetLanguage,
+        );
         result.confidence = computeConfidence(result);
         return result;
       }
@@ -360,19 +490,29 @@ export async function enrichPoi(
     const deterministicRating = extractDeterministicRating(snippets, officialWebsite);
     const deterministicReviewCount = extractDeterministicReviewCount(snippets, officialWebsite);
     const deterministicHours = extractDeterministicHours(snippets, officialWebsite);
-    const deterministicStructuredHours = googleMapsStructuredHours ?? extractStructuredHoursFromSnippets(snippets);
+    const deterministicStructuredHours =
+      googleMapsStructuredHours ?? extractStructuredHoursFromSnippets(snippets);
     const noLlmResult = {
       ...createBaseEnrichment(poi),
       rating: deterministicRating,
       reviewCount: deterministicReviewCount,
-      hours: deterministicHours ?? (deterministicStructuredHours?.length ? flattenHours(deterministicStructuredHours) : null),
+      hours:
+        deterministicHours ??
+        (deterministicStructuredHours?.length ? flattenHours(deterministicStructuredHours) : null),
       openingHours: deterministicStructuredHours ?? null,
       description: buildDeterministicShortDescription(poi, targetLanguage),
-      review: buildDeterministicShortReview(deterministicRating, deterministicReviewCount, targetLanguage),
+      review: buildDeterministicShortReview(
+        deterministicRating,
+        deterministicReviewCount,
+        targetLanguage,
+      ),
       priceLevel: snippetPriceLevel,
-      googleMapsUrl, sourceUrls, rawSnippets: snippets,
+      googleMapsUrl,
+      sourceUrls,
+      rawSnippets: snippets,
       enrichedAt: new Date().toISOString(),
-      status: "done" as const, locality,
+      status: "done" as const,
+      locality,
       geoContext,
       searchQuery,
       sourceCount: snippets.length,
@@ -385,7 +525,13 @@ export async function enrichPoi(
       synthesisReason: isEngineReady() ? "llm-rejected-or-empty" : "no-llm",
       googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
     };
-    noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
+    noLlmResult.structured = buildStructuredContent(
+      poi,
+      noLlmResult,
+      snippets,
+      officialWebsite,
+      targetLanguage,
+    );
     noLlmResult.confidence = computeConfidence(noLlmResult);
     return noLlmResult;
   } catch (err) {
@@ -393,9 +539,13 @@ export async function enrichPoi(
     return {
       ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
-      status: "error", error: message, locality,
+      status: "error",
+      error: message,
+      locality,
       geoContext,
-      sourceCount: 0, sourceEngines: [], confidence: 0,
+      sourceCount: 0,
+      sourceEngines: [],
+      confidence: 0,
       officialWebsite,
     };
   }
@@ -488,25 +638,38 @@ export async function enrichBatch(
 
       // WS20: Log divergences when detected
       if (enrichment.structured?.divergences && enrichment.structured.divergences.length > 0) {
-        log.info(`Divergences detected for "${poi.name}": ${enrichment.structured.divergences.join(" | ")}`, {
-          divergenceCount: enrichment.structured.divergences.length,
-        });
+        log.info(
+          `Divergences detected for "${poi.name}": ${enrichment.structured.divergences.join(" | ")}`,
+          {
+            divergenceCount: enrichment.structured.divergences.length,
+          },
+        );
       }
 
       // WS20: Log source confirmation level
-      if (enrichment.structured?.sourceConfirmation && enrichment.structured.sourceConfirmation !== "none") {
-        log.debug(`Source confirmation for "${poi.name}": ${enrichment.structured.sourceConfirmation}`, {
-          sourceConfirmation: enrichment.structured.sourceConfirmation,
-        });
+      if (
+        enrichment.structured?.sourceConfirmation &&
+        enrichment.structured.sourceConfirmation !== "none"
+      ) {
+        log.debug(
+          `Source confirmation for "${poi.name}": ${enrichment.structured.sourceConfirmation}`,
+          {
+            sourceConfirmation: enrichment.structured.sourceConfirmation,
+          },
+        );
       }
 
       // WS20: Log official website impact
       if (enrichment.officialWebsite) {
-        const hasUsefulContent = enrichment.officialWebsite.description || enrichment.officialWebsite.excerpt;
-        log.debug(`Official site for "${poi.name}": ${hasUsefulContent ? "useful content extracted" : "no useful content"}`, {
-          officialUrl: enrichment.officialWebsite.finalUrl,
-          hasContent: !!hasUsefulContent,
-        });
+        const hasUsefulContent =
+          enrichment.officialWebsite.description || enrichment.officialWebsite.excerpt;
+        log.debug(
+          `Official site for "${poi.name}": ${hasUsefulContent ? "useful content extracted" : "no useful content"}`,
+          {
+            officialUrl: enrichment.officialWebsite.finalUrl,
+            hasContent: !!hasUsefulContent,
+          },
+        );
       }
     } else if (enrichment.status === "skipped") {
       log.debug(`Skipped "${poi.name}" (${enrichment.skipReason})`, {
@@ -523,7 +686,7 @@ export async function enrichBatch(
     }
   }
 
-   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Pre-filter: resolve skip/unnamed/generic POIs immediately (no network)
   // -----------------------------------------------------------------------
   const searchQueue: { poi: POI; index: number; policy: EnrichabilityPolicy }[] = [];
@@ -537,22 +700,32 @@ export async function enrichBatch(
       const skippedData: EnrichedData = {
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
-        status: "skipped", skipReason: "generic-name", locality: null,
-        sourceCount: 0, sourceEngines: [], confidence: 0,
+        status: "skipped",
+        skipReason: "generic-name",
+        locality: null,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
       };
       emitResult(poi, skippedData);
       continue;
     }
 
-    const policy = enrichAll ? "full" as EnrichabilityPolicy : getEnrichabilityPolicy(poi.category);
+    const policy = enrichAll
+      ? ("full" as EnrichabilityPolicy)
+      : getEnrichabilityPolicy(poi.category);
 
     // Skip categories
     if (policy === "skip") {
       const skippedData: EnrichedData = {
         ...createBaseEnrichment(poi),
         enrichedAt: new Date().toISOString(),
-        status: "skipped", skipReason: "low-value-category", locality: null,
-        sourceCount: 0, sourceEngines: [], confidence: 0,
+        status: "skipped",
+        skipReason: "low-value-category",
+        locality: null,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
       };
       emitResult(poi, skippedData);
       continue;
@@ -566,125 +739,191 @@ export async function enrichBatch(
   // -----------------------------------------------------------------------
   // Stage 1: Geocode + Search — concurrent with stagger
   // -----------------------------------------------------------------------
-  log.info(`Stage 1: geocode+search for ${searchQueue.length} POIs (concurrency=${searchConcurrency}, stagger=${searchStaggerMs}ms)`, {
-    searchQueue: searchQueue.length,
-    skipped: total - searchQueue.length,
-    concurrency: searchConcurrency,
-  });
+  log.info(
+    `Stage 1: geocode+search for ${searchQueue.length} POIs (concurrency=${searchConcurrency}, stagger=${searchStaggerMs}ms)`,
+    {
+      searchQueue: searchQueue.length,
+      skipped: total - searchQueue.length,
+      concurrency: searchConcurrency,
+    },
+  );
   onPhaseProgress?.("geocode-search", null);
 
   const searchResults: SearchStageResult[] = [];
   /** Set to true when all engines are suspended so the batch stops immediately */
   let allEnginesSuspended = false;
 
-  await runConcurrent(
-    searchQueue,
-    searchConcurrency,
-    searchStaggerMs,
-    signal,
-    async (item) => {
+  await runConcurrent(searchQueue, searchConcurrency, searchStaggerMs, signal, async (item) => {
+    if (signal?.aborted) return;
+    const { poi, index, policy } = item;
+    const googleMapsUrl = buildGoogleMapsUrl(poi);
+    const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
+
+    // Signal that this POI has started processing (for live animation)
+    onPoiStart?.(poi.id, poi.name);
+
+    try {
+      // Geocode → returns full GeoContext
       if (signal?.aborted) return;
-      const { poi, index, policy } = item;
-      const googleMapsUrl = buildGoogleMapsUrl(poi);
-      const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
+      const geoContext = await reverseGeocode(poi.lat, poi.lon, apiBase, signal);
+      const locality = geoContext?.locality ?? null;
+      const officialWebsite = officialWebsiteUrl
+        ? await fetchWebsitePreview(officialWebsiteUrl, apiBase, signal)
+        : null;
+      const websiteSnippets = buildOfficialWebsiteSnippets(officialWebsite);
 
-      // Signal that this POI has started processing (for live animation)
-      onPoiStart?.(poi.id, poi.name);
-
-      try {
-        // Geocode → returns full GeoContext
-        if (signal?.aborted) return;
-        const geoContext = await reverseGeocode(poi.lat, poi.lon, apiBase, signal);
-        const locality = geoContext?.locality ?? null;
-        const officialWebsite = officialWebsiteUrl
-          ? await fetchWebsitePreview(officialWebsiteUrl, apiBase, signal)
-          : null;
-        const websiteSnippets = buildOfficialWebsiteSnippets(officialWebsite);
-
-        // Minimal policy: geocode only
-        if (signal?.aborted) return;
-        if (policy === "minimal") {
-          const result: EnrichedData = {
-            ...createBaseEnrichment(poi),
-            enrichedAt: new Date().toISOString(),
-            status: "done", locality,
-            geoContext,
-            sourceCount: 0, sourceEngines: [], confidence: 0,
-            officialWebsite,
-          };
-          searchResults.push({ poi, index, locality, geoContext, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite, policy, unresponsiveEngines: [], earlyResult: result });
-          emitResult(poi, result);
-          onPhaseProgress?.("geocode-search", computeEta());
-          return;
-        }
-
-        // Full policy: geocode + search
-        if (signal?.aborted) return;
-        const searchResult = await searchPoi(poi, locality, apiBase, signal, 3, geoContext);
-        const searchQuery = searchResult.query;
-        const unresponsiveEngines = searchResult.unresponsiveEngines;
-        let snippets = [...websiteSnippets, ...searchResult.snippets].slice(0, 8);
-        const needsGoogleFallback = snippets.length < 2 || unresponsiveEngines.length >= 2;
-        let googleMapsStructuredHoursForBatch: OpeningHoursEntry[] | null = null;
-        let googleMapsPreviewForBatch: GoogleMapsPreview | null = null;
-        if (needsGoogleFallback) {
-          onPhaseProgress?.("google-fallback", computeEta());
-          const googleResult = await resolveGoogleMapsFallbackSnippets(poi, apiBase, onGoogleFallbackStatus, signal);
-          snippets = [...snippets, ...googleResult.snippets].slice(0, 8);
-          googleMapsStructuredHoursForBatch = googleResult.structuredHours;
-          googleMapsPreviewForBatch = googleResult.preview;
-        }
-
-        // Rank snippets by domain quality — highest-signal sources first, noise removed.
-        snippets = rankSnippetsByQuality(snippets);
-
-        if (countSuspendedHealthyEngines() >= 3) {
-          onWarning?.("Search engines are degraded. Wait a bit or change IP, then continue retryable POIs.");
-        }
-        if (countSuspendedHealthyEngines() >= DEGRADE_STOP_THRESHOLD) {
-          throw new Error("Search engines heavily degraded. Pause, wait, or change IP before continuing.");
-        }
-        if (areAllEnginesSuspended()) {
-          allEnginesSuspended = true;
-          onAllEnginesSuspended?.(buildCaptchaResolveUrl(apiBase));
-          return; // stop this worker; the batch loop checks allEnginesSuspended
-        }
-
-        if (signal?.aborted) return;
-        if (snippets.length === 0) {
-          const result: EnrichedData = {
-            ...createBaseEnrichment(poi),
-            enrichedAt: new Date().toISOString(),
-            status: "skipped", skipReason: "no-results", locality,
-            geoContext,
-            searchQuery,
-            sourceCount: 0, sourceEngines: [], confidence: 0,
-            officialWebsite,
-            unresponsiveEngines,
-          };
-          searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets: [], googleMapsUrl, officialWebsite, policy, unresponsiveEngines, earlyResult: result });
-          emitResult(poi, result);
-          onPhaseProgress?.("geocode-search", computeEta());
-          return;
-        }
-
-        searchResults.push({ poi, index, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, policy, unresponsiveEngines, googleMapsStructuredHours: googleMapsStructuredHoursForBatch, googleMapsPreview: googleMapsPreviewForBatch });
-        onPhaseProgress?.("geocode-search", computeEta());
-      } catch (err) {
-        if (signal?.aborted) return;
-        const message = err instanceof Error ? err.message : "Unknown error";
+      // Minimal policy: geocode only
+      if (signal?.aborted) return;
+      if (policy === "minimal") {
         const result: EnrichedData = {
           ...createBaseEnrichment(poi),
           enrichedAt: new Date().toISOString(),
-          status: "error", error: message, locality: null,
-          sourceCount: 0, sourceEngines: [], confidence: 0,
+          status: "done",
+          locality,
+          geoContext,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
+          officialWebsite,
         };
-        searchResults.push({ poi, index, locality: null, geoContext: null, searchQuery: null, snippets: [], googleMapsUrl, officialWebsite: null, policy, unresponsiveEngines: [], earlyResult: result });
+        searchResults.push({
+          poi,
+          index,
+          locality,
+          geoContext,
+          searchQuery: null,
+          snippets: [],
+          googleMapsUrl,
+          officialWebsite,
+          policy,
+          unresponsiveEngines: [],
+          earlyResult: result,
+        });
         emitResult(poi, result);
         onPhaseProgress?.("geocode-search", computeEta());
+        return;
       }
-    },
-  );
+
+      // Full policy: geocode + search
+      if (signal?.aborted) return;
+      const searchResult = await searchPoi(poi, locality, apiBase, signal, 3, geoContext);
+      const searchQuery = searchResult.query;
+      const unresponsiveEngines = searchResult.unresponsiveEngines;
+      let snippets = [...websiteSnippets, ...searchResult.snippets].slice(0, 8);
+      const needsGoogleFallback = snippets.length < 2 || unresponsiveEngines.length >= 2;
+      let googleMapsStructuredHoursForBatch: OpeningHoursEntry[] | null = null;
+      let googleMapsPreviewForBatch: GoogleMapsPreview | null = null;
+      if (needsGoogleFallback) {
+        onPhaseProgress?.("google-fallback", computeEta());
+        const googleResult = await resolveGoogleMapsFallbackSnippets(
+          poi,
+          apiBase,
+          onGoogleFallbackStatus,
+          signal,
+        );
+        snippets = [...snippets, ...googleResult.snippets].slice(0, 8);
+        googleMapsStructuredHoursForBatch = googleResult.structuredHours;
+        googleMapsPreviewForBatch = googleResult.preview;
+      }
+
+      // Rank snippets by domain quality — highest-signal sources first, noise removed.
+      snippets = rankSnippetsByQuality(snippets);
+
+      if (countSuspendedHealthyEngines() >= 3) {
+        onWarning?.(
+          "Search engines are degraded. Wait a bit or change IP, then continue retryable POIs.",
+        );
+      }
+      if (countSuspendedHealthyEngines() >= DEGRADE_STOP_THRESHOLD) {
+        throw new Error(
+          "Search engines heavily degraded. Pause, wait, or change IP before continuing.",
+        );
+      }
+      if (areAllEnginesSuspended()) {
+        allEnginesSuspended = true;
+        onAllEnginesSuspended?.(buildCaptchaResolveUrl(apiBase));
+        return; // stop this worker; the batch loop checks allEnginesSuspended
+      }
+
+      if (signal?.aborted) return;
+      if (snippets.length === 0) {
+        const result: EnrichedData = {
+          ...createBaseEnrichment(poi),
+          enrichedAt: new Date().toISOString(),
+          status: "skipped",
+          skipReason: "no-results",
+          locality,
+          geoContext,
+          searchQuery,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
+          officialWebsite,
+          unresponsiveEngines,
+        };
+        searchResults.push({
+          poi,
+          index,
+          locality,
+          geoContext,
+          searchQuery,
+          snippets: [],
+          googleMapsUrl,
+          officialWebsite,
+          policy,
+          unresponsiveEngines,
+          earlyResult: result,
+        });
+        emitResult(poi, result);
+        onPhaseProgress?.("geocode-search", computeEta());
+        return;
+      }
+
+      searchResults.push({
+        poi,
+        index,
+        locality,
+        geoContext,
+        searchQuery,
+        snippets,
+        googleMapsUrl,
+        officialWebsite,
+        policy,
+        unresponsiveEngines,
+        googleMapsStructuredHours: googleMapsStructuredHoursForBatch,
+        googleMapsPreview: googleMapsPreviewForBatch,
+      });
+      onPhaseProgress?.("geocode-search", computeEta());
+    } catch (err) {
+      if (signal?.aborted) return;
+      const message = err instanceof Error ? err.message : "Unknown error";
+      const result: EnrichedData = {
+        ...createBaseEnrichment(poi),
+        enrichedAt: new Date().toISOString(),
+        status: "error",
+        error: message,
+        locality: null,
+        sourceCount: 0,
+        sourceEngines: [],
+        confidence: 0,
+      };
+      searchResults.push({
+        poi,
+        index,
+        locality: null,
+        geoContext: null,
+        searchQuery: null,
+        snippets: [],
+        googleMapsUrl,
+        officialWebsite: null,
+        policy,
+        unresponsiveEngines: [],
+        earlyResult: result,
+      });
+      emitResult(poi, result);
+      onPhaseProgress?.("geocode-search", computeEta());
+    }
+  });
 
   if (signal?.aborted) return results;
   if (allEnginesSuspended) throw new Error("all-engines-suspended");
@@ -704,7 +943,18 @@ export async function enrichBatch(
     for (const item of needSynthesis) {
       if (signal?.aborted) break;
 
-      const { poi, locality, geoContext, searchQuery, snippets, googleMapsUrl, officialWebsite, unresponsiveEngines, googleMapsStructuredHours, googleMapsPreview } = item;
+      const {
+        poi,
+        locality,
+        geoContext,
+        searchQuery,
+        snippets,
+        googleMapsUrl,
+        officialWebsite,
+        unresponsiveEngines,
+        googleMapsStructuredHours,
+        googleMapsPreview,
+      } = item;
       const sourceUrls = snippets.map((s) => s.url);
 
       // Signal that this POI is now in LLM synthesis (for live animation)
@@ -714,7 +964,13 @@ export async function enrichBatch(
         if (signal?.aborted) break;
 
         if (isEngineReady()) {
-          const synthesis = await synthesize(poi.name, poi.category, snippets, targetLanguage, officialWebsite);
+          const synthesis = await synthesize(
+            poi.name,
+            poi.category,
+            snippets,
+            targetLanguage,
+            officialWebsite,
+          );
 
           if (signal?.aborted) break;
 
@@ -730,9 +986,12 @@ export async function enrichBatch(
               review: synthesis.review,
               // LLM price first, fallback to snippet extraction
               priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
-              googleMapsUrl, sourceUrls, rawSnippets: snippets,
+              googleMapsUrl,
+              sourceUrls,
+              rawSnippets: snippets,
               enrichedAt: new Date().toISOString(),
-              status: "done", locality,
+              status: "done",
+              locality,
               geoContext,
               searchQuery,
               sourceCount: snippets.length,
@@ -741,11 +1000,17 @@ export async function enrichBatch(
               sourceDigests,
               officialWebsite,
               unresponsiveEngines,
-              synthesisSource: synthesis.repaired ? "llm-repaired" as const : "llm" as const,
+              synthesisSource: synthesis.repaired ? ("llm-repaired" as const) : ("llm" as const),
               synthesisReason: synthesis.repairReason ?? null,
               googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
             };
-            result.structured = buildStructuredContent(poi, result, snippets, officialWebsite, targetLanguage);
+            result.structured = buildStructuredContent(
+              poi,
+              result,
+              snippets,
+              officialWebsite,
+              targetLanguage,
+            );
             result.confidence = computeConfidence(result);
             emitResult(poi, result);
             onPhaseProgress?.("synthesize", computeEta());
@@ -758,7 +1023,8 @@ export async function enrichBatch(
         const detHours = extractDeterministicHours(snippets, officialWebsite);
         const detRating = extractDeterministicRating(snippets, officialWebsite);
         const detReviewCount = extractDeterministicReviewCount(snippets, officialWebsite);
-        const detStructuredHours = googleMapsStructuredHours ?? extractStructuredHoursFromSnippets(snippets);
+        const detStructuredHours =
+          googleMapsStructuredHours ?? extractStructuredHoursFromSnippets(snippets);
         const noLlmResult: EnrichedData = {
           ...createBaseEnrichment(poi),
           rating: detRating,
@@ -768,9 +1034,12 @@ export async function enrichBatch(
           description: buildDeterministicShortDescription(poi, targetLanguage),
           review: buildDeterministicShortReview(detRating, detReviewCount, targetLanguage),
           priceLevel: snippetPriceLevel,
-          googleMapsUrl, sourceUrls, rawSnippets: snippets,
+          googleMapsUrl,
+          sourceUrls,
+          rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
-          status: "done", locality,
+          status: "done",
+          locality,
           geoContext,
           searchQuery,
           sourceCount: snippets.length,
@@ -783,7 +1052,13 @@ export async function enrichBatch(
           synthesisReason: isEngineReady() ? "llm-rejected-or-empty" : "no-llm",
           googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
         };
-        noLlmResult.structured = buildStructuredContent(poi, noLlmResult, snippets, officialWebsite, targetLanguage);
+        noLlmResult.structured = buildStructuredContent(
+          poi,
+          noLlmResult,
+          snippets,
+          officialWebsite,
+          targetLanguage,
+        );
         noLlmResult.confidence = computeConfidence(noLlmResult);
         emitResult(poi, noLlmResult);
         onPhaseProgress?.("synthesize", computeEta());
@@ -792,12 +1067,18 @@ export async function enrichBatch(
         const message = err instanceof Error ? err.message : "Unknown error";
         const errResult: EnrichedData = {
           ...createBaseEnrichment(poi),
-          googleMapsUrl, sourceUrls: [], rawSnippets: snippets,
+          googleMapsUrl,
+          sourceUrls: [],
+          rawSnippets: snippets,
           enrichedAt: new Date().toISOString(),
-          status: "error", error: message, locality,
+          status: "error",
+          error: message,
+          locality,
           geoContext,
           searchQuery,
-          sourceCount: 0, sourceEngines: [], confidence: 0,
+          sourceCount: 0,
+          sourceEngines: [],
+          confidence: 0,
           officialWebsite,
           unresponsiveEngines,
         };
@@ -812,13 +1093,16 @@ export async function enrichBatch(
   const doneCount = [...results.values()].filter((r) => r.status === "done").length;
   const skippedCount = [...results.values()].filter((r) => r.status === "skipped").length;
   const errorCount = [...results.values()].filter((r) => r.status === "error").length;
-  log.info(`Enrichment complete: ${doneCount} done, ${skippedCount} skipped, ${errorCount} errors in ${elapsed}s`, {
-    total: results.size,
-    done: doneCount,
-    skipped: skippedCount,
-    errors: errorCount,
-    elapsedSec: parseFloat(elapsed),
-  });
+  log.info(
+    `Enrichment complete: ${doneCount} done, ${skippedCount} skipped, ${errorCount} errors in ${elapsed}s`,
+    {
+      total: results.size,
+      done: doneCount,
+      skipped: skippedCount,
+      errors: errorCount,
+      elapsedSec: parseFloat(elapsed),
+    },
+  );
 
   return results;
 }
@@ -883,20 +1167,44 @@ function sleep(ms: number): Promise<void> {
  */
 const GENERIC_POI_NAMES = new Set([
   // Empty / unknown
-  "", "unknown", "unnamed",
+  "",
+  "unknown",
+  "unnamed",
   // Water & sanitation (often OSM tag names, not real names)
-  "toilets", "toilet", "drinking water", "water",
-  "restroom", "restrooms", "wc", "public toilet", "public toilets",
+  "toilets",
+  "toilet",
+  "drinking water",
+  "water",
+  "restroom",
+  "restrooms",
+  "wc",
+  "public toilet",
+  "public toilets",
   // Shelter / picnic
-  "shelter", "picnic", "picnic site", "picnic table", "picnic area",
+  "shelter",
+  "picnic",
+  "picnic site",
+  "picnic table",
+  "picnic area",
   // Generic amenity descriptions
-  "bench", "waste basket", "recycling", "parking",
-  "bicycle parking", "bicycle repair station",
+  "bench",
+  "waste basket",
+  "recycling",
+  "parking",
+  "bicycle parking",
+  "bicycle repair station",
   // Generic French equivalents
-  "toilettes", "eau potable", "fontaine", "point d'eau",
-  "abri", "aire de pique-nique", "banc",
+  "toilettes",
+  "eau potable",
+  "fontaine",
+  "point d'eau",
+  "abri",
+  "aire de pique-nique",
+  "banc",
   // Generic Spanish/Basque equivalents
-  "fuente", "aseos", "servicios",
+  "fuente",
+  "aseos",
+  "servicios",
 ]);
 
 /**
@@ -951,7 +1259,7 @@ export function computeConfidence(enrichment: {
   if (enrichment.hours != null) fieldFactor += 0.04;
   if (enrichment.description != null) fieldFactor += 0.04;
   if (enrichment.review != null) fieldFactor += 0.04;
-  fieldFactor = Math.min(fieldFactor, 0.20);
+  fieldFactor = Math.min(fieldFactor, 0.2);
 
   // --- Official website bonus (0-0.15): an official source is worth more than snippet volume (AUDIT C9) ---
   const officialBonus = enrichment.officialWebsite ? 0.15 : 0;
@@ -960,14 +1268,23 @@ export function computeConfidence(enrichment: {
   let qualityFactor = 0;
   if (snippetCount > 0) {
     // Average content length: longer snippets tend to have more useful information
-    const avgContentLength = enrichment.rawSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0) / snippetCount;
+    const avgContentLength =
+      enrichment.rawSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0) / snippetCount;
     // Normalize: 50+ chars average = good (0.05), 150+ chars = very good (0.10)
-    qualityFactor += Math.min(avgContentLength / 1500, 0.10);
+    qualityFactor += Math.min(avgContentLength / 1500, 0.1);
 
     // URL diversity: snippets from different domains = more corroboration
-    const domains = new Set(enrichment.rawSnippets.map((s) => {
-      try { return new URL(s.url ?? "").hostname; } catch { return ""; }
-    }).filter(Boolean));
+    const domains = new Set(
+      enrichment.rawSnippets
+        .map((s) => {
+          try {
+            return new URL(s.url ?? "").hostname;
+          } catch {
+            return "";
+          }
+        })
+        .filter(Boolean),
+    );
     qualityFactor += Math.min(domains.size * 0.025, 0.05);
   }
   qualityFactor = Math.min(qualityFactor, 0.15);
@@ -976,7 +1293,13 @@ export function computeConfidence(enrichment: {
   const divergenceCount = enrichment.structured?.divergences?.length ?? 0;
   const contradictionPenalty = Math.min(divergenceCount * 0.05, 0.15);
 
-  const raw = sourceFactor + diversityFactor + fieldFactor + officialBonus + qualityFactor - contradictionPenalty;
+  const raw =
+    sourceFactor +
+    diversityFactor +
+    fieldFactor +
+    officialBonus +
+    qualityFactor -
+    contradictionPenalty;
   return Math.min(Math.max(Math.round(raw * 100) / 100, 0), 1);
 }
 

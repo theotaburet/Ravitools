@@ -48,6 +48,7 @@ const DEFAULT_USER_AGENT = process.env.GOOGLE_MAPS_USER_AGENT
   ?? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
 let contextPromise: Promise<BrowserContext> | null = null;
+let contextBrowser: Browser | null = null;
 let lastSaveAt = 0;
 let pendingSave: Promise<void> | null = null;
 
@@ -81,8 +82,10 @@ async function loadStorageState(): Promise<{ cookies?: unknown; origins?: unknow
  * to create ephemeral pages that share cookies with the rest of the session.
  */
 export async function getBrowserContext(browser: Browser): Promise<BrowserContext> {
-  if (!contextPromise) {
-    contextPromise = (async () => {
+  // AUDIT R12: rebind if the caller holds a new Browser (old one crashed/relaunched).
+  if (!contextPromise || contextBrowser !== browser) {
+    contextBrowser = browser;
+    const created = (async () => {
       const storageState = await loadStorageState();
       const options: BrowserContextOptions = {
         locale: DEFAULT_LOCALE,
@@ -100,6 +103,14 @@ export async function getBrowserContext(browser: Browser): Promise<BrowserContex
       log.info({ locale: DEFAULT_LOCALE }, "Browser context ready");
       return ctx;
     })();
+    contextPromise = created;
+    // AUDIT R12: don't cache a rejected promise forever — let the next call retry.
+    created.catch(() => {
+      if (contextPromise === created) {
+        contextPromise = null;
+        contextBrowser = null;
+      }
+    });
   }
   return contextPromise;
 }
@@ -158,6 +169,7 @@ export async function closeBrowserContext(): Promise<void> {
 /** Test-only reset (not exported in prod paths). */
 export function _resetBrowserContextForTests(): void {
   contextPromise = null;
+  contextBrowser = null;
   lastSaveAt = 0;
   pendingSave = null;
 }

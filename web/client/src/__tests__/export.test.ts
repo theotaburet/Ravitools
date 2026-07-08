@@ -414,3 +414,32 @@ describe("export with out-of-range rating (R3)", () => {
     expect(kml).toContain("★★★★★");
   });
 });
+
+// ---------------------------------------------------------------------------
+// R15: legacy free-text hours with close == null must not render as "closed"
+// ---------------------------------------------------------------------------
+
+describe("formatPoiDescriptionCompact hours (R15)", () => {
+  it("renders legacy free-text open hours instead of 'closed'", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const enrichment = {
+      status: "done",
+      openingHours: [{ day: "monday", open: "Open 24/7", close: null }],
+    } as unknown as import("../types").EnrichedData;
+
+    const desc = formatPoiDescriptionCompact(MOCK_POIS[0], enrichment);
+    expect(desc).not.toMatch(/closed/i);
+    expect(desc).toContain("24/7");
+  });
+
+  it("still renders explicit closed days as closed", async () => {
+    const { formatPoiDescriptionCompact } = await import("../lib/export");
+    const enrichment = {
+      status: "done",
+      openingHours: [{ day: "sunday", open: "closed", close: null }],
+    } as unknown as import("../types").EnrichedData;
+
+    const desc = formatPoiDescriptionCompact(MOCK_POIS[0], enrichment);
+    expect(desc).toMatch(/Su closed/);
+  });
+});

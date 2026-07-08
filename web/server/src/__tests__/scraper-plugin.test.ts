@@ -308,3 +308,68 @@ describe("mountScraperEndpoints — job queue cap (R6)", () => {
     expect(overflow.status).toBe(429);
   });
 });
+
+// ---------------------------------------------------------------------------
+// R10: a job cancelled/deleted mid-run must not be resurrected by the runner
+// ---------------------------------------------------------------------------
+
+describe("job cancellation during run (R10)", () => {
+  it("DELETE during a run leaves the job cancelled after the runner resolves", async () => {
+    const express = (await import("express")).default;
+    const request = (await import("supertest")).default;
+    const { mountScraperEndpoints } = await import("../scrapers/endpoints.js");
+
+    let release: (p: MapPreview | null) => void = () => {};
+    const plugin = makePlugin(
+      () =>
+        new Promise<MapPreview | null>((r) => {
+          release = r;
+        }),
+    );
+    const sys = createScraperJobSystem(plugin, baseDeps);
+    const app = express();
+    app.use(express.json());
+    mountScraperEndpoints(app, plugin, sys, { log });
+
+    const posted = await request(app)
+      .post("/scrape/mock-source/jobs")
+      .send({ url: "https://mock.test/place/cancel-me" });
+    expect(posted.status).toBe(202);
+    const jobId = posted.body.jobId as string;
+
+    // cancel while the fetch is in flight
+    const del = await request(app).delete(`/scrape/mock-source/jobs/${jobId}`);
+    expect(del.status).toBe(204);
+
+    // now the runner's fetch resolves successfully
+    release(makePreview("https://mock.test/place/cancel-me"));
+    await new Promise((r) => setTimeout(r, 20));
+
+    const polled = await request(app).get(`/scrape/mock-source/jobs/${jobId}`);
+    expect(polled.body.status).not.toBe("done");
+    expect(polled.body.error).toMatch(/cancel/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R22: Number(null) === 0 must not pass coord validation (scrape at 0,0)
+// ---------------------------------------------------------------------------
+
+describe("coord validation (R22)", () => {
+  it("rejects null coords with 400", async () => {
+    const express = (await import("express")).default;
+    const request = (await import("supertest")).default;
+    const { mountScraperEndpoints } = await import("../scrapers/endpoints.js");
+
+    const plugin = makePlugin(async () => null);
+    const sys = createScraperJobSystem(plugin, baseDeps);
+    const app = express();
+    app.use(express.json());
+    mountScraperEndpoints(app, plugin, sys, { log });
+
+    const res = await request(app)
+      .post("/scrape/mock-source/jobs")
+      .send({ poiName: "Null Island Cafe", lat: null, lon: null });
+    expect(res.status).toBe(400);
+  });
+});

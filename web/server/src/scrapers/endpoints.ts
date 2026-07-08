@@ -59,8 +59,9 @@ function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugi
   if (!plugin.buildUrl) {
     return { error: "Missing 'url' in request body" };
   }
-  const lat = typeof b.lat === "number" ? b.lat : Number(b.lat);
-  const lon = typeof b.lon === "number" ? b.lon : Number(b.lon);
+  // AUDIT R22: only accept real numbers — Number(null) === 0 silently scraped 0,0.
+  const lat = typeof b.lat === "number" ? b.lat : Number.NaN;
+  const lon = typeof b.lon === "number" ? b.lon : Number.NaN;
   if (!poiName || !Number.isFinite(lat) || !Number.isFinite(lon)) {
     return { error: "Provide either 'url' or { poiName, lat, lon }" };
   }
