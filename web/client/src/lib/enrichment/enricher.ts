@@ -71,8 +71,13 @@ function buildGoogleMapsFields(preview: GoogleMapsPreview | null | undefined): s
   return fields.length > 0 ? fields : undefined;
 }
 
-function extractDeterministicRating(snippets: SearchSnippet[], website: EnrichedData["officialWebsite"]): number | null {
-  if (website?.structuredData?.rating != null) return website.structuredData.rating;
+export function extractDeterministicRating(snippets: SearchSnippet[], website: EnrichedData["officialWebsite"]): number | null {
+  // R3: a JSON-LD ratingValue outside [1,5] (e.g. 9.2 on a 10-scale) used to flow
+  // through untouched and crash the star renderers. Drop it, fall back to snippets.
+  const structured = website?.structuredData?.rating;
+  if (structured != null && Number.isFinite(structured) && structured >= 1 && structured <= 5) {
+    return Math.round(structured * 10) / 10;
+  }
   const matches = snippets.flatMap((snippet) => [...snippet.content.matchAll(/(\d(?:[.,]\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi)]);
   const values = matches
     .map((match) => Number.parseFloat(match[1].replace(",", ".")))

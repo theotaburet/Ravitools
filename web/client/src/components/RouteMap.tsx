@@ -20,6 +20,7 @@ import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
 import { translateCategory, translatePoiName } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
+import { starString } from "../lib/stars";
 import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
 
 interface Props {
@@ -210,8 +211,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                     {enrichment.rating != null && (
                       <div>
                         <span className="poi-rating">
-                          {"★".repeat(Math.round(enrichment.rating))}
-                          {"☆".repeat(5 - Math.round(enrichment.rating))}
+                          {starString(enrichment.rating)}
                         </span>{" "}
                         {enrichment.rating.toFixed(1)}
                         {enrichment.reviewCount != null && (

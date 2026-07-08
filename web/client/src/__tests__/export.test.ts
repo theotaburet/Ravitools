@@ -2,8 +2,15 @@
 // Tests for export (GPX, KML, GeoJSON)
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import { buildGpxString, buildKmlString, buildGeoJsonObject, buildOsmAndGpxString, buildKmzBlob, buildZipSingleFile } from "../lib/export";
+import { describe, expect, it } from "vitest";
+import {
+  buildGeoJsonObject,
+  buildGpxString,
+  buildKmlString,
+  buildKmzBlob,
+  buildOsmAndGpxString,
+  buildZipSingleFile,
+} from "../lib/export";
 import type { POI, TraceData } from "../types";
 
 const MOCK_POIS: POI[] = [
@@ -29,8 +36,8 @@ const MOCK_POIS: POI[] = [
   },
   {
     id: "poi_2",
-    lat: 48.870,
-    lon: 2.380,
+    lat: 48.87,
+    lon: 2.38,
     category: "Sleeping place",
     name: "Camping Municipal",
     icon: "tent",
@@ -53,11 +60,11 @@ const MOCK_TRACE: TraceData = {
   id: "trace_test",
   original: [
     { lat: 48.8566, lon: 2.3522, ele: 35 },
-    { lat: 48.8700, lon: 2.3800, ele: 50 },
+    { lat: 48.87, lon: 2.38, ele: 50 },
   ],
   simplified: [
     { lat: 48.8566, lon: 2.3522 },
-    { lat: 48.8700, lon: 2.3800 },
+    { lat: 48.87, lon: 2.38 },
   ],
   totalDistanceM: 2500,
   elevationGainM: 150,
@@ -256,8 +263,8 @@ describe("KMZ export", () => {
 describe("OsmAnd GPX with optional categories", () => {
   const OPTIONAL_POI: POI = {
     id: "poi_medical",
-    lat: 48.860,
-    lon: 2.340,
+    lat: 48.86,
+    lon: 2.34,
     category: "Medical",
     name: "Hôpital Saint-Louis",
     icon: "hospital",
@@ -388,5 +395,22 @@ describe("buildZipSingleFile", () => {
       }
     }
     expect(found).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R3: a poisoned rating (>5) already in session/cache must not crash export
+// ---------------------------------------------------------------------------
+
+describe("export with out-of-range rating (R3)", () => {
+  it("buildKmlString does not throw on rating 9.2 and clamps the stars", () => {
+    const enrichments = new Map([
+      ["poi_1", { status: "done", rating: 9.2 } as unknown as import("../types").EnrichedData],
+    ]);
+    let kml = "";
+    expect(() => {
+      kml = buildKmlString([MOCK_POIS[0]], [], enrichments);
+    }).not.toThrow();
+    expect(kml).toContain("★★★★★");
   });
 });

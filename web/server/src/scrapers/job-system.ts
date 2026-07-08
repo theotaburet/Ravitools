@@ -31,6 +31,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { safeSet } from "../safe-set.js";
 import type {
   MapPreview,
   MapScraperPlugin,
@@ -169,7 +170,7 @@ export function createScraperJobSystem<T extends MapPreview>(
         const recoveredStatus = job.status === "running" ? "error" : job.status;
         const recoveredError =
           job.status === "running" ? "Job interrupted by server restart" : job.error;
-        jobCache.set(job.jobId, {
+        safeSet(jobCache, job.jobId, {
           ...job,
           source: plugin.name, // re-stamp in case file is from older schema
           status: recoveredStatus,
@@ -265,7 +266,7 @@ export function createScraperJobSystem<T extends MapPreview>(
       nextRetryAt: null,
       lastError: null,
     };
-    jobCache.set(jobId, job);
+    safeSet(jobCache, jobId, job);
     persist();
 
     void (async () => {
@@ -284,7 +285,7 @@ export function createScraperJobSystem<T extends MapPreview>(
       ) => {
         const current = jobCache.get<ScraperJob<T>>(jobId);
         if (!current) return;
-        jobCache.set(jobId, {
+        safeSet(jobCache, jobId, {
           ...current,
           attempt,
           nextRetryAt,
@@ -297,7 +298,7 @@ export function createScraperJobSystem<T extends MapPreview>(
       try {
         // Initial running-state write inside try so a persist() throw can't escape
         // the IIFE unhandled (AUDIT S+1).
-        jobCache.set(jobId, runningJob);
+        safeSet(jobCache, jobId, runningJob);
         persist();
         const preview = await fetchSync(url, onAttemptUpdate);
         const current = jobCache.get<ScraperJob<T>>(jobId) ?? runningJob;
@@ -311,7 +312,7 @@ export function createScraperJobSystem<T extends MapPreview>(
             failedAt: new Date().toISOString(),
           });
         }
-        jobCache.set(jobId, {
+        safeSet(jobCache, jobId, {
           ...current,
           status: preview ? "done" : "error",
           preview,
@@ -331,7 +332,7 @@ export function createScraperJobSystem<T extends MapPreview>(
           lastError: message,
           failedAt: new Date().toISOString(),
         });
-        jobCache.set(jobId, {
+        safeSet(jobCache, jobId, {
           ...current,
           status: "error",
           preview: null,

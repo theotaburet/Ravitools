@@ -7,6 +7,7 @@ import NodeCache from "node-cache";
 import pino from "pino";
 import { chromium, type Browser } from "playwright";
 import { closeBrowserContext } from "./browser-context.js";
+import { safeSet } from "./safe-set.js";
 import {
   parseGoogleMapsHoursRow,
   normalizeDay,
@@ -502,7 +503,7 @@ app.post("/overpass", limiter, async (req, res) => {
     }
 
     // Cache the response
-    cache.set(cacheKey, data);
+    safeSet(cache, cacheKey, data);
     log.info({ cacheKey, bytes: data.length }, "Cached Overpass response");
 
     res.setHeader("X-Cache", "MISS");
@@ -609,7 +610,7 @@ app.post("/search", enrichLimiter, async (req, res) => {
     } catch { /* non-critical parse failure */ }
 
     // Cache the response
-    searchCache.set(cacheKey, data);
+    safeSet(searchCache, cacheKey, data);
     log.info({ cacheKey, bytes: data.length }, "Cached search response");
 
     res.setHeader("X-Cache", "MISS");
@@ -699,7 +700,7 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
     const data = await geoRes.text();
 
     // Cache the response
-    geocodeCache.set(cacheKey, data);
+    safeSet(geocodeCache, cacheKey, data);
     log.info({ cacheKey }, "Cached geocode response");
 
     res.setHeader("X-Cache", "MISS");
@@ -753,17 +754,44 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
 
+    // AUDIT R2: never let fetch() follow redirects itself — re-validate the
+    // hostname of every hop so a public URL can't 302 into a private address.
+    // ponytail: no IP pinning between lookup() and fetch() (DNS rebinding TOCTOU);
+    // add an undici Agent with a pinned connect address if that threat matters.
+    const REDIRECT_STATUSES = [301, 302, 303, 307, 308];
+    const MAX_REDIRECT_HOPS = 3;
+    let currentUrl = parsedUrl;
     let pageRes: Response;
     try {
-      pageRes = await fetch(parsedUrl.toString(), {
-        method: "GET",
-        redirect: "follow",
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
-        },
-        signal: controller.signal,
-      });
+      for (let hop = 0; ; hop++) {
+        pageRes = await fetch(currentUrl.toString(), {
+          method: "GET",
+          redirect: "manual",
+          headers: {
+            Accept: "text/html,application/xhtml+xml",
+            "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
+          },
+          signal: controller.signal,
+        });
+        const location = pageRes.headers.get("location");
+        if (!REDIRECT_STATUSES.includes(pageRes.status) || !location) break;
+        if (hop >= MAX_REDIRECT_HOPS) {
+          res.status(502).json({ error: "Too many redirects" });
+          return;
+        }
+        currentUrl = new URL(location, currentUrl);
+        if (!["http:", "https:"].includes(currentUrl.protocol)) {
+          res.status(400).json({ error: "Only http/https URLs are supported" });
+          return;
+        }
+        try {
+          await assertPublicHostname(currentUrl.hostname);
+        } catch (err) {
+          log.warn({ url: currentUrl.toString(), err }, "SSRF blocked: redirect to private IP");
+          res.status(403).json({ error: "URL redirects to a private/internal address" });
+          return;
+        }
+      }
     } finally {
       clearTimeout(timeout);
     }

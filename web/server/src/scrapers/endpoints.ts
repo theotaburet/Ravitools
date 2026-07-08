@@ -21,6 +21,7 @@
 import type { Express, RequestHandler } from "express";
 import type { MapPreview, MapScraperPlugin, ScraperJob } from "./types.js";
 import { isBlockedError } from "./types.js";
+import { safeSet } from "../safe-set.js";
 import type { ScraperJobSystem } from "./job-system.js";
 import type { Logger } from "pino";
 
@@ -114,7 +115,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
         return;
       }
 
-      system.previewCache.set(cacheKey, preview);
+      safeSet(system.previewCache, cacheKey, preview);
       res.setHeader("X-Cache", "MISS");
       res.json(preview);
     } catch (err: unknown) {
@@ -149,7 +150,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
     }
     if (job.status === "running") {
       // Cannot abort in-flight Playwright; mark as cancelled
-      system.jobCache.set(jobId, {
+      safeSet(system.jobCache, jobId, {
         ...job,
         status: "error",
         error: "Cancelled by user",

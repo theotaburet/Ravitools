@@ -8,6 +8,7 @@ import type { POI, EnrichedData, TargetLanguage } from "../types";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { translateCategory, translatePoiName, t } from "../lib/i18n";
 import { getAvailabilityTags } from "../lib/export";
+import { starString } from "../lib/stars";
 import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
 
 /** Format confidence as a label */
@@ -192,8 +193,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                       <div className="poi-enrichment-meta">
                         {enrichment.rating != null && (
                           <span className="poi-rating">
-                            {"★".repeat(Math.round(enrichment.rating))}
-                            {"☆".repeat(5 - Math.round(enrichment.rating))}
+                            {starString(enrichment.rating)}
                             {" "}
                             {enrichment.rating.toFixed(1)}
                           </span>

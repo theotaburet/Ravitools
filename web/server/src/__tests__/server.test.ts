@@ -561,4 +561,59 @@ describe("/fetch-page", () => {
     const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
     expect(res.status).toBe(504);
   });
+
+  // Regression tests for audit R2: SSRF via redirects (validate every hop)
+  it("does not follow a redirect to a private address (SSRF)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 302,
+      url: "https://example.com",
+      headers: new Headers({ Location: "http://169.254.169.254/latest/meta-data/" }),
+      text: async () => "",
+    } as unknown as Response);
+
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
+    expect(res.status).toBe(403);
+    // The metadata endpoint must never be fetched
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows a redirect to a public address", async () => {
+    const html = `<!doctype html><html><head><title>Redirected</title></head><body>ok</body></html>`;
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 301,
+      url: "https://example.com",
+      headers: new Headers({ Location: "https://example.org/moved" }),
+      text: async () => "",
+    } as unknown as Response);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      url: "https://example.org/moved",
+      headers: new Headers({ "Content-Type": "text/html" }),
+      text: async () => html,
+    } as unknown as Response);
+
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Redirected");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toBe("https://example.org/moved");
+  });
+
+  it("caps redirect hops", async () => {
+    for (let i = 0; i < 5; i++) {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        url: `https://example.com/${i}`,
+        headers: new Headers({ Location: `https://example.com/${i + 1}` }),
+        text: async () => "",
+      } as unknown as Response);
+    }
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com/0" });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/redirect/i);
+  });
 });

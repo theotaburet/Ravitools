@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { POI, PoiCategory, TraceData, EnrichedData } from "../types";
+import { starString } from "./stars";
 import {
   OSMAND_CATEGORY_COLORS,
   OSMAND_CATEGORY_BACKGROUNDS,
@@ -688,7 +689,7 @@ function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): string {
   // Enrichment data first
   if (enrichment && enrichment.status === "done") {
     if (enrichment.rating != null) {
-      const stars = "★".repeat(Math.round(enrichment.rating)) + "☆".repeat(5 - Math.round(enrichment.rating));
+      const stars = starString(enrichment.rating);
       parts.push(`<b>Rating:</b> ${stars} ${enrichment.rating.toFixed(1)}/5${enrichment.reviewCount != null ? ` (${enrichment.reviewCount} reviews)` : ""}`);
     }
     if (enrichment.priceLevel != null) parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);

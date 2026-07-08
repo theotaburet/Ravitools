@@ -2,19 +2,15 @@
 // Tests for enrichment module (search, llm, enricher, selective enrichment)
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { POI, PoiCategory } from "../types";
-import {
-  buildGoogleMapsUrl,
-  buildGoogleMapsDirectionsUrl,
-  buildSearchQuery,
-} from "../lib/enrichment/search";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
 import {
-  getEnrichabilityPolicy,
-  countEnrichable,
-  countFullEnrichable,
-} from "../lib/poi-config";
+  buildGoogleMapsDirectionsUrl,
+  buildGoogleMapsUrl,
+  buildSearchQuery,
+} from "../lib/enrichment/search";
+import { countEnrichable, countFullEnrichable, getEnrichabilityPolicy } from "../lib/poi-config";
+import type { POI, PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
 // Test POI factory
@@ -264,7 +260,11 @@ describe("export with enrichments", () => {
             operationalSummary: "Coverage: Google Maps, Yelp.",
             practicalities: ["Type: Cafe"],
             sourceRollup: [
-              { platform: "google_maps" as const, brief: "Google Maps: Always open.", url: "https://maps.google.com" },
+              {
+                platform: "google_maps" as const,
+                brief: "Google Maps: Always open.",
+                url: "https://maps.google.com",
+              },
             ],
             cautions: [],
             unknowns: [],
@@ -425,10 +425,24 @@ describe("export with translated summary", () => {
 describe("enrichability policy", () => {
   it("maps all 18 categories to a policy", () => {
     const allCategories: PoiCategory[] = [
-      "Water", "Sleeping place", "Restroom", "Shelter", "Food shop",
-      "Restaurant or Bar", "Gears", "DIY", "Laundry", "Medical",
-      "Bank & ATM", "Post office", "Viewpoint", "Tourist info",
-      "Charging", "Picnic", "Pharmacy", "Wifi",
+      "Water",
+      "Sleeping place",
+      "Restroom",
+      "Shelter",
+      "Food shop",
+      "Restaurant or Bar",
+      "Gears",
+      "DIY",
+      "Laundry",
+      "Medical",
+      "Bank & ATM",
+      "Post office",
+      "Viewpoint",
+      "Tourist info",
+      "Charging",
+      "Picnic",
+      "Pharmacy",
+      "Wifi",
     ];
     for (const cat of allCategories) {
       const policy = getEnrichabilityPolicy(cat);
@@ -461,20 +475,17 @@ describe("enrichability policy", () => {
 describe("countEnrichable", () => {
   it("counts only non-skip POIs", () => {
     const pois = [
-      { category: "Restaurant or Bar" as PoiCategory },  // full
-      { category: "Water" as PoiCategory },              // skip
-      { category: "DIY" as PoiCategory },                // minimal
-      { category: "Shelter" as PoiCategory },            // skip
-      { category: "Sleeping place" as PoiCategory },     // full
+      { category: "Restaurant or Bar" as PoiCategory }, // full
+      { category: "Water" as PoiCategory }, // skip
+      { category: "DIY" as PoiCategory }, // minimal
+      { category: "Shelter" as PoiCategory }, // skip
+      { category: "Sleeping place" as PoiCategory }, // full
     ];
     expect(countEnrichable(pois)).toBe(3);
   });
 
   it("returns 0 for all-skip categories", () => {
-    const pois = [
-      { category: "Water" as PoiCategory },
-      { category: "Picnic" as PoiCategory },
-    ];
+    const pois = [{ category: "Water" as PoiCategory }, { category: "Picnic" as PoiCategory }];
     expect(countEnrichable(pois)).toBe(0);
   });
 
@@ -490,10 +501,10 @@ describe("countEnrichable", () => {
 describe("countFullEnrichable", () => {
   it("counts only full-policy POIs", () => {
     const pois = [
-      { category: "Restaurant or Bar" as PoiCategory },  // full
-      { category: "DIY" as PoiCategory },                // minimal
-      { category: "Water" as PoiCategory },              // skip
-      { category: "Food shop" as PoiCategory },          // full
+      { category: "Restaurant or Bar" as PoiCategory }, // full
+      { category: "DIY" as PoiCategory }, // minimal
+      { category: "Water" as PoiCategory }, // skip
+      { category: "Food shop" as PoiCategory }, // full
     ];
     expect(countFullEnrichable(pois)).toBe(2);
   });
@@ -507,7 +518,11 @@ describe("EnrichedData skipReason field", () => {
   it("skipReason type accepts all defined reasons", () => {
     // This is a compile-time check; if it compiles, the type works
     const reasons: import("../types").SkipReason[] = [
-      "unnamed", "low-value-category", "no-results", "rate-limited", "cancelled",
+      "unnamed",
+      "low-value-category",
+      "no-results",
+      "rate-limited",
+      "cancelled",
     ];
     expect(reasons).toHaveLength(5);
   });
@@ -550,28 +565,34 @@ describe("isRetryableEnrichmentResult", () => {
 
   it("returns true for degraded no-results enrichments", async () => {
     const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
-    expect(isRetryableEnrichmentResult({
-      status: "skipped",
-      skipReason: "no-results",
-      unresponsiveEngines: [["yandex", "CAPTCHA"]],
-    })).toBe(true);
+    expect(
+      isRetryableEnrichmentResult({
+        status: "skipped",
+        skipReason: "no-results",
+        unresponsiveEngines: [["yandex", "CAPTCHA"]],
+      }),
+    ).toBe(true);
   });
 
   it("returns false for stable no-results enrichments", async () => {
     const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
-    expect(isRetryableEnrichmentResult({
-      status: "skipped",
-      skipReason: "no-results",
-      unresponsiveEngines: [],
-    })).toBe(false);
+    expect(
+      isRetryableEnrichmentResult({
+        status: "skipped",
+        skipReason: "no-results",
+        unresponsiveEngines: [],
+      }),
+    ).toBe(false);
   });
 
   it("returns false for non-retryable skipped enrichments", async () => {
     const { isRetryableEnrichmentResult } = await import("../lib/enrichment/enricher");
-    expect(isRetryableEnrichmentResult({
-      status: "skipped",
-      skipReason: "low-value-category",
-    })).toBe(false);
+    expect(
+      isRetryableEnrichmentResult({
+        status: "skipped",
+        skipReason: "low-value-category",
+      }),
+    ).toBe(false);
   });
 });
 
@@ -618,8 +639,14 @@ describe("computeConfidence", () => {
 
   it("increases with engine diversity", async () => {
     const { computeConfidence } = await import("../lib/enrichment/enricher");
-    const singleEngine = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4, ["google"]) });
-    const multiEngine = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4, ["google", "bing"]) });
+    const singleEngine = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(4, ["google"]),
+    });
+    const multiEngine = computeConfidence({
+      ...baseEnrichment,
+      rawSnippets: makeSnippets(4, ["google", "bing"]),
+    });
     expect(multiEngine).toBeGreaterThan(singleEngine);
   });
 
@@ -761,7 +788,7 @@ describe("export with source metadata", () => {
     const props = geojson.features[0].properties!;
     expect(props.enrichment_sourceCount).toBe(5);
     expect(props.enrichment_sourceEngines).toBe("google,bing,duckduckgo");
-     expect(props.enrichment_confidence).toBe(0.82);
+    expect(props.enrichment_confidence).toBe(0.82);
   });
 });
 
@@ -771,19 +798,37 @@ describe("export with source metadata", () => {
 
 // We mock the network-dependent modules so enrichBatch runs fully in test.
 vi.mock("../lib/enrichment/search", async () => {
-  const actual = await vi.importActual<typeof import("../lib/enrichment/search")>("../lib/enrichment/search");
+  const actual = await vi.importActual<typeof import("../lib/enrichment/search")>(
+    "../lib/enrichment/search",
+  );
   return {
     ...actual,
     fetchWebsitePreview: vi.fn(async () => null),
-    reverseGeocode: vi.fn(async () => ({ locality: "TestCity", county: null, state: null, country: null, countryCode: null })),
+    reverseGeocode: vi.fn(async () => ({
+      locality: "TestCity",
+      county: null,
+      state: null,
+      country: null,
+      countryCode: null,
+    })),
     searchPoi: vi.fn(async (poi: POI) => {
       // Simulate a small delay
       await new Promise((r) => setTimeout(r, 5));
       // Return 2 fake snippets wrapped in { snippets, query }
       return {
         snippets: [
-          { title: `${poi.name} review`, url: "https://example.com/1", content: "Nice place", engine: "google" },
-          { title: `${poi.name} hours`, url: "https://example.com/2", content: "Open 9-17", engine: "bing" },
+          {
+            title: `${poi.name} review`,
+            url: "https://example.com/1",
+            content: "Nice place",
+            engine: "google",
+          },
+          {
+            title: `${poi.name} hours`,
+            url: "https://example.com/2",
+            content: "Open 9-17",
+            engine: "bing",
+          },
         ],
         query: `"${poi.name}" avis restaurant site:tripadvisor.com`,
         unresponsiveEngines: [],
@@ -793,7 +838,8 @@ vi.mock("../lib/enrichment/search", async () => {
 });
 
 vi.mock("../lib/enrichment/llm", async () => {
-  const actual = await vi.importActual<typeof import("../lib/enrichment/llm")>("../lib/enrichment/llm");
+  const actual =
+    await vi.importActual<typeof import("../lib/enrichment/llm")>("../lib/enrichment/llm");
   return {
     ...actual,
     isEngineReady: vi.fn(() => true),
@@ -817,7 +863,11 @@ describe("enrichBatch pipeline", () => {
     vi.clearAllMocks();
   });
 
-  function makeBatchPoi(id: string, category: PoiCategory = "Restaurant or Bar", name = `POI ${id}`): POI {
+  function makeBatchPoi(
+    id: string,
+    category: PoiCategory = "Restaurant or Bar",
+    name = `POI ${id}`,
+  ): POI {
     return makePoi({ id, category, name });
   }
 
@@ -858,7 +908,7 @@ describe("enrichBatch pipeline", () => {
     const { reverseGeocode } = await import("../lib/enrichment/search");
 
     const pois = [
-      makeBatchPoi("water1", "Water", "Water Fountain"),     // skip policy
+      makeBatchPoi("water1", "Water", "Water Fountain"), // skip policy
       makeBatchPoi("rest1", "Restaurant or Bar", "Le Zinc"), // full policy
     ];
 
@@ -953,9 +1003,7 @@ describe("enrichBatch pipeline", () => {
       // Abort right after the first search completes — synthesis hasn't started
       controller.abort();
       return {
-        snippets: [
-          { title: "R", url: "https://ex.com", content: "Good", engine: "google" },
-        ],
+        snippets: [{ title: "R", url: "https://ex.com", content: "Good", engine: "google" }],
         query: `"${poi.name}" test`,
         unresponsiveEngines: [],
       };
@@ -992,10 +1040,10 @@ describe("enrichBatch pipeline", () => {
     const { enrichBatch } = await import("../lib/enrichment/enricher");
 
     const pois = [
-      makeBatchPoi("rest", "Restaurant or Bar", "Le Zinc"),  // full
-      makeBatchPoi("diy", "DIY", "Brico Store"),             // minimal
-      makeBatchPoi("water", "Water", "Fountain"),            // skip
-      makeBatchPoi("noname", "Restaurant or Bar", "Unknown"),// unnamed → skip
+      makeBatchPoi("rest", "Restaurant or Bar", "Le Zinc"), // full
+      makeBatchPoi("diy", "DIY", "Brico Store"), // minimal
+      makeBatchPoi("water", "Water", "Fountain"), // skip
+      makeBatchPoi("noname", "Restaurant or Bar", "Unknown"), // unnamed → skip
     ];
 
     const results = await enrichBatch(pois, { searchStaggerMs: 0, skipUnnamed: true });
@@ -1198,5 +1246,23 @@ describe("formatPoiDescriptionCompact", () => {
     expect(desc).toContain("⚠ First warning");
     expect(desc).not.toContain("Second warning");
     expect(desc).not.toContain("Third warning");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R3: out-of-range JSON-LD rating must be dropped at deterministic ingest
+// ---------------------------------------------------------------------------
+
+describe("extractDeterministicRating (R3)", () => {
+  it("drops an out-of-range structuredData rating (e.g. 9.2)", async () => {
+    const { extractDeterministicRating } = await import("../lib/enrichment/enricher");
+    const website = { structuredData: { rating: 9.2 } } as never;
+    expect(extractDeterministicRating([], website)).toBeNull();
+  });
+
+  it("keeps an in-range structuredData rating", async () => {
+    const { extractDeterministicRating } = await import("../lib/enrichment/enricher");
+    const website = { structuredData: { rating: 4.6 } } as never;
+    expect(extractDeterministicRating([], website)).toBe(4.6);
   });
 });
