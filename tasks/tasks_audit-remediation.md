@@ -40,32 +40,32 @@ Scope of the automated `/goal` run: **P0–P3**. P4 (UI/UX) needs visual verific
 
 ## P1 — Security hardening (no test needed unless noted)
 
-- [ ] **R4** [MED] Postgres published on `0.0.0.0:5432` with committed default password.
+- [x] **R4** [MED] Postgres published on `0.0.0.0:5432` with committed default password.
   - File: `docker-compose.yml:18-24`.
   - Fix: bind `127.0.0.1:5432:5432`; remove the `:-ravitools_dev` default so a missing `POSTGRES_PASSWORD` fails fast. Document the env var in README/`.env.example`.
   - Verify: `docker compose config` shows the localhost bind and no literal default password.
 
-- [ ] **R5** [MED] Server + Chromium run as root in the container.
+- [x] **R5** [MED] Server + Chromium run as root in the container.
   - File: `web/server/Dockerfile`.
   - Fix: add a non-root `USER node` (create/own the app + browser state dirs first). Keep `--no-sandbox` only under that user.
   - Verify: `docker build` succeeds; `docker run ... id -u` prints non-zero.
 
-- [ ] **R6** [MED] Scrape-job queue is floodable (20/min accumulates thousands; `persist()` rewrites whole file each update).
+- [x] **R6** [MED] Scrape-job queue is floodable (20/min accumulates thousands; `persist()` rewrites whole file each update).
   - File: `web/server/src/scrapers/job-system.ts:129-151`, `:268-269`.
   - Fix: reject `POST /scrape/*/jobs` with 429 when pending+queued jobs for that source exceed a cap (e.g. 50). Optionally debounce/throttle `persist()`.
   - Verify: test that the (cap+1)-th queued job returns 429.
 
-- [ ] **R7** [LOW] `DELETE /cache/search` is unauthenticated when `ADMIN_API_KEY` is unset (`if (adminKey && !valid)` skips auth).
+- [x] **R7** [LOW] `DELETE /cache/search` is unauthenticated when `ADMIN_API_KEY` is unset (`if (adminKey && !valid)` skips auth).
   - File: `web/server/src/index.ts:399-404`.
   - Fix: fail closed — when `ADMIN_API_KEY` is undefined, reject the admin route (503/501) instead of allowing it.
   - Verify: test that the delete route is rejected when the env key is absent.
 
-- [ ] **R8** [LOW] SearXNG ships committed `secret_key` + `limiter: false` while port 8888 is published on all interfaces.
+- [x] **R8** [LOW] SearXNG ships committed `secret_key` + `limiter: false` while port 8888 is published on all interfaces.
   - Files: `searxng/settings.yml`, `docker-compose.yml:6`.
   - Fix: bind SearXNG to `127.0.0.1:8888`; enable the limiter (or document that 8888 must never be public).
   - Verify: `docker compose config` shows localhost bind.
 
-- [ ] **R9** [LOW] `PUT /poi/:type/:id` is unauthenticated → shared-cache content poisoning.
+- [x] **R9** [LOW] `PUT /poi/:type/:id` is unauthenticated → shared-cache content poisoning.
   - File: `web/server/src/index.ts:919`.
   - Fix (decision): either accept explicitly (add a `// ponytail:` note documenting the trust model) OR gate behind a write token / per-IP write accounting. Pick one; don't leave it undecided.
   - Verify: note the decision in the commit message; if gated, a test covers the reject path.

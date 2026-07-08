@@ -7,6 +7,10 @@ RUN npm ci --only=production
 
 COPY . .
 
+# AUDIT R5: don't run the server (and Playwright's Chromium) as root.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3001
 
 # AUDIT S9: let the orchestrator detect a server that started but isn't serving.

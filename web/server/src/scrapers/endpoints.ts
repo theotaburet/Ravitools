@@ -19,11 +19,11 @@
  */
 
 import type { Express, RequestHandler } from "express";
-import type { MapPreview, MapScraperPlugin, ScraperJob } from "./types.js";
-import { isBlockedError } from "./types.js";
+import type { Logger } from "pino";
 import { safeSet } from "../safe-set.js";
 import type { ScraperJobSystem } from "./job-system.js";
-import type { Logger } from "pino";
+import type { MapPreview, MapScraperPlugin, ScraperJob } from "./types.js";
+import { isBlockedError } from "./types.js";
 
 export interface MountOptions {
   /** Path prefix; defaults to `/scrape/${plugin.name}` */
@@ -33,14 +33,9 @@ export interface MountOptions {
   log: Logger;
 }
 
-type ParsedInput =
-  | { url: string; poiName: string | null }
-  | { error: string };
+type ParsedInput = { url: string; poiName: string | null } | { error: string };
 
-function parseInput<T extends MapPreview>(
-  body: unknown,
-  plugin: MapScraperPlugin<T>,
-): ParsedInput {
+function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugin<T>): ParsedInput {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const rawUrl = typeof b.url === "string" ? b.url : null;
   const poiName = typeof b.poiName === "string" ? b.poiName : null;
@@ -81,6 +76,9 @@ function parseInput<T extends MapPreview>(
   }
   return { url: built, poiName };
 }
+
+/** AUDIT R6: max queued+running jobs per source before POST /jobs returns 429. */
+const MAX_PENDING_JOBS = 50;
 
 export function mountScraperEndpoints<T extends MapPreview>(
   app: Express,
@@ -132,6 +130,19 @@ export function mountScraperEndpoints<T extends MapPreview>(
         res.status(400).json({ error: parsed.error });
         return;
       }
+
+      // AUDIT R6: the queue is floodable — refuse new jobs once too many are
+      // pending for this source. ponytail: O(n) scan over ≤5000 keys per POST.
+      const pending = system.jobCache.keys().filter((k) => {
+        const j = system.jobCache.get<ScraperJob<T>>(k);
+        return j?.status === "queued" || j?.status === "running";
+      }).length;
+      if (pending >= MAX_PENDING_JOBS) {
+        res.status(429).json({
+          error: `Too many pending ${plugin.displayName} jobs — retry later`,
+        });
+        return;
+      }
       const job = await system.queueJob(parsed.url, parsed.poiName);
       res.status(202).json(job);
     } catch (err: unknown) {
@@ -162,7 +173,10 @@ export function mountScraperEndpoints<T extends MapPreview>(
       system.jobCache.del(jobId);
     }
     system.persist();
-    log.info({ jobId, previousStatus: job.status, source: plugin.name }, `${plugin.displayName} preview job cancelled`);
+    log.info(
+      { jobId, previousStatus: job.status, source: plugin.name },
+      `${plugin.displayName} preview job cancelled`,
+    );
     res.status(204).send();
   });
 

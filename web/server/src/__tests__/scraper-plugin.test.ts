@@ -7,17 +7,13 @@
 // editing these tests.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pino from "pino";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createScraperJobSystem } from "../scrapers/job-system.js";
-import type {
-  MapPreview,
-  MapScraperPlugin,
-  ScraperDeps,
-} from "../scrapers/types.js";
+import type { MapPreview, MapScraperPlugin, ScraperDeps } from "../scrapers/types.js";
 import { BLOCKED_ERROR_PREFIX, isBlockedError } from "../scrapers/types.js";
 
 const log = pino({ level: "silent" });
@@ -130,7 +126,11 @@ describe("createScraperJobSystem — fetchSync", () => {
   });
 
   it("invokes onAttemptUpdate with attempt + lastError when failing", async () => {
-    const updates: Array<{ attempt: number; nextRetryAt: string | null; lastError: string | null }> = [];
+    const updates: Array<{
+      attempt: number;
+      nextRetryAt: string | null;
+      lastError: string | null;
+    }> = [];
     const fetchOnce = vi.fn().mockRejectedValue(new Error("boom"));
     const plugin = makePlugin(fetchOnce, { retries: 2 });
     const sys = createScraperJobSystem(plugin, baseDeps);
@@ -275,5 +275,36 @@ describe("createScraperJobSystem — pruneStale", () => {
     });
     sys.pruneStale();
     expect(sys.jobCache.get("old-done")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R6: the job queue must reject floods with 429 once too many jobs are pending
+// ---------------------------------------------------------------------------
+
+describe("mountScraperEndpoints — job queue cap (R6)", () => {
+  it("returns 429 on the (cap+1)-th queued job", async () => {
+    const express = (await import("express")).default;
+    const request = (await import("supertest")).default;
+    const { mountScraperEndpoints } = await import("../scrapers/endpoints.js");
+
+    // fetchOnce hangs forever so every queued job stays pending
+    const plugin = makePlugin(() => new Promise(() => {}));
+    const sys = createScraperJobSystem(plugin, baseDeps);
+    const app = express();
+    app.use(express.json());
+    mountScraperEndpoints(app, plugin, sys, { log });
+
+    for (let i = 0; i < 50; i++) {
+      const res = await request(app)
+        .post("/scrape/mock-source/jobs")
+        .send({ url: `https://mock.test/place/${i}` });
+      expect(res.status).toBe(202);
+    }
+
+    const overflow = await request(app)
+      .post("/scrape/mock-source/jobs")
+      .send({ url: "https://mock.test/place/overflow" });
+    expect(overflow.status).toBe(429);
   });
 });

@@ -398,8 +398,13 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 
 app.delete("/cache/search", (req, res) => {
   const adminKey = process.env.ADMIN_API_KEY;
+  // AUDIT R7: fail closed — no configured key means no admin route, not open admin.
+  if (!adminKey) {
+    res.status(503).json({ error: "Admin API not configured (set ADMIN_API_KEY)" });
+    return;
+  }
   const provided = req.headers["x-admin-key"];
-  if (adminKey && !(typeof provided === "string" && timingSafeEqualStr(provided, adminKey))) {
+  if (!(typeof provided === "string" && timingSafeEqualStr(provided, adminKey))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -944,6 +949,11 @@ app.post("/poi/search", enrichLimiter, async (req, res) => {
 });
 
 /** PUT /poi/:osm_type/:osm_id — upsert enrichment */
+// ponytail: intentionally unauthenticated (AUDIT R9 decision). Trust model: the
+// shared POI cache is best-effort community data behind enrichLimiter's per-IP
+// rate cap; poisoning is bounded (one key per PUT, TTL'd rows, deterministic
+// re-enrichment overwrites). Gate behind a write token if this ever goes
+// beyond self-hosted deployments.
 app.put("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
   const osm_type = parseOsmType(req.params.osm_type);
   const osm_id = parseOsmId(req.params.osm_id);

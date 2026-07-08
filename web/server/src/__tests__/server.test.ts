@@ -2,8 +2,8 @@
 // Server endpoint tests (WS10)
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, beforeEach, vi, afterAll } from "vitest";
 import request from "supertest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Set test environment before importing app (prevents app.listen)
 process.env.NODE_ENV = "test";
@@ -80,17 +80,13 @@ describe("/overpass", () => {
   });
 
   it("rejects missing query", async () => {
-    const res = await request(app)
-      .post("/overpass")
-      .send({});
+    const res = await request(app).post("/overpass").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Missing/);
   });
 
   it("rejects non-string query", async () => {
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: 12345 });
+    const res = await request(app).post("/overpass").send({ data: 12345 });
     expect(res.status).toBe(400);
   });
 
@@ -107,9 +103,7 @@ describe("/overpass", () => {
     const upstream = JSON.stringify({ elements: [{ id: 1 }] });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res = await request(app).post("/overpass").send({ data: query });
 
     expect(res.status).toBe(200);
     expect(res.headers["x-cache"]).toBe("MISS");
@@ -123,15 +117,11 @@ describe("/overpass", () => {
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
     // First request – cache MISS
-    const res1 = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res1 = await request(app).post("/overpass").send({ data: query });
     expect(res1.headers["x-cache"]).toBe("MISS");
 
     // Second request – cache HIT (no fetch)
-    const res2 = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res2 = await request(app).post("/overpass").send({ data: query });
     expect(res2.status).toBe(200);
     expect(res2.headers["x-cache"]).toBe("HIT");
     // fetch should not be called again
@@ -144,9 +134,7 @@ describe("/overpass", () => {
     mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
     mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
 
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(429);
     expect(res.body.error).toMatch(/Overpass API error/);
   });
@@ -157,9 +145,7 @@ describe("/overpass", () => {
     // AbortError now re-throws past the per-URL catch into the outer catch → 504 (AUDIT T+1).
     mockFetch.mockRejectedValueOnce(abortErr);
 
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(504);
     expect(res.body.error).toMatch(/timed out/);
   });
@@ -169,9 +155,7 @@ describe("/overpass", () => {
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/Overpass API error/);
   });
@@ -195,9 +179,7 @@ describe("/overpass", () => {
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    const res = await request(app)
-      .post("/overpass")
-      .send({ data: query });
+    const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(200);
     expect(JSON.parse(res.text).elements[0].id).toBe(99);
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -214,17 +196,13 @@ describe("/search", () => {
   });
 
   it("rejects missing query", async () => {
-    const res = await request(app)
-      .post("/search")
-      .send({});
+    const res = await request(app).post("/search").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Missing/);
   });
 
   it("rejects non-string query", async () => {
-    const res = await request(app)
-      .post("/search")
-      .send({ query: 42 });
+    const res = await request(app).post("/search").send({ query: 42 });
     expect(res.status).toBe(400);
   });
 
@@ -238,12 +216,12 @@ describe("/search", () => {
 
   it("proxies a valid search and returns data", async () => {
     const searchQuery = `Restaurant "Le Comptoir" Tours ${++queryCounter}`;
-    const upstream = JSON.stringify({ results: [{ title: "Le Comptoir", url: "https://example.com" }] });
+    const upstream = JSON.stringify({
+      results: [{ title: "Le Comptoir", url: "https://example.com" }],
+    });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    const res = await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    const res = await request(app).post("/search").send({ query: searchQuery });
 
     expect(res.status).toBe(200);
     expect(res.headers["x-cache"]).toBe("MISS");
@@ -267,9 +245,7 @@ describe("/search", () => {
     const searchQuery = `Boulangerie ${++queryCounter}`;
     mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
 
-    await request(app)
-      .post("/search")
-      .send({ query: searchQuery, language: "fr" });
+    await request(app).post("/search").send({ query: searchQuery, language: "fr" });
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const fetchUrl = mockFetch.mock.calls[0][0] as string;
@@ -278,11 +254,11 @@ describe("/search", () => {
 
   it("forwards upstream error status", async () => {
     const searchQuery = `Error test ${++queryCounter}`;
-    mockFetch.mockResolvedValueOnce(fakeResponse("Service unavailable", { status: 503, ok: false }));
+    mockFetch.mockResolvedValueOnce(
+      fakeResponse("Service unavailable", { status: 503, ok: false }),
+    );
 
-    const res = await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    const res = await request(app).post("/search").send({ query: searchQuery });
     expect(res.status).toBe(503);
     expect(res.body.error).toMatch(/SearXNG/);
   });
@@ -292,9 +268,7 @@ describe("/search", () => {
     const abortErr = new DOMException("Aborted", "AbortError");
     mockFetch.mockRejectedValueOnce(abortErr);
 
-    const res = await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    const res = await request(app).post("/search").send({ query: searchQuery });
     expect(res.status).toBe(504);
     expect(res.body.error).toMatch(/timed out/i);
   });
@@ -303,9 +277,7 @@ describe("/search", () => {
     const searchQuery = `Network fail ${++queryCounter}`;
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
-    const res = await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    const res = await request(app).post("/search").send({ query: searchQuery });
     expect(res.status).toBe(502);
   });
 
@@ -313,9 +285,7 @@ describe("/search", () => {
     const searchQuery = `UA test ${++queryCounter}`;
     mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
 
-    await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    await request(app).post("/search").send({ query: searchQuery });
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const fetchOptions = mockFetch.mock.calls[0][1] as RequestInit;
@@ -327,9 +297,7 @@ describe("/search", () => {
     const searchQuery = `Format test ${++queryCounter}`;
     mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
 
-    await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    await request(app).post("/search").send({ query: searchQuery });
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const fetchUrl = mockFetch.mock.calls[0][0] as string;
@@ -343,9 +311,7 @@ describe("/search", () => {
       fakeResponse("<html>Forbidden</html>", { status: 403, ok: false }),
     );
 
-    const res = await request(app)
-      .post("/search")
-      .send({ query: searchQuery });
+    const res = await request(app).post("/search").send({ query: searchQuery });
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/SearXNG/);
     expect(res.body.status).toBe(403);
@@ -362,39 +328,29 @@ describe("/geocode", () => {
   });
 
   it("rejects missing lat/lon", async () => {
-    const res = await request(app)
-      .post("/geocode")
-      .send({});
+    const res = await request(app).post("/geocode").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Missing/);
   });
 
   it("rejects lat without lon", async () => {
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat: 47.0 });
+    const res = await request(app).post("/geocode").send({ lat: 47.0 });
     expect(res.status).toBe(400);
   });
 
   it("rejects non-numeric coordinates", async () => {
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat: "foo", lon: "bar" });
+    const res = await request(app).post("/geocode").send({ lat: "foo", lon: "bar" });
     expect(res.status).toBe(400);
   });
 
   it("rejects out-of-range latitude", async () => {
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat: 95.0, lon: 2.0 });
+    const res = await request(app).post("/geocode").send({ lat: 95.0, lon: 2.0 });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Invalid coordinates/);
   });
 
   it("rejects out-of-range longitude", async () => {
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat: 47.0, lon: 200.0 });
+    const res = await request(app).post("/geocode").send({ lat: 47.0, lon: 200.0 });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Invalid coordinates/);
   });
@@ -411,9 +367,7 @@ describe("/geocode", () => {
     });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat, lon });
+    const res = await request(app).post("/geocode").send({ lat, lon });
 
     expect(res.status).toBe(200);
     expect(res.headers["x-cache"]).toBe("MISS");
@@ -432,7 +386,9 @@ describe("/geocode", () => {
     await request(app).post("/geocode").send({ lat, lon });
 
     // Same coords, slightly different but rounds the same
-    const res2 = await request(app).post("/geocode").send({ lat: lat + 0.0001, lon: lon + 0.0001 });
+    const res2 = await request(app)
+      .post("/geocode")
+      .send({ lat: lat + 0.0001, lon: lon + 0.0001 });
     expect(res2.headers["x-cache"]).toBe("HIT");
     expect(mockFetch).toHaveBeenCalledOnce();
   });
@@ -444,9 +400,7 @@ describe("/geocode", () => {
 
     mockFetch.mockResolvedValueOnce(fakeResponse("Error", { status: 500, ok: false }));
 
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat, lon });
+    const res = await request(app).post("/geocode").send({ lat, lon });
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/Nominatim/);
   });
@@ -459,9 +413,7 @@ describe("/geocode", () => {
     const abortErr = new DOMException("Aborted", "AbortError");
     mockFetch.mockRejectedValueOnce(abortErr);
 
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat, lon });
+    const res = await request(app).post("/geocode").send({ lat, lon });
     expect(res.status).toBe(504);
     expect(res.body.error).toMatch(/timed out/i);
   });
@@ -473,9 +425,7 @@ describe("/geocode", () => {
 
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat, lon });
+    const res = await request(app).post("/geocode").send({ lat, lon });
     expect(res.status).toBe(502);
   });
 
@@ -499,9 +449,7 @@ describe("/geocode", () => {
     const upstream = JSON.stringify({ display_name: "North Pole" });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    const res = await request(app)
-      .post("/geocode")
-      .send({ lat: 90, lon: 180 });
+    const res = await request(app).post("/geocode").send({ lat: 90, lon: 180 });
     expect(res.status).toBe(200);
   });
 });
@@ -552,7 +500,9 @@ describe("/fetch-page", () => {
       text: async () => "pdf",
     } as unknown as Response);
 
-    const res = await request(app).post("/fetch-page").send({ url: "https://example.com/file.pdf" });
+    const res = await request(app)
+      .post("/fetch-page")
+      .send({ url: "https://example.com/file.pdf" });
     expect(res.status).toBe(415);
   });
 
@@ -615,5 +565,33 @@ describe("/fetch-page", () => {
     const res = await request(app).post("/fetch-page").send({ url: "https://example.com/0" });
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/redirect/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R7: admin route must fail closed when ADMIN_API_KEY is not configured
+// ---------------------------------------------------------------------------
+
+describe("DELETE /cache/search (R7)", () => {
+  afterAll(() => {
+    delete process.env.ADMIN_API_KEY;
+  });
+
+  it("fails closed when ADMIN_API_KEY is not configured", async () => {
+    delete process.env.ADMIN_API_KEY;
+    const res = await request(app).delete("/cache/search");
+    expect(res.status).toBe(503);
+  });
+
+  it("rejects a wrong key", async () => {
+    process.env.ADMIN_API_KEY = "sekret";
+    const res = await request(app).delete("/cache/search").set("x-admin-key", "wrong");
+    expect(res.status).toBe(403);
+  });
+
+  it("flushes with the correct key", async () => {
+    process.env.ADMIN_API_KEY = "sekret";
+    const res = await request(app).delete("/cache/search").set("x-admin-key", "sekret");
+    expect(res.status).toBe(200);
   });
 });
