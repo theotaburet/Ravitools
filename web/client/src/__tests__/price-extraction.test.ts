@@ -2,9 +2,9 @@
 // Tests for deterministic price level extraction from search snippets
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import type { SearchSnippet } from "../types";
+import { describe, expect, it } from "vitest";
 import { extractPriceLevel } from "../lib/enrichment/structured";
+import type { SearchSnippet } from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -187,17 +187,13 @@ describe("extractPriceLevel — priority ordering", () => {
   it("prefers repeated symbols over numeric prices", () => {
     // €€ = level 2, but numeric "95€" would suggest level 4
     // Repeated symbols should win because they're from review platforms
-    const result = extractPriceLevel([
-      snippet("€€ — Menu dégustation: 95€"),
-    ]);
+    const result = extractPriceLevel([snippet("€€ — Menu dégustation: 95€")]);
     expect(result).toBe(2);
   });
 
   it("prefers repeated symbols over textual labels", () => {
     // $$$ = level 3, but "cheap" would suggest level 1
-    const result = extractPriceLevel([
-      snippet("$$$ — surprisingly cheap for the area"),
-    ]);
+    const result = extractPriceLevel([snippet("$$$ — surprisingly cheap for the area")]);
     expect(result).toBe(3);
   });
 });
@@ -230,10 +226,7 @@ describe("extractPriceLevel — edge cases", () => {
   });
 
   it("handles mixed currencies across snippets", () => {
-    const result = extractPriceLevel([
-      snippet("€€ on Google"),
-      snippet("$$ on Yelp"),
-    ]);
+    const result = extractPriceLevel([snippet("€€ on Google"), snippet("$$ on Yelp")]);
     expect(result).toBe(2); // Both say level 2
   });
 

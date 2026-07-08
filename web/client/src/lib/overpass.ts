@@ -3,9 +3,9 @@
 // Port of overpass_client.py logic, adapted for client-heavy architecture
 // ---------------------------------------------------------------------------
 
-import type { TracePoint, PoiCategory } from "../types";
-import { POI_CATEGORIES } from "./poi-config";
+import type { PoiCategory, TracePoint } from "../types";
 import { dlog } from "./debug-log";
+import { POI_CATEGORIES } from "./poi-config";
 
 /** Proxy base URL – in dev, Vite proxies /api to the server */
 const PROXY_BASE =
@@ -69,8 +69,12 @@ export function buildOverpassQuery(
   const tagGroups = new Map<string, Set<string>>();
   for (const cat of cats) {
     for (const tag of cat.tags) {
-      if (!tagGroups.has(tag.key)) tagGroups.set(tag.key, new Set());
-      tagGroups.get(tag.key)!.add(tag.value);
+      let group = tagGroups.get(tag.key);
+      if (!group) {
+        group = new Set();
+        tagGroups.set(tag.key, group);
+      }
+      group.add(tag.value);
     }
   }
 
@@ -139,10 +143,7 @@ export interface OverpassResponse {
  * Send a query to the Overpass API through the proxy server.
  * Includes retry logic with exponential backoff.
  */
-export async function queryOverpass(
-  query: string,
-  retries: number = 3,
-): Promise<OverpassResponse> {
+export async function queryOverpass(query: string, retries: number = 3): Promise<OverpassResponse> {
   const log = dlog("overpass");
   const cached = cacheGet(query);
   if (cached) {
@@ -180,9 +181,7 @@ export async function queryOverpass(
       if (!res.ok) {
         endTimer();
         const body = await res.text();
-        throw new Error(
-          `Overpass error (${res.status}): ${body.slice(0, 200)}`,
-        );
+        throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
       }
 
       const data: OverpassResponse = await res.json();
@@ -247,12 +246,7 @@ export async function queryAllPois(
   maxRetryRounds: number = 3,
 ): Promise<QueryAllPoisResult> {
   const log = dlog("overpass");
-  const queries = buildChunkedQueries(
-    simplifiedPoints,
-    radiusM,
-    maxPointsPerQuery,
-    categories,
-  );
+  const queries = buildChunkedQueries(simplifiedPoints, radiusM, maxPointsPerQuery, categories);
 
   log.info(`Built ${queries.length} chunks from ${simplifiedPoints.length} simplified points`, {
     chunks: queries.length,
@@ -277,11 +271,14 @@ export async function queryAllPois(
     if (retryRound > 0) {
       // Backoff before retry round: 10s, 20s, 30s
       const backoffMs = 10_000 * retryRound;
-      log.warn(`Retry round ${retryRound}/${maxRetryRounds}: ${pendingIndices.length} chunks to retry after ${backoffMs / 1000}s backoff`, {
-        retryRound,
-        pendingCount: pendingIndices.length,
-        backoffMs,
-      });
+      log.warn(
+        `Retry round ${retryRound}/${maxRetryRounds}: ${pendingIndices.length} chunks to retry after ${backoffMs / 1000}s backoff`,
+        {
+          retryRound,
+          pendingCount: pendingIndices.length,
+          backoffMs,
+        },
+      );
       await new Promise((r) => setTimeout(r, backoffMs));
     }
 
@@ -292,10 +289,13 @@ export async function queryAllPois(
     let i = 0;
     while (i < pendingIndices.length) {
       const batch = pendingIndices.slice(i, i + concurrency);
-      log.debug(`${retryRound > 0 ? `[retry ${retryRound}] ` : ""}Sending batch (chunks ${batch.map((c) => c + 1).join(",")})`, {
-        batchSize: batch.length,
-        retryRound,
-      });
+      log.debug(
+        `${retryRound > 0 ? `[retry ${retryRound}] ` : ""}Sending batch (chunks ${batch.map((c) => c + 1).join(",")})`,
+        {
+          batchSize: batch.length,
+          retryRound,
+        },
+      );
 
       const results = await Promise.allSettled(
         batch.map((chunkIdx) =>
@@ -316,7 +316,9 @@ export async function queryAllPois(
             }
           }
           dedupedCount += result.elements.length - newCount;
-          log.debug(`Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`);
+          log.debug(
+            `Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`,
+          );
         } else {
           failedThisRound.push(batch[results.indexOf(r)]);
           log.error(`Chunk ${batch[results.indexOf(r)] + 1} failed: ${r.reason}`);
@@ -340,13 +342,16 @@ export async function queryAllPois(
   const finalFailed = pendingIndices.length;
 
   endTotal();
-  log.info(`Total: ${allElements.length} unique elements from ${queries.length} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`, {
-    totalElements: allElements.length,
-    totalDeduped: dedupedCount,
-    failedChunks: finalFailed,
-    totalChunks: queries.length,
-    retryRounds: retryRound - 1,
-  });
+  log.info(
+    `Total: ${allElements.length} unique elements from ${queries.length} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`,
+    {
+      totalElements: allElements.length,
+      totalDeduped: dedupedCount,
+      failedChunks: finalFailed,
+      totalChunks: queries.length,
+      retryRounds: retryRound - 1,
+    },
+  );
 
   return { elements: allElements, failedChunks: finalFailed, totalChunks: queries.length };
 }

@@ -4,7 +4,12 @@
 // Extended with optional categories for bikepacking
 // ---------------------------------------------------------------------------
 
-import type { PoiCategory, PoiCategoryConfig, EnrichabilityPolicy, EnrichmentCategoryContract } from "../types";
+import type {
+  EnrichabilityPolicy,
+  EnrichmentCategoryContract,
+  PoiCategory,
+  PoiCategoryConfig,
+} from "../types";
 
 export const POI_CATEGORIES: PoiCategoryConfig[] = [
   // -----------------------------------------------------------------------
@@ -70,9 +75,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       textColor: "#FFFFFF",
       backgroundColor: "#444444",
     },
-    tags: [
-      { key: "amenity", value: "shelter", icon: "house" },
-    ],
+    tags: [{ key: "amenity", value: "shelter", icon: "house" }],
   },
   {
     category: "Food shop",
@@ -162,9 +165,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       textColor: "#FFFFFF",
       backgroundColor: "#E65100",
     },
-    tags: [
-      { key: "amenity", value: "bicycle_repair_station", icon: "wrench" },
-    ],
+    tags: [{ key: "amenity", value: "bicycle_repair_station", icon: "wrench" }],
   },
   {
     category: "Laundry",
@@ -176,9 +177,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       textColor: "#FFFFFF",
       backgroundColor: "#FFB6C1",
     },
-    tags: [
-      { key: "shop", value: "laundry", icon: "shirt" },
-    ],
+    tags: [{ key: "shop", value: "laundry", icon: "shirt" }],
   },
 
   // -----------------------------------------------------------------------
@@ -212,9 +211,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       textColor: "#FFFFFF",
       backgroundColor: "#16A34A",
     },
-    tags: [
-      { key: "amenity", value: "pharmacy", icon: "pills" },
-    ],
+    tags: [{ key: "amenity", value: "pharmacy", icon: "pills" }],
   },
   {
     category: "Bank & ATM",
@@ -347,21 +344,17 @@ export function findCategoryForTag(
 }
 
 /** Get config for a given category */
-export function getCategoryConfig(
-  category: PoiCategory,
-): PoiCategoryConfig | undefined {
+export function getCategoryConfig(category: PoiCategory): PoiCategoryConfig | undefined {
   return POI_CATEGORIES.find((c) => c.category === category);
 }
 
 /** All category names */
-export const ALL_CATEGORIES: PoiCategory[] = POI_CATEGORIES.map(
-  (c) => c.category,
-);
+export const ALL_CATEGORIES: PoiCategory[] = POI_CATEGORIES.map((c) => c.category);
 
 /** Categories enabled by default */
-export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES
-  .filter((c) => c.defaultEnabled !== false)
-  .map((c) => c.category);
+export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES.filter(
+  (c) => c.defaultEnabled !== false,
+).map((c) => c.category);
 
 // ---------------------------------------------------------------------------
 // OsmAnd extension mappings
@@ -568,16 +561,6 @@ export function getEnrichabilityPolicy(category: PoiCategory): EnrichabilityPoli
   return ENRICHABILITY_POLICY[category] ?? "skip";
 }
 
-/** Count how many POIs in a list are enrichable (full or minimal, not skip) */
-export function countEnrichable(pois: { category: PoiCategory }[]): number {
-  return pois.filter((p) => getEnrichabilityPolicy(p.category) !== "skip").length;
-}
-
-/** Count how many POIs in a list get full enrichment */
-export function countFullEnrichable(pois: { category: PoiCategory }[]): number {
-  return pois.filter((p) => getEnrichabilityPolicy(p.category) === "full").length;
-}
-
 // ---------------------------------------------------------------------------
 // Category-level enrichment contracts
 // Defines what each "full" enrichment category must produce, what matters,
@@ -754,7 +737,10 @@ export function getEnrichmentContract(category: PoiCategory): EnrichmentCategory
 }
 
 /** Resolve the best OsmAnd icon for a POI based on its tags, with category fallback */
-export function getOsmAndIcon(poi: { category: PoiCategory; tags: Record<string, string> }): string {
+export function getOsmAndIcon(poi: {
+  category: PoiCategory;
+  tags: Record<string, string>;
+}): string {
   // Try specific tag match first
   for (const [key, value] of Object.entries(poi.tags)) {
     const tagKey = `${key}=${value}`;

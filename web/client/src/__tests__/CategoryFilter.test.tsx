@@ -3,8 +3,8 @@
 // Focus: checkbox toggle, select-all, and the 150ms distance-slider debounce.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { POI_CATEGORIES } from "../lib/poi-config";
 import type { PoiCategory } from "../types";
@@ -35,7 +35,8 @@ describe("CategoryFilter", () => {
 
   it("calls onSelectAll(true) when nothing is selected yet", () => {
     const { props } = renderFilter();
-    fireEvent.click(screen.getByRole("button"));
+    // R34/R43: the collapse toggle is now also a button — target the All/None one
+    fireEvent.click(screen.getByRole("button", { name: /all/i }));
     expect(props.onSelectAll).toHaveBeenCalledWith(true);
   });
 

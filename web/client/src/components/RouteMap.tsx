@@ -3,25 +3,17 @@
 // Supports multiple traces with distinct colors, legend, and hover highlight
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useCallback, useState } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Polyline,
-  Marker,
-  Popup,
-  Tooltip,
-  useMap,
-} from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
-import type { POI, TraceData, EnrichedData, TargetLanguage } from "../types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
-import { CATEGORY_EMOJI } from "../lib/poi-config";
-import { translateCategory, translatePoiName } from "../lib/i18n";
+import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
-import { starString } from "../lib/stars";
-import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
+import { translateCategory, translatePoiName } from "../lib/i18n";
+import { CATEGORY_EMOJI } from "../lib/poi-config";
+import type { EnrichedData, POI, TargetLanguage, TraceData } from "../types";
+import { EnrichmentDetails } from "./EnrichmentDetails";
 
 interface Props {
   traces: TraceData[];
@@ -42,14 +34,20 @@ function FitBounds({ traces }: { traces: TraceData[] }) {
     const allPoints = traces.flatMap((t) => t.original);
     if (allPoints.length === 0) return;
 
-    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    let minLat = Infinity,
+      maxLat = -Infinity,
+      minLon = Infinity,
+      maxLon = -Infinity;
     for (const p of allPoints) {
       if (p.lat < minLat) minLat = p.lat;
       if (p.lat > maxLat) maxLat = p.lat;
       if (p.lon < minLon) minLon = p.lon;
       if (p.lon > maxLon) maxLon = p.lon;
     }
-    const bounds: LatLngBoundsExpression = [[minLat, minLon], [maxLat, maxLon]];
+    const bounds: LatLngBoundsExpression = [
+      [minLat, minLon],
+      [maxLat, maxLon],
+    ];
 
     map.fitBounds(bounds, { padding: [40, 40] });
   }, [traces, map]);
@@ -85,7 +83,15 @@ function FlyToSelected({
   return null;
 }
 
-export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
+export function RouteMap({
+  traces,
+  pois,
+  enrichments,
+  selectedPoiId,
+  onSelectPoi,
+  enrichingPoiIds,
+  targetLanguage = "en",
+}: Props) {
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
@@ -115,12 +121,7 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
   );
 
   return (
-    <MapContainer
-      center={center}
-      zoom={6}
-      className="route-map"
-      scrollWheelZoom={true}
-    >
+    <MapContainer center={center} zoom={6} className="route-map" scrollWheelZoom={true}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -138,9 +139,10 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
         const isDimmed = highlightedTraceId !== null && !isHighlighted;
 
         const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
-        const elevationLabel = trace.elevationGainM > 0 || trace.elevationLossM > 0
-          ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
-          : "";
+        const elevationLabel =
+          trace.elevationGainM > 0 || trace.elevationLossM > 0
+            ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
+            : "";
 
         return (
           <Polyline
@@ -175,7 +177,9 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
           "poi-marker",
           isSelected ? "poi-marker-selected" : "",
           isEnriching ? "poi-marker-enriching" : "",
-        ].filter(Boolean).join(" ");
+        ]
+          .filter(Boolean)
+          .join(" ");
 
         // AUDIT U1: give the marker an accessible name (was an unlabeled emoji div).
         const markerLabel = (poi.name || poi.category).replace(/"/g, "&quot;");
@@ -200,112 +204,22 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
             <Popup>
               <div className="poi-popup">
                 <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
-                <div className="poi-popup-cat">{translateCategory(poi.category, targetLanguage)}</div>
+                <div className="poi-popup-cat">
+                  {translateCategory(poi.category, targetLanguage)}
+                </div>
                 <div className="poi-popup-dist">
-                  km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot; {Math.round(poi.distanceToTrace)}m from route
+                  km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
+                  {Math.round(poi.distanceToTrace)}m from route
                 </div>
 
-                {/* Enrichment data */}
+                {/* Enrichment data (AUDIT R27: shared with PoiList) */}
                 {enrichment && enrichment.status === "done" && (
                   <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
-                    {enrichment.rating != null && (
-                      <div>
-                        <span className="poi-rating">
-                          {starString(enrichment.rating)}
-                        </span>{" "}
-                        {enrichment.rating.toFixed(1)}
-                        {enrichment.reviewCount != null && (
-                          <span style={{ color: "#6b6b6b" }}>
-                            {" "}
-                            ({enrichment.reviewCount} reviews)
-                          </span>
-                        )}
-                        {enrichment.priceLevel != null && (
-                          <span style={{ color: "#6b6b6b" }}>
-                            {" · "}{"$".repeat(enrichment.priceLevel)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {enrichment.openingHours && enrichment.openingHours.length > 0 ? (
-                      <table className="poi-hours-table" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
-                        <tbody>
-                          {enrichment.openingHours.map((entry, i) => (
-                            <tr key={i}>
-                              <td className="poi-hours-day">{entry.day}</td>
-                              <td className="poi-hours-time">
-                                {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : enrichment.hours ? (
-                      <div style={{ fontSize: "0.75rem", whiteSpace: "pre-line" }}>
-                        {enrichment.hours
-                          .split(/[;\n]|(?:\s\/\s)/)
-                          .map((s) => s.trim())
-                          .filter((s) => s.length > 0)
-                          .join("\n")}
-                      </div>
-                    ) : null}
-                    {(() => {
-                      const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
-                      return avail.length > 0 ? (
-                        <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
-                          {avail.join(" · ")}
-                        </div>
-                      ) : null;
-                    })()}
-                    {enrichment.description && (
-                      <div
-                        style={{
-                          marginTop: "0.25rem",
-                          fontSize: "0.75rem",
-                          lineHeight: "1.3",
-                        }}
-                      >
-                        {enrichment.description}
-                      </div>
-                    )}
-                    {enrichment.review && (
-                      <div
-                        style={{
-                          marginTop: "0.15rem",
-                          fontSize: "0.7rem",
-                          lineHeight: "1.3",
-                          fontStyle: "italic",
-                          color: "#6b6b6b",
-                        }}
-                      >
-                        {enrichment.review}
-                      </div>
-                    )}
-                    {getSynthesisLabel(enrichment) && (
-                      <div className="poi-popup-meta-row">
-                        <span className={getSynthesisBadgeClass(enrichment)}>{getSynthesisLabel(enrichment)}</span>
-                        {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
-                          <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
-                            Maps
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {/* Divergences & cautions (WS12) */}
-                    {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
-                      <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#dc2626", lineHeight: "1.3" }}>
-                        {enrichment.structured.divergences.map((d, i) => (
-                          <div key={`div-${i}`}>⚠ {d}</div>
-                        ))}
-                      </div>
-                    )}
-                    {enrichment.structured?.cautions && enrichment.structured.cautions.length > 0 && (
-                      <div style={{ marginTop: "0.15rem", fontSize: "0.65rem", color: "#6b6b6b", fontStyle: "italic", lineHeight: "1.3" }}>
-                        {enrichment.structured.cautions.slice(0, 2).map((c, i) => (
-                          <div key={`caut-${i}`}>{c}</div>
-                        ))}
-                      </div>
-                    )}
+                    <EnrichmentDetails
+                      poi={poi}
+                      enrichment={enrichment}
+                      targetLanguage={targetLanguage}
+                    />
                     {enrichment.sourceCount > 0 && (
                       <div style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}>
                         {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
@@ -318,24 +232,24 @@ export function RouteMap({ traces, pois, enrichments, selectedPoiId, onSelectPoi
                 )}
 
                 {/* OSM tags fallback */}
-                {(!enrichment || enrichment.status !== "done") && (
+                {enrichment?.status !== "done" && (
                   <>
                     {poi.tags.opening_hours && (
-                      <div className="text-xs mt-1">
-                        Hours: {poi.tags.opening_hours}
-                      </div>
+                      <div className="text-xs mt-1">Hours: {poi.tags.opening_hours}</div>
                     )}
                     {(() => {
-                      const osmAvail = getAvailabilityTags(null, poi.tags.opening_hours, targetLanguage as "fr" | "en");
+                      const osmAvail = getAvailabilityTags(
+                        null,
+                        poi.tags.opening_hours,
+                        targetLanguage as "fr" | "en",
+                      );
                       return osmAvail.length > 0 ? (
                         <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
                           {osmAvail.join(" · ")}
                         </div>
                       ) : null;
                     })()}
-                    {poi.tags.phone && (
-                      <div className="text-xs">Tel: {poi.tags.phone}</div>
-                    )}
+                    {poi.tags.phone && <div className="text-xs">Tel: {poi.tags.phone}</div>}
                   </>
                 )}
                 {isRetryableDegradedResult(enrichment) ? (
@@ -406,22 +320,16 @@ function TraceLegend({
         const isHighlighted = highlightedTraceId === trace.id;
         const isDimmed = highlightedTraceId !== null && !isHighlighted;
         return (
+          // biome-ignore lint/a11y/noStaticElementInteractions: hover-only visual highlight — keyboard/tap access is R43 (P4 follow-up)
           <div
             key={trace.id}
             className={`trace-legend-item ${isHighlighted ? "highlighted" : ""} ${isDimmed ? "dimmed" : ""}`}
             onMouseEnter={() => onHighlight(trace.id)}
             onMouseLeave={() => onHighlight(null)}
           >
-            <span
-              className="trace-legend-swatch"
-              style={{ backgroundColor: trace.color }}
-            />
-            <span className="trace-legend-name">
-              {trace.name ?? trace.id}
-            </span>
-            <span className="trace-legend-dist">
-              {(trace.totalDistanceM / 1000).toFixed(0)} km
-            </span>
+            <span className="trace-legend-swatch" style={{ backgroundColor: trace.color }} />
+            <span className="trace-legend-name">{trace.name ?? trace.id}</span>
+            <span className="trace-legend-dist">{(trace.totalDistanceM / 1000).toFixed(0)} km</span>
           </div>
         );
       })}

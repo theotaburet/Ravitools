@@ -2,14 +2,14 @@
 // POI list component (neobrutalist) – virtualized, with enrichment + selection
 // ---------------------------------------------------------------------------
 
-import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { POI, EnrichedData, TargetLanguage } from "../types";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
-import { translateCategory, translatePoiName, t } from "../lib/i18n";
+import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
-import { starString } from "../lib/stars";
-import { getSynthesisBadgeClass, getSynthesisLabel, isRetryableDegradedResult } from "../lib/enrichment/provenance";
+import { t, translateCategory, translatePoiName } from "../lib/i18n";
+import type { EnrichedData, POI, TargetLanguage } from "../types";
+import { EnrichmentDetails } from "./EnrichmentDetails";
 
 /** Format confidence as a label */
 function confidenceLabel(c: number): string {
@@ -29,7 +29,9 @@ function sortPois(pois: POI[], mode: SortMode): POI[] {
       sorted.sort((a, b) => a.distanceToTrace - b.distanceToTrace);
       break;
     case "category":
-      sorted.sort((a, b) => a.category.localeCompare(b.category) || a.distanceToTrace - b.distanceToTrace);
+      sorted.sort(
+        (a, b) => a.category.localeCompare(b.category) || a.distanceToTrace - b.distanceToTrace,
+      );
       break;
     case "name":
       sorted.sort((a, b) => a.name.localeCompare(b.name));
@@ -48,7 +50,14 @@ interface Props {
   targetLanguage?: TargetLanguage;
 }
 
-function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enrichingPoiIds, targetLanguage = "en" }: Props) {
+function PoiListInner({
+  pois,
+  enrichments,
+  selectedPoiId,
+  onSelectPoi,
+  enrichingPoiIds,
+  targetLanguage = "en",
+}: Props) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -107,7 +116,9 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
   return (
     <div className="neo-box overflow-hidden">
       <div className="poi-list-header">
-        <span>{t("poi.alongRoute", targetLanguage)} ({pois.length})</span>
+        <span>
+          {t("poi.alongRoute", targetLanguage)} ({pois.length})
+        </span>
         <button
           type="button"
           className="poi-sort-btn"
@@ -118,10 +129,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
           ↕ {t(`poi.sort.${sortMode}`, targetLanguage)}
         </button>
       </div>
-      <div
-        ref={parentRef}
-        className="poi-list-scroll"
-      >
+      <div ref={parentRef} className="poi-list-scroll">
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -138,6 +146,7 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
             const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
 
             return (
+              // biome-ignore lint/a11y/useSemanticElements: a real <button> cannot wrap the row — it contains nested buttons and links
               <div
                 key={poi.id}
                 data-index={virtualRow.index}
@@ -167,21 +176,28 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                 <div className="flex-1 min-w-0">
                   <div className="poi-list-name">{translatePoiName(poi.name, targetLanguage)}</div>
                   <div className="poi-list-meta">
-                    {translateCategory(poi.category, targetLanguage)} &middot; km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot; {Math.round(poi.distanceToTrace)}m
+                    {translateCategory(poi.category, targetLanguage)} &middot; km{" "}
+                    {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
+                    {Math.round(poi.distanceToTrace)}m
                     {poi.tags.opening_hours && ` · ${poi.tags.opening_hours}`}
                   </div>
                   {/* Availability tags from OSM hours (when no enrichment) */}
-                  {(!enrichment || enrichment.status !== "done") && (() => {
-                    const osmAvail = getAvailabilityTags(null, poi.tags.opening_hours, targetLanguage as "fr" | "en");
-                    return osmAvail.length > 0 ? (
-                      <div className="poi-enrichment-meta poi-enrichment-meta-success">
-                        {osmAvail.join(" · ")}
-                      </div>
-                    ) : null;
-                  })()}
+                  {enrichment?.status !== "done" &&
+                    (() => {
+                      const osmAvail = getAvailabilityTags(
+                        null,
+                        poi.tags.opening_hours,
+                        targetLanguage as "fr" | "en",
+                      );
+                      return osmAvail.length > 0 ? (
+                        <div className="poi-enrichment-meta poi-enrichment-meta-success">
+                          {osmAvail.join(" · ")}
+                        </div>
+                      ) : null;
+                    })()}
 
                   {/* In-progress enrichment indicator */}
-                  {isEnriching && (!enrichment || enrichment.status !== "done") && (
+                  {isEnriching && enrichment?.status !== "done" && (
                     <div className="poi-enrichment-meta poi-enriching-indicator">
                       <span className="spinner-sm" /> {t("poi.searching", targetLanguage)}
                     </div>
@@ -190,134 +206,51 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                   {/* Enrichment data */}
                   {enrichment && enrichment.status === "done" && (
                     <>
-                      <div className="poi-enrichment-meta">
-                        {enrichment.rating != null && (
-                          <span className="poi-rating">
-                            {starString(enrichment.rating)}
-                            {" "}
-                            {enrichment.rating.toFixed(1)}
-                          </span>
-                        )}
-                        {enrichment.reviewCount != null && (
-                          <span> ({enrichment.reviewCount} {t("poi.reviews", targetLanguage)})</span>
-                        )}
-                        {enrichment.priceLevel != null && (
-                          <span>
-                            {" · "}
-                            {"$".repeat(enrichment.priceLevel)}
-                          </span>
-                        )}
-                      </div>
-                      {enrichment.openingHours && enrichment.openingHours.length > 0 ? (
-                        <table className="poi-hours-table">
-                          <tbody>
-                            {enrichment.openingHours.map((entry, i) => (
-                              <tr key={i}>
-                                <td className="poi-hours-day">{entry.day}</td>
-                                <td className="poi-hours-time">
-                                  {entry.open === "closed" ? t("poi.closed", targetLanguage) : `${entry.open}–${entry.close ?? ""}`}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : enrichment.hours ? (
-                        <div className="poi-enrichment-meta poi-enrichment-meta-preline">
-                          {enrichment.hours
-                            .split(/[;\n]|(?:\s\/\s)/)
-                            .map((s) => s.trim())
-                            .filter((s) => s.length > 0)
-                            .join("\n")}
-                        </div>
-                      ) : null}
-                      {(() => {
-                        const avail = getAvailabilityTags(enrichment.hours, poi.tags.opening_hours, targetLanguage as "fr" | "en");
-                        return avail.length > 0 ? (
-                          <div className="poi-enrichment-meta poi-enrichment-meta-success">
-                            {avail.join(" · ")}
-                          </div>
-                        ) : null;
-                      })()}
-                      {enrichment.description && (
-                        <div className="poi-enrichment-summary">
-                          {enrichment.description}
-                        </div>
-                      )}
-                      {enrichment.review && (
-                        <div className="poi-enrichment-summary" style={{ fontStyle: "italic" }}>
-                          {enrichment.review}
-                        </div>
-                      )}
-                      {getSynthesisLabel(enrichment) && (
-                        <div className="poi-enrichment-meta">
-                          <span
-                            className={getSynthesisBadgeClass(enrichment)}
-                            title={
-                              enrichment.synthesisSource === "llm" || enrichment.synthesisSource === "llm-repaired"
-                                ? t("enrich.aiDisclaimer", targetLanguage)
-                                : undefined
-                            }
-                          >
-                            {getSynthesisLabel(enrichment)}
-                          </span>
-                          {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
-                            <span className="poi-badge poi-badge-maps" title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}>
-                              Maps
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Cautions & divergences (WS12) */}
-                      {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
-                        <div className="poi-enrichment-meta poi-divergences">
-                          {enrichment.structured.divergences.map((d, i) => (
-                            <span key={`div-${i}`}>⚠ {d}</span>
-                          ))}
-                        </div>
-                      )}
-                      {enrichment.structured?.cautions && enrichment.structured.cautions.length > 0 && (
-                        <div className="poi-enrichment-meta poi-cautions">
-                          {enrichment.structured.cautions.slice(0, 2).map((c, i) => (
-                            <span key={`caut-${i}`}>{c}</span>
-                          ))}
-                        </div>
-                      )}
+                      <EnrichmentDetails
+                        poi={poi}
+                        enrichment={enrichment}
+                        targetLanguage={targetLanguage}
+                      />
 
                       {/* Confidence + source confirmation + sources */}
                       {enrichment.sourceCount > 0 && (
                         <div className="poi-confidence-row">
-                          <span className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}>
-                            {t(`poi.confidence.${confidenceLabel(enrichment.confidence)}`, targetLanguage)}
-                            {" "}{Math.round(enrichment.confidence * 100)}%
+                          <span
+                            className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}
+                          >
+                            {t(
+                              `poi.confidence.${confidenceLabel(enrichment.confidence)}`,
+                              targetLanguage,
+                            )}{" "}
+                            {Math.round(enrichment.confidence * 100)}%
                           </span>
-                          {enrichment.structured?.sourceConfirmation && enrichment.structured.sourceConfirmation !== "none" && (
-                            <span
-                              className={
-                                enrichment.structured.sourceConfirmation === "reviews-only"
-                                  ? "poi-badge"
-                                  : "poi-badge poi-badge-maps"
-                              }
-                            >
-                              {t(
-                                enrichment.structured.sourceConfirmation === "both"
-                                  ? "poi.confirm.both"
-                                  : enrichment.structured.sourceConfirmation === "official"
-                                    ? "poi.confirm.official"
-                                    : "poi.confirm.reviewsOnly",
-                                targetLanguage,
-                              )}
-                            </span>
-                          )}
+                          {enrichment.structured?.sourceConfirmation &&
+                            enrichment.structured.sourceConfirmation !== "none" && (
+                              <span
+                                className={
+                                  enrichment.structured.sourceConfirmation === "reviews-only"
+                                    ? "poi-badge"
+                                    : "poi-badge poi-badge-maps"
+                                }
+                              >
+                                {t(
+                                  enrichment.structured.sourceConfirmation === "both"
+                                    ? "poi.confirm.both"
+                                    : enrichment.structured.sourceConfirmation === "official"
+                                      ? "poi.confirm.official"
+                                      : "poi.confirm.reviewsOnly",
+                                  targetLanguage,
+                                )}
+                              </span>
+                            )}
                           <button
                             type="button"
                             className="poi-sources-toggle"
                             onClick={(e) => toggleSources(e, poi.id)}
                             aria-expanded={showSources}
                           >
-                            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}{enrichment.sourceCount > 1 ? "s" : ""}
-                            {" "}
-                            {showSources ? "▲" : "▼"}
+                            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}
+                            {enrichment.sourceCount > 1 ? "s" : ""} {showSources ? "▲" : "▼"}
                           </button>
                         </div>
                       )}
@@ -334,7 +267,13 @@ function PoiListInner({ pois, enrichments, selectedPoiId, onSelectPoi, enriching
                               className="poi-source-link"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {(() => { try { return new URL(url).hostname; } catch { return url; } })()}
+                              {(() => {
+                                try {
+                                  return new URL(url).hostname;
+                                } catch {
+                                  return url;
+                                }
+                              })()}
                             </a>
                           ))}
                         </div>

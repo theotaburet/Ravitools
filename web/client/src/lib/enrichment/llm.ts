@@ -75,7 +75,7 @@ export function isWebGpuAvailable(): boolean {
 // The engine is a singleton: one model loaded at a time.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic import, types not available at module level
+// biome-ignore lint/suspicious/noExplicitAny: dynamic import — web-llm types not available at module level
 let engineInstance: any = null;
 let engineReady = false;
 /** AUDIT R18: in-flight load — concurrent initEngine() calls share one download. */

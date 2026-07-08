@@ -407,45 +407,22 @@ function escapeXml(s: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Normalize a raw hours string from LLM into a clean multi-line schedule.
- * Handles various separators (; , / \n) and normalizes day names.
- * Returns one line per day-range for readability.
- *
- * Examples:
- *   "Mon-Fri: 8:00-12:00, 14:00-18:00; Sat: 9:00-12:00; Sun: closed"
- *   → "Mon-Fri: 8:00-12:00, 14:00-18:00\nSat: 9:00-12:00\nSun: closed"
+ * Split a raw hours string into per-day entries (AUDIT R32: single flattener).
+ * Splits on day-schedule separators (; \n and spaced /) — but not commas
+ * within time ranges (e.g. "8:00-12:00, 14:00-18:00").
  */
-export function formatHours(raw: string): string {
-  if (!raw) return raw;
-
-  // Split on common day-schedule separators:
-  // - semicolons always separate day entries
-  // - " / " (spaced slash) separates day entries
-  // - newlines separate day entries
-  // BUT NOT commas within time ranges (e.g. "8:00-12:00, 14:00-18:00")
-  const entries = raw
+export function splitHoursLines(raw: string): string[] {
+  return raw
     .split(/[;\n]|(?:\s\/\s)/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-
-  if (entries.length <= 1) {
-    // Single entry — just clean up whitespace
-    return raw.trim();
-  }
-
-  return entries.join("\n");
 }
 
-/**
- * Format hours for HTML output — same logic as formatHours but uses <br/> for line breaks.
- */
+/** Normalize a raw hours string into a clean schedule for HTML output. */
 export function formatHoursHtml(raw: string): string {
   if (!raw) return raw;
 
-  const entries = raw
-    .split(/[;\n]|(?:\s\/\s)/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  const entries = splitHoursLines(raw);
 
   if (entries.length <= 1) {
     return escapeXml(raw.trim());
@@ -488,10 +465,8 @@ export function isOpenSunday(hours: string | null | undefined, osmHours?: string
     // Check it's not followed by "closed"
     const sunMatch = lower.match(SUNDAY_PATTERNS);
     if (sunMatch) {
-      const afterSun = lower.slice(
-        sunMatch.index! + sunMatch[0].length,
-        sunMatch.index! + sunMatch[0].length + 30,
-      );
+      const sunEnd = (sunMatch.index ?? 0) + sunMatch[0].length;
+      const afterSun = lower.slice(sunEnd, sunEnd + 30);
       if (!/closed|fermé|geschlossen|cerrado/.test(afterSun)) return true;
     }
   }
@@ -610,10 +585,7 @@ function formatOpeningHoursCompact(
  * Compact one-line opening hours from a raw "Mon-Fri 8-18; Sat 9-12" string.
  */
 function compactRawHours(raw: string): string {
-  const entries = raw
-    .split(/[;\n]|(?:\s\/\s)/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const entries = splitHoursLines(raw);
   if (!entries.length) return "";
   return truncateWords(entries.join(" · "), COMPACT_DESC_HOURS_LINE_MAX);
 }

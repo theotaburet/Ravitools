@@ -10,9 +10,9 @@
 // Playwright is fully mocked — no real Chromium is launched.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TMP_CWD = join(process.cwd(), ".test-browser-ctx-tmp");
 const STATE_DIR = join(TMP_CWD, ".cache");
@@ -24,7 +24,18 @@ function makeFakeContext() {
   return {
     newPage: vi.fn(),
     storageState: vi.fn(async () => ({
-      cookies: [{ name: "NID", value: "abc", domain: ".google.com", path: "/", expires: -1, httpOnly: true, secure: true, sameSite: "Lax" }],
+      cookies: [
+        {
+          name: "NID",
+          value: "abc",
+          domain: ".google.com",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax",
+        },
+      ],
       origins: [],
     })),
     close: vi.fn(async () => undefined),
@@ -63,12 +74,28 @@ describe("browser-context", () => {
     const c2 = await mod.getBrowserContext(browser);
 
     expect(c1).toBe(c2);
-    expect((browser as unknown as { newContext: { mock: { calls: unknown[] } } }).newContext.mock.calls).toHaveLength(1);
+    expect(
+      (browser as unknown as { newContext: { mock: { calls: unknown[] } } }).newContext.mock.calls,
+    ).toHaveLength(1);
   });
 
   it("loads storageState from disk if present", async () => {
     mkdirSync(STATE_DIR, { recursive: true });
-    const stored = { cookies: [{ name: "NID", value: "from-disk", domain: ".google.com", path: "/", expires: -1, httpOnly: true, secure: true, sameSite: "Lax" }], origins: [] };
+    const stored = {
+      cookies: [
+        {
+          name: "NID",
+          value: "from-disk",
+          domain: ".google.com",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    };
     writeFileSync(STATE_FILE, JSON.stringify(stored), "utf8");
 
     const mod = await import("../browser-context");
@@ -79,10 +106,14 @@ describe("browser-context", () => {
 
     await mod.getBrowserContext(browser);
 
-    const newContextSpy = (browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }).newContext;
+    const newContextSpy = (
+      browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }
+    ).newContext;
     const passedOptions = newContextSpy.mock.calls[0][0];
     expect(passedOptions.storageState).toBeDefined();
-    expect((passedOptions.storageState as { cookies: { value: string }[] }).cookies[0].value).toBe("from-disk");
+    expect((passedOptions.storageState as { cookies: { value: string }[] }).cookies[0].value).toBe(
+      "from-disk",
+    );
   });
 
   it("does not pass storageState when no file exists", async () => {
@@ -94,7 +125,9 @@ describe("browser-context", () => {
 
     await mod.getBrowserContext(browser);
 
-    const newContextSpy = (browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }).newContext;
+    const newContextSpy = (
+      browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }
+    ).newContext;
     expect(newContextSpy.mock.calls[0][0].storageState).toBeUndefined();
   });
 
@@ -175,7 +208,9 @@ describe("browser-context", () => {
     const c = await mod.getBrowserContext(browser);
     expect(c).toBe(ctx);
 
-    const newContextSpy = (browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }).newContext;
+    const newContextSpy = (
+      browser as unknown as { newContext: { mock: { calls: { 0: { storageState?: unknown } }[] } } }
+    ).newContext;
     expect(newContextSpy.mock.calls[0][0].storageState).toBeUndefined();
   });
 });

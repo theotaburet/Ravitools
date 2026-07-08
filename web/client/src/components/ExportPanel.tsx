@@ -3,15 +3,15 @@
 // Two sections: GPS devices + Smartphone offline apps
 // ---------------------------------------------------------------------------
 
-import type { POI, TraceData, EnrichedData, TargetLanguage } from "../types";
 import {
+  exportToGeoJson,
   exportToGpx,
   exportToKml,
-  exportToGeoJson,
-  exportToOsmAndGpx,
   exportToKmz,
+  exportToOsmAndGpx,
 } from "../lib/export";
 import { t } from "../lib/i18n";
+import type { EnrichedData, POI, TargetLanguage, TraceData } from "../types";
 
 interface Props {
   pois: POI[];
@@ -36,24 +36,29 @@ export function ExportPanel({ pois, traces, enrichments, targetLanguage = "en" }
       <p className="text-xs text-muted font-mono mb-3">
         {pois.length} {t("export.poisReady", targetLanguage)}
         {traces.length > 1 && ` (${traces.length} traces)`}
-        {enrichments && enrichments.size > 0 && ` (${enrichments.size} ${t("export.enriched", targetLanguage)})`}
+        {enrichments &&
+          enrichments.size > 0 &&
+          ` (${enrichments.size} ${t("export.enriched", targetLanguage)})`}
       </p>
 
       {/* GPS device exports */}
       <div className="flex flex-col gap-2">
         <button
+          type="button"
           className="neo-btn-lime w-full"
           onClick={() => exportToGpx(pois, traces, baseName, enrichments)}
         >
           .GPX (Garmin, Wahoo...)
         </button>
         <button
+          type="button"
           className="neo-btn-secondary w-full"
           onClick={() => exportToKml(pois, traces, baseName, enrichments)}
         >
           .KML (Google Earth)
         </button>
         <button
+          type="button"
           className="neo-btn-secondary w-full"
           onClick={() => exportToGeoJson(pois, baseName, enrichments)}
         >
@@ -64,17 +69,17 @@ export function ExportPanel({ pois, traces, enrichments, targetLanguage = "en" }
       {/* Smartphone offline apps */}
       <div className="export-divider" />
       <h3>{t("export.smartphone", targetLanguage)}</h3>
-      <p className="text-xs text-muted font-mono mb-3">
-        {t("export.offlineApps", targetLanguage)}
-      </p>
+      <p className="text-xs text-muted font-mono mb-3">{t("export.offlineApps", targetLanguage)}</p>
       <div className="flex flex-col gap-2">
         <button
+          type="button"
           className="neo-btn-pink w-full"
           onClick={() => exportToOsmAndGpx(pois, traces, baseName, enrichments)}
         >
           .GPX OsmAnd (icons + colors)
         </button>
         <button
+          type="button"
           className="neo-btn-secondary w-full"
           onClick={() => exportToKmz(pois, traces, baseName, enrichments)}
         >
@@ -89,7 +94,8 @@ export function ExportPanel({ pois, traces, enrichments, targetLanguage = "en" }
         {enrichments && enrichments.size > 0 && (
           <>
             <br />
-            <strong>{t("export.enrichedLabel", targetLanguage)}</strong> {t("export.enrichedBody", targetLanguage)}
+            <strong>{t("export.enrichedLabel", targetLanguage)}</strong>{" "}
+            {t("export.enrichedBody", targetLanguage)}
           </>
         )}
       </p>

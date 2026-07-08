@@ -90,7 +90,7 @@ export function parseGpx(xmlString: string, colorIndex?: number): TraceData {
 function parsePoint(el: Element): TracePoint | null {
   const lat = parseFloat(el.getAttribute("lat") ?? "");
   const lon = parseFloat(el.getAttribute("lon") ?? "");
-  if (isNaN(lat) || isNaN(lon)) return null;
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
 
   const eleEl = el.querySelector("ele");
   const timeEl = el.querySelector("time");

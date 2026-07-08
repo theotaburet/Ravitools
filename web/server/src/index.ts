@@ -1,61 +1,43 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import compression from "compression";
+import cors from "cors";
+import express from "express";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import NodeCache from "node-cache";
 import pino from "pino";
-import { chromium, type Browser } from "playwright";
+import { type Browser, chromium } from "playwright";
 import { closeBrowserContext } from "./browser-context.js";
-import { safeSet } from "./safe-set.js";
 import {
-  parseGoogleMapsHoursRow,
-  normalizeDay,
-  normalizeTimeString,
-  extractGoogleMapsRating,
-  extractGoogleMapsReviewCount,
-  cleanGoogleMapsHours,
-  extractPriceLevelFromText,
-  GOOGLE_MAPS_PROXY_URL,
-} from "./scrapers/google-maps.js";
-import {
-  buildYandexMapsUrl,
-  parseYandexMapsHoursRow,
-  normalizeYandexDay,
-  normalizeYandexTimeString,
-  extractYandexMapsRating,
-  extractYandexMapsReviewCount,
-  cleanYandexMapsHours,
-  YANDEX_MAPS_PROXY_URL,
-} from "./scrapers/yandex-maps.js";
-import { mountAllScrapers } from "./scrapers/registry.js";
-import { lookup } from "node:dns/promises";
-import { timingSafeEqual } from "node:crypto";
-import {
-  initDb,
-  isDbAvailable,
+  closeDb,
   getPoi,
   getPoisBatch,
-  upsertPoi,
-  closeDb,
+  initDb,
+  isDbAvailable,
   type OsmType,
   type PoiKey,
+  upsertPoi,
 } from "./db.js";
+import { safeSet } from "./safe-set.js";
+import { mountScraperEndpoints } from "./scrapers/endpoints.js";
+import { GOOGLE_MAPS_PROXY_URL, googleMapsPlugin } from "./scrapers/google-maps.js";
+import { createScraperJobSystem } from "./scrapers/job-system.js";
 
 // ---------------------------------------------------------------------------
 // SSRF guard — block requests to private/internal IPs
 // ---------------------------------------------------------------------------
 const PRIVATE_IP_RANGES = [
-  /^127\./,                          // loopback
-  /^10\./,                           // RFC 1918
-  /^172\.(1[6-9]|2\d|3[01])\./,     // RFC 1918
-  /^192\.168\./,                     // RFC 1918
-  /^169\.254\./,                     // link-local
-  /^0\./,                            // "this" network
-  /^::1$/,                           // IPv6 loopback
-  /^fe80:/i,                         // IPv6 link-local
-  /^fc00:/i,                         // IPv6 ULA
-  /^fd/i,                            // IPv6 ULA
+  /^127\./, // loopback
+  /^10\./, // RFC 1918
+  /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918
+  /^192\.168\./, // RFC 1918
+  /^169\.254\./, // link-local
+  /^0\./, // "this" network
+  /^::1$/, // IPv6 loopback
+  /^fe80:/i, // IPv6 link-local
+  /^fc00:/i, // IPv6 ULA
+  /^fd/i, // IPv6 ULA
 ];
 
 function isPrivateIp(ip: string): boolean {
@@ -74,18 +56,20 @@ async function assertPublicHostname(hostname: string): Promise<void> {
 // Config
 // ---------------------------------------------------------------------------
 const PORT = parseInt(process.env.PORT || "3001", 10);
-const OVERPASS_URL =
-  process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
+const OVERPASS_URL = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
 const OVERPASS_FALLBACK_URL =
   process.env.OVERPASS_FALLBACK_URL || "https://overpass.kumi.systems/api/interpreter";
-const SEARXNG_URL =
-  process.env.SEARXNG_URL || "http://localhost:8888";
-const NOMINATIM_URL =
-  process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
+const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
+const NOMINATIM_URL = process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
 
 // AUDIT S1: fail fast on a malformed upstream URL from env (config typo) rather than
 // discovering it on the first request. (Not a public-IP check — SearXNG is intentionally local.)
-for (const [name, url] of Object.entries({ OVERPASS_URL, OVERPASS_FALLBACK_URL, SEARXNG_URL, NOMINATIM_URL })) {
+for (const [name, url] of Object.entries({
+  OVERPASS_URL,
+  OVERPASS_FALLBACK_URL,
+  SEARXNG_URL,
+  NOMINATIM_URL,
+})) {
   try {
     new URL(url);
   } catch {
@@ -95,21 +79,12 @@ for (const [name, url] of Object.entries({ OVERPASS_URL, OVERPASS_FALLBACK_URL, 
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || "86400", 10); // 24h default
 const SEARCH_CACHE_TTL = parseInt(process.env.SEARCH_CACHE_TTL || "604800", 10); // 7 days
 const GEOCODE_CACHE_TTL = parseInt(process.env.GEOCODE_CACHE_TTL || "2592000", 10); // 30 days
-const MAX_QUERY_LENGTH = parseInt(
-  process.env.MAX_QUERY_LENGTH || "32000",
-  10,
-);
-const RATE_LIMIT_WINDOW_MS = parseInt(
-  process.env.RATE_LIMIT_WINDOW_MS || "60000",
-  10,
-);
+const MAX_QUERY_LENGTH = parseInt(process.env.MAX_QUERY_LENGTH || "32000", 10);
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10);
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "60", 10);
 
 const log = pino({
-  transport:
-    process.env.NODE_ENV !== "production"
-      ? { target: "pino-pretty" }
-      : undefined,
+  transport: process.env.NODE_ENV !== "production" ? { target: "pino-pretty" } : undefined,
 });
 
 type WebsiteStructuredData = {
@@ -135,7 +110,9 @@ function parseJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
   // ponytail: cap regex work on untrusted fetched HTML (AUDIT S6).
   const capped = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html;
-  const matches = capped.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  const matches = capped.matchAll(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  );
   for (const match of matches) {
     const raw = match[1]?.trim();
     if (!raw) continue;
@@ -155,7 +132,7 @@ function flattenJsonLd(node: unknown): Record<string, unknown>[] {
   const record = node as Record<string, unknown>;
   const nested = [
     ...(Array.isArray(record["@graph"]) ? flattenJsonLd(record["@graph"]) : []),
-    ...(Array.isArray(record.mainEntity) ? flattenJsonLd(record.mainEntity) : flattenJsonLd(record.mainEntity)),
+    ...flattenJsonLd(record.mainEntity),
   ];
   return [record, ...nested];
 }
@@ -188,19 +165,33 @@ function normalizeOpeningHours(value: unknown): string[] {
 function extractStructuredDataFromHtml(html: string): WebsiteStructuredData | null {
   const nodes = parseJsonLdBlocks(html).flatMap(flattenJsonLd);
   const aggregateRatings = nodes
-    .map((node) => (node.aggregateRating && typeof node.aggregateRating === "object" ? node.aggregateRating as Record<string, unknown> : null))
+    .map((node) =>
+      node.aggregateRating && typeof node.aggregateRating === "object"
+        ? (node.aggregateRating as Record<string, unknown>)
+        : null,
+    )
     .filter((item): item is Record<string, unknown> => Boolean(item));
 
   const description = nodes.map((node) => firstString(node.description)).find(Boolean) ?? null;
   const telephone = nodes.map((node) => firstString(node.telephone)).find(Boolean) ?? null;
   const priceRange = nodes.map((node) => firstString(node.priceRange)).find(Boolean) ?? null;
   const openingHours = nodes.flatMap((node) => normalizeOpeningHours(node.openingHours));
-  const rating = aggregateRatings.map((item) => firstNumber(item.ratingValue)).find((item) => item != null) ?? null;
-  const reviewCount = aggregateRatings
-    .map((item) => firstNumber(item.reviewCount) ?? firstNumber(item.ratingCount))
-    .find((item) => item != null) ?? null;
+  const rating =
+    aggregateRatings.map((item) => firstNumber(item.ratingValue)).find((item) => item != null) ??
+    null;
+  const reviewCount =
+    aggregateRatings
+      .map((item) => firstNumber(item.reviewCount) ?? firstNumber(item.ratingCount))
+      .find((item) => item != null) ?? null;
 
-  if (!description && !telephone && !priceRange && openingHours.length === 0 && rating == null && reviewCount == null) {
+  if (
+    !description &&
+    !telephone &&
+    !priceRange &&
+    openingHours.length === 0 &&
+    rating == null &&
+    reviewCount == null
+  ) {
     return null;
   }
 
@@ -214,6 +205,12 @@ function extractStructuredDataFromHtml(html: string): WebsiteStructuredData | nu
   };
 }
 
+/** Send a cached-or-fresh JSON proxy response with its X-Cache marker (AUDIT R32). */
+function sendProxyJson(res: express.Response, body: string, cacheStatus: "HIT" | "MISS"): void {
+  res.setHeader("X-Cache", cacheStatus);
+  res.setHeader("Content-Type", "application/json");
+  res.send(body);
+}
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
@@ -232,9 +229,9 @@ async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
-// All map-preview scraping (Google Maps, Yandex Maps) now lives in the
-// generic scraper plugin system mounted via mountAllScrapers().
-// See web/server/src/scrapers/registry.ts and job-system.ts.
+// All map-preview scraping (Google Maps) lives in the scraper job system —
+// see web/server/src/scrapers/job-system.ts. Mounted further down once the
+// rate limiter is configured.
 
 // ---------------------------------------------------------------------------
 // Caches
@@ -263,12 +260,6 @@ const geocodeCache = new NodeCache({
 // Express app
 // ---------------------------------------------------------------------------
 const app = express();
-
-// Scraper plugin systems (Google Maps, Yandex Maps, ...) — see
-// web/server/src/scrapers/registry.ts for the full list. Each plugin gets
-// its own NodeCache + persistent jobs file + retry queue + 5 endpoints
-// mounted at both `/scrape/{name}` (canonical) and a legacy alias path.
-// Mounted further down once the rate limiter is configured.
 
 app.use(helmet());
 app.use(compression());
@@ -316,14 +307,19 @@ const scraperLimiter = rateLimit({
 });
 
 // ---------------------------------------------------------------------------
-// Mount all map scraper plugins (Google Maps, Yandex Maps, ...)
-// Each plugin gets endpoints at both `/scrape/{name}` (canonical) and a
-// legacy alias path (e.g. `/google-maps-preview`) for backward compatibility.
-// See web/server/src/scrapers/registry.ts for the plugin list.
+// Google Maps scraper — one job system, mounted on the path the client calls.
+// AUDIT R28/R29: the registry + dual-mounted `/scrape/{name}` alias routes
+// served a single plugin with zero canonical-path callers; both are gone.
 // ---------------------------------------------------------------------------
-const scraperRegistry = mountAllScrapers({
-  app,
-  deps: { log, sleep, randomDelay, getBrowser },
+const googleMapsSystem = createScraperJobSystem(googleMapsPlugin, {
+  log,
+  sleep,
+  randomDelay,
+  getBrowser,
+});
+googleMapsSystem.load(); // restore persisted jobs from disk (if any)
+mountScraperEndpoints(app, googleMapsPlugin, googleMapsSystem, {
+  basePath: "/google-maps-preview",
   limiter: scraperLimiter,
   log,
 });
@@ -334,16 +330,11 @@ const scraperRegistry = mountAllScrapers({
 app.get("/health", async (_req, res) => {
   const services: Record<string, "ok" | "error"> = {};
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3000);
-
   try {
-    await fetch(`${SEARXNG_URL}/health`, { signal: controller.signal });
+    await fetch(`${SEARXNG_URL}/health`, { signal: AbortSignal.timeout(3000) });
     services.searxng = "ok";
   } catch {
     services.searxng = "error";
-  } finally {
-    clearTimeout(timeout);
   }
 
   res.json({
@@ -421,9 +412,7 @@ app.post("/overpass", limiter, async (req, res) => {
   try {
     // Accept query from JSON body or form-encoded body
     const query: string =
-      typeof req.body === "string"
-        ? req.body
-        : req.body?.data ?? req.body?.query;
+      typeof req.body === "string" ? req.body : (req.body?.data ?? req.body?.query);
 
     if (!query || typeof query !== "string") {
       res.status(400).json({ error: "Missing 'query' or 'data' in request body" });
@@ -439,24 +428,21 @@ app.post("/overpass", limiter, async (req, res) => {
     }
 
     // Cache key from query hash
-    const crypto = await import("crypto");
-    const cacheKey = crypto.createHash("md5").update(query).digest("hex");
+    const cacheKey = createHash("md5").update(query).digest("hex");
 
     // Check cache
     const cached = cache.get<string>(cacheKey);
     if (cached) {
       log.info({ cacheKey }, "Cache hit");
-      res.setHeader("X-Cache", "HIT");
-      res.setHeader("Content-Type", "application/json");
-      res.send(cached);
+      sendProxyJson(res, cached, "HIT");
       return;
     }
 
     // Forward to Overpass
     log.info({ queryLength: query.length }, "Forwarding to Overpass");
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
+    // One shared 180s deadline across both Overpass instances (AUDIT R25).
+    const timeoutSignal = AbortSignal.timeout(180_000);
 
     const overpassUrls = [OVERPASS_URL, OVERPASS_FALLBACK_URL];
 
@@ -469,24 +455,20 @@ app.post("/overpass", limiter, async (req, res) => {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: `data=${encodeURIComponent(query)}`,
-          signal: controller.signal,
+          signal: timeoutSignal,
         });
         if (overpassRes.ok) break;
       } catch (err) {
         // A timeout must surface as 504, not be swallowed into a 502 (AUDIT T+1).
-        if (err instanceof Error && err.name === "AbortError") throw err;
+        if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError"))
+          throw err;
         log.warn({ url }, "Overpass fetch failed, trying next");
       }
     }
 
-    clearTimeout(timeout);
-
-    if (!overpassRes || !overpassRes.ok) {
+    if (!overpassRes?.ok) {
       const body = overpassRes ? await overpassRes.text() : "All Overpass instances failed";
-      log.warn(
-        { status: overpassRes?.status, usedUrl },
-        "Overpass returned non-OK status",
-      );
+      log.warn({ status: overpassRes?.status, usedUrl }, "Overpass returned non-OK status");
       res.status(overpassRes?.status || 502).json({
         error: "Overpass API error",
         status: overpassRes?.status,
@@ -511,11 +493,9 @@ app.post("/overpass", limiter, async (req, res) => {
     safeSet(cache, cacheKey, data);
     log.info({ cacheKey, bytes: data.length }, "Cached Overpass response");
 
-    res.setHeader("X-Cache", "MISS");
-    res.setHeader("Content-Type", "application/json");
-    res.send(data);
+    sendProxyJson(res, data, "MISS");
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       log.error("Overpass request timed out");
       res.status(504).json({ error: "Overpass request timed out" });
       return;
@@ -530,7 +510,11 @@ app.post("/overpass", limiter, async (req, res) => {
 // ---------------------------------------------------------------------------
 app.post("/search", enrichLimiter, async (req, res) => {
   try {
-    const { query, language, engines } = req.body as { query?: string; language?: string; engines?: string };
+    const { query, language, engines } = req.body as {
+      query?: string;
+      language?: string;
+      engines?: string;
+    };
 
     if (!query || typeof query !== "string") {
       res.status(400).json({ error: "Missing 'query' in request body" });
@@ -544,16 +528,13 @@ app.post("/search", enrichLimiter, async (req, res) => {
 
     // Cache key includes engines and language (AUDIT R14) so different engine
     // sets or locales never share a cached result.
-    const crypto = await import("crypto");
     const cacheInput = `${query}|lang=${language || "auto"}${engines ? `|engines=${engines}` : ""}`;
-    const cacheKey = `search:${crypto.createHash("md5").update(cacheInput).digest("hex")}`;
+    const cacheKey = `search:${createHash("md5").update(cacheInput).digest("hex")}`;
 
     const cached = searchCache.get<string>(cacheKey);
     if (cached) {
       log.info({ cacheKey }, "Search cache hit");
-      res.setHeader("X-Cache", "HIT");
-      res.setHeader("Content-Type", "application/json");
-      res.send(cached);
+      sendProxyJson(res, cached, "HIT");
       return;
     }
 
@@ -574,22 +555,14 @@ app.post("/search", enrichLimiter, async (req, res) => {
 
     log.info({ query: query.slice(0, 80), engines: engines || "default" }, "Searching SearXNG");
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-
-    let searchRes: Response;
-    try {
-      searchRes = await fetch(`${SEARXNG_URL}/search?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
-        },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const searchRes = await fetch(`${SEARXNG_URL}/search?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
 
     if (!searchRes.ok) {
       const body = await searchRes.text();
@@ -608,22 +581,25 @@ app.post("/search", enrichLimiter, async (req, res) => {
     try {
       const parsed = JSON.parse(data);
       if (parsed.unresponsive_engines?.length > 0) {
-        log.warn({
-          query: (req.body as { query?: string }).query?.slice(0, 60),
-          unresponsive: parsed.unresponsive_engines,
-        }, "SearXNG unresponsive engines");
+        log.warn(
+          {
+            query: (req.body as { query?: string }).query?.slice(0, 60),
+            unresponsive: parsed.unresponsive_engines,
+          },
+          "SearXNG unresponsive engines",
+        );
       }
-    } catch { /* non-critical parse failure */ }
+    } catch {
+      /* non-critical parse failure */
+    }
 
     // Cache the response
     safeSet(searchCache, cacheKey, data);
     log.info({ cacheKey, bytes: data.length }, "Cached search response");
 
-    res.setHeader("X-Cache", "MISS");
-    res.setHeader("Content-Type", "application/json");
-    res.send(data);
+    sendProxyJson(res, data, "MISS");
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       log.error("SearXNG request timed out");
       res.status(504).json({ error: "Search request timed out" });
       return;
@@ -658,9 +634,7 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
     const cached = geocodeCache.get<string>(cacheKey);
     if (cached) {
       log.info({ cacheKey }, "Geocode cache hit");
-      res.setHeader("X-Cache", "HIT");
-      res.setHeader("Content-Type", "application/json");
-      res.send(cached);
+      sendProxyJson(res, cached, "HIT");
       return;
     }
 
@@ -675,22 +649,14 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
 
     log.info({ lat: roundedLat, lon: roundedLon }, "Reverse geocoding via Nominatim");
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
-
-    let geoRes: Response;
-    try {
-      geoRes = await fetch(`${NOMINATIM_URL}/reverse?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
-        },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const geoRes = await fetch(`${NOMINATIM_URL}/reverse?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
 
     if (!geoRes.ok) {
       const body = await geoRes.text();
@@ -709,11 +675,9 @@ app.post("/geocode", enrichLimiter, async (req, res) => {
     safeSet(geocodeCache, cacheKey, data);
     log.info({ cacheKey }, "Cached geocode response");
 
-    res.setHeader("X-Cache", "MISS");
-    res.setHeader("Content-Type", "application/json");
-    res.send(data);
+    sendProxyJson(res, data, "MISS");
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       log.error("Nominatim request timed out");
       res.status(504).json({ error: "Geocode request timed out" });
       return;
@@ -757,8 +721,8 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
       return;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+    // One shared 12s deadline across all redirect hops (AUDIT R25).
+    const timeoutSignal = AbortSignal.timeout(12_000);
 
     // AUDIT R2: never let fetch() follow redirects itself — re-validate the
     // hostname of every hop so a public URL can't 302 into a private address.
@@ -768,38 +732,34 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
     const MAX_REDIRECT_HOPS = 3;
     let currentUrl = parsedUrl;
     let pageRes: Response;
-    try {
-      for (let hop = 0; ; hop++) {
-        pageRes = await fetch(currentUrl.toString(), {
-          method: "GET",
-          redirect: "manual",
-          headers: {
-            Accept: "text/html,application/xhtml+xml",
-            "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
-          },
-          signal: controller.signal,
-        });
-        const location = pageRes.headers.get("location");
-        if (!REDIRECT_STATUSES.includes(pageRes.status) || !location) break;
-        if (hop >= MAX_REDIRECT_HOPS) {
-          res.status(502).json({ error: "Too many redirects" });
-          return;
-        }
-        currentUrl = new URL(location, currentUrl);
-        if (!["http:", "https:"].includes(currentUrl.protocol)) {
-          res.status(400).json({ error: "Only http/https URLs are supported" });
-          return;
-        }
-        try {
-          await assertPublicHostname(currentUrl.hostname);
-        } catch (err) {
-          log.warn({ url: currentUrl.toString(), err }, "SSRF blocked: redirect to private IP");
-          res.status(403).json({ error: "URL redirects to a private/internal address" });
-          return;
-        }
+    for (let hop = 0; ; hop++) {
+      pageRes = await fetch(currentUrl.toString(), {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "User-Agent": "Ravitools/1.0 (cycling POI enrichment)",
+        },
+        signal: timeoutSignal,
+      });
+      const location = pageRes.headers.get("location");
+      if (!REDIRECT_STATUSES.includes(pageRes.status) || !location) break;
+      if (hop >= MAX_REDIRECT_HOPS) {
+        res.status(502).json({ error: "Too many redirects" });
+        return;
       }
-    } finally {
-      clearTimeout(timeout);
+      currentUrl = new URL(location, currentUrl);
+      if (!["http:", "https:"].includes(currentUrl.protocol)) {
+        res.status(400).json({ error: "Only http/https URLs are supported" });
+        return;
+      }
+      try {
+        await assertPublicHostname(currentUrl.hostname);
+      } catch (err) {
+        log.warn({ url: currentUrl.toString(), err }, "SSRF blocked: redirect to private IP");
+        res.status(403).json({ error: "URL redirects to a private/internal address" });
+        return;
+      }
     }
 
     if (!pageRes.ok) {
@@ -822,8 +782,9 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
     const html = await pageRes.text();
     const normalized = html.replace(/\s+/g, " ").trim();
     const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const descriptionMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["'][^>]*>/i)
-      ?? html.match(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["'][^>]*>/i);
+    const descriptionMatch =
+      html.match(/<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["'][^>]*>/i) ??
+      html.match(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["'][^>]*>/i);
     const bodyText = normalized
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -837,13 +798,14 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
       finalUrl: pageRes.url,
       contentType,
       title: titleMatch?.[1]?.replace(/\s+/g, " ").trim() || null,
-      description: descriptionMatch?.[1]?.replace(/\s+/g, " ").trim() || structuredData?.description || null,
+      description:
+        descriptionMatch?.[1]?.replace(/\s+/g, " ").trim() || structuredData?.description || null,
       excerpt: bodyText.slice(0, 1200) || null,
       structuredData,
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       res.status(504).json({ error: "Website fetch timed out" });
       return;
     }
@@ -852,9 +814,7 @@ app.post("/fetch-page", enrichLimiter, async (req, res) => {
   }
 });
 
-// Map scraper endpoints (/google-maps-preview*, /yandex-maps-preview*,
-// /scrape/{name}*) are mounted via mountAllScrapers() above.
-
+// Map scraper endpoints (/google-maps-preview*) are mounted above.
 
 // ---------------------------------------------------------------------------
 // POI enrichment cache (Postgres + PostGIS)
@@ -969,7 +929,11 @@ app.put("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
     name?: unknown;
     enrichment?: unknown;
   };
-  if (typeof body?.category !== "string" || body.category.length === 0 || body.category.length > 100) {
+  if (
+    typeof body?.category !== "string" ||
+    body.category.length === 0 ||
+    body.category.length > 100
+  ) {
     res.status(400).json({ error: "Invalid category" });
     return;
   }
@@ -1026,17 +990,23 @@ if (process.env.NODE_ENV !== "test") {
     try {
       // Flush + close shared context first (saves cookies to disk)
       await closeBrowserContext();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     if (browserPromise) {
       try {
         const browser = await browserPromise;
         await browser.close();
         log.info("Playwright browser closed");
-      } catch { /* already closed */ }
+      } catch {
+        /* already closed */
+      }
     }
     try {
       await closeDb(); // drain the pg pool (AUDIT S4)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
@@ -1046,48 +1016,8 @@ if (process.env.NODE_ENV !== "test") {
 export default app;
 
 // ---------------------------------------------------------------------------
-// Test-only exports (used by server unit tests)
-// Not part of the public API.
+// Test-only export: the live scraper system the app routes use, so tests can
+// reach its job cache / persistence. Pure helpers are imported directly from
+// their modules in tests (AUDIT R30).
 // ---------------------------------------------------------------------------
-// Convenience accessors so tests don't have to dig into the registry map.
-const googleMapsSystem = scraperRegistry.systems.get("google-maps")!;
-const yandexMapsSystem = scraperRegistry.systems.get("yandex-maps")!;
-
-export const _testExports = {
-  // Pure helpers (Google)
-  parseGoogleMapsHoursRow,
-  normalizeDay,
-  normalizeTimeString,
-  extractGoogleMapsRating,
-  extractGoogleMapsReviewCount,
-  cleanGoogleMapsHours,
-  extractPriceLevelFromText,
-  GOOGLE_MAPS_PROXY_URL,
-  // Google scraper system (back-compat shape for legacy tests)
-  googleMapsJobCache: googleMapsSystem.jobCache,
-  persistGoogleMapsJobs: googleMapsSystem.persist,
-  loadPersistedGoogleMapsJobs: googleMapsSystem.load,
-  GOOGLE_MAPS_JOBS_FILE: googleMapsSystem.jobsFile,
-  GOOGLE_MAPS_FAILURES_FILE: googleMapsSystem.failuresFile,
-  appendGoogleMapsFailure: (record: { url: string; poiName: string | null; attempts: number; lastError: string; failedAt: string }) =>
-    googleMapsSystem.appendFailure({ source: "google-maps", ...record }),
-  // Pure helpers (Yandex)
-  buildYandexMapsUrl,
-  parseYandexMapsHoursRow,
-  normalizeYandexDay,
-  normalizeYandexTimeString,
-  extractYandexMapsRating,
-  extractYandexMapsReviewCount,
-  cleanYandexMapsHours,
-  YANDEX_MAPS_PROXY_URL,
-  // Yandex scraper system
-  yandexMapsJobCache: yandexMapsSystem.jobCache,
-  persistYandexMapsJobs: yandexMapsSystem.persist,
-  loadPersistedYandexMapsJobs: yandexMapsSystem.load,
-  YANDEX_MAPS_JOBS_FILE: yandexMapsSystem.jobsFile,
-  YANDEX_MAPS_FAILURES_FILE: yandexMapsSystem.failuresFile,
-  appendYandexMapsFailure: (record: { url: string; poiName: string | null; attempts: number; lastError: string; failedAt: string }) =>
-    yandexMapsSystem.appendFailure({ source: "yandex-maps", ...record }),
-  // Generic registry access (for new plugin-aware tests)
-  getScraperSystem: (name: string) => scraperRegistry.systems.get(name),
-};
+export const _testExports = { googleMapsSystem };

@@ -2,8 +2,8 @@
 // Tests for rankSnippetsByQuality and extractStructuredHoursFromSnippets
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import { rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "../lib/enrichment";
+import { describe, expect, it } from "vitest";
+import { extractStructuredHoursFromSnippets, rankSnippetsByQuality } from "../lib/enrichment";
 import type { SearchSnippet } from "../types";
 
 function snippet(url: string, content = "some content about the place"): SearchSnippet {
@@ -51,7 +51,10 @@ describe("rankSnippetsByQuality", () => {
   it("within same score, longer content ranks first", () => {
     const snippets = [
       snippet("https://yelp.com/place-a", "short"),
-      snippet("https://yelp.com/place-b", "much longer content with lots of details about the place"),
+      snippet(
+        "https://yelp.com/place-b",
+        "much longer content with lots of details about the place",
+      ),
     ];
     const result = rankSnippetsByQuality(snippets);
     expect(result[0].url).toContain("place-b");
@@ -95,8 +98,8 @@ describe("extractStructuredHoursFromSnippets", () => {
     const content = "Monday 09:00-17:00, Tuesday 09:00-17:00, Wednesday 09:00-17:00";
     const result = extractStructuredHoursFromSnippets([snippet("https://x.com", content)]);
     expect(result).not.toBeNull();
-    expect(result!.length).toBeGreaterThanOrEqual(3);
-    const mon = result!.find((e) => e.day === "Mon");
+    expect(result?.length).toBeGreaterThanOrEqual(3);
+    const mon = result?.find((e) => e.day === "Mon");
     expect(mon?.open).toBe("09:00");
     expect(mon?.close).toBe("17:00");
   });
@@ -105,7 +108,7 @@ describe("extractStructuredHoursFromSnippets", () => {
     const content = "Lundi 08h30-19h00, Mardi 08h30-19h00, Mercredi 08h30-19h00";
     const result = extractStructuredHoursFromSnippets([snippet("https://x.com", content)]);
     expect(result).not.toBeNull();
-    const mon = result!.find((e) => e.day === "Mon");
+    const mon = result?.find((e) => e.day === "Mon");
     expect(mon?.open).toBe("08:30");
     expect(mon?.close).toBe("19:00");
   });
@@ -114,14 +117,14 @@ describe("extractStructuredHoursFromSnippets", () => {
     const content = "Mon 10:00-20:00, Tue 10:00-20:00, Wed 10:00-20:00";
     const result = extractStructuredHoursFromSnippets([snippet("https://x.com", content)]);
     expect(result).not.toBeNull();
-    expect(result!.length).toBeGreaterThanOrEqual(3);
+    expect(result?.length).toBeGreaterThanOrEqual(3);
   });
 
   it("marks closed days", () => {
     const content = "Lundi 08:00-18:00, Mardi 08:00-18:00, fermé le dimanche";
     const result = extractStructuredHoursFromSnippets([snippet("https://x.com", content)]);
     expect(result).not.toBeNull();
-    const sun = result!.find((e) => e.day === "Sun");
+    const sun = result?.find((e) => e.day === "Sun");
     expect(sun?.open).toBe("closed");
   });
 
@@ -129,7 +132,7 @@ describe("extractStructuredHoursFromSnippets", () => {
     const content = "Sunday 09:00-17:00, Friday 08:00-20:00, Monday 08:00-18:00";
     const result = extractStructuredHoursFromSnippets([snippet("https://x.com", content)]);
     expect(result).not.toBeNull();
-    const days = result!.map((e) => e.day);
+    const days = (result ?? []).map((e) => e.day);
     expect(days.indexOf("Mon")).toBeLessThan(days.indexOf("Fri"));
     expect(days.indexOf("Fri")).toBeLessThan(days.indexOf("Sun"));
   });
@@ -140,7 +143,7 @@ describe("extractStructuredHoursFromSnippets", () => {
     const result = extractStructuredHoursFromSnippets([s1, s2]);
     expect(result).not.toBeNull();
     // Monday should appear only once (first occurrence wins)
-    const monEntries = result!.filter((e) => e.day === "Mon");
+    const monEntries = (result ?? []).filter((e) => e.day === "Mon");
     expect(monEntries).toHaveLength(1);
     expect(monEntries[0].open).toBe("08:00"); // first occurrence
   });

@@ -2,11 +2,37 @@
 // Enrichment module – barrel export
 // ---------------------------------------------------------------------------
 
-export { buildGoogleMapsUrl, buildGoogleMapsDirectionsUrl, searchPoi, reverseGeocode, buildSearchQuery } from "./search";
-export { getOfficialWebsiteUrl, classifySourcePlatform, fetchWebsitePreview, fetchGoogleMapsPreview, enqueueGoogleMapsPreview, pollGoogleMapsPreviewJob, fetchGoogleMapsJobStats, buildGoogleMapsSnippets } from "./search";
-export { areAllEnginesSuspended, buildCaptchaResolveUrl, countSuspendedHealthyEngines, resetEngineFailureState } from "./search";
-export { isWebGpuAvailable, initEngine, isEngineReady, unloadEngine, synthesize } from "./llm";
+export type {
+  EnrichBatchOptions,
+  EnrichmentProgressCallback,
+  PhaseProgressCallback,
+  PoiStartCallback,
+} from "./enricher";
+export { computeConfidence, enrichBatch, enrichPoi, isRetryableEnrichmentResult } from "./enricher";
 export type { LlmSynthesis, ModelLoadProgressCallback } from "./llm";
-export { enrichPoi, enrichBatch, computeConfidence, isRetryableEnrichmentResult } from "./enricher";
-export type { EnrichmentProgressCallback, PoiStartCallback, EnrichBatchOptions, PhaseProgressCallback } from "./enricher";
-export { buildSourceDigests, buildStructuredContent, buildDivergences, determineSourceConfirmation, rankSnippetsByQuality, extractStructuredHoursFromSnippets } from "./structured";
+export { initEngine, isEngineReady, isWebGpuAvailable, synthesize, unloadEngine } from "./llm";
+export {
+  areAllEnginesSuspended,
+  buildCaptchaResolveUrl,
+  buildGoogleMapsSnippets,
+  buildGoogleMapsUrl,
+  buildSearchQuery,
+  classifySourcePlatform,
+  countSuspendedHealthyEngines,
+  enqueueGoogleMapsPreview,
+  fetchGoogleMapsJobStats,
+  fetchWebsitePreview,
+  getOfficialWebsiteUrl,
+  pollGoogleMapsPreviewJob,
+  resetEngineFailureState,
+  reverseGeocode,
+  searchPoi,
+} from "./search";
+export {
+  buildDivergences,
+  buildSourceDigests,
+  buildStructuredContent,
+  determineSourceConfirmation,
+  extractStructuredHoursFromSnippets,
+  rankSnippetsByQuality,
+} from "./structured";

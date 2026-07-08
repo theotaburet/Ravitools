@@ -150,7 +150,7 @@ export const ENRICHMENT_PLATFORMS = [
   "other",
 ] as const;
 
-export type EnrichmentPlatform = typeof ENRICHMENT_PLATFORMS[number];
+export type EnrichmentPlatform = (typeof ENRICHMENT_PLATFORMS)[number];
 
 /** Human-readable labels for target languages */
 export const TARGET_LANGUAGE_LABELS: Record<TargetLanguage, string> = {
@@ -219,50 +219,6 @@ export interface EnrichmentCategoryContract {
   silenceConditions: string[];
 }
 
-/**
- * Length targets for enrichment text fields across display contexts.
- * Used to keep output readable on all surfaces.
- */
-export interface EnrichmentLengthTargets {
-  /** Max chars for headline on mobile popup */
-  headlineMobile: number;
-  /** Max chars for headline in list view */
-  headlineList: number;
-  /** Max chars for operationalSummary */
-  operationalSummary: number;
-  /** Max chars for essentials in export (GPX, KML) */
-  essentialsExport: number;
-  /** Max number of practicalities items */
-  practicalitiesMax: number;
-  /** Max number of cautions items */
-  cautionsMax: number;
-  /** Max number of unknowns items */
-  unknownsMax: number;
-}
-
-/** Canonical length targets for all display surfaces */
-export const ENRICHMENT_LENGTH_TARGETS: EnrichmentLengthTargets = {
-  headlineMobile: 200,
-  headlineList: 320,
-  operationalSummary: 240,
-  essentialsExport: 700,
-  practicalitiesMax: 5,
-  cautionsMax: 3,
-  unknownsMax: 2,
-};
-
-/** Canonical information ordering for enrichment output */
-export const ENRICHMENT_DISPLAY_ORDER = [
-  "headline",
-  "operationalSummary",
-  "practicalities",
-  "cautions",
-  "divergences",
-  "unknowns",
-  "sourceRollup",
-  "sourceConfirmation",
-] as const;
-
 /** Minimal fetched preview of an official website */
 export interface WebsitePreview {
   url: string;
@@ -279,7 +235,7 @@ export interface WebsitePreview {
     reviewCount: number | null;
   } | null;
   fetchedAt: string;
-  }
+}
 
 export interface GoogleMapsPreview {
   url: string;
@@ -344,7 +300,13 @@ export interface GeoContext {
 }
 
 /** Status of enrichment for a single POI */
-export type EnrichmentStatus = "pending" | "searching" | "synthesizing" | "done" | "error" | "skipped";
+export type EnrichmentStatus =
+  | "pending"
+  | "searching"
+  | "synthesizing"
+  | "done"
+  | "error"
+  | "skipped";
 
 /** A single opening hours entry for one day or day range */
 export interface OpeningHoursEntry {
@@ -427,9 +389,9 @@ export type EnrichmentJobStage =
 export type EnrichmentPhase =
   | "geocode-search" // fetching data from Nominatim + SearXNG
   | "google-fallback" // waiting for slow Google Maps jobs
-  | "synthesize"     // LLM inference
-  | "retry"          // retrying failed POIs
-  | "idle";          // not actively enriching
+  | "synthesize" // LLM inference
+  | "retry" // retrying failed POIs
+  | "idle"; // not actively enriching
 
 /** Enrichment job progress */
 export interface EnrichmentJobState {

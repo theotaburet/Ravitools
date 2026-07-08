@@ -1,7 +1,7 @@
 # Task: Audit remediation (2026-07 full audit)
 
 Started: 2026-07-08
-Status: not-started
+Status: P0–P3 done (2026-07-08); P4 awaits supervised follow-up, P5 is a separate migration project
 Source: 4-dimension audit (over-engineering / bugs / security / UI-UX) + `docs/AUDIT.md`
 
 ## How to use this file
@@ -148,58 +148,58 @@ Scope of the automated `/goal` run: **P0–P3**. P4 (UI/UX) needs visual verific
 
 ## P3 — Dead code / DRY / KISS (no behavior change; typecheck+tests must stay green)
 
-- [ ] **R24** [BIG] Delete the Yandex Maps scraper — zero client callers (client hits only `/google-maps-preview*`).
+- [x] **R24** [BIG] Delete the Yandex Maps scraper — zero client callers (client hits only `/google-maps-preview*`).
   - Files: `web/server/src/scrapers/yandex-maps.ts` (+ its test, registry entry, `YandexMaps*` types in `types.ts`, `YANDEX_MAPS_PROXY_URL` env). ~576 src + ~355 test lines.
   - Fix: remove the plugin, its registration, its tests, its types, its env var and docs. Grep `yandex` (case-insensitive) after to confirm only incidental mentions remain.
   - Verify: both packages typecheck + test green; `grep -ri yandex web/ | grep -v node_modules` shows no live code.
 
-- [ ] **R25** [DRY] Hand-rolled AbortController+setTimeout timeout plumbing ×9 → `AbortSignal.timeout(ms)` / `AbortSignal.any([signal, AbortSignal.timeout(ms)])`.
+- [x] **R25** [DRY] Hand-rolled AbortController+setTimeout timeout plumbing ×9 → `AbortSignal.timeout(ms)` / `AbortSignal.any([signal, AbortSignal.timeout(ms)])`.
   - Files: `web/client/src/lib/enrichment/search.ts:353,612,744,935`; `web/client/src/lib/poi-cache.ts:68,110`; `web/server/src/index.ts:336,452,570,671,753`.
   - Fix: replace with the native helpers; drop manual listener add/remove. Also fixes R20.
   - Verify: typecheck + tests green; abort still works (existing tests cover timeouts).
 
-- [ ] **R26** [DRY] `enrichPoi` copy-pastes `enrichBatch` stage-2 (~180 lines; only caller is the `?sandbox` dev panel).
+- [x] **R26** [DRY] `enrichPoi` copy-pastes `enrichBatch` stage-2 (~180 lines; only caller is the `?sandbox` dev panel).
   - File: `web/client/src/lib/enrichment/enricher.ts:214-397`.
   - Fix: `enrichPoi(poi, opts)` → `(await enrichBatch([poi], opts)).get(poi.id)`.
   - Verify: sandbox path still works; enrichment tests green.
 
-- [ ] **R27** [DRY] RouteMap popup duplicates PoiList enrichment rendering (~130 lines ×2).
+- [x] **R27** [DRY] RouteMap popup duplicates PoiList enrichment rendering (~130 lines ×2).
   - Files: `web/client/src/components/RouteMap.tsx:207-318`; `web/client/src/components/PoiList.tsx:190-343`.
   - Fix: extract one `<EnrichmentDetails poi=... />` used by both. (Note: RouteMap popup is a string sink — keep escaping; if extracting to React, render into the popup via a portal or `renderToStaticMarkup` with escaping preserved.)
   - Verify: popup + list still render identically; client tests green.
 
-- [ ] **R28** [YAGNI] Dual-mounted endpoints: every plugin gets `/scrape/{name}` AND legacy alias routes; client uses only legacy.
+- [x] **R28** [YAGNI] Dual-mounted endpoints: every plugin gets `/scrape/{name}` AND legacy alias routes; client uses only legacy.
   - File: `web/server/src/scrapers/registry.ts:56-69`.
   - Fix: mount one family (keep the one the client calls); delete the other.
   - Verify: server tests green; client still reaches its endpoints.
 
-- [ ] **R29** [YAGNI] Scraper plugin registry/abstraction for a single remaining product (after R24). `listRegisteredScrapers` has zero callers.
+- [x] **R29** [YAGNI] Scraper plugin registry/abstraction for a single remaining product (after R24). `listRegisteredScrapers` has zero callers.
   - File: `web/server/src/scrapers/registry.ts:30-78`.
   - Fix: inline google-maps into the job system; delete the registry/interface indirection and `listRegisteredScrapers`. Keep `job-system.ts`.
   - Verify: server tests green.
 
-- [ ] **R30** [DELETE] Dead config + dead exports.
+- [x] **R30** [DELETE] Dead config + dead exports. (`resetLlmState` kept — live helper for the R18 llm-init tests, not a dead-code test.)
   - `ENRICHMENT_LENGTH_TARGETS` / `EnrichmentLengthTargets` / `ENRICHMENT_DISPLAY_ORDER` — `web/client/src/types/index.ts:222-264` (zero readers).
   - Exports alive only via tests of dead code: `fetchGoogleMapsPreview` (sync), `buildGoogleMapsDirectionsUrl`, `isOfficialDomainSnippet`, `formatHours`, `resetLlmState`, `countEnrichable`, `countFullEnrichable` — `search.ts`, `export.ts`, `llm.ts`, `poi-config.ts`.
   - `_testExports` block + its 16 helper imports — `web/server/src/index.ts:10-29,1009-1055` (import modules directly in tests instead).
   - Fix: delete each + the tests that only exercise dead code. Confirm no live importer with grep before each deletion.
   - Verify: typecheck + remaining tests green.
 
-- [ ] **R31** [STDLIB] `await import("crypto")` inside handlers → top-level import / global `crypto.randomUUID()`.
+- [x] **R31** [STDLIB] `await import("crypto")` inside handlers → top-level import / global `crypto.randomUUID()`.
   - Files: `web/server/src/index.ts:436,540`; `web/server/src/scrapers/job-system.ts:250`.
   - Verify: typecheck + tests green.
 
-- [ ] **R32** [DRY] Small shrinks: `postJson<T>()` helper for the 5 fetch wrappers (`search.ts`); `proxyJson()` helper for the 3 proxy endpoints (`index.ts:525-717`); `runQuery(traces)` for `processFiles`/`retryQuery` dup (`useRavitools.ts:186-249,278-341`); single hours-flattener; `flattenJsonLd(record.mainEntity)` for the identical-branch ternary (`index.ts:157`); `isRetryableDegradedResult` via `isRetryableEnrichmentResult` (`provenance.ts:23`).
+- [x] **R32** [DRY] Small shrinks: `postJson<T>()` helper for the 5 fetch wrappers (`search.ts`); `proxyJson()` helper for the 3 proxy endpoints (`index.ts:525-717`); `runQuery(traces)` for `processFiles`/`retryQuery` dup (`useRavitools.ts:186-249,278-341`); single hours-flattener; `flattenJsonLd(record.mainEntity)` for the identical-branch ternary (`index.ts:157`); `isRetryableDegradedResult` via `isRetryableEnrichmentResult` (`provenance.ts:23`).
   - Fix: apply the shrinks that don't change behavior. Skip any that fight the code.
   - Verify: typecheck + tests green.
 
-- [ ] **R33** [HYGIENE] Repo weight.
+- [x] **R33** [HYGIENE] Repo weight. (venvs deleted, `version:` key removed; `tasks_archive/` kept — optional.)
   - Delete the ~722 MB untracked Python venvs `.tools/mempalace-py312`, `.tools/mempalace-venv`; add them to `.gitignore`.
   - Remove obsolete `version: "3.9"` key from `docker-compose.yml`.
   - Consider dropping `tasks_archive/` from the tree (git history retains it) — decision, not mandatory.
   - Verify: `git status` clean of the venvs; `docker compose config` still valid.
 
-- [ ] **R34** [CI] Make lint blocking.
+- [x] **R34** [CI] Make lint blocking.
   - Run `npx biome check --write ./src` in both packages, hand-fix the ~6 a11y findings (button `type`, interactive `div`s), then flip CI `Lint (advisory)` off `continue-on-error`.
   - Files: `.github/workflows/ci.yml`; a11y in `CategoryFilter.tsx:65`, `GpxUpload.tsx:45`, `ExportPanel.tsx` buttons.
   - Verify: `npx biome check ./src` clean in both packages; CI lint step no longer `continue-on-error`.

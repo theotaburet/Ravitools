@@ -3,8 +3,8 @@
 // Focus: the .gpx filtering / disabled guard in the drop + change handlers.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GpxUpload } from "../components/GpxUpload";
 
 afterEach(cleanup);

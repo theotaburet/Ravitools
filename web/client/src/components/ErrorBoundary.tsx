@@ -32,8 +32,8 @@ export class ErrorBoundary extends Component<Props, State> {
       >
         <h1 style={{ fontWeight: 900, marginBottom: "0.5rem" }}>Something broke.</h1>
         <p>
-          Ravitools hit an unexpected error and stopped. Your GPX file was never uploaded
-          anywhere — it stays in your browser.
+          Ravitools hit an unexpected error and stopped. Your GPX file was never uploaded anywhere —
+          it stays in your browser.
         </p>
         <pre
           style={{

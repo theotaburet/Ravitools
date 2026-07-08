@@ -4,9 +4,9 @@
 
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach } from "vitest";
-import type { POI, EnrichedData, PoiCategory } from "../types";
-import { saveSession, loadSession, clearSession, hasSession } from "../lib/session";
+import { beforeEach, describe, expect, it } from "vitest";
+import { clearSession, hasSession, loadSession, saveSession } from "../lib/session";
+import type { EnrichedData, POI, PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
 // localStorage polyfill – Node v25 ships a broken globalThis.localStorage
@@ -120,9 +120,7 @@ describe("session persistence", () => {
 
   it("saves and loads a session with POIs and enrichments", () => {
     const pois = [makePoi("a"), makePoi("b")];
-    const enrichments = new Map<string, EnrichedData>([
-      ["a", makeEnrichment()],
-    ]);
+    const enrichments = new Map<string, EnrichedData>([["a", makeEnrichment()]]);
 
     saveSession({
       activeCategories: new Set(["Restaurant or Bar", "Water"] as PoiCategory[]),
@@ -136,16 +134,16 @@ describe("session persistence", () => {
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    expect(loaded!.pois).toHaveLength(2);
-    expect(loaded!.pois[0].id).toBe("a");
-    expect(loaded!.enrichments.size).toBe(1);
-    expect(loaded!.enrichments.get("a")!.rating).toBe(4.2);
-    expect(loaded!.activeCategories.has("Restaurant or Bar")).toBe(true);
-    expect(loaded!.activeCategories.has("Water")).toBe(true);
-    expect(loaded!.targetLanguage).toBe("fr");
-    expect(loaded!.enrichAll).toBe(true);
-    expect(loaded!.routeSettings.maxDistanceM).toBe(900);
-    expect(loaded!.savedAt).toBeTruthy();
+    expect(loaded?.pois).toHaveLength(2);
+    expect(loaded?.pois[0].id).toBe("a");
+    expect(loaded?.enrichments.size).toBe(1);
+    expect(loaded?.enrichments.get("a")?.rating).toBe(4.2);
+    expect(loaded?.activeCategories.has("Restaurant or Bar")).toBe(true);
+    expect(loaded?.activeCategories.has("Water")).toBe(true);
+    expect(loaded?.targetLanguage).toBe("fr");
+    expect(loaded?.enrichAll).toBe(true);
+    expect(loaded?.routeSettings.maxDistanceM).toBe(900);
+    expect(loaded?.savedAt).toBeTruthy();
   });
 
   it("preserves Set semantics for activeCategories", () => {
@@ -160,8 +158,8 @@ describe("session persistence", () => {
     });
 
     const loaded = loadSession();
-    expect(loaded!.activeCategories).toBeInstanceOf(Set);
-    expect(loaded!.activeCategories.size).toBe(2);
+    expect(loaded?.activeCategories).toBeInstanceOf(Set);
+    expect(loaded?.activeCategories.size).toBe(2);
   });
 
   it("preserves Map semantics for enrichments", () => {
@@ -181,8 +179,8 @@ describe("session persistence", () => {
     });
 
     const loaded = loadSession();
-    expect(loaded!.enrichments).toBeInstanceOf(Map);
-    expect(loaded!.enrichments.size).toBe(2);
+    expect(loaded?.enrichments).toBeInstanceOf(Map);
+    expect(loaded?.enrichments.size).toBe(2);
   });
 
   it("clearSession removes saved data", () => {
@@ -242,7 +240,10 @@ describe("session persistence", () => {
   it("saves with trace metadata", () => {
     const trace = {
       id: "trace_1",
-      original: [{ lat: 47.0, lon: 0.6 }, { lat: 47.1, lon: 0.7 }],
+      original: [
+        { lat: 47.0, lon: 0.6 },
+        { lat: 47.1, lon: 0.7 },
+      ],
       simplified: [{ lat: 47.0, lon: 0.6 }],
       totalDistanceM: 12345,
       elevationGainM: 500,
@@ -262,11 +263,11 @@ describe("session persistence", () => {
     });
 
     const loaded = loadSession();
-    expect(loaded!.traces).toHaveLength(1);
-    expect(loaded!.traces[0].name).toBe("Test Route");
-    expect(loaded!.traces[0].totalDistanceM).toBe(12345);
-    expect(loaded!.traces[0].original).toHaveLength(2);
-    expect(loaded!.traces[0].id).toBe("trace_1");
-    expect(loaded!.traces[0].color).toBe("#1a1a1a");
+    expect(loaded?.traces).toHaveLength(1);
+    expect(loaded?.traces[0].name).toBe("Test Route");
+    expect(loaded?.traces[0].totalDistanceM).toBe(12345);
+    expect(loaded?.traces[0].original).toHaveLength(2);
+    expect(loaded?.traces[0].id).toBe("trace_1");
+    expect(loaded?.traces[0].color).toBe("#1a1a1a");
   });
 });

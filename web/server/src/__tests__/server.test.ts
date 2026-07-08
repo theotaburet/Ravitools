@@ -35,7 +35,7 @@ function fakeResponse(body: string, init: { status?: number; ok?: boolean } = {}
 
 /** Generate a unique Overpass query to avoid cache collisions between tests */
 let queryCounter = 0;
-function uniqueQuery(prefix = "test"): string {
+function uniqueQuery(_prefix = "test"): string {
   return `[out:json];node(${++queryCounter});out;`;
 }
 

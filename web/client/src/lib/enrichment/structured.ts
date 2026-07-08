@@ -1,16 +1,16 @@
 import type {
-  POI,
   EnrichedData,
-  SearchSnippet,
-  EnrichmentSourceDigest,
-  WebsitePreview,
   EnrichmentPlatform,
-  TargetLanguage,
+  EnrichmentSourceDigest,
   EnrichmentStructuredContent,
+  POI,
   PoiCategory,
+  SearchSnippet,
+  TargetLanguage,
+  WebsitePreview,
 } from "../../types";
+import { getEnrichabilityPolicy, getEnrichmentContract } from "../poi-config";
 import { classifySourcePlatform } from "./search";
-import { getEnrichmentContract, getEnrichabilityPolicy } from "../poi-config";
 
 // ---------------------------------------------------------------------------
 // Platform labels and priority (WS4: source strategy)
@@ -52,7 +52,12 @@ const PLATFORM_PRIORITY: Record<EnrichmentPlatform, number> = {
  * Social platforms (Facebook, Instagram) provide presence, not reliable reputation.
  */
 const REPUTATION_PLATFORMS: Set<EnrichmentPlatform> = new Set([
-  "google_maps", "tripadvisor", "yelp", "booking", "airbnb", "hotels_com",
+  "google_maps",
+  "tripadvisor",
+  "yelp",
+  "booking",
+  "airbnb",
+  "hotels_com",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -69,7 +74,11 @@ function shorten(text: string, max: number): string {
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
-  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
+  return [
+    ...new Set(
+      values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)),
+    ),
+  ];
 }
 
 function representativeSnippet(snippets: SearchSnippet[]): SearchSnippet | null {
@@ -101,14 +110,20 @@ const REPEATED_SYMBOL_RE = /([€$£¥])\s*\1{1,3}/g;
  * Note: JS \b doesn't work with Unicode chars like é/è, so we use
  * lookaround with whitespace/punctuation/boundary instead.
  */
-const WB = String.raw`(?:^|[\s,;:!?.(])`;   // word-start boundary (Unicode-safe)
-const WE = String.raw`(?=$|[\s,;:!?.)])`;    // word-end boundary (Unicode-safe)
+const WB = String.raw`(?:^|[\s,;:!?.(])`; // word-start boundary (Unicode-safe)
+const WE = String.raw`(?=$|[\s,;:!?.)])`; // word-end boundary (Unicode-safe)
 
 const TEXTUAL_PRICE_LEVEL: Array<{ re: RegExp; level: number }> = [
   { re: new RegExp(`${WB}(very\\s+expensive|très\\s+cher)${WE}`, "i"), level: 4 },
   { re: new RegExp(`${WB}(expensive|cher(?!\\s*ch[eé])(?!ch))${WE}`, "i"), level: 3 },
-  { re: new RegExp(`${WB}(moderate|moderately\\s+priced|modéré|prix\\s+moyens?)${WE}`, "i"), level: 2 },
-  { re: new RegExp(`${WB}(inexpensive|cheap|bon\\s+marché|pas\\s+cher|économique)${WE}`, "i"), level: 1 },
+  {
+    re: new RegExp(`${WB}(moderate|moderately\\s+priced|modéré|prix\\s+moyens?)${WE}`, "i"),
+    level: 2,
+  },
+  {
+    re: new RegExp(`${WB}(inexpensive|cheap|bon\\s+marché|pas\\s+cher|économique)${WE}`, "i"),
+    level: 1,
+  },
 ];
 
 /**
@@ -116,8 +131,7 @@ const TEXTUAL_PRICE_LEVEL: Array<{ re: RegExp; level: number }> = [
  * Matches patterns like: 15€, €15, $12.50, 25,90€, £8, ¥1200
  * Also matches ranges: 15€-25€, $10-$20
  */
-const NUMERIC_PRICE_RE =
-  /(?:([€$£¥])\s*(\d+(?:[.,]\d{1,2})?))|((\d+(?:[.,]\d{1,2})?)\s*([€$£¥]))/g;
+const NUMERIC_PRICE_RE = /(?:([€$£¥])\s*(\d+(?:[.,]\d{1,2})?))|((\d+(?:[.,]\d{1,2})?)\s*([€$£¥]))/g;
 
 /**
  * Extract a price level (1-4) from search snippets using deterministic heuristics.
@@ -181,7 +195,7 @@ export function extractPriceLevel(
       const raw = prefixValue ?? suffixValue;
       if (raw) {
         const normalized = parseFloat(raw.replace(",", "."));
-        if (!isNaN(normalized) && normalized > 0 && normalized < 10000) {
+        if (!Number.isNaN(normalized) && normalized > 0 && normalized < 10000) {
           prices.push(normalized);
         }
       }
@@ -196,16 +210,16 @@ export function extractPriceLevel(
     const isAccommodation = category === "Sleeping place";
     if (isAccommodation) {
       // Hotel/accommodation: different price brackets
-      if (median <= 30) return 1;     // budget hostel/camping
-      if (median <= 70) return 2;     // mid-range
-      if (median <= 150) return 3;    // upper mid
-      return 4;                       // luxury
+      if (median <= 30) return 1; // budget hostel/camping
+      if (median <= 70) return 2; // mid-range
+      if (median <= 150) return 3; // upper mid
+      return 4; // luxury
     } else {
       // Restaurant/food/general: meal-level brackets
-      if (median <= 8) return 1;      // street food / cheap eats
-      if (median <= 20) return 2;     // casual dining
-      if (median <= 45) return 3;     // upscale casual
-      return 4;                       // fine dining
+      if (median <= 8) return 1; // street food / cheap eats
+      if (median <= 20) return 2; // casual dining
+      if (median <= 45) return 3; // upscale casual
+      return 4; // fine dining
     }
   }
 
@@ -261,7 +275,8 @@ function buildPracticalities(
     );
   }
   if (enrichment.hours) facts.push(`Hours: ${enrichment.hours}`);
-  if (enrichment.priceLevel != null) facts.push(`Price level: ${"$".repeat(enrichment.priceLevel)}`);
+  if (enrichment.priceLevel != null)
+    facts.push(`Price level: ${"$".repeat(enrichment.priceLevel)}`);
 
   // OSM-sourced extras useful for cyclists
   if (poi.tags.phone || poi.tags["contact:phone"]) {
@@ -269,7 +284,11 @@ function buildPracticalities(
   }
 
   if (enrichment.locality) {
-    facts.push(targetLanguage === "fr" ? `Localité: ${enrichment.locality}` : `Locality: ${enrichment.locality}`);
+    facts.push(
+      targetLanguage === "fr"
+        ? `Localité: ${enrichment.locality}`
+        : `Locality: ${enrichment.locality}`,
+    );
   }
   return uniqueStrings(facts).slice(0, 6);
 }
@@ -299,7 +318,10 @@ function buildSourceRollup(
     });
   }
 
-  if (websitePreview && (websitePreview.description || websitePreview.excerpt || websitePreview.title)) {
+  if (
+    websitePreview &&
+    (websitePreview.description || websitePreview.excerpt || websitePreview.title)
+  ) {
     // Only add official_website digest if it wasn't already picked up via snippets
     if (!groups.has("official_website")) {
       digests.push({
@@ -311,7 +333,9 @@ function buildSourceRollup(
   }
 
   // Sort by platform priority (WS4)
-  digests.sort((a, b) => (PLATFORM_PRIORITY[a.platform] ?? 99) - (PLATFORM_PRIORITY[b.platform] ?? 99));
+  digests.sort(
+    (a, b) => (PLATFORM_PRIORITY[a.platform] ?? 99) - (PLATFORM_PRIORITY[b.platform] ?? 99),
+  );
 
   return digests;
 }
@@ -338,14 +362,19 @@ function buildCautions(
       cautions.push("No identifiable review or discovery platform found.");
     }
   }
-  if (isFullEnrichment && enrichment.rating == null) cautions.push("No explicit rating found in the collected sources.");
-  if (isFullEnrichment && enrichment.hours == null) cautions.push("Opening hours were not confirmed from the collected sources.");
-  if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null) cautions.push("Rating found, but review volume was not confirmed.");
+  if (isFullEnrichment && enrichment.rating == null)
+    cautions.push("No explicit rating found in the collected sources.");
+  if (isFullEnrichment && enrichment.hours == null)
+    cautions.push("Opening hours were not confirmed from the collected sources.");
+  if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null)
+    cautions.push("Rating found, but review volume was not confirmed.");
 
   // Check source quality — only social platforms, no reputation sources
   const hasReputation = sourceRollup.some((d) => REPUTATION_PLATFORMS.has(d.platform));
   if (sourceRollup.length > 0 && !hasReputation) {
-    cautions.push("Sources are limited to social profiles or generic directories — reliability uncertain.");
+    cautions.push(
+      "Sources are limited to social profiles or generic directories — reliability uncertain.",
+    );
   }
 
   return cautions.slice(0, 4);
@@ -416,19 +445,28 @@ export function buildDivergences(
     const minRating = Math.min(...foundRatings);
     const maxRating = Math.max(...foundRatings);
     if (maxRating - minRating >= 1.0) {
-      divergences.push(`Rating varies across sources (${minRating.toFixed(1)} to ${maxRating.toFixed(1)}/5).`);
+      divergences.push(
+        `Rating varies across sources (${minRating.toFixed(1)} to ${maxRating.toFixed(1)}/5).`,
+      );
     }
   }
 
   // Detect closure signals: "fermé" / "closed" / "permanently closed" mixed with positive reviews
-  const closureTerms = /\b(ferm[eé]\s+d[eé]finitivement|permanently\s+closed|temporairement\s+ferm[eé]|temporarily\s+closed)\b/i;
+  const closureTerms =
+    /\b(ferm[eé]\s+d[eé]finitivement|permanently\s+closed|temporairement\s+ferm[eé]|temporarily\s+closed)\b/i;
   const hasClosureSignal = snippets.some((s) => closureTerms.test(s.content));
-  const hasPositiveSignal = snippets.some((s) => /\b(open|ouvert|excellent|great|recomm)/i.test(s.content));
+  const hasPositiveSignal = snippets.some((s) =>
+    /\b(open|ouvert|excellent|great|recomm)/i.test(s.content),
+  );
 
   if (hasClosureSignal && hasPositiveSignal) {
-    divergences.push("Some sources suggest this place may be closed — verify before counting on it.");
+    divergences.push(
+      "Some sources suggest this place may be closed — verify before counting on it.",
+    );
   } else if (hasClosureSignal) {
-    divergences.push("Closure signals detected in sources — may be permanently or temporarily closed.");
+    divergences.push(
+      "Closure signals detected in sources — may be permanently or temporarily closed.",
+    );
   }
 
   return divergences.slice(0, 3);
@@ -457,7 +495,10 @@ export function determineSourceConfirmation(
 
 export function buildStructuredContent(
   poi: POI,
-  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "description" | "priceLevel" | "locality">,
+  enrichment: Pick<
+    EnrichedData,
+    "rating" | "reviewCount" | "hours" | "description" | "priceLevel" | "locality"
+  >,
   snippets: SearchSnippet[],
   websitePreview: WebsitePreview | null | undefined,
   targetLanguage: TargetLanguage,
@@ -473,7 +514,9 @@ export function buildStructuredContent(
   const operationalSummaryParts = [
     enrichment.hours ? `Hours available.` : `Hours unclear.`,
     enrichment.rating != null ? `Reputation signals present.` : `Reputation signals limited.`,
-    sourceRollup.length > 0 ? `Coverage: ${sourceRollup.map((item) => PLATFORM_LABELS[item.platform]).join(", ")}.` : null,
+    sourceRollup.length > 0
+      ? `Coverage: ${sourceRollup.map((item) => PLATFORM_LABELS[item.platform]).join(", ")}.`
+      : null,
   ];
 
   // Add divergence warning to operational summary if present
@@ -587,13 +630,41 @@ function normalizeTimeStr(raw: string): string {
 }
 
 const DAY_MAP: Record<string, string> = {
-  monday: "Mon", lundi: "Mon", lun: "Mon", mo: "Mon", mon: "Mon",
-  tuesday: "Tue", mardi: "Tue", mar: "Tue", tu: "Tue", tue: "Tue",
-  wednesday: "Wed", mercredi: "Wed", mer: "Wed", we: "Wed", wed: "Wed",
-  thursday: "Thu", jeudi: "Thu", jeu: "Thu", th: "Thu", thu: "Thu",
-  friday: "Fri", vendredi: "Fri", ven: "Fri", fr: "Fri", fri: "Fri",
-  saturday: "Sat", samedi: "Sat", sam: "Sat", sa: "Sat", sat: "Sat",
-  sunday: "Sun", dimanche: "Sun", dim: "Sun", su: "Sun", sun: "Sun",
+  monday: "Mon",
+  lundi: "Mon",
+  lun: "Mon",
+  mo: "Mon",
+  mon: "Mon",
+  tuesday: "Tue",
+  mardi: "Tue",
+  mar: "Tue",
+  tu: "Tue",
+  tue: "Tue",
+  wednesday: "Wed",
+  mercredi: "Wed",
+  mer: "Wed",
+  we: "Wed",
+  wed: "Wed",
+  thursday: "Thu",
+  jeudi: "Thu",
+  jeu: "Thu",
+  th: "Thu",
+  thu: "Thu",
+  friday: "Fri",
+  vendredi: "Fri",
+  ven: "Fri",
+  fr: "Fri",
+  fri: "Fri",
+  saturday: "Sat",
+  samedi: "Sat",
+  sam: "Sat",
+  sa: "Sat",
+  sat: "Sat",
+  sunday: "Sun",
+  dimanche: "Sun",
+  dim: "Sun",
+  su: "Sun",
+  sun: "Sun",
 };
 
 const HOURS_ROW_RE =
@@ -605,7 +676,9 @@ const HOURS_ROW_RE =
  *
  * Exported for testing.
  */
-export function extractStructuredHoursFromSnippets(snippets: SearchSnippet[]): import("../../types").OpeningHoursEntry[] | null {
+export function extractStructuredHoursFromSnippets(
+  snippets: SearchSnippet[],
+): import("../../types").OpeningHoursEntry[] | null {
   const seen = new Map<string, import("../../types").OpeningHoursEntry>();
 
   for (const snippet of snippets) {

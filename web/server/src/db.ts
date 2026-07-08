@@ -8,17 +8,15 @@
 // unreachable, all helpers return null/empty so the rest of the server keeps
 // working as a strict proxy (graceful degradation).
 // ---------------------------------------------------------------------------
-import { Pool, type PoolConfig } from "pg";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Pool, type PoolConfig } from "pg";
 import pino from "pino";
 
 const log = pino({
   name: "db",
-  transport:
-    process.env.NODE_ENV !== "production"
-      ? { target: "pino-pretty" }
-      : undefined,
+  transport: process.env.NODE_ENV !== "production" ? { target: "pino-pretty" } : undefined,
 });
 
 // ---------------------------------------------------------------------------

@@ -9,8 +9,8 @@
  * the module pure and trivially mockable in tests.
  */
 
-import type { Browser, Page } from "playwright";
 import type { Logger } from "pino";
+import type { Browser, Page } from "playwright";
 import { getBrowserContext, saveBrowserState } from "../browser-context.js";
 
 // ---------------------------------------------------------------------------
@@ -69,10 +69,14 @@ export function extractPriceLevelFromText(text: string | null): number | null {
 }
 
 export function normalizeGoogleMapsGlyphs(text: string | null): string | null {
-  return text ? text.replace(/[]/g, " ").replace(/\s+/g, " ").trim() : null;
+  // ponytail: the PUA-glyph strip was an empty class (matched nothing) — whitespace collapse is all it ever did.
+  return text ? text.replace(/\s+/g, " ").trim() : null;
 }
 
-export function extractLocalGoogleMapsWindow(bodyText: string | null, title: string | null): string | null {
+export function extractLocalGoogleMapsWindow(
+  bodyText: string | null,
+  title: string | null,
+): string | null {
   if (!bodyText) return null;
   if (!title) return bodyText.slice(0, 800);
   const cleanTitle = title.replace(/\s*-\s*Google Maps$/i, "").trim();
@@ -87,8 +91,13 @@ export function extractGoogleMapsCategory(localText: string | null): string | nu
   if (starCategory?.[1]) {
     return normalizeGoogleMapsGlyphs(parseGoogleMapsText(starCategory[1]));
   }
-  const match = localText.match(/\d(?:[.,]\d)\s*(?:\(([\d\s., ]+)\))?\s*([^·]{3,60}?)(?:·\s*)?(?:Présentation|Overview|Prix|About|À propos|Directions|Itinéraires)/i)
-    ?? localText.match(/\d(?:[.,]\d)\s+([^·]{3,60}?)(?:Présentation|Overview|Prix|About|À propos|Directions|Itinéraires)/i);
+  const match =
+    localText.match(
+      /\d(?:[.,]\d)\s*(?:\(([\d\s., ]+)\))?\s*([^·]{3,60}?)(?:·\s*)?(?:Présentation|Overview|Prix|About|À propos|Directions|Itinéraires)/i,
+    ) ??
+    localText.match(
+      /\d(?:[.,]\d)\s+([^·]{3,60}?)(?:Présentation|Overview|Prix|About|À propos|Directions|Itinéraires)/i,
+    );
   return normalizeGoogleMapsGlyphs(parseGoogleMapsText(match?.[2] ?? match?.[1] ?? null));
 }
 
@@ -112,16 +121,36 @@ export function cleanGoogleMapsHours(hoursText: string | null): string | null {
 
 const DAY_NORMALIZATIONS: Record<string, string> = {
   // English
-  monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
-  friday: "Fri", saturday: "Sat", sunday: "Sun",
-  mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu",
-  fri: "Fri", sat: "Sat", sun: "Sun",
+  monday: "Mon",
+  tuesday: "Tue",
+  wednesday: "Wed",
+  thursday: "Thu",
+  friday: "Fri",
+  saturday: "Sat",
+  sunday: "Sun",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
   // French
-  lundi: "Mon", mardi: "Tue", mercredi: "Wed", jeudi: "Thu",
-  vendredi: "Fri", samedi: "Sat", dimanche: "Sun",
+  lundi: "Mon",
+  mardi: "Tue",
+  mercredi: "Wed",
+  jeudi: "Thu",
+  vendredi: "Fri",
+  samedi: "Sat",
+  dimanche: "Sun",
   // Spanish
-  lunes: "Mon", martes: "Tue", miércoles: "Wed", jueves: "Thu",
-  viernes: "Fri", sábado: "Sat", domingo: "Sun",
+  lunes: "Mon",
+  martes: "Tue",
+  miércoles: "Wed",
+  jueves: "Thu",
+  viernes: "Fri",
+  sábado: "Sat",
+  domingo: "Sun",
 };
 
 export function normalizeDay(raw: string): string {
@@ -167,7 +196,7 @@ export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | nul
     return { day, open: "closed", close: null };
   }
 
-  const sep = /\s*[–—\-]\s*/;
+  const sep = /\s*[–—-]\s*/;
   const rangeParts = timePart.split(sep);
   if (rangeParts.length >= 2) {
     const openTime = normalizeTimeString(rangeParts[0].trim());
@@ -190,8 +219,11 @@ export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | nul
 
 export function extractGoogleMapsReviewCount(localText: string | null): number | null {
   if (!localText) return null;
-  const firstSection = localText.split(/Hôtels similaires|Nearby hotels|À proximité/i)[0] ?? localText;
-  const match = firstSection.match(/\((\d[\d\s., ]*)\)/) ?? firstSection.match(/(\d[\d\s., ]*)\s+(?:reviews?|avis)/i);
+  const firstSection =
+    localText.split(/Hôtels similaires|Nearby hotels|À proximité/i)[0] ?? localText;
+  const match =
+    firstSection.match(/\((\d[\d\s., ]*)\)/) ??
+    firstSection.match(/(\d[\d\s., ]*)\s+(?:reviews?|avis)/i);
   if (!match) return null;
   const normalized = match[1].replace(/[\s., ]/g, "");
   const value = Number.parseInt(normalized, 10);
@@ -200,7 +232,10 @@ export function extractGoogleMapsReviewCount(localText: string | null): number |
 
 export function extractGoogleMapsRating(localText: string | null): number | null {
   if (!localText) return null;
-  const firstSection = localText.split(/Hôtels similaires|Nearby hotels?|Similar places|À proximité|Nearby places/i)[0] ?? localText;
+  const firstSection =
+    localText.split(
+      /Hôtels similaires|Nearby hotels?|Similar places|À proximité|Nearby places/i,
+    )[0] ?? localText;
   const match = firstSection.match(/\b(\d(?:[.,]\d))\b/);
   if (!match) return null;
   const value = Number.parseFloat(match[1].replace(",", "."));
@@ -211,9 +246,18 @@ export function extractGoogleMapsRating(localText: string | null): number | null
 // Playwright-backed extraction helpers
 // ---------------------------------------------------------------------------
 
-export async function extractTextBySelectors(page: Page, selectors: string[]): Promise<string | null> {
+export async function extractTextBySelectors(
+  page: Page,
+  selectors: string[],
+): Promise<string | null> {
   for (const selector of selectors) {
-    const value = parseGoogleMapsText(await page.locator(selector).first().innerText({ timeout: 1_500 }).catch(() => ""));
+    const value = parseGoogleMapsText(
+      await page
+        .locator(selector)
+        .first()
+        .innerText({ timeout: 1_500 })
+        .catch(() => ""),
+    );
     if (value) return value;
   }
   return null;
@@ -228,7 +272,10 @@ export async function clickFirstGoogleMapsResult(page: Page, log: Logger): Promi
     return;
   }
 
-  const roleResult = page.getByRole("link").filter({ has: page.locator('div[role="article"], div.Nv2PK') }).first();
+  const roleResult = page
+    .getByRole("link")
+    .filter({ has: page.locator('div[role="article"], div.Nv2PK') })
+    .first();
   if (await roleResult.count()) {
     log.info({ selector: "role=link article" }, "Google Maps: clicking fallback result card");
     await roleResult.click({ timeout: 5_000 }).catch(() => undefined);
@@ -262,8 +309,13 @@ export async function acceptGoogleConsentIfPresent(page: Page, log: Logger): Pro
 
   const continueUrl = new URL(page.url()).searchParams.get("continue");
   if (continueUrl) {
-    log.warn({ continueUrl }, "Google Maps preview: consent button not found, following continue URL directly");
-    await page.goto(continueUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => undefined);
+    log.warn(
+      { continueUrl },
+      "Google Maps preview: consent button not found, following continue URL directly",
+    );
+    await page
+      .goto(continueUrl, { waitUntil: "domcontentloaded", timeout: 15_000 })
+      .catch(() => undefined);
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
   }
 }
@@ -290,18 +342,18 @@ export async function extractExpandedGoogleMapsHours(
 
   for (const selector of expandSelectors) {
     const locator = page.locator(selector).first();
-    if (!await locator.count()) continue;
+    if (!(await locator.count())) continue;
     await locator.click({ timeout: 3_000 }).catch(() => undefined);
     await sleep(800);
     break;
   }
 
   const rowSelectors = [
-    'table.WgFkxc tr',
+    "table.WgFkxc tr",
     'table[aria-label*="hours"] tr',
     'table[aria-label*="horaires"] tr',
     'div[aria-label*="hours"] li',
-    'div.t39EBf.GUrTXd',
+    "div.t39EBf.GUrTXd",
     'tr[class*="hours"]',
   ];
 
@@ -312,25 +364,38 @@ export async function extractExpandedGoogleMapsHours(
 
     const entries: GoogleMapsHoursEntry[] = [];
     for (let i = 0; i < Math.min(count, 7); i++) {
-      const rowText = await rows.nth(i).innerText({ timeout: 1_500 }).catch(() => "");
+      const rowText = await rows
+        .nth(i)
+        .innerText({ timeout: 1_500 })
+        .catch(() => "");
       const parsed = parseGoogleMapsHoursRow(rowText);
       if (parsed) entries.push(parsed);
     }
 
     if (entries.length >= 2) {
-      log.info({ selector, count, parsed: entries.length }, "Google Maps: structured hours extracted from panel");
+      log.info(
+        { selector, count, parsed: entries.length },
+        "Google Maps: structured hours extracted from panel",
+      );
       return entries;
     }
   }
 
   // Fallback: parse body text for day-labelled lines
   const bodyText = normalizeGoogleMapsGlyphs(
-    await page.locator("body").innerText({ timeout: 3_000 }).catch(() => ""),
+    await page
+      .locator("body")
+      .innerText({ timeout: 3_000 })
+      .catch(() => ""),
   );
   if (!bodyText) return null;
 
-  const dayPattern = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+.+/im;
-  const lines = bodyText.split("\n").map((l) => l.trim()).filter(Boolean);
+  const dayPattern =
+    /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+.+/im;
+  const lines = bodyText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const entries: GoogleMapsHoursEntry[] = [];
   let inBlock = false;
   let consecutiveMisses = 0;
@@ -348,7 +413,10 @@ export async function extractExpandedGoogleMapsHours(
   }
 
   if (entries.length >= 2) {
-    log.info({ parsed: entries.length }, "Google Maps: structured hours extracted from body text fallback");
+    log.info(
+      { parsed: entries.length },
+      "Google Maps: structured hours extracted from body text fallback",
+    );
     return entries;
   }
 
@@ -386,21 +454,40 @@ export async function fetchGoogleMapsPreviewOnce(
     await acceptGoogleConsentIfPresent(page, log);
     await sleep(randomDelay(1_000, 3_000));
 
-    const initialText = parseGoogleMapsText(await page.locator("body").innerText({ timeout: 5_000 }).catch(() => ""));
+    const initialText = parseGoogleMapsText(
+      await page
+        .locator("body")
+        .innerText({ timeout: 5_000 })
+        .catch(() => ""),
+    );
     if (/(captcha|unusual traffic|not a robot)/i.test(initialText ?? "")) {
-      log.warn({ url, attempt, pageUrl: page.url(), initialText: initialText?.slice(0, 200) }, "Google Maps preview blocked by CAPTCHA/traffic checks");
+      log.warn(
+        { url, attempt, pageUrl: page.url(), initialText: initialText?.slice(0, 200) },
+        "Google Maps preview blocked by CAPTCHA/traffic checks",
+      );
       throw new Error(`${BLOCKED_ERROR_PREFIX} Google Maps CAPTCHA / traffic check`);
     }
 
     if (page.url().includes("/maps/search/") || /results/i.test(initialText ?? "")) {
-      log.info({ url, attempt, pageUrl: page.url() }, "Google Maps preview: search result page detected");
+      log.info(
+        { url, attempt, pageUrl: page.url() },
+        "Google Maps preview: search result page detected",
+      );
       await clickFirstGoogleMapsResult(page, log);
       await sleep(randomDelay(1_500, 4_000));
     }
 
-    const title = parseGoogleMapsText(await page.title())
-      ?? await extractTextBySelectors(page, ["h1", 'h1.DUwDvf', 'div[role="main"] h1']);
-    const bodyText = normalizeGoogleMapsGlyphs(parseGoogleMapsText(await page.locator("body").innerText({ timeout: 5_000 }).catch(() => "")));
+    const title =
+      parseGoogleMapsText(await page.title()) ??
+      (await extractTextBySelectors(page, ["h1", "h1.DUwDvf", 'div[role="main"] h1']));
+    const bodyText = normalizeGoogleMapsGlyphs(
+      parseGoogleMapsText(
+        await page
+          .locator("body")
+          .innerText({ timeout: 5_000 })
+          .catch(() => ""),
+      ),
+    );
     const localText = extractLocalGoogleMapsWindow(bodyText, title);
     const snippet = bodyText?.slice(0, 1200) ?? null;
 
@@ -422,47 +509,67 @@ export async function fetchGoogleMapsPreviewOnce(
         })
         .join("; ");
     } else {
-      hoursText = await extractTextBySelectors(page, [
-        'button[aria-label*="Open"]',
-        'button[aria-label*="Closed"]',
-        'button[aria-label*="Ouvre"]',
-        'button[aria-label*="Ferme"]',
-        'div[aria-label*="Hours"]',
-        'div[aria-label*="horaires"]',
-      ]) ?? (() => {
-        const match = localText?.match(/(?:Open|Closed)[^\n]{0,80}/i)
-          ?? localText?.match(/(?:Ouvre|Fermé|Ferme)[^\n]{0,80}/i);
-        return parseGoogleMapsText(match?.[0] ?? null);
-      })();
+      hoursText =
+        (await extractTextBySelectors(page, [
+          'button[aria-label*="Open"]',
+          'button[aria-label*="Closed"]',
+          'button[aria-label*="Ouvre"]',
+          'button[aria-label*="Ferme"]',
+          'div[aria-label*="Hours"]',
+          'div[aria-label*="horaires"]',
+        ])) ??
+        (() => {
+          const match =
+            localText?.match(/(?:Open|Closed)[^\n]{0,80}/i) ??
+            localText?.match(/(?:Ouvre|Fermé|Ferme)[^\n]{0,80}/i);
+          return parseGoogleMapsText(match?.[0] ?? null);
+        })();
       hoursText = cleanGoogleMapsHours(hoursText);
     }
 
     const phone = cleanGoogleMapsPhone(
-      await extractTextBySelectors(page, ['button[data-item-id*="phone"]', 'button[aria-label^="Phone:"]'])
-      ?? parseGoogleMapsText(bodyText?.match(/\+?\d[\d\s().-]{6,}/)?.[0] ?? null),
+      (await extractTextBySelectors(page, [
+        'button[data-item-id*="phone"]',
+        'button[aria-label^="Phone:"]',
+      ])) ?? parseGoogleMapsText(bodyText?.match(/\+?\d[\d\s().-]{6,}/)?.[0] ?? null),
     );
-    const website = await page.locator('a[data-item-id="authority"], a[data-tooltip="Open website"]').getAttribute("href").catch(() => null);
-    const address = normalizeGoogleMapsGlyphs(await extractTextBySelectors(page, ['button[data-item-id*="address"]', 'button[aria-label^="Address:"]']))
-      ?? (() => {
+    const website = await page
+      .locator('a[data-item-id="authority"], a[data-tooltip="Open website"]')
+      .getAttribute("href")
+      .catch(() => null);
+    const address =
+      normalizeGoogleMapsGlyphs(
+        await extractTextBySelectors(page, [
+          'button[data-item-id*="address"]',
+          'button[aria-label^="Address:"]',
+        ]),
+      ) ??
+      (() => {
         const match = bodyText?.match(/\b\d{4,5}[^\n]{10,120}/) ?? null;
         return normalizeGoogleMapsGlyphs(parseGoogleMapsText(match?.[0] ?? null));
       })();
-    const category = await extractTextBySelectors(page, ['button[jsaction*="category"]', 'button[aria-label*="stars"] + button'])
-      ?? extractGoogleMapsCategory(localText);
+    const category =
+      (await extractTextBySelectors(page, [
+        'button[jsaction*="category"]',
+        'button[aria-label*="stars"] + button',
+      ])) ?? extractGoogleMapsCategory(localText);
 
-    log.info({
-      url,
-      pageUrl: page.url(),
-      title,
-      category,
-      rating,
-      reviewCount,
-      priceLevel: extractPriceLevelFromText(bodyText),
-      hasHours: Boolean(hoursText),
-      hasAddress: Boolean(address),
-      hasPhone: Boolean(phone),
-      hasWebsite: Boolean(website),
-    }, "Google Maps preview extracted");
+    log.info(
+      {
+        url,
+        pageUrl: page.url(),
+        title,
+        category,
+        rating,
+        reviewCount,
+        priceLevel: extractPriceLevelFromText(bodyText),
+        hasHours: Boolean(hoursText),
+        hasAddress: Boolean(address),
+        hasPhone: Boolean(phone),
+        hasWebsite: Boolean(website),
+      },
+      "Google Maps preview extracted",
+    );
 
     return {
       url,
@@ -481,7 +588,10 @@ export async function fetchGoogleMapsPreviewOnce(
       fetchedAt: new Date().toISOString(),
     };
   } catch (err) {
-    log.error({ err, url, attempt, pageUrl: page.url().slice(0, 200) }, "Google Maps preview extraction failed");
+    log.error(
+      { err, url, attempt, pageUrl: page.url().slice(0, 200) },
+      "Google Maps preview extraction failed",
+    );
     throw err;
   } finally {
     await page.close().catch(() => undefined);
@@ -523,7 +633,11 @@ export const googleMapsPlugin: MapScraperPlugin<GoogleMapsPreview> = {
   // result snippet). Programmatic search is possible but currently unused;
   // omit `buildUrl` so callers must supply a URL.
 
-  async fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<GoogleMapsPreview | null> {
+  async fetchOnce(
+    url: string,
+    attempt: number,
+    deps: ScraperDeps,
+  ): Promise<GoogleMapsPreview | null> {
     const browser = await deps.getBrowser();
     return fetchGoogleMapsPreviewOnce(url, attempt, browser, {
       log: deps.log,

@@ -42,6 +42,7 @@ export function GpxUpload({ onFiles, disabled, lang = "en" }: Props) {
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement — the overlaid file input is the accessible control (AUDIT R34)
     <div
       className={`upload-zone ${dragOver ? "drag-over" : ""} ${disabled ? "disabled" : ""}`}
       onDragOver={(e) => {
@@ -69,9 +70,7 @@ export function GpxUpload({ onFiles, disabled, lang = "en" }: Props) {
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
 
-      <p className="text-lg font-black uppercase tracking-tight">
-        {t("upload.drop", lang)}
-      </p>
+      <p className="text-lg font-black uppercase tracking-tight">{t("upload.drop", lang)}</p>
       <p className="text-sm text-muted font-mono">{t("upload.browse", lang)}</p>
 
       <input

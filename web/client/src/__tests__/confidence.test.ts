@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { computeConfidence } from "../lib/enrichment/enricher";
 
 // AUDIT C9: an authoritative (official-website) result should beat a pile of
@@ -7,7 +7,9 @@ describe("computeConfidence weighting (AUDIT C9)", () => {
   const snippet = (engine: string, url: string, content = "") => ({ engine, url, content });
 
   const manySnippetsNoOfficial = {
-    rawSnippets: Array.from({ length: 8 }, (_, i) => snippet("bing", "https://aggregator.example/x")),
+    rawSnippets: Array.from({ length: 8 }, (_, _i) =>
+      snippet("bing", "https://aggregator.example/x"),
+    ),
     rating: null,
     reviewCount: null,
     hours: null,

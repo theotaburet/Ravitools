@@ -3,10 +3,10 @@
 // Port of data_processor.py logic with deduplication and trace-distance filtering
 // ---------------------------------------------------------------------------
 
-import type { POI, TracePoint, PoiCategory } from "../types";
+import type { POI, PoiCategory, TracePoint } from "../types";
+import { alongTraceProjection, distanceToTrace, haversine, TraceIndex } from "./gpx-parser";
 import type { OverpassElement } from "./overpass";
 import { findCategoryForTag } from "./poi-config";
-import { haversine, distanceToTrace, TraceIndex, alongTraceProjection } from "./gpx-parser";
 
 const NON_MERGEABLE_CATEGORIES = new Set<PoiCategory>([
   "Restaurant or Bar",
@@ -66,9 +66,7 @@ export function processElements(
   // When original traces are available, build spatial indices for fast lookup
   // on potentially very long polylines (10k+ points for 600km routes).
   const distTraces = originalTraces ?? traces;
-  const indices = distTraces.map((t) =>
-    t.length > 200 ? new TraceIndex(t) : null,
-  );
+  const indices = distTraces.map((t) => (t.length > 200 ? new TraceIndex(t) : null));
 
   const withDistance: POI[] = [];
   for (const poi of rawPois) {
@@ -76,9 +74,7 @@ export function processElements(
     let bestTraceIdx = 0;
     for (let ti = 0; ti < distTraces.length; ti++) {
       const idx = indices[ti];
-      const dist = idx
-        ? idx.distanceTo(poi)
-        : distanceToTrace(poi, distTraces[ti]);
+      const dist = idx ? idx.distanceTo(poi) : distanceToTrace(poi, distTraces[ti]);
       if (dist < minDist) {
         minDist = dist;
         bestTraceIdx = ti;
@@ -146,11 +142,7 @@ function elementToPoi(el: OverpassElement): POI | null {
   return null;
 }
 
-function formatFallbackName(
-  _category: string,
-  _key: string,
-  value: string,
-): string {
+function formatFallbackName(_category: string, _key: string, value: string): string {
   // Produce a readable name like "Drinking water" from "drinking_water"
   const readable = value.replace(/_/g, " ");
   return readable.charAt(0).toUpperCase() + readable.slice(1);

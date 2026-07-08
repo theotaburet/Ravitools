@@ -1,7 +1,7 @@
 /**
  * Shared Playwright browser context with persisted storage state.
  *
- * Goal: reuse a single BrowserContext across all Google Maps (and future Yandex)
+ * Goal: reuse a single BrowserContext across all Google Maps
  * scrapes so that cookies (consent, anti-bot, NID) accumulate and persist on
  * disk. This dramatically reduces the captcha rate compared to creating a fresh
  * context per page.
@@ -18,13 +18,13 @@
  *   - On graceful shutdown
  *
  * Privacy: only OSM-style metadata is stored. No GPX, no user data. The cookie
- * jar contains only cookies set by visited domains (Google, Yandex, etc.).
+ * jar contains only cookies set by visited domains (Google, etc.).
  */
 
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
-import type { Browser, BrowserContext, BrowserContextOptions } from "playwright";
 import { pino } from "pino";
+import type { Browser, BrowserContext, BrowserContextOptions } from "playwright";
 
 const log = pino({ name: "browser-context" });
 
@@ -44,8 +44,9 @@ const DEFAULT_LOCALE = process.env.GOOGLE_MAPS_LOCALE ?? "fr-FR";
  * Default User-Agent. Fixed (not rotated) for session consistency.
  * If unset, Playwright's default Chromium UA is used.
  */
-const DEFAULT_USER_AGENT = process.env.GOOGLE_MAPS_USER_AGENT
-  ?? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT =
+  process.env.GOOGLE_MAPS_USER_AGENT ??
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
 let contextPromise: Promise<BrowserContext> | null = null;
 let contextBrowser: Browser | null = null;
@@ -70,7 +71,10 @@ async function loadStorageState(): Promise<{ cookies?: unknown; origins?: unknow
     log.info({ file: STATE_FILE, cookies: cookieCount }, "Loaded browser storage state");
     return parsed;
   } catch (err) {
-    log.warn({ err: (err as Error).message }, "Failed to read browser storage state, starting fresh");
+    log.warn(
+      { err: (err as Error).message },
+      "Failed to read browser storage state, starting fresh",
+    );
     return undefined;
   }
 }
@@ -125,13 +129,14 @@ export async function getBrowserContext(browser: Browser): Promise<BrowserContex
  */
 export async function saveBrowserState(force = false): Promise<void> {
   if (!contextPromise) return;
+  const currentContext = contextPromise;
   const now = Date.now();
   if (!force && now - lastSaveAt < SAVE_DEBOUNCE_MS) return;
   if (pendingSave) return pendingSave;
 
   pendingSave = (async () => {
     try {
-      const ctx = await contextPromise!;
+      const ctx = await currentContext;
       await mkdir(STATE_DIR, { recursive: true });
       const state = await ctx.storageState();
       await writeFile(STATE_FILE, JSON.stringify(state), "utf8");

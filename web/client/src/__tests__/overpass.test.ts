@@ -2,14 +2,14 @@
 // Tests for Overpass query builder
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import { buildOverpassQuery, buildChunkedQueries } from "../lib/overpass";
+import { describe, expect, it } from "vitest";
+import { buildChunkedQueries, buildOverpassQuery } from "../lib/overpass";
 import type { TracePoint } from "../types";
 
 const TRACE: TracePoint[] = [
   { lat: 48.8566, lon: 2.3522 },
-  { lat: 48.8600, lon: 2.3600 },
-  { lat: 48.8650, lon: 2.3700 },
+  { lat: 48.86, lon: 2.36 },
+  { lat: 48.865, lon: 2.37 },
 ];
 
 describe("buildOverpassQuery", () => {

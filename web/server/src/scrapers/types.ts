@@ -3,17 +3,17 @@
  *
  * A "scraper" is anything that, given a POI name + coordinates (or a direct
  * URL), returns a structured `MapPreview` extracted from a third-party map
- * platform (Google Maps, Yandex Maps, Bing Maps, Apple Maps, OSM, etc.).
+ * platform (Google Maps, Bing Maps, Apple Maps, OSM, etc.).
  *
- * Concrete plugins live in sibling files (google-maps.ts, yandex-maps.ts).
+ * Concrete plugins live in sibling files (google-maps.ts).
  * The job system / endpoint mounting is shared via job-system.ts and
  * endpoints.ts so adding a new source is a focused exercise in writing
  * the platform-specific Playwright extraction, not in re-implementing
  * queueing / persistence / retries / failure logging.
  */
 
-import type { Browser } from "playwright";
 import type { Logger } from "pino";
+import type { Browser } from "playwright";
 
 // ---------------------------------------------------------------------------
 // Hours entry — same across sources
@@ -137,9 +137,14 @@ export interface MapScraperPlugin<T extends MapPreview = MapPreview> {
   /**
    * Optionally build a search/canonical URL from POI name + coordinates.
    * Sources that only accept direct URLs return null; sources that support
-   * search-by-name (Google, Yandex, Bing) build a search URL here.
+   * search-by-name (Google, Bing) build a search URL here.
    */
-  buildUrl?(poiName: string, lat: number, lon: number, extra?: Record<string, unknown>): string | null;
+  buildUrl?(
+    poiName: string,
+    lat: number,
+    lon: number,
+    extra?: Record<string, unknown>,
+  ): string | null;
 
   /**
    * Run the actual extraction once. Throws on hard failures (network, page

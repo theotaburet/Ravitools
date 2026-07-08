@@ -9,7 +9,6 @@ import type {
   GoogleMapsPreview,
   GoogleMapsPreviewJob,
   POI,
-  PoiCategory,
   SearchSnippet,
   WebsitePreview,
 } from "../../types";
@@ -250,13 +249,6 @@ export function buildGoogleMapsUrl(poi: POI): string {
   return `https://www.google.com/maps/search/${query}/@${poi.lat},${poi.lon},17z`;
 }
 
-/**
- * Build a Google Maps directions URL (from current location to POI).
- */
-export function buildGoogleMapsDirectionsUrl(poi: POI): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${poi.lat},${poi.lon}`;
-}
-
 // ---------------------------------------------------------------------------
 // Official website detection (WS5: hardened)
 // ---------------------------------------------------------------------------
@@ -309,22 +301,6 @@ export function isRejectedOfficialDomain(url: string): boolean {
       if (hostname === prefix || hostname.startsWith(`${prefix}.`)) return true;
     }
     return false;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Detect if a snippet URL matches the official website domain.
- * Useful for identifying which snippets come from the official source.
- * (WS5: snippet domain matching)
- */
-export function isOfficialDomainSnippet(snippetUrl: string, officialUrl: string | null): boolean {
-  if (!officialUrl) return false;
-  try {
-    const officialHost = new URL(officialUrl).hostname.toLowerCase().replace(/^www\./, "");
-    const snippetHost = new URL(snippetUrl).hostname.toLowerCase().replace(/^www\./, "");
-    return snippetHost === officialHost || snippetHost.endsWith(`.${officialHost}`);
   } catch {
     return false;
   }
@@ -396,6 +372,34 @@ export function normalizeUrlForDedup(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// JSON fetch helper — GET (no body) or POST JSON; null on any failure.
+// Shared by the proxy-endpoint wrappers below (AUDIT R32).
+// ---------------------------------------------------------------------------
+
+async function fetchJson<T>(
+  url: string,
+  opts: { body?: unknown; signal?: AbortSignal } = {},
+): Promise<T | null> {
+  try {
+    const res = await fetch(url, {
+      method: opts.body !== undefined ? "POST" : "GET",
+      headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Combine an optional caller signal with a timeout (AUDIT R25). */
+function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal {
+  return signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
+}
+
+// ---------------------------------------------------------------------------
 // Official website preview fetcher
 // ---------------------------------------------------------------------------
 
@@ -405,28 +409,10 @@ export async function fetchWebsitePreview(
   apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<WebsitePreview | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-  // AUDIT R20: remove the relay listener in finally — it leaks per attempt otherwise
-  const onAbort = () => controller.abort();
-  signal?.addEventListener("abort", onAbort, { once: true });
-
-  try {
-    const res = await fetch(`${apiBase}/fetch-page`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) return null;
-    return (await res.json()) as WebsitePreview;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener("abort", onAbort); // AUDIT R20
-  }
+  return fetchJson<WebsitePreview>(`${apiBase}/fetch-page`, {
+    body: { url },
+    signal: timeoutSignal(REQUEST_TIMEOUT, signal),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -678,10 +664,8 @@ export async function searchPoi(
         await new Promise((r) => setTimeout(r, delayMs));
       }
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-      const onAbort = () => controller.abort(); // AUDIT R20
-      signal?.addEventListener("abort", onAbort, { once: true });
+      // AUDIT R25: native timeout+signal combination — no manual listeners to leak (R20)
+      const fetchSignal = timeoutSignal(REQUEST_TIMEOUT, signal);
 
       try {
         const res = await fetch(`${apiBase}/search`, {
@@ -692,7 +676,7 @@ export async function searchPoi(
             language: "fr",
             engines: requestedEngines,
           }),
-          signal: controller.signal,
+          signal: fetchSignal,
         });
 
         if (res.status === 429) {
@@ -785,14 +769,16 @@ export async function searchPoi(
           throw lastError;
         }
 
-        if (attempt < maxRetries && lastError.name !== "AbortError") {
+        // Timeout (TimeoutError) and cancellation (AbortError) are not retried.
+        if (
+          attempt < maxRetries &&
+          lastError.name !== "AbortError" &&
+          lastError.name !== "TimeoutError"
+        ) {
           continue;
         }
 
         break;
-      } finally {
-        clearTimeout(timeout);
-        signal?.removeEventListener("abort", onAbort); // AUDIT R20
       }
     }
   }
@@ -815,52 +801,16 @@ export function buildOfficialWebsiteSnippets(
   return extractStructuredWebsiteSnippets(websitePreview);
 }
 
-export async function fetchGoogleMapsPreview(
-  url: string,
-  apiBase: string = "/api",
-  signal?: AbortSignal,
-): Promise<GoogleMapsPreview | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180_000);
-  const onAbort = () => controller.abort(); // AUDIT R20
-  signal?.addEventListener("abort", onAbort, { once: true });
-
-  try {
-    const res = await fetch(`${apiBase}/google-maps-preview`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) return null;
-    return (await res.json()) as GoogleMapsPreview;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener("abort", onAbort); // AUDIT R20
-  }
-}
-
 export async function enqueueGoogleMapsPreview(
   url: string,
   apiBase: string = "/api",
   signal?: AbortSignal,
   poiName?: string | null,
 ): Promise<GoogleMapsPreviewJob | null> {
-  try {
-    const res = await fetch(`${apiBase}/google-maps-preview/jobs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, poiName: poiName ?? undefined }),
-      signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as GoogleMapsPreviewJob;
-  } catch {
-    return null;
-  }
+  return fetchJson<GoogleMapsPreviewJob>(`${apiBase}/google-maps-preview/jobs`, {
+    body: { url, poiName: poiName ?? undefined },
+    signal,
+  });
 }
 
 export async function pollGoogleMapsPreviewJob(
@@ -868,32 +818,16 @@ export async function pollGoogleMapsPreviewJob(
   apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GoogleMapsPreviewJob | null> {
-  try {
-    const res = await fetch(`${apiBase}/google-maps-preview/jobs/${jobId}`, {
-      method: "GET",
-      signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as GoogleMapsPreviewJob;
-  } catch {
-    return null;
-  }
+  return fetchJson<GoogleMapsPreviewJob>(`${apiBase}/google-maps-preview/jobs/${jobId}`, {
+    signal,
+  });
 }
 
 export async function fetchGoogleMapsJobStats(
   apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GoogleFallbackJobStats | null> {
-  try {
-    const res = await fetch(`${apiBase}/google-maps-preview/jobs`, {
-      method: "GET",
-      signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as GoogleFallbackJobStats;
-  } catch {
-    return null;
-  }
+  return fetchJson<GoogleFallbackJobStats>(`${apiBase}/google-maps-preview/jobs`, { signal });
 }
 
 export function buildGoogleMapsSnippets(
@@ -1016,53 +950,32 @@ export async function reverseGeocode(
   apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GeoContext | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-  const onAbort = () => controller.abort(); // AUDIT R20
-  signal?.addEventListener("abort", onAbort, { once: true });
+  // Non-critical: any failure returns null and enrichment continues without locality.
+  const data = await fetchJson<NominatimReverseResponse>(`${apiBase}/geocode`, {
+    body: { lat, lon },
+    signal: timeoutSignal(REQUEST_TIMEOUT, signal),
+  });
 
-  try {
-    const res = await fetch(`${apiBase}/geocode`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lon }),
-      signal: controller.signal,
-    });
+  // Pick the most specific locality available
+  const addr = data?.address;
+  if (!data || !addr) return null;
 
-    if (!res.ok) {
-      // Non-critical: return null, enrichment continues without locality
-      return null;
-    }
+  const locality =
+    addr.city ||
+    addr.town ||
+    addr.village ||
+    addr.hamlet ||
+    addr.municipality ||
+    addr.county ||
+    null;
 
-    const data: NominatimReverseResponse = await res.json();
-
-    // Pick the most specific locality available
-    const addr = data.address;
-    if (!addr) return null;
-
-    const locality =
-      addr.city ||
-      addr.town ||
-      addr.village ||
-      addr.hamlet ||
-      addr.municipality ||
-      addr.county ||
-      null;
-
-    return {
-      locality,
-      county: addr.county ?? null,
-      state: addr.state ?? null,
-      country: addr.country ?? null,
-      countryCode:
-        (data as { address?: { country_code?: string } }).address?.country_code?.toLowerCase() ??
-        null,
-    };
-  } catch {
-    // Non-critical failure
-    return null;
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener("abort", onAbort); // AUDIT R20
-  }
+  return {
+    locality,
+    county: addr.county ?? null,
+    state: addr.state ?? null,
+    country: addr.country ?? null,
+    countryCode:
+      (data as { address?: { country_code?: string } }).address?.country_code?.toLowerCase() ??
+      null,
+  };
 }

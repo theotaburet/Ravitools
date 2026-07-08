@@ -2,14 +2,14 @@
 // DebugPanel – collapsible log viewer for pipeline diagnostics
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  clearLog,
+  getLogEntries,
+  isDebugEnabled,
   type LogEntry,
   onLog,
-  getLogEntries,
-  clearLog,
   setDebugEnabled,
-  isDebugEnabled,
 } from "../lib/debug-log";
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -49,6 +49,7 @@ export function DebugPanel() {
   }, [enabled]);
 
   // Auto-scroll to bottom on new entries
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `entries` is the intentional trigger — the effect scrolls when the log grows
   useEffect(() => {
     if (autoScrollRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -69,8 +70,12 @@ export function DebugPanel() {
   return (
     <div className="debug-panel">
       <button
+        type="button"
         className="debug-panel-toggle"
-        onClick={() => { setOpen(!open); if (!open && !enabled) toggleEnabled(); }}
+        onClick={() => {
+          setOpen(!open);
+          if (!open && !enabled) toggleEnabled();
+        }}
       >
         <span className="debug-panel-icon">{open ? "▼" : "▶"}</span>
         <span>Debug</span>
@@ -92,6 +97,7 @@ export function DebugPanel() {
               Logging
             </label>
             <button
+              type="button"
               className="neo-btn-sm neo-btn-secondary"
               onClick={handleClear}
               disabled={entries.length === 0}
@@ -99,11 +105,7 @@ export function DebugPanel() {
               Clear
             </button>
           </div>
-          <div
-            className="debug-panel-log"
-            ref={scrollRef}
-            onScroll={handleScroll}
-          >
+          <div className="debug-panel-log" ref={scrollRef} onScroll={handleScroll}>
             {entries.length === 0 && (
               <div className="debug-panel-empty">
                 {enabled
@@ -113,9 +115,7 @@ export function DebugPanel() {
             )}
             {entries.map((e) => (
               <div key={e.seq} className="debug-log-line">
-                <span className="debug-log-ts">
-                  {e.isoTs.slice(11, 23)}
-                </span>
+                <span className="debug-log-ts">{e.isoTs.slice(11, 23)}</span>
                 <span
                   className="debug-log-level"
                   style={{ color: LEVEL_COLORS[e.level] || "#000" }}

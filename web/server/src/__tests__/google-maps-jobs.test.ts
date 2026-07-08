@@ -2,11 +2,11 @@
 // Google Maps jobs: lifecycle, persistence, and extraction heuristic tests
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import request from "supertest";
-import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
+import { join } from "node:path";
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Environment setup before app import
@@ -64,11 +64,23 @@ const {
   extractGoogleMapsReviewCount,
   cleanGoogleMapsHours,
   extractPriceLevelFromText,
-  googleMapsJobCache,
   GOOGLE_MAPS_PROXY_URL,
-  GOOGLE_MAPS_FAILURES_FILE,
-  appendGoogleMapsFailure,
-} = _testExports;
+} = await import("../scrapers/google-maps.js");
+
+// Accessors into the live scraper system the app routes use (AUDIT R30)
+const { googleMapsSystem } = _testExports;
+const googleMapsJobCache = googleMapsSystem.jobCache;
+const persistGoogleMapsJobs = googleMapsSystem.persist;
+const loadPersistedGoogleMapsJobs = googleMapsSystem.load;
+const GOOGLE_MAPS_JOBS_FILE = googleMapsSystem.jobsFile;
+const GOOGLE_MAPS_FAILURES_FILE = googleMapsSystem.failuresFile;
+const appendGoogleMapsFailure = (record: {
+  url: string;
+  poiName: string | null;
+  attempts: number;
+  lastError: string;
+  failedAt: string;
+}) => googleMapsSystem.appendFailure({ source: "google-maps", ...record });
 
 // ---------------------------------------------------------------------------
 // T5a: Job lifecycle tests
@@ -87,9 +99,7 @@ describe("Google Maps jobs — lifecycle", () => {
   });
 
   it("POST /google-maps-preview/jobs returns 400 for invalid URL", async () => {
-    const res = await request(app)
-      .post("/google-maps-preview/jobs")
-      .send({ url: "not-a-url" });
+    const res = await request(app).post("/google-maps-preview/jobs").send({ url: "not-a-url" });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Invalid URL/);
   });
@@ -180,11 +190,14 @@ describe("Google Maps jobs — persistence and reload", () => {
   });
 
   afterEach(() => {
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
   });
 
   it("persistGoogleMapsJobs writes a valid JSON file", () => {
-    const { persistGoogleMapsJobs, GOOGLE_MAPS_JOBS_FILE } = _testExports;
     // Temporarily override the jobs file path by writing to a known location
     // We test via the cache + persist cycle
     const fakeJob = {
@@ -204,7 +217,7 @@ describe("Google Maps jobs — persistence and reload", () => {
     googleMapsJobCache.set(fakeJob.jobId, fakeJob);
     persistGoogleMapsJobs();
     expect(existsSync(GOOGLE_MAPS_JOBS_FILE)).toBe(true);
-    const content = JSON.parse(require("fs").readFileSync(GOOGLE_MAPS_JOBS_FILE, "utf8"));
+    const content = JSON.parse(readFileSync(GOOGLE_MAPS_JOBS_FILE, "utf8"));
     expect(Array.isArray(content)).toBe(true);
     const found = content.find((j: { jobId: string }) => j.jobId === "test-id-1");
     expect(found).toBeTruthy();
@@ -212,7 +225,6 @@ describe("Google Maps jobs — persistence and reload", () => {
   });
 
   it("loadPersistedGoogleMapsJobs restores done jobs", () => {
-    const { persistGoogleMapsJobs, loadPersistedGoogleMapsJobs } = _testExports;
     const fakeJob = {
       jobId: "test-reload-1",
       status: "done" as const,
@@ -238,7 +250,6 @@ describe("Google Maps jobs — persistence and reload", () => {
   });
 
   it("loadPersistedGoogleMapsJobs marks running jobs as error (interrupted)", () => {
-    const { persistGoogleMapsJobs, loadPersistedGoogleMapsJobs } = _testExports;
     const runningJob = {
       jobId: "test-running-interrupted",
       status: "running" as const,
@@ -412,9 +423,6 @@ describe("Google Maps proxy configuration", () => {
 // ---------------------------------------------------------------------------
 
 describe("Google Maps failure log (appendGoogleMapsFailure)", () => {
-  const tmpDir = join(os.tmpdir(), `gm-failures-test-${Date.now()}`);
-  const tmpFile = join(tmpDir, "google-maps-failures.jsonl");
-
   // Override the failure file path for isolation by monkey-patching the env
   // We test via appendGoogleMapsFailure directly (exported for testing).
   // Since GOOGLE_MAPS_FAILURES_FILE is a module-level constant, we test the
@@ -453,23 +461,43 @@ describe("Google Maps failure log (appendGoogleMapsFailure)", () => {
       ? readFileSync(GOOGLE_MAPS_FAILURES_FILE, "utf8").trim().split("\n").filter(Boolean).length
       : 0;
 
-    appendGoogleMapsFailure({ url: "https://www.google.com/maps/place/A", poiName: "A", attempts: 1, lastError: "err1", failedAt: new Date().toISOString() });
-    appendGoogleMapsFailure({ url: "https://www.google.com/maps/place/B", poiName: "B", attempts: 2, lastError: "err2", failedAt: new Date().toISOString() });
+    appendGoogleMapsFailure({
+      url: "https://www.google.com/maps/place/A",
+      poiName: "A",
+      attempts: 1,
+      lastError: "err1",
+      failedAt: new Date().toISOString(),
+    });
+    appendGoogleMapsFailure({
+      url: "https://www.google.com/maps/place/B",
+      poiName: "B",
+      attempts: 2,
+      lastError: "err2",
+      failedAt: new Date().toISOString(),
+    });
 
-    const after = readFileSync(GOOGLE_MAPS_FAILURES_FILE, "utf8").trim().split("\n").filter(Boolean).length;
+    const after = readFileSync(GOOGLE_MAPS_FAILURES_FILE, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean).length;
     expect(after).toBe(before + 2);
   });
 
   it("appendGoogleMapsFailure handles null poiName gracefully", () => {
-    expect(() => appendGoogleMapsFailure({
-      url: "https://www.google.com/maps/place/NoName",
-      poiName: null,
-      attempts: 1,
-      lastError: null,
-      failedAt: new Date().toISOString(),
-    })).not.toThrow();
+    expect(() =>
+      appendGoogleMapsFailure({
+        url: "https://www.google.com/maps/place/NoName",
+        poiName: null,
+        attempts: 1,
+        lastError: null,
+        failedAt: new Date().toISOString(),
+      }),
+    ).not.toThrow();
 
-    const lines = readFileSync(GOOGLE_MAPS_FAILURES_FILE, "utf8").trim().split("\n").filter(Boolean);
+    const lines = readFileSync(GOOGLE_MAPS_FAILURES_FILE, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean);
     const last = JSON.parse(lines[lines.length - 1]);
     expect(last.poiName).toBeNull();
     expect(last.lastError).toBeNull();

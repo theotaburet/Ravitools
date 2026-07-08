@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { EnrichedData, POI, TargetLanguage } from "../types";
 import { enrichPoi, getOfficialWebsiteUrl } from "../lib/enrichment";
+import type { EnrichedData, POI, TargetLanguage } from "../types";
 
 interface Props {
   pois: POI[];
@@ -8,7 +8,10 @@ interface Props {
 }
 
 function isSandboxCandidate(poi: POI): boolean {
-  return ["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"].includes(poi.category) && poi.name.trim().length > 0;
+  return (
+    ["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"].includes(poi.category) &&
+    poi.name.trim().length > 0
+  );
 }
 
 export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
@@ -52,9 +55,16 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
       <div className="sandbox-header">
         <div>
           <h3>Enrichment Sandbox</h3>
-          <p className="sandbox-subtitle">Real POI from current GPX, raw fetches, and final structured output.</p>
+          <p className="sandbox-subtitle">
+            Real POI from current GPX, raw fetches, and final structured output.
+          </p>
         </div>
-        <button className="neo-btn-sm neo-btn-pink" onClick={runSandbox} disabled={!selectedPoi || loading}>
+        <button
+          type="button"
+          className="neo-btn-sm neo-btn-pink"
+          onClick={runSandbox}
+          disabled={!selectedPoi || loading}
+        >
           {loading ? "Inspecting..." : "Run sandbox"}
         </button>
       </div>
@@ -64,7 +74,9 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
           <span>POI</span>
           <select value={selectedPoiId ?? ""} onChange={(e) => setSelectedPoiId(e.target.value)}>
             {candidates.map((poi) => (
-              <option key={poi.id} value={poi.id}>{poi.name} · {poi.category}</option>
+              <option key={poi.id} value={poi.id}>
+                {poi.name} · {poi.category}
+              </option>
             ))}
           </select>
         </label>
@@ -74,12 +86,25 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
         <div className="sandbox-poi-meta">
           <span className="neo-tag">{selectedPoi.category}</span>
           <span>{selectedPoi.name}</span>
-          <span className="sandbox-muted">{selectedPoi.distanceToTrace.toFixed(0)} m from route</span>
-          {getOfficialWebsiteUrl(selectedPoi) && <a className="poi-source-link" href={getOfficialWebsiteUrl(selectedPoi)!} target="_blank" rel="noreferrer">official site</a>}
+          <span className="sandbox-muted">
+            {selectedPoi.distanceToTrace.toFixed(0)} m from route
+          </span>
+          {(() => {
+            const officialUrl = getOfficialWebsiteUrl(selectedPoi);
+            return officialUrl ? (
+              <a className="poi-source-link" href={officialUrl} target="_blank" rel="noreferrer">
+                official site
+              </a>
+            ) : null;
+          })()}
         </div>
       )}
 
-      {error && <div className="error-box"><p>{error}</p></div>}
+      {error && (
+        <div className="error-box">
+          <p>{error}</p>
+        </div>
+      )}
 
       {result && (
         <div className="sandbox-grid">
@@ -88,7 +113,9 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
             <div className="sandbox-facts">
               <span>Rating: {result.rating != null ? `${result.rating.toFixed(1)}/5` : "n/a"}</span>
               <span>Reviews: {result.reviewCount ?? "n/a"}</span>
-              <span>Price: {result.priceLevel != null ? "$".repeat(result.priceLevel) : "n/a"}</span>
+              <span>
+                Price: {result.priceLevel != null ? "$".repeat(result.priceLevel) : "n/a"}
+              </span>
               <span>Confidence: {(result.confidence * 100).toFixed(0)}%</span>
               <span>Source: {result.synthesisSource ?? "unknown"}</span>
               <span>Reason: {result.synthesisReason ?? "none"}</span>
@@ -110,7 +137,9 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                       <tr key={i}>
                         <td className="poi-hours-day">{entry.day}</td>
                         <td className="poi-hours-time">
-                          {entry.open === "closed" ? "Closed" : `${entry.open}–${entry.close ?? ""}`}
+                          {entry.open === "closed"
+                            ? "Closed"
+                            : `${entry.open}–${entry.close ?? ""}`}
                         </td>
                       </tr>
                     ))}
@@ -128,17 +157,25 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                   <strong>Cautions</strong>
                   {result.structured.cautions.length ? (
                     <ul className="sandbox-list">
-                      {result.structured.cautions.map((item, index) => <li key={`caution-${index}`}>{item}</li>)}
+                      {result.structured.cautions.map((item, index) => (
+                        <li key={`caution-${index}`}>{item}</li>
+                      ))}
                     </ul>
-                  ) : <p>None</p>}
+                  ) : (
+                    <p>None</p>
+                  )}
                 </div>
                 <div className="sandbox-block">
                   <strong>Divergences</strong>
                   {result.structured.divergences.length ? (
                     <ul className="sandbox-list sandbox-divergences">
-                      {result.structured.divergences.map((item, index) => <li key={`div-${index}`}>{item}</li>)}
+                      {result.structured.divergences.map((item, index) => (
+                        <li key={`div-${index}`}>{item}</li>
+                      ))}
                     </ul>
-                  ) : <p>None</p>}
+                  ) : (
+                    <p>None</p>
+                  )}
                 </div>
                 <div className="sandbox-block">
                   <strong>Source Rollup</strong>
@@ -148,11 +185,22 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                         <li key={`rollup-${index}`}>
                           <span className="sandbox-platform">{digest.platform}</span>
                           <span>{digest.brief}</span>
-                          {digest.url && <a className="poi-source-link" href={digest.url} target="_blank" rel="noreferrer">link</a>}
+                          {digest.url && (
+                            <a
+                              className="poi-source-link"
+                              href={digest.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              source
+                            </a>
+                          )}
                         </li>
                       ))}
                     </ul>
-                  ) : <p>None</p>}
+                  ) : (
+                    <p>None</p>
+                  )}
                 </div>
                 <div className="sandbox-block">
                   <strong>Source Confirmation</strong>
@@ -166,9 +214,18 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
             <h4>Website Fetch</h4>
             {result.officialWebsite ? (
               <>
-                <div className="sandbox-block"><strong>Title</strong><p>{result.officialWebsite.title ?? "None"}</p></div>
-                <div className="sandbox-block"><strong>Description</strong><p>{result.officialWebsite.description ?? "None"}</p></div>
-                <div className="sandbox-block"><strong>Excerpt</strong><p>{result.officialWebsite.excerpt ?? "None"}</p></div>
+                <div className="sandbox-block">
+                  <strong>Title</strong>
+                  <p>{result.officialWebsite.title ?? "None"}</p>
+                </div>
+                <div className="sandbox-block">
+                  <strong>Description</strong>
+                  <p>{result.officialWebsite.description ?? "None"}</p>
+                </div>
+                <div className="sandbox-block">
+                  <strong>Excerpt</strong>
+                  <p>{result.officialWebsite.excerpt ?? "None"}</p>
+                </div>
               </>
             ) : (
               <p className="sandbox-muted">No working official website fetched.</p>
@@ -187,8 +244,17 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
               <div className="sandbox-block">
                 <strong>Geo Context</strong>
                 <span className="sandbox-muted">
-                  {[result.geoContext.locality, result.geoContext.county, result.geoContext.state, result.geoContext.country].filter(Boolean).join(" > ")}
-                  {result.geoContext.countryCode ? ` (${result.geoContext.countryCode.toUpperCase()})` : ""}
+                  {[
+                    result.geoContext.locality,
+                    result.geoContext.county,
+                    result.geoContext.state,
+                    result.geoContext.country,
+                  ]
+                    .filter(Boolean)
+                    .join(" > ")}
+                  {result.geoContext.countryCode
+                    ? ` (${result.geoContext.countryCode.toUpperCase()})`
+                    : ""}
                 </span>
               </div>
             )}
@@ -196,7 +262,14 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
               <ul className="sandbox-list">
                 {result.rawSnippets.map((snippet, index) => (
                   <li key={`${snippet.url}-${index}`}>
-                    <a className="poi-source-link" href={snippet.url} target="_blank" rel="noreferrer">{snippet.title || snippet.url}</a>
+                    <a
+                      className="poi-source-link"
+                      href={snippet.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {snippet.title || snippet.url}
+                    </a>
                     <span className="sandbox-muted">[{snippet.engine}]</span>
                     <p>{snippet.content}</p>
                   </li>

@@ -65,24 +65,23 @@ describe("searchPoi query-variant fallback (R13)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// R20: abort listeners registered per fetch attempt must be removed — they
-// accumulate by the thousands on a batch signal otherwise
+// R20/R25: no manual abort listeners on the caller's signal — the native
+// AbortSignal.any/timeout combination replaced the hand-rolled relay that
+// used to accumulate listeners by the thousands on a batch signal
 // ---------------------------------------------------------------------------
 
-describe("abort listener cleanup (R20)", () => {
-  it("removes as many listeners as it adds once the request completes", async () => {
+describe("abort listener cleanup (R20/R25)", () => {
+  it("adds no manual listeners to the caller's signal", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: true, json: async () => ({}) })),
     );
     const ctrl = new AbortController();
     const addSpy = vi.spyOn(ctrl.signal, "addEventListener");
-    const removeSpy = vi.spyOn(ctrl.signal, "removeEventListener");
 
     const { reverseGeocode } = await import("../lib/enrichment/search");
     await reverseGeocode(43.5, -1.4, "/api", ctrl.signal);
 
-    expect(addSpy.mock.calls.length).toBeGreaterThan(0);
-    expect(removeSpy.mock.calls.length).toBe(addSpy.mock.calls.length);
+    expect(addSpy.mock.calls.length).toBe(0);
   });
 });

@@ -3,12 +3,12 @@
 // ---------------------------------------------------------------------------
 
 import type {
+  EnrichedData,
   POI,
   PoiCategory,
-  TraceData,
-  EnrichedData,
-  TargetLanguage,
   RouteProcessingSettings,
+  TargetLanguage,
+  TraceData,
 } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -80,7 +80,10 @@ export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): boolean
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     return true;
   } catch (err) {
-    console.warn("Ravitools: session save failed (localStorage full or unavailable); resume won't work this session.", err);
+    console.warn(
+      "Ravitools: session save failed (localStorage full or unavailable); resume won't work this session.",
+      err,
+    );
     return false;
   }
 }
@@ -103,7 +106,11 @@ export function loadSession(): SessionSnapshot | null {
     }
 
     // Basic shape validation
-    if (!Array.isArray(data.pois) || !Array.isArray(data.enrichments) || !Array.isArray(data.traces)) {
+    if (
+      !Array.isArray(data.pois) ||
+      !Array.isArray(data.enrichments) ||
+      !Array.isArray(data.traces)
+    ) {
       clearSession();
       return null;
     }

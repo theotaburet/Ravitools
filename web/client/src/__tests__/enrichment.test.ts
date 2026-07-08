@@ -4,12 +4,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
-import {
-  buildGoogleMapsDirectionsUrl,
-  buildGoogleMapsUrl,
-  buildSearchQuery,
-} from "../lib/enrichment/search";
-import { countEnrichable, countFullEnrichable, getEnrichabilityPolicy } from "../lib/poi-config";
+import { buildGoogleMapsUrl, buildSearchQuery } from "../lib/enrichment/search";
+import { getEnrichabilityPolicy } from "../lib/poi-config";
 import type { POI, PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -64,15 +60,6 @@ describe("buildGoogleMapsUrl", () => {
     const poi = makePoi({ name: "" });
     const url = buildGoogleMapsUrl(poi);
     expect(url).toContain("google.com/maps/search");
-  });
-});
-
-describe("buildGoogleMapsDirectionsUrl", () => {
-  it("builds a valid directions URL", () => {
-    const poi = makePoi();
-    const url = buildGoogleMapsDirectionsUrl(poi);
-    expect(url).toContain("google.com/maps/dir");
-    expect(url).toContain("destination=47.3941,0.6848");
   });
 });
 
@@ -469,44 +456,6 @@ describe("enrichability policy", () => {
     expect(getEnrichabilityPolicy("Medical")).toBe("minimal");
     expect(getEnrichabilityPolicy("Laundry")).toBe("minimal");
     expect(getEnrichabilityPolicy("Bank & ATM")).toBe("minimal");
-  });
-});
-
-describe("countEnrichable", () => {
-  it("counts only non-skip POIs", () => {
-    const pois = [
-      { category: "Restaurant or Bar" as PoiCategory }, // full
-      { category: "Water" as PoiCategory }, // skip
-      { category: "DIY" as PoiCategory }, // minimal
-      { category: "Shelter" as PoiCategory }, // skip
-      { category: "Sleeping place" as PoiCategory }, // full
-    ];
-    expect(countEnrichable(pois)).toBe(3);
-  });
-
-  it("returns 0 for all-skip categories", () => {
-    const pois = [{ category: "Water" as PoiCategory }, { category: "Picnic" as PoiCategory }];
-    expect(countEnrichable(pois)).toBe(0);
-  });
-
-  it("returns total for all-full categories", () => {
-    const pois = [
-      { category: "Restaurant or Bar" as PoiCategory },
-      { category: "Food shop" as PoiCategory },
-    ];
-    expect(countEnrichable(pois)).toBe(2);
-  });
-});
-
-describe("countFullEnrichable", () => {
-  it("counts only full-policy POIs", () => {
-    const pois = [
-      { category: "Restaurant or Bar" as PoiCategory }, // full
-      { category: "DIY" as PoiCategory }, // minimal
-      { category: "Water" as PoiCategory }, // skip
-      { category: "Food shop" as PoiCategory }, // full
-    ];
-    expect(countFullEnrichable(pois)).toBe(2);
   });
 });
 

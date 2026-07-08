@@ -9,8 +9,8 @@
 // responses without a DB.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { describe, expect, it } from "vitest";
 
 process.env.NODE_ENV = "test";
 process.env.RATE_LIMIT_MAX = "1000";

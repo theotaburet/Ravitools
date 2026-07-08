@@ -153,6 +153,80 @@ export function useRavitools() {
   const filteredPois = state.pois.filter((p) => state.activeCategories.has(p.category));
 
   // -----------------------------------------------------------------------
+  // Shared query→process→done pipeline used by processFiles and retryQuery
+  // (AUDIT R32 — the two used to duplicate ~60 lines of it)
+  // -----------------------------------------------------------------------
+  const runQuery = useCallback(
+    async (traces: TraceData[], ctrl: AbortController) => {
+      const log = dlog("pipeline");
+      const selectedCategories = [...activeCatsRef.current];
+
+      const allSimplified = traces.flatMap((t) => t.simplified);
+
+      const endQuery = log.time("Overpass querying");
+      const queryResult: QueryAllPoisResult = await queryAllPois(
+        allSimplified,
+        1000,
+        selectedCategories,
+        (p: QueryProgress) => {
+          const retryLabel =
+            p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
+          update({
+            progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
+            progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
+          });
+        },
+      );
+      const rawElements = queryResult.elements;
+      endQuery();
+
+      if (ctrl.signal.aborted) return;
+
+      // Process & filter POIs — distance is min over all traces
+      update({
+        stage: "processing",
+        progress: `Processing ${rawElements.length} raw elements...`,
+      });
+
+      const endProcess = log.time("POI processing");
+      const allTraceSimplified = traces.map((t) => t.simplified);
+      const allTraceOriginal = traces.map((t) => t.original);
+      rawElementsRef.current = rawElements;
+      const pois = processElements(
+        rawElements,
+        allTraceSimplified,
+        routeSettingsRef.current.maxDistanceM,
+        50,
+        allTraceOriginal,
+      );
+      endProcess();
+
+      log.info(`Pipeline complete: ${pois.length} POIs from ${rawElements.length} raw elements`, {
+        rawElements: rawElements.length,
+        filteredPois: pois.length,
+        maxDistanceM: routeSettingsRef.current.maxDistanceM,
+      });
+
+      if (ctrl.signal.aborted) return;
+
+      // Build warning if some chunks failed
+      const chunkWarning =
+        queryResult.failedChunks > 0
+          ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+          : null;
+
+      update({
+        stage: "done",
+        pois,
+        progress: `Found ${pois.length} POIs along your route${traces.length > 1 ? "s" : ""}`,
+        progressRatio: null,
+        warning: chunkWarning,
+      });
+    },
+    [update],
+  );
+
+  // -----------------------------------------------------------------------
   // Main pipeline – processes one or more GPX files
   // -----------------------------------------------------------------------
   const processFiles = useCallback(
@@ -207,75 +281,14 @@ export function useRavitools() {
 
         if (ctrl.signal.aborted) return;
 
-        // Stage 2: Query Overpass using simplified points from ALL traces
-        const allSimplified = traces.flatMap((t) => t.simplified);
-
+        // Stages 2-3: Query Overpass + process POIs (shared with retryQuery)
         update({
           stage: "querying",
           progress: `Querying OpenStreetMap for ${selectedCategories.length} categories...`,
           progressRatio: 0,
           warning: null,
         });
-
-        const endQuery = log.time("Overpass querying");
-        const queryResult: QueryAllPoisResult = await queryAllPois(
-          allSimplified,
-          1000,
-          selectedCategories,
-          (p: QueryProgress) => {
-            const retryLabel =
-              p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
-            update({
-              progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
-              progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
-            });
-          },
-        );
-        const rawElements = queryResult.elements;
-        endQuery();
-
-        if (ctrl.signal.aborted) return;
-
-        // Stage 3: Process & filter POIs — distance is min over all traces
-        update({
-          stage: "processing",
-          progress: `Processing ${rawElements.length} raw elements...`,
-        });
-
-        const endProcess = log.time("POI processing");
-        const allTraceSimplified = traces.map((t) => t.simplified);
-        const allTraceOriginal = traces.map((t) => t.original);
-        rawElementsRef.current = rawElements;
-        const pois = processElements(
-          rawElements,
-          allTraceSimplified,
-          routeSettingsRef.current.maxDistanceM,
-          50,
-          allTraceOriginal,
-        );
-        endProcess();
-
-        log.info(`Pipeline complete: ${pois.length} POIs from ${rawElements.length} raw elements`, {
-          rawElements: rawElements.length,
-          filteredPois: pois.length,
-          maxDistanceM: routeSettingsRef.current.maxDistanceM,
-        });
-
-        if (ctrl.signal.aborted) return;
-
-        // Build warning if some chunks failed
-        const chunkWarning =
-          queryResult.failedChunks > 0
-            ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
-            : null;
-
-        update({
-          stage: "done",
-          pois,
-          progress: `Found ${pois.length} POIs along your route${traces.length > 1 ? "s" : ""}`,
-          progressRatio: null,
-          warning: chunkWarning,
-        });
+        await runQuery(traces, ctrl);
       } catch (err) {
         if (ctrl.signal.aborted) return;
         const message = err instanceof Error ? err.message : "Unknown error occurred";
@@ -285,7 +298,7 @@ export function useRavitools() {
         update({ stage: "error", error: message, progress: "", progressRatio: null });
       }
     },
-    [update],
+    [update, runQuery],
   );
 
   // -----------------------------------------------------------------------
@@ -304,7 +317,6 @@ export function useRavitools() {
     const selectedCategories = [...activeCatsRef.current];
 
     try {
-      const allSimplified = currentTraces.flatMap((t) => t.simplified);
       update({
         stage: "querying",
         error: null,
@@ -315,64 +327,17 @@ export function useRavitools() {
 
       log.info("Retrying Overpass query", {
         traces: currentTraces.length,
-        simplifiedPoints: allSimplified.length,
+        simplifiedPoints: currentTraces.reduce((sum, t) => sum + t.simplified.length, 0),
       });
 
-      const queryResult: QueryAllPoisResult = await queryAllPois(
-        allSimplified,
-        1000,
-        selectedCategories,
-        (p: QueryProgress) => {
-          const retryLabel =
-            p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
-          update({
-            progress: `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
-            progressRatio: p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null,
-          });
-        },
-      );
-      const rawElements = queryResult.elements;
-
-      if (ctrl.signal.aborted) return;
-
-      update({
-        stage: "processing",
-        progress: `Processing ${rawElements.length} raw elements...`,
-      });
-
-      const allTraceSimplified = currentTraces.map((t) => t.simplified);
-      const allTraceOriginal = currentTraces.map((t) => t.original);
-      rawElementsRef.current = rawElements;
-      const pois = processElements(
-        rawElements,
-        allTraceSimplified,
-        routeSettingsRef.current.maxDistanceM,
-        50,
-        allTraceOriginal,
-      );
-
-      if (ctrl.signal.aborted) return;
-
-      // Build warning if some chunks failed
-      const chunkWarning =
-        queryResult.failedChunks > 0
-          ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
-          : null;
-
-      update({
-        stage: "done",
-        pois,
-        progress: `Found ${pois.length} POIs along your route${currentTraces.length > 1 ? "s" : ""}`,
-        progressRatio: null,
-        warning: chunkWarning,
-      });
+      await runQuery(currentTraces, ctrl);
     } catch (err) {
       if (ctrl.signal.aborted) return;
       const message = err instanceof Error ? err.message : "Unknown error occurred";
       log.error(`Retry failed: ${message}`);
       update({ stage: "error", error: message, progress: "", progressRatio: null });
     }
-  }, [update]);
+  }, [update, runQuery]);
 
   return {
     state,

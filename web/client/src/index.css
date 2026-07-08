@@ -26,7 +26,9 @@
 }
 
 /* Base resets */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
 }
@@ -208,7 +210,9 @@ body {
   padding: 2rem 1rem;
   border: 3px dashed #000;
   cursor: pointer;
-  transition: background-color 150ms, border-style 150ms;
+  transition:
+    background-color 150ms,
+    border-style 150ms;
   background: repeating-linear-gradient(
     -45deg,
     transparent,
@@ -263,7 +267,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Small spinner for inline use (e.g. POI list enriching indicator) */
@@ -390,13 +396,24 @@ body {
   text-transform: uppercase;
 }
 
+/* AUDIT R34/R43: collapse toggle is a real <button> — inherit the header look */
+.filter-header-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
 .filter-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0,0,0,0.15);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
   font-size: 0.875rem;
   transition: background-color 100ms;
 }
@@ -440,7 +457,7 @@ body {
   letter-spacing: 0.1em;
   color: var(--color-muted);
   background: var(--color-bg);
-  border-bottom: 1px solid rgba(0,0,0,0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* ---------------------------------------------------------------------------
@@ -496,7 +513,7 @@ body {
 }
 
 .poi-sort-btn:hover {
-  background-color: rgba(0,0,0,0.1);
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
 .poi-list-scroll {
@@ -509,7 +526,7 @@ body {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background-color 100ms;
@@ -563,7 +580,9 @@ body {
    --------------------------------------------------------------------------- */
 
 .poi-marker-icon {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet divIcon defaults */
   background: transparent !important;
+  /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet divIcon defaults */
   border: none !important;
 }
 
@@ -573,18 +592,23 @@ body {
   justify-content: center;
   border-radius: 50%;
   border: 2.5px solid currentColor;
-  background: rgba(255,255,255,0.85);
+  background: rgba(255, 255, 255, 0.85);
   font-size: 13px;
   line-height: 1;
-  box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: transform 100ms, box-shadow 100ms;
+  transition:
+    transform 100ms,
+    box-shadow 100ms;
 }
 
 .poi-marker-selected {
   border-width: 3px;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.5), 2px 2px 0 rgba(0,0,0,0.3);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.5),
+    2px 2px 0 rgba(0, 0, 0, 0.3);
+  /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet marker stacking */
   z-index: 1000 !important;
 }
 
@@ -593,12 +617,13 @@ body {
 }
 
 @keyframes poi-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(59,130,246,0.5);
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(59,130,246,0);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
     transform: scale(1.15);
   }
 }
@@ -691,7 +716,7 @@ body {
   font-family: var(--font-mono);
   color: var(--color-muted);
   background: var(--color-bg);
-  border: 2px solid rgba(0,0,0,0.2);
+  border: 2px solid rgba(0, 0, 0, 0.2);
   padding: 0.5rem;
   margin-bottom: 0.75rem;
   line-height: 1.4;
@@ -1031,7 +1056,7 @@ body {
   gap: 0.125rem;
   margin-top: 0.25rem;
   padding-left: 0.25rem;
-  border-left: 2px solid rgba(0,0,0,0.15);
+  border-left: 2px solid rgba(0, 0, 0, 0.15);
 }
 
 .poi-source-link {

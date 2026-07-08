@@ -77,14 +77,12 @@ export async function lookupPoiBatch(
   // so large routes still benefit from the cache. A failed chunk degrades to a miss.
   for (let i = 0; i < keys.length; i += BATCH_CHUNK_SIZE) {
     const chunk = keys.slice(i, i + BATCH_CHUNK_SIZE);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
     try {
       const res = await fetch(`${API_BASE}/poi/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keys: chunk, max_age_days: maxAgeDays }),
-        signal: controller.signal,
+        signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
       });
       // ponytail: still degrade gracefully (empty Map), but don't do it *silently* —
       // a cache outage looks identical to an all-miss otherwise (AUDIT C5).
@@ -104,8 +102,6 @@ export async function lookupPoiBatch(
       }
     } catch (err) {
       console.warn("Ravitools: POI cache request failed — enriching without it", err);
-    } finally {
-      clearTimeout(timeout);
     }
   }
   return result;
@@ -118,8 +114,6 @@ export async function lookupPoiBatch(
 export async function uploadPoiEnrichment(poi: POI, enrichment: EnrichedData): Promise<boolean> {
   if (!isCacheablePoi(poi)) return false;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   try {
     const res = await fetch(`${API_BASE}/poi/${poi.osmType}/${poi.osmId}`, {
       method: "PUT",
@@ -131,13 +125,11 @@ export async function uploadPoiEnrichment(poi: POI, enrichment: EnrichedData): P
         name: poi.name,
         enrichment,
       }),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
     return res.ok;
   } catch {
     return false;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

@@ -2,16 +2,16 @@
 // Tests for POI processor – matching, dedup, distance filtering
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import { processElements } from "../lib/poi-processor";
+import { describe, expect, it } from "vitest";
 import type { OverpassElement } from "../lib/overpass";
+import { processElements } from "../lib/poi-processor";
 import type { TracePoint } from "../types";
 
 const TRACE: TracePoint[] = [
   { lat: 48.8566, lon: 2.3522 },
-  { lat: 48.8600, lon: 2.3600 },
-  { lat: 48.8650, lon: 2.3700 },
-  { lat: 48.8700, lon: 2.3800 },
+  { lat: 48.86, lon: 2.36 },
+  { lat: 48.865, lon: 2.37 },
+  { lat: 48.87, lon: 2.38 },
 ];
 
 describe("processElements", () => {
@@ -169,14 +169,14 @@ describe("processElements", () => {
       {
         type: "way",
         id: 6001,
-        center: { lat: 48.860, lon: 2.360 },
+        center: { lat: 48.86, lon: 2.36 },
         tags: { tourism: "camp_site", name: "Big Campground" },
       },
     ];
 
     const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(1);
-    expect(pois[0].lat).toBe(48.860);
+    expect(pois[0].lat).toBe(48.86);
     expect(pois[0].category).toBe("Sleeping place");
   });
 
@@ -230,9 +230,7 @@ describe("processElements", () => {
     const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(2);
     // POI near trace start should come first
-    expect(pois[0].alongTraceDistance).toBeLessThanOrEqual(
-      pois[1].alongTraceDistance,
-    );
+    expect(pois[0].alongTraceDistance).toBeLessThanOrEqual(pois[1].alongTraceDistance);
   });
 
   it("should have alongTraceDistance on all POIs", () => {

@@ -8,7 +8,6 @@ import type {
   EnrichabilityPolicy,
   EnrichedData,
   EnrichmentPhase,
-  EnrichmentStatus,
   GeoContext,
   GoogleMapsPreview,
   OpeningHoursEntry,
@@ -307,6 +306,9 @@ export interface EnrichBatchOptions {
  * Enrich a single POI: geocode → search → synthesize.
  * Always returns an EnrichedData, even on partial failure.
  * Respects enrichability policy unless overridden.
+ *
+ * AUDIT R26: thin wrapper over enrichBatch — this used to copy-paste the
+ * batch stage-2 (~240 lines) for its single caller (the ?sandbox dev panel).
  */
 export async function enrichPoi(
   poi: POI,
@@ -318,237 +320,25 @@ export async function enrichPoi(
     policyOverride?: EnrichabilityPolicy;
   } = {},
 ): Promise<EnrichedData> {
-  const apiBase = options.apiBase ?? "/api";
-  const targetLanguage = options.targetLanguage ?? "en";
-  const googleMapsUrl = buildGoogleMapsUrl(poi);
-  const officialWebsiteUrl = getOfficialWebsiteUrl(poi);
-  const policy = options.policyOverride ?? getEnrichabilityPolicy(poi.category);
-
-  // --- Policy: skip → no network calls at all ---
-  if (policy === "skip") {
-    return {
+  const results = await enrichBatch([poi], {
+    apiBase: options.apiBase,
+    signal: options.signal,
+    targetLanguage: options.targetLanguage,
+    enrichAll: options.policyOverride === "full",
+    skipUnnamed: false, // single-POI callers pick the POI explicitly
+  });
+  return (
+    results.get(poi.id) ?? {
       ...createBaseEnrichment(poi),
       enrichedAt: new Date().toISOString(),
-      status: "skipped",
-      skipReason: "low-value-category",
+      status: "error",
+      error: "Cancelled",
       locality: null,
       sourceCount: 0,
       sourceEngines: [],
       confidence: 0,
-    };
-  }
-
-  let status: EnrichmentStatus = "pending";
-  let locality: string | null = null;
-  let geoContext: GeoContext | null = null;
-  let officialWebsite = null;
-
-  try {
-    // Step 1: Reverse geocode for locality
-    status = "searching";
-    geoContext = await reverseGeocode(poi.lat, poi.lon, apiBase, options.signal);
-    locality = geoContext?.locality ?? null;
-
-    if (options.signal?.aborted) throw new Error("Cancelled");
-
-    // --- Policy: minimal → geocode only, no search/LLM ---
-    if (policy === "minimal") {
-      if (officialWebsiteUrl) {
-        officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
-      }
-      return {
-        ...createBaseEnrichment(poi),
-        enrichedAt: new Date().toISOString(),
-        status: "done",
-        locality,
-        geoContext,
-        sourceCount: 0,
-        sourceEngines: [],
-        confidence: 0,
-        officialWebsite,
-      };
     }
-
-    // --- Policy: full → geocode + search + LLM ---
-
-    // Step 2: Search for snippets
-    if (options.signal?.aborted) throw new Error("Cancelled");
-    if (officialWebsiteUrl) {
-      officialWebsite = await fetchWebsitePreview(officialWebsiteUrl, apiBase, options.signal);
-    }
-    const websiteSnippets = buildOfficialWebsiteSnippets(officialWebsite);
-    const searchResult = await searchPoi(poi, locality, apiBase, options.signal, 3, geoContext);
-    const searchQuery = searchResult.query;
-    const unresponsiveEngines = searchResult.unresponsiveEngines;
-    let snippets = [...websiteSnippets, ...searchResult.snippets].slice(0, 8);
-    const shouldUseGoogleFallback = snippets.length < 2 || unresponsiveEngines.length >= 2;
-    let googleMapsStructuredHours: OpeningHoursEntry[] | null = null;
-    let googleMapsPreview: GoogleMapsPreview | null = null;
-    if (shouldUseGoogleFallback) {
-      const googleResult = await resolveGoogleMapsFallbackSnippets(
-        poi,
-        apiBase,
-        undefined,
-        options.signal,
-      );
-      snippets = [...snippets, ...googleResult.snippets].slice(0, 8);
-      googleMapsStructuredHours = googleResult.structuredHours;
-      googleMapsPreview = googleResult.preview;
-    }
-
-    // Rank snippets by domain quality — highest-signal sources first.
-    // Noise snippets (score 0) are removed. Ensures LLM sees best data first.
-    snippets = rankSnippetsByQuality(snippets);
-
-    if (snippets.length === 0) {
-      return {
-        ...createBaseEnrichment(poi),
-        enrichedAt: new Date().toISOString(),
-        status: "skipped",
-        skipReason: "no-results",
-        locality,
-        geoContext,
-        searchQuery,
-        sourceCount: 0,
-        sourceEngines: [],
-        confidence: 0,
-        officialWebsite,
-        unresponsiveEngines,
-      };
-    }
-
-    // Step 3: LLM synthesis (if engine ready)
-    status = "synthesizing";
-    if (options.signal?.aborted) throw new Error("Cancelled");
-    const sourceUrls = snippets.map((s) => s.url);
-
-    if (isEngineReady()) {
-      const synthesis = await synthesize(
-        poi.name,
-        poi.category,
-        snippets,
-        targetLanguage,
-        officialWebsite,
-      );
-
-      if (options.signal?.aborted) throw new Error("Cancelled");
-
-      if (synthesis) {
-        const deterministicRating = extractDeterministicRating(snippets, officialWebsite);
-        const deterministicReviewCount = extractDeterministicReviewCount(snippets, officialWebsite);
-        const deterministicHours = extractDeterministicHours(snippets, officialWebsite);
-        const sourceDigests = buildSourceDigests(snippets, officialWebsite);
-        const result = {
-          ...createBaseEnrichment(poi),
-          rating: synthesis.rating ?? deterministicRating,
-          reviewCount: synthesis.reviewCount ?? deterministicReviewCount,
-          hours: synthesis.hoursFlat ?? deterministicHours,
-          openingHours: synthesis.hours ?? googleMapsStructuredHours,
-          description:
-            synthesis.description ?? buildDeterministicShortDescription(poi, targetLanguage),
-          review:
-            synthesis.review ??
-            buildDeterministicShortReview(
-              deterministicRating,
-              deterministicReviewCount,
-              targetLanguage,
-            ),
-          // LLM price first, fallback to snippet extraction
-          priceLevel: synthesis.priceLevel ?? extractPriceLevel(snippets, poi.category),
-          googleMapsUrl,
-          sourceUrls,
-          rawSnippets: snippets,
-          enrichedAt: new Date().toISOString(),
-          status: "done" as const,
-          locality,
-          geoContext,
-          searchQuery,
-          sourceCount: snippets.length,
-          sourceEngines: extractEngines(snippets),
-          confidence: 0,
-          sourceDigests,
-          officialWebsite,
-          unresponsiveEngines,
-          synthesisSource: synthesis.repaired ? ("llm-repaired" as const) : ("llm" as const),
-          synthesisReason: synthesis.repairReason ?? null,
-          googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
-        };
-        result.structured = buildStructuredContent(
-          poi,
-          result,
-          snippets,
-          officialWebsite,
-          targetLanguage,
-        );
-        result.confidence = computeConfidence(result);
-        return result;
-      }
-    }
-
-    // No LLM or synthesis failed — deterministic extraction from snippets
-    const snippetPriceLevel = extractPriceLevel(snippets, poi.category);
-    const deterministicRating = extractDeterministicRating(snippets, officialWebsite);
-    const deterministicReviewCount = extractDeterministicReviewCount(snippets, officialWebsite);
-    const deterministicHours = extractDeterministicHours(snippets, officialWebsite);
-    const deterministicStructuredHours =
-      googleMapsStructuredHours ?? extractStructuredHoursFromSnippets(snippets);
-    const noLlmResult = {
-      ...createBaseEnrichment(poi),
-      rating: deterministicRating,
-      reviewCount: deterministicReviewCount,
-      hours:
-        deterministicHours ??
-        (deterministicStructuredHours?.length ? flattenHours(deterministicStructuredHours) : null),
-      openingHours: deterministicStructuredHours ?? null,
-      description: buildDeterministicShortDescription(poi, targetLanguage),
-      review: buildDeterministicShortReview(
-        deterministicRating,
-        deterministicReviewCount,
-        targetLanguage,
-      ),
-      priceLevel: snippetPriceLevel,
-      googleMapsUrl,
-      sourceUrls,
-      rawSnippets: snippets,
-      enrichedAt: new Date().toISOString(),
-      status: "done" as const,
-      locality,
-      geoContext,
-      searchQuery,
-      sourceCount: snippets.length,
-      sourceEngines: extractEngines(snippets),
-      confidence: 0,
-      sourceDigests: buildSourceDigests(snippets, officialWebsite),
-      officialWebsite,
-      unresponsiveEngines,
-      synthesisSource: "deterministic" as const,
-      synthesisReason: isEngineReady() ? "llm-rejected-or-empty" : "no-llm",
-      googleMapsFields: buildGoogleMapsFields(googleMapsPreview),
-    };
-    noLlmResult.structured = buildStructuredContent(
-      poi,
-      noLlmResult,
-      snippets,
-      officialWebsite,
-      targetLanguage,
-    );
-    noLlmResult.confidence = computeConfidence(noLlmResult);
-    return noLlmResult;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      ...createBaseEnrichment(poi),
-      enrichedAt: new Date().toISOString(),
-      status: "error",
-      error: message,
-      locality,
-      geoContext,
-      sourceCount: 0,
-      sourceEngines: [],
-      confidence: 0,
-      officialWebsite,
-    };
-  }
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -68,8 +68,14 @@ export function translateCategory(category: PoiCategory, lang: TargetLanguage): 
 // ---------------------------------------------------------------------------
 
 const UI: Record<string, Record<TargetLanguage, string>> = {
-  "app.subtitle": { en: "Find useful POIs along your cycling route", fr: "Trouvez les POI utiles le long de votre itinéraire vélo" },
-  "session.prompt": { en: "You have a saved session. Resume where you left off?", fr: "Une session est enregistrée. Reprendre où vous en étiez ?" },
+  "app.subtitle": {
+    en: "Find useful POIs along your cycling route",
+    fr: "Trouvez les POI utiles le long de votre itinéraire vélo",
+  },
+  "session.prompt": {
+    en: "You have a saved session. Resume where you left off?",
+    fr: "Une session est enregistrée. Reprendre où vous en étiez ?",
+  },
   "session.resume": { en: "Resume", fr: "Reprendre" },
   "session.fresh": { en: "Start fresh", fr: "Recommencer" },
   "status.warning": { en: "Warning:", fr: "Attention :" },
@@ -79,13 +85,19 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
   "upload.drop": { en: "Drop your .GPX files here", fr: "Déposez vos fichiers .GPX ici" },
-  "upload.browse": { en: "or click to browse (multiple files OK)", fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)" },
+  "upload.browse": {
+    en: "or click to browse (multiple files OK)",
+    fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)",
+  },
   "filter.titleFilter": { en: "Filter POIs", fr: "Filtrer les POI" },
   "filter.titleSearch": { en: "Categories to search", fr: "Catégories à rechercher" },
   "filter.all": { en: "All", fr: "Tout" },
   "filter.none": { en: "None", fr: "Aucun" },
   "filter.maxDistance": { en: "Max distance to route", fr: "Distance max. à l'itinéraire" },
-  "filter.distanceHint": { en: "Narrow for fewer urban POIs, wider for sparse rural routes.", fr: "Réduisez pour moins de POI urbains, élargissez pour les routes rurales." },
+  "filter.distanceHint": {
+    en: "Narrow for fewer urban POIs, wider for sparse rural routes.",
+    fr: "Réduisez pour moins de POI urbains, élargissez pour les routes rurales.",
+  },
   "filter.essential": { en: "Essential", fr: "Essentiels" },
   "filter.optional": { en: "Optional", fr: "Optionnels" },
   "poi.alongRoute": { en: "POIs along route", fr: "POI le long de l'itinéraire" },
@@ -93,7 +105,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "poi.sort.distance": { en: "Distance to route", fr: "Distance à l'itinéraire" },
   "poi.sort.category": { en: "Category", fr: "Catégorie" },
   "poi.sort.name": { en: "Name (A-Z)", fr: "Nom (A-Z)" },
-  "poi.empty": { en: "No POIs match the active filters.", fr: "Aucun POI ne correspond aux filtres actifs." },
+  "poi.empty": {
+    en: "No POIs match the active filters.",
+    fr: "Aucun POI ne correspond aux filtres actifs.",
+  },
   "poi.searching": { en: "Searching...", fr: "Recherche..." },
   // POI list enrichment details
   "poi.reviews": { en: "reviews", fr: "avis" },
@@ -106,7 +121,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "poi.confirm.official": { en: "Official site", fr: "Site officiel" },
   "poi.confirm.both": { en: "Official + reviews", fr: "Officiel + avis" },
   "poi.confirm.reviewsOnly": { en: "Reviews only", fr: "Avis uniquement" },
-  "poi.skipRetryable": { en: " · retryable after cooldown/IP change", fr: " · réessayable après pause/changement d'IP" },
+  "poi.skipRetryable": {
+    en: " · retryable after cooldown/IP change",
+    fr: " · réessayable après pause/changement d'IP",
+  },
   "poi.skip.unnamed": { en: "Unnamed POI", fr: "POI sans nom" },
   "poi.skip.generic-name": { en: "Generic name", fr: "Nom générique" },
   "poi.skip.low-value-category": { en: "Low-value category", fr: "Catégorie à faible valeur" },
@@ -119,17 +137,38 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "export.poisReady": { en: "POIs ready", fr: "POI prêts" },
   "export.enriched": { en: "enriched", fr: "enrichis" },
   "export.smartphone": { en: "Export for Smartphone", fr: "Export smartphone" },
-  "export.offlineApps": { en: "Offline maps apps (OsmAnd, Organic Maps, Guru Maps)", fr: "Apps de cartes hors-ligne (OsmAnd, Organic Maps, Guru Maps)" },
-  "export.osmandBody": { en: "includes custom icons and colors per category. Other apps import it as standard GPX.", fr: "inclut des icônes et couleurs par catégorie. Les autres apps l'importent comme GPX standard." },
-  "export.kmzBody": { en: "groups POIs by category in folders — best for Organic Maps and Guru Maps.", fr: "regroupe les POI par catégorie en dossiers — idéal pour Organic Maps et Guru Maps." },
+  "export.offlineApps": {
+    en: "Offline maps apps (OsmAnd, Organic Maps, Guru Maps)",
+    fr: "Apps de cartes hors-ligne (OsmAnd, Organic Maps, Guru Maps)",
+  },
+  "export.osmandBody": {
+    en: "includes custom icons and colors per category. Other apps import it as standard GPX.",
+    fr: "inclut des icônes et couleurs par catégorie. Les autres apps l'importent comme GPX standard.",
+  },
+  "export.kmzBody": {
+    en: "groups POIs by category in folders — best for Organic Maps and Guru Maps.",
+    fr: "regroupe les POI par catégorie en dossiers — idéal pour Organic Maps et Guru Maps.",
+  },
   "export.enrichedLabel": { en: "Enriched data", fr: "Données enrichies" },
-  "export.enrichedBody": { en: "(ratings, hours, reviews) is included in export descriptions.", fr: "(notes, horaires, avis) sont incluses dans les descriptions d'export." },
+  "export.enrichedBody": {
+    en: "(ratings, hours, reviews) is included in export descriptions.",
+    fr: "(notes, horaires, avis) sont incluses dans les descriptions d'export.",
+  },
   // Enrichment panel
   "enrich.title": { en: "Enrich POIs", fr: "Enrichir les POI" },
-  "enrich.subtitle": { en: "Add ratings, hours, reviews via web search", fr: "Ajoute notes, horaires, avis via recherche web" },
+  "enrich.subtitle": {
+    en: "Add ratings, hours, reviews via web search",
+    fr: "Ajoute notes, horaires, avis via recherche web",
+  },
   "enrich.aiSynthesis": { en: " + AI synthesis", fr: " + synthèse IA" },
-  "enrich.noWebgpu": { en: "No WebGPU — raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.", fr: "Pas de WebGPU — extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète." },
-  "enrich.searxngUnavailable": { en: "SearXNG unavailable — search enrichment disabled. Start SearXNG:", fr: "SearXNG indisponible — enrichissement par recherche désactivé. Démarrez SearXNG :" },
+  "enrich.noWebgpu": {
+    en: "No WebGPU — raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.",
+    fr: "Pas de WebGPU — extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète.",
+  },
+  "enrich.searxngUnavailable": {
+    en: "SearXNG unavailable — search enrichment disabled. Start SearXNG:",
+    fr: "SearXNG indisponible — enrichissement par recherche désactivé. Démarrez SearXNG :",
+  },
   "enrich.scraperBlocked": {
     en: "Map scraper blocked (CAPTCHA / anti-bot). Some POIs may stay un-enriched — wait a few minutes or change your IP, then retry.",
     fr: "Scraper de cartes bloqué (CAPTCHA / anti-bot). Certains POI peuvent rester non enrichis — attendez quelques minutes ou changez d'IP, puis réessayez.",
@@ -139,11 +178,17 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.running": { en: "running", fr: "en cours" },
   "enrich.summaryLanguage": { en: "Summary language:", fr: "Langue du résumé :" },
   "enrich.enrichEverything": { en: "Enrich everything (slower)", fr: "Tout enrichir (plus lent)" },
-  "enrich.poisTotalHint": { en: "POIs total — enrichment targets high-value categories", fr: "POI au total — l'enrichissement cible les catégories à forte valeur" },
+  "enrich.poisTotalHint": {
+    en: "POIs total — enrichment targets high-value categories",
+    fr: "POI au total — l'enrichissement cible les catégories à forte valeur",
+  },
   "enrich.enrichButton": { en: "Enrich", fr: "Enrichir" },
   "enrich.all": { en: "all", fr: "tous les" },
   "enrich.poisWord": { en: "POIs", fr: "POI" },
-  "enrich.startSearxngTitle": { en: "Start SearXNG to enable enrichment", fr: "Démarrez SearXNG pour activer l'enrichissement" },
+  "enrich.startSearxngTitle": {
+    en: "Start SearXNG to enable enrichment",
+    fr: "Démarrez SearXNG pour activer l'enrichissement",
+  },
   "enrich.poisEnriched": { en: "POIs enriched", fr: "POI enrichis" },
   "enrich.retryableRemaining": { en: "retryable remaining", fr: "réessayables restants" },
   "enrich.continue": { en: "Continue enrichment", fr: "Continuer l'enrichissement" },
@@ -158,21 +203,42 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.phaseSynth": { en: "AI synthesis...", fr: "Synthèse IA..." },
   "enrich.phaseRetry": { en: "Retrying failed...", fr: "Réessai des échecs..." },
   "enrich.phaseEnriching": { en: "Enriching...", fr: "Enrichissement..." },
-  "enrich.googleWait": { en: "Google Maps can take 30-90s per place. Still running — please wait.", fr: "Google Maps peut prendre 30-90s par lieu. Toujours en cours — patientez." },
+  "enrich.googleWait": {
+    en: "Google Maps can take 30-90s per place. Still running — please wait.",
+    fr: "Google Maps peut prendre 30-90s par lieu. Toujours en cours — patientez.",
+  },
   "enrich.processing": { en: "Processing", fr: "Traitement de" },
   "enrich.current": { en: "Current:", fr: "Actuel :" },
   "enrich.errorWord": { en: "error", fr: "erreur" },
   "enrich.skipped": { en: "skipped", fr: "ignorés" },
   "enrich.eta": { en: "ETA:", fr: "ETA :" },
   "enrich.stop": { en: "Stop", fr: "Arrêter" },
-  "enrich.captchaBlocked": { en: "All search engines blocked (CAPTCHA / access denied).", fr: "Tous les moteurs de recherche sont bloqués (CAPTCHA / accès refusé)." },
-  "enrich.captchaInstructions": { en: "Open SearXNG in a new tab, complete the CAPTCHA, then come back and resume.", fr: "Ouvrez SearXNG dans un nouvel onglet, complétez le CAPTCHA, puis revenez et reprenez." },
-  "enrich.openSearxng": { en: "Open SearXNG — solve CAPTCHA", fr: "Ouvrir SearXNG — résoudre le CAPTCHA" },
+  "enrich.captchaBlocked": {
+    en: "All search engines blocked (CAPTCHA / access denied).",
+    fr: "Tous les moteurs de recherche sont bloqués (CAPTCHA / accès refusé).",
+  },
+  "enrich.captchaInstructions": {
+    en: "Open SearXNG in a new tab, complete the CAPTCHA, then come back and resume.",
+    fr: "Ouvrez SearXNG dans un nouvel onglet, complétez le CAPTCHA, puis revenez et reprenez.",
+  },
+  "enrich.openSearxng": {
+    en: "Open SearXNG — solve CAPTCHA",
+    fr: "Ouvrir SearXNG — résoudre le CAPTCHA",
+  },
   "enrich.resume": { en: "Resume enrichment", fr: "Reprendre l'enrichissement" },
   "enrich.remaining": { en: "remaining", fr: "restants" },
-  "enrich.enginesDegradedSingular": { en: "search engine degraded", fr: "moteur de recherche dégradé" },
-  "enrich.enginesDegradedPlural": { en: "search engines degraded", fr: "moteurs de recherche dégradés" },
-  "enrich.aiDisclaimer": { en: "AI-generated summaries can be wrong — check hours/prices before relying on them.", fr: "Les résumés générés par IA peuvent être faux — vérifiez horaires/prix avant de vous y fier." },
+  "enrich.enginesDegradedSingular": {
+    en: "search engine degraded",
+    fr: "moteur de recherche dégradé",
+  },
+  "enrich.enginesDegradedPlural": {
+    en: "search engines degraded",
+    fr: "moteurs de recherche dégradés",
+  },
+  "enrich.aiDisclaimer": {
+    en: "AI-generated summaries can be wrong — check hours/prices before relying on them.",
+    fr: "Les résumés générés par IA peuvent être faux — vérifiez horaires/prix avant de vous y fier.",
+  },
   "enrich.error": { en: "Error:", fr: "Erreur :" },
   "enrich.enrichedBeforeError": { en: "enriched before error", fr: "enrichis avant l'erreur" },
   "enrich.retry": { en: "Retry", fr: "Réessayer" },

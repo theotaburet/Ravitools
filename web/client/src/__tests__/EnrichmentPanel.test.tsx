@@ -4,10 +4,10 @@
 // Asserts on stable structure (classNames) rather than translatable copy.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EnrichmentPanel } from "../components/EnrichmentPanel";
-import type { EnrichmentJobState, EnrichedData } from "../types";
+import type { EnrichedData, EnrichmentJobState } from "../types";
 
 afterEach(cleanup);
 
@@ -83,7 +83,10 @@ describe("EnrichmentPanel", () => {
       job: makeJob({
         stage: "running",
         total: 5,
-        googleFallbackStats: { counts: { queued: 0, running: 0, done: 0, error: 1, blocked: 1 }, jobs: [] },
+        googleFallbackStats: {
+          counts: { queued: 0, running: 0, done: 0, error: 1, blocked: 1 },
+          jobs: [],
+        },
       }),
     });
     // Red-bordered notice carrying the blocked copy

@@ -2,17 +2,17 @@
 // Tests for POI config lookups
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  findCategoryForTag,
-  getCategoryConfig,
   ALL_CATEGORIES,
   DEFAULT_CATEGORIES,
-  POI_CATEGORIES,
-  OSMAND_CATEGORY_ICONS,
-  OSMAND_CATEGORY_COLORS,
-  OSMAND_CATEGORY_BACKGROUNDS,
+  findCategoryForTag,
+  getCategoryConfig,
   getOsmAndIcon,
+  OSMAND_CATEGORY_BACKGROUNDS,
+  OSMAND_CATEGORY_COLORS,
+  OSMAND_CATEGORY_ICONS,
+  POI_CATEGORIES,
 } from "../lib/poi-config";
 
 // ---------------------------------------------------------------------------
@@ -141,56 +141,56 @@ describe("findCategoryForTag", () => {
   it("should find Water for amenity=drinking_water", () => {
     const result = findCategoryForTag("amenity", "drinking_water");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Water");
-    expect(result!.tag.icon).toBe("droplet");
+    expect(result?.category.category).toBe("Water");
+    expect(result?.tag.icon).toBe("droplet");
   });
 
   it("should find Sleeping place for tourism=camp_site", () => {
     const result = findCategoryForTag("tourism", "camp_site");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Sleeping place");
+    expect(result?.category.category).toBe("Sleeping place");
   });
 
   it("should find Medical for amenity=hospital", () => {
     const result = findCategoryForTag("amenity", "hospital");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Medical");
+    expect(result?.category.category).toBe("Medical");
   });
 
   it("should find Pharmacy for amenity=pharmacy", () => {
     const result = findCategoryForTag("amenity", "pharmacy");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Pharmacy");
+    expect(result?.category.category).toBe("Pharmacy");
   });
 
   it("should find Bank & ATM for amenity=atm", () => {
     const result = findCategoryForTag("amenity", "atm");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Bank & ATM");
+    expect(result?.category.category).toBe("Bank & ATM");
   });
 
   it("should find Viewpoint for tourism=viewpoint", () => {
     const result = findCategoryForTag("tourism", "viewpoint");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Viewpoint");
+    expect(result?.category.category).toBe("Viewpoint");
   });
 
   it("should find Charging for amenity=charging_station", () => {
     const result = findCategoryForTag("amenity", "charging_station");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Charging");
+    expect(result?.category.category).toBe("Charging");
   });
 
   it("should find Picnic for tourism=picnic_site", () => {
     const result = findCategoryForTag("tourism", "picnic_site");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Picnic");
+    expect(result?.category.category).toBe("Picnic");
   });
 
   it("should find Wifi for amenity=internet_cafe", () => {
     const result = findCategoryForTag("amenity", "internet_cafe");
     expect(result).not.toBeNull();
-    expect(result!.category.category).toBe("Wifi");
+    expect(result?.category.category).toBe("Wifi");
   });
 
   it("should return null for unknown tags", () => {
@@ -207,15 +207,15 @@ describe("getCategoryConfig", () => {
   it("should return config for known essential category", () => {
     const config = getCategoryConfig("Water");
     expect(config).toBeDefined();
-    expect(config!.style.backgroundColor).toBe("#0066CC");
-    expect(config!.defaultEnabled).toBe(true);
+    expect(config?.style.backgroundColor).toBe("#0066CC");
+    expect(config?.defaultEnabled).toBe(true);
   });
 
   it("should return config for known optional category", () => {
     const config = getCategoryConfig("Medical");
     expect(config).toBeDefined();
-    expect(config!.style.backgroundColor).toBe("#DC2626");
-    expect(config!.defaultEnabled).toBe(false);
+    expect(config?.style.backgroundColor).toBe("#DC2626");
+    expect(config?.defaultEnabled).toBe(false);
   });
 
   it("should return undefined for unknown category", () => {
@@ -247,9 +247,7 @@ describe("OsmAnd mappings", () => {
   it("should have backgrounds for all 18 categories", () => {
     for (const cat of ALL_CATEGORIES) {
       expect(OSMAND_CATEGORY_BACKGROUNDS[cat]).toBeDefined();
-      expect(["circle", "octagon", "square"]).toContain(
-        OSMAND_CATEGORY_BACKGROUNDS[cat],
-      );
+      expect(["circle", "octagon", "square"]).toContain(OSMAND_CATEGORY_BACKGROUNDS[cat]);
     }
   });
 

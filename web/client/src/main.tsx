@@ -9,7 +9,10 @@ window.addEventListener("unhandledrejection", (e) => {
   console.error("Ravitools: unhandled promise rejection", e.reason);
 });
 
-createRoot(document.getElementById("root")!).render(
+const rootEl = document.getElementById("root");
+if (!rootEl) throw new Error("Missing #root element in index.html");
+
+createRoot(rootEl).render(
   <StrictMode>
     <ErrorBoundary>
       <App />

@@ -2,7 +2,7 @@
  * Generic job system factory for map scraper plugins.
  *
  * Replaces ~430 lines of duplicated job/queue/persistence/retry logic per
- * source (originally copy-pasted between Google Maps and Yandex Maps in
+ * source (originally copy-pasted between map scrapers in
  * web/server/src/index.ts). Each scraper plugin (see `types.ts`) is wrapped
  * via `createScraperJobSystem(plugin, deps)` and gets a private:
  *
@@ -20,7 +20,6 @@
  * via the injected `ScraperDeps.getBrowser`.
  */
 
-import NodeCache from "node-cache";
 import {
   appendFileSync,
   existsSync,
@@ -31,6 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import NodeCache from "node-cache";
 import { safeSet } from "../safe-set.js";
 import type {
   MapPreview,
@@ -142,7 +142,10 @@ export function createScraperJobSystem<T extends MapPreview>(
       });
       renameSync(tmpFile, jobsFile);
     } catch (err) {
-      deps.log.warn({ err, source: plugin.name }, `${plugin.displayName}: failed to persist jobs (atomic write failed)`);
+      deps.log.warn(
+        { err, source: plugin.name },
+        `${plugin.displayName}: failed to persist jobs (atomic write failed)`,
+      );
       try {
         unlinkSync(tmpFile);
       } catch {
@@ -175,28 +178,41 @@ export function createScraperJobSystem<T extends MapPreview>(
           source: plugin.name, // re-stamp in case file is from older schema
           status: recoveredStatus,
           error: recoveredError,
-          lastError:
-            job.status === "running" ? "Job interrupted by server restart" : job.lastError,
+          lastError: job.status === "running" ? "Job interrupted by server restart" : job.lastError,
           updatedAt: job.status === "running" ? new Date().toISOString() : job.updatedAt,
         });
         recovered++;
       }
-      deps.log.info({ recovered, skipped, source: plugin.name }, `${plugin.displayName}: restored jobs from disk`);
+      deps.log.info(
+        { recovered, skipped, source: plugin.name },
+        `${plugin.displayName}: restored jobs from disk`,
+      );
     } catch (err) {
-      deps.log.warn({ err, source: plugin.name }, `Failed to restore ${plugin.displayName} jobs from disk`);
+      deps.log.warn(
+        { err, source: plugin.name },
+        `Failed to restore ${plugin.displayName} jobs from disk`,
+      );
     }
   }
 
   function appendFailure(record: ScraperFailureRecord): void {
     try {
       mkdirSync(dirname(failuresFile), { recursive: true });
-      appendFileSync(failuresFile, JSON.stringify(record) + "\n", { encoding: "utf8" });
+      appendFileSync(failuresFile, `${JSON.stringify(record)}\n`, { encoding: "utf8" });
       deps.log.debug(
-        { url: record.url, attempts: record.attempts, lastError: record.lastError, source: plugin.name },
+        {
+          url: record.url,
+          attempts: record.attempts,
+          lastError: record.lastError,
+          source: plugin.name,
+        },
         `${plugin.displayName}: failure record appended`,
       );
     } catch (err) {
-      deps.log.warn({ err, source: plugin.name }, `${plugin.displayName}: failed to append failure record`);
+      deps.log.warn(
+        { err, source: plugin.name },
+        `${plugin.displayName}: failed to append failure record`,
+      );
     }
   }
 
@@ -248,8 +264,7 @@ export function createScraperJobSystem<T extends MapPreview>(
   }
 
   async function queueJob(url: string, poiName?: string | null): Promise<ScraperJob<T>> {
-    const crypto = await import("crypto");
-    const jobId = crypto.randomUUID();
+    const jobId = crypto.randomUUID(); // global webcrypto (Node 19+)
     const createdAt = new Date().toISOString();
     const job: ScraperJob<T> = {
       jobId,

@@ -5,27 +5,35 @@
 // ---------------------------------------------------------------------------
 // @vitest-environment jsdom
 
-import { describe, it, expect } from "vitest";
-import type { POI, EnrichedData, SearchSnippet, EnrichmentStructuredContent } from "../types";
-import { ENRICHMENT_LENGTH_TARGETS, ENRICHMENT_DISPLAY_ORDER } from "../types";
-import {
-  classifySourcePlatform,
-  getOfficialWebsiteUrl,
-  buildSearchQuery,
-  isRejectedOfficialDomain,
-  isOfficialDomainSnippet,
-  normalizeUrlForDedup,
-  cleanPoiNameForSearch,
-} from "../lib/enrichment/search";
-import { buildStructuredContent, buildDivergences, determineSourceConfirmation } from "../lib/enrichment/structured";
-import { parseLlmOutput, buildSystemPrompt } from "../lib/enrichment/llm";
+import { describe, expect, it } from "vitest";
 import { computeConfidence, isGenericPoiName } from "../lib/enrichment/enricher";
+import { buildSystemPrompt, parseLlmOutput } from "../lib/enrichment/llm";
+import {
+  buildSearchQuery,
+  classifySourcePlatform,
+  cleanPoiNameForSearch,
+  getOfficialWebsiteUrl,
+  isRejectedOfficialDomain,
+  normalizeUrlForDedup,
+} from "../lib/enrichment/search";
+import {
+  buildDivergences,
+  buildStructuredContent,
+  determineSourceConfirmation,
+} from "../lib/enrichment/structured";
+import { buildGeoJsonObject, buildGpxString, buildKmlString } from "../lib/export";
 import {
   ENRICHMENT_CONTRACTS,
-  getEnrichmentContract,
   getEnrichabilityPolicy,
+  getEnrichmentContract,
 } from "../lib/poi-config";
-import { buildGpxString, buildKmlString, buildGeoJsonObject } from "../lib/export";
+import type {
+  EnrichedData,
+  EnrichmentStructuredContent,
+  POI,
+  PoiCategory,
+  SearchSnippet,
+} from "../types";
 
 // ---------------------------------------------------------------------------
 // Shared POI factory
@@ -34,7 +42,7 @@ import { buildGpxString, buildKmlString, buildGeoJsonObject } from "../lib/expor
 function makePoi(overrides: Partial<POI> = {}): POI {
   return {
     id: "fvm-poi-1",
-    lat: 45.7640,
+    lat: 45.764,
     lon: 4.8357,
     category: "Restaurant or Bar",
     name: "Chez Marcel",
@@ -182,7 +190,9 @@ describe("FVM-B: Source Parsing And Classification", () => {
   });
 
   it("B3: classifies TripAdvisor URL", () => {
-    expect(classifySourcePlatform("https://www.tripadvisor.com/Restaurant-test")).toBe("tripadvisor");
+    expect(classifySourcePlatform("https://www.tripadvisor.com/Restaurant-test")).toBe(
+      "tripadvisor",
+    );
     expect(classifySourcePlatform("https://www.tripadvisor.fr/Hotel-test")).toBe("tripadvisor");
   });
 
@@ -227,7 +237,9 @@ describe("FVM-C: Official Website", () => {
   });
 
   it("C2: detects contact:website tag", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", "contact:website": "https://chez-marcel.fr" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", "contact:website": "https://chez-marcel.fr" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBe("https://chez-marcel.fr");
   });
 
@@ -263,7 +275,14 @@ describe("FVM-C: Official Website", () => {
 
   it("C7: official website enriches sourceRollup when present", () => {
     const poi = makePoi();
-    const enrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const websitePreview = {
       url: "https://chez-marcel.fr",
       finalUrl: "https://chez-marcel.fr",
@@ -280,10 +299,27 @@ describe("FVM-C: Official Website", () => {
 
   it("C8: official website does not clobber review platform sources", () => {
     const poi = makePoi();
-    const enrichment = { rating: 4.2, reviewCount: 50, hours: "12-14, 19-22", description: "Great", priceLevel: 2, locality: "Lyon" };
+    const enrichment = {
+      rating: 4.2,
+      reviewCount: 50,
+      hours: "12-14, 19-22",
+      description: "Great",
+      priceLevel: 2,
+      locality: "Lyon",
+    };
     const snippets: SearchSnippet[] = [
-      { title: "Google review", url: "https://www.google.com/maps/place/chez-marcel", content: "Excellent restaurant", engine: "google" },
-      { title: "TripAdvisor", url: "https://www.tripadvisor.fr/restaurant/chez-marcel", content: "Very good", engine: "google" },
+      {
+        title: "Google review",
+        url: "https://www.google.com/maps/place/chez-marcel",
+        content: "Excellent restaurant",
+        engine: "google",
+      },
+      {
+        title: "TripAdvisor",
+        url: "https://www.tripadvisor.fr/restaurant/chez-marcel",
+        content: "Very good",
+        engine: "google",
+      },
     ];
     const websitePreview = {
       url: "https://chez-marcel.fr",
@@ -317,9 +353,24 @@ describe("FVM-D: Structured Output Core", () => {
   };
 
   const snippets: SearchSnippet[] = [
-    { title: "Google Review", url: "https://www.google.com/maps/place/test", content: "Great food and service", engine: "google" },
-    { title: "TripAdvisor", url: "https://www.tripadvisor.fr/test", content: "Lovely terrace for cyclists", engine: "bing" },
-    { title: "Yelp review", url: "https://www.yelp.fr/biz/test", content: "Good value French bistro", engine: "duckduckgo" },
+    {
+      title: "Google Review",
+      url: "https://www.google.com/maps/place/test",
+      content: "Great food and service",
+      engine: "google",
+    },
+    {
+      title: "TripAdvisor",
+      url: "https://www.tripadvisor.fr/test",
+      content: "Lovely terrace for cyclists",
+      engine: "bing",
+    },
+    {
+      title: "Yelp review",
+      url: "https://www.yelp.fr/biz/test",
+      content: "Good value French bistro",
+      engine: "duckduckgo",
+    },
   ];
 
   it("D1: produces a headline for a rich case", () => {
@@ -327,7 +378,7 @@ describe("FVM-D: Structured Output Core", () => {
     const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
     expect(structured.headline).not.toBeNull();
     expect(structured.headline!.length).toBeGreaterThan(10);
-    expect(structured.headline!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.headlineList);
+    expect(structured.headline!.length).toBeLessThanOrEqual(320);
   });
 
   it("D2: produces an operationalSummary for a rich case", () => {
@@ -335,24 +386,31 @@ describe("FVM-D: Structured Output Core", () => {
     const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
     expect(structured.operationalSummary).not.toBeNull();
     expect(structured.operationalSummary!.length).toBeGreaterThan(10);
-    expect(structured.operationalSummary!.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.operationalSummary);
+    expect(structured.operationalSummary!.length).toBeLessThanOrEqual(240);
   });
 
   it("D3: produces ordered practicalities", () => {
     const poi = makePoi();
     const structured = buildStructuredContent(poi, richEnrichment, snippets, null, "fr");
     expect(structured.practicalities.length).toBeGreaterThan(0);
-    expect(structured.practicalities.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.practicalitiesMax);
+    expect(structured.practicalities.length).toBeLessThanOrEqual(5);
     // Should contain Rating
     expect(structured.practicalities.some((p) => p.includes("4.3"))).toBe(true);
   });
 
   it("D4: produces cautions when info is missing", () => {
     const poi = makePoi();
-    const poorEnrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const poorEnrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const structured = buildStructuredContent(poi, poorEnrichment, [], null, "en");
     expect(structured.cautions.length).toBeGreaterThan(0);
-    expect(structured.cautions.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.cautionsMax);
+    expect(structured.cautions.length).toBeLessThanOrEqual(3);
   });
 
   it("D5: produces stable sourceRollup from snippets", () => {
@@ -369,15 +427,29 @@ describe("FVM-D: Structured Output Core", () => {
   it("D8: unknowns are included in structured output", () => {
     const poi = makePoi();
     // Specialty is null but sources exist -> should trigger an unknown
-    const partialEnrichment = { rating: 4.0, reviewCount: 10, hours: "9-17", description: "Good", priceLevel: null, locality: null };
+    const partialEnrichment = {
+      rating: 4.0,
+      reviewCount: 10,
+      hours: "9-17",
+      description: "Good",
+      priceLevel: null,
+      locality: null,
+    };
     const structured = buildStructuredContent(poi, partialEnrichment, snippets, null, "en");
     expect(structured.unknowns.length).toBeGreaterThan(0);
-    expect(structured.unknowns.length).toBeLessThanOrEqual(ENRICHMENT_LENGTH_TARGETS.unknownsMax);
+    expect(structured.unknowns.length).toBeLessThanOrEqual(2);
   });
 
   it("D9: empty snippets produce a fallback headline", () => {
     const poi = makePoi();
-    const emptyEnrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const emptyEnrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
     expect(structured.headline).not.toBeNull();
     // Should be the category-inferred lead
@@ -460,7 +532,14 @@ describe("FVM-E: Category-Specific Contracts", () => {
   it("E11: each full category degrades with no sources (cautions appear)", () => {
     for (const category of ["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"] as const) {
       const poi = makePoi({ category, name: `Test ${category}` });
-      const emptyEnrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+      const emptyEnrichment = {
+        rating: null,
+        reviewCount: null,
+        hours: null,
+        description: null,
+        priceLevel: null,
+        locality: null,
+      };
       const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
       expect(structured.cautions.length).toBeGreaterThan(0);
     }
@@ -476,9 +555,7 @@ describe("FVM-F: LLM Output Contract", () => {
     const input = JSON.stringify({
       rating: 4.5,
       reviewCount: 200,
-      hours: [
-        { day: "Mon-Sat", open: "9:00", close: "18:00" },
-      ],
+      hours: [{ day: "Mon-Sat", open: "9:00", close: "18:00" }],
       description: "Great bike shop with repair service.",
       review: "Cycles Dupont is a reliable bike shop near the route.",
       priceLevel: 3,
@@ -501,7 +578,7 @@ describe("FVM-F: LLM Output Contract", () => {
       review: null,
       priceLevel: null,
     });
-    const input = "Here is the information:\n```json\n" + json + "\n```\nHope this helps!";
+    const input = `Here is the information:\n\`\`\`json\n${json}\n\`\`\`\nHope this helps!`;
     const result = parseLlmOutput(input);
     expect(result).not.toBeNull();
     expect(result!.rating).toBe(3.0);
@@ -640,7 +717,14 @@ describe("FVM-G: Confidence And Coverage", () => {
 describe("FVM-H: Contradictions And Missing Data", () => {
   it("H1: missing hours produces explicit caution", () => {
     const poi = makePoi();
-    const enrichment = { rating: 4.0, reviewCount: 20, hours: null, description: "Good", priceLevel: null, locality: null };
+    const enrichment = {
+      rating: 4.0,
+      reviewCount: 20,
+      hours: null,
+      description: "Good",
+      priceLevel: null,
+      locality: null,
+    };
     const snippets = makeSnippets(2);
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     const hoursCaution = structured.cautions.find((c) => c.toLowerCase().includes("hour"));
@@ -649,7 +733,14 @@ describe("FVM-H: Contradictions And Missing Data", () => {
 
   it("H2: missing rating produces explicit caution", () => {
     const poi = makePoi();
-    const enrichment = { rating: null, reviewCount: null, hours: "9-17", description: "Decent", priceLevel: null, locality: null };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: "9-17",
+      description: "Decent",
+      priceLevel: null,
+      locality: null,
+    };
     const snippets = makeSnippets(2);
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     const ratingCaution = structured.cautions.find((c) => c.toLowerCase().includes("rating"));
@@ -658,16 +749,32 @@ describe("FVM-H: Contradictions And Missing Data", () => {
 
   it("H3: rating without review count produces a caution", () => {
     const poi = makePoi();
-    const enrichment = { rating: 4.5, reviewCount: null, hours: "10-20", description: "Nice", priceLevel: null, locality: null };
+    const enrichment = {
+      rating: 4.5,
+      reviewCount: null,
+      hours: "10-20",
+      description: "Nice",
+      priceLevel: null,
+      locality: null,
+    };
     const snippets = makeSnippets(3);
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
-    const volumeCaution = structured.cautions.find((c) => c.toLowerCase().includes("volume") || c.toLowerCase().includes("review"));
+    const volumeCaution = structured.cautions.find(
+      (c) => c.toLowerCase().includes("volume") || c.toLowerCase().includes("review"),
+    );
     expect(volumeCaution).toBeDefined();
   });
 
   it("H4: no sourceRollup produces a caution about weak coverage", () => {
     const poi = makePoi();
-    const enrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const structured = buildStructuredContent(poi, enrichment, [], null, "en");
     // With contract-aware cautions, the first caution uses the category's weak source formulation
     expect(structured.cautions.length).toBeGreaterThan(0);
@@ -681,7 +788,14 @@ describe("FVM-H: Contradictions And Missing Data", () => {
     // No website tag => getOfficialWebsiteUrl returns null
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
     // Building structured without website should not mention official_website in rollup
-    const enrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const structured = buildStructuredContent(poi, enrichment, [], null, "en");
     const officialDigest = structured.sourceRollup.find((d) => d.platform === "official_website");
     expect(officialDigest).toBeUndefined();
@@ -746,10 +860,22 @@ describe("FVM-K: Export Validation", () => {
   const enrichedStructured: EnrichmentStructuredContent = {
     headline: "Excellent bistro with cyclist-friendly terrace.",
     operationalSummary: "Best read as French bistro. Hours available. Reputation signals present.",
-    practicalities: ["Type: French bistro", "Reported rating: 4.3/5 (120 reviews)", "Hours: Mon-Sat 12-14, 19-22"],
+    practicalities: [
+      "Type: French bistro",
+      "Reported rating: 4.3/5 (120 reviews)",
+      "Hours: Mon-Sat 12-14, 19-22",
+    ],
     sourceRollup: [
-      { platform: "google_maps", brief: "Google Maps: Well-reviewed bistro", url: "https://google.com/maps/test" },
-      { platform: "tripadvisor", brief: "Tripadvisor: Great terrace", url: "https://tripadvisor.fr/test" },
+      {
+        platform: "google_maps",
+        brief: "Google Maps: Well-reviewed bistro",
+        url: "https://google.com/maps/test",
+      },
+      {
+        platform: "tripadvisor",
+        brief: "Tripadvisor: Great terrace",
+        url: "https://tripadvisor.fr/test",
+      },
     ],
     cautions: ["Price information could not be confirmed."],
     unknowns: ["Bike parking availability unclear."],
@@ -820,7 +946,9 @@ describe("FVM-K: Export Validation", () => {
   it("K8: GeoJSON exposes enrichment_structured_headline", () => {
     const geojson = buildGeoJsonObject([poi], enrichments);
     const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_headline).toBe("Excellent bistro with cyclist-friendly terrace.");
+    expect(props.enrichment_structured_headline).toBe(
+      "Excellent bistro with cyclist-friendly terrace.",
+    );
   });
 
   it("K9: GeoJSON exposes enrichment_structured_operationalSummary", () => {
@@ -839,7 +967,9 @@ describe("FVM-K: Export Validation", () => {
   it("K11: GeoJSON exposes enrichment_structured_cautions", () => {
     const geojson = buildGeoJsonObject([poi], enrichments);
     const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_cautions).toContain("Price information could not be confirmed.");
+    expect(props.enrichment_structured_cautions).toContain(
+      "Price information could not be confirmed.",
+    );
   });
 
   it("K12: GeoJSON exposes enrichment_structured_sourceRollup", () => {
@@ -861,25 +991,16 @@ describe("FVM-K: Export Validation", () => {
 // ===========================================================================
 
 describe("FVM-N: Stability Checks", () => {
-  it("N1: ENRICHMENT_DISPLAY_ORDER covers all structured fields", () => {
-    const expectedFields = ["headline", "operationalSummary", "practicalities", "cautions", "divergences", "unknowns", "sourceRollup", "sourceConfirmation"];
-    for (const field of expectedFields) {
-      expect((ENRICHMENT_DISPLAY_ORDER as readonly string[]).includes(field)).toBe(true);
-    }
-  });
-
-  it("N2: ENRICHMENT_LENGTH_TARGETS has sensible values", () => {
-    expect(ENRICHMENT_LENGTH_TARGETS.headlineMobile).toBeGreaterThan(50);
-    expect(ENRICHMENT_LENGTH_TARGETS.headlineList).toBeGreaterThan(ENRICHMENT_LENGTH_TARGETS.headlineMobile);
-    expect(ENRICHMENT_LENGTH_TARGETS.essentialsExport).toBeGreaterThan(ENRICHMENT_LENGTH_TARGETS.headlineList);
-    expect(ENRICHMENT_LENGTH_TARGETS.practicalitiesMax).toBeGreaterThanOrEqual(3);
-    expect(ENRICHMENT_LENGTH_TARGETS.cautionsMax).toBeGreaterThanOrEqual(2);
-    expect(ENRICHMENT_LENGTH_TARGETS.unknownsMax).toBeGreaterThanOrEqual(1);
-  });
-
   it("N3: buildStructuredContent handles empty inputs gracefully", () => {
     const poi = makePoi();
-    const emptyEnrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const emptyEnrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     // Should not throw
     const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
     expect(structured).toBeDefined();
@@ -892,10 +1013,27 @@ describe("FVM-N: Stability Checks", () => {
 
   it("N5: duplicate snippets in buildStructuredContent produce deduplicated sourceRollup", () => {
     const poi = makePoi();
-    const enrichment = { rating: null, reviewCount: null, hours: null, description: null, priceLevel: null, locality: null };
+    const enrichment = {
+      rating: null,
+      reviewCount: null,
+      hours: null,
+      description: null,
+      priceLevel: null,
+      locality: null,
+    };
     const dupeSnippets: SearchSnippet[] = [
-      { title: "Same source", url: "https://www.google.com/maps/place/test", content: "Review 1", engine: "google" },
-      { title: "Same source again", url: "https://www.google.com/maps/place/test2", content: "Review 2", engine: "google" },
+      {
+        title: "Same source",
+        url: "https://www.google.com/maps/place/test",
+        content: "Review 1",
+        engine: "google",
+      },
+      {
+        title: "Same source again",
+        url: "https://www.google.com/maps/place/test2",
+        content: "Review 2",
+        engine: "google",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, dupeSnippets, null, "en");
     // Both are from google_maps platform -> should be grouped into one digest
@@ -910,32 +1048,44 @@ describe("FVM-N: Stability Checks", () => {
 
 describe("FVM-WS5: Official Website Hardening", () => {
   it("WS5-1: rejects Facebook URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.facebook.com/chezmarcel" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://www.facebook.com/chezmarcel" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
   it("WS5-2: rejects Instagram URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://instagram.com/chezmarcel" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://instagram.com/chezmarcel" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
   it("WS5-3: rejects TripAdvisor URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.tripadvisor.fr/restaurant/test" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://www.tripadvisor.fr/restaurant/test" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
   it("WS5-4: rejects Booking.com URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.booking.com/hotel/test" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://www.booking.com/hotel/test" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
   it("WS5-5: rejects PagesJaunes URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.pagesjaunes.fr/test" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://www.pagesjaunes.fr/test" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
   it("WS5-6: rejects YouTube URL as official website", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://www.youtube.com/@chezmarcel" } });
+    const poi = makePoi({
+      tags: { amenity: "restaurant", website: "https://www.youtube.com/@chezmarcel" },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBeNull();
   });
 
@@ -945,7 +1095,13 @@ describe("FVM-WS5: Official Website Hardening", () => {
   });
 
   it("WS5-8: falls back to contact:website when website is social", () => {
-    const poi = makePoi({ tags: { amenity: "restaurant", website: "https://facebook.com/test", "contact:website": "https://real-site.fr" } });
+    const poi = makePoi({
+      tags: {
+        amenity: "restaurant",
+        website: "https://facebook.com/test",
+        "contact:website": "https://real-site.fr",
+      },
+    });
     expect(getOfficialWebsiteUrl(poi)).toBe("https://real-site.fr");
   });
 
@@ -958,19 +1114,6 @@ describe("FVM-WS5: Official Website Hardening", () => {
   it("WS5-10: isRejectedOfficialDomain handles malformed URLs", () => {
     expect(isRejectedOfficialDomain("not-a-url")).toBe(false);
     expect(isRejectedOfficialDomain("")).toBe(false);
-  });
-
-  it("WS5-11: isOfficialDomainSnippet matches same domain", () => {
-    expect(isOfficialDomainSnippet("https://chez-marcel.fr/menu", "https://chez-marcel.fr")).toBe(true);
-    expect(isOfficialDomainSnippet("https://www.chez-marcel.fr/about", "https://chez-marcel.fr")).toBe(true);
-  });
-
-  it("WS5-12: isOfficialDomainSnippet rejects different domain", () => {
-    expect(isOfficialDomainSnippet("https://google.com/maps/test", "https://chez-marcel.fr")).toBe(false);
-  });
-
-  it("WS5-13: isOfficialDomainSnippet returns false when no official URL", () => {
-    expect(isOfficialDomainSnippet("https://chez-marcel.fr", null)).toBe(false);
   });
 });
 
@@ -988,14 +1131,22 @@ describe("FVM-WS6: Per-Category Search Query Tuning", () => {
   });
 
   it("WS6-2: Food shop query has horaires and magasin keywords", () => {
-    const poi = makePoi({ category: "Food shop", name: "Carrefour", tags: { shop: "supermarket" } });
+    const poi = makePoi({
+      category: "Food shop",
+      name: "Carrefour",
+      tags: { shop: "supermarket" },
+    });
     const query = buildSearchQuery(poi, "Valence");
     expect(query).toContain("horaires");
     expect(query).toContain("magasin");
   });
 
   it("WS6-3: Sleeping place query has tarif and hébergement keywords", () => {
-    const poi = makePoi({ category: "Sleeping place", name: "Hotel du Parc", tags: { tourism: "hotel" } });
+    const poi = makePoi({
+      category: "Sleeping place",
+      name: "Hotel du Parc",
+      tags: { tourism: "hotel" },
+    });
     const query = buildSearchQuery(poi, null);
     expect(query).toContain("tarif");
     expect(query).toContain("hébergement");
@@ -1009,7 +1160,11 @@ describe("FVM-WS6: Per-Category Search Query Tuning", () => {
   });
 
   it("WS6-5: unknown category falls back to default bias", () => {
-    const poi = makePoi({ category: "DIY" as any, name: "Brico Depot", tags: { shop: "doityourself" } });
+    const poi = makePoi({
+      category: "DIY" as PoiCategory,
+      name: "Brico Depot",
+      tags: { shop: "doityourself" },
+    });
     const query = buildSearchQuery(poi, "Toulouse");
     // Default bias should have generic avis keyword
     expect(query).toContain("avis");
@@ -1088,7 +1243,9 @@ describe("FVM-WS7: URL Normalization & Dedup", () => {
 
   it("WS7-8: same page with/without tracking are equal after normalization", () => {
     const clean = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel");
-    const tracked = normalizeUrlForDedup("https://www.yelp.com/biz/chez-marcel?utm_source=google&ref=search");
+    const tracked = normalizeUrlForDedup(
+      "https://www.yelp.com/biz/chez-marcel?utm_source=google&ref=search",
+    );
     expect(clean).toBe(tracked);
   });
 });
@@ -1391,8 +1548,18 @@ describe("FVM-WS16: Divergence Detection (buildDivergences)", () => {
 
   it("WS16-5: detects closure contradiction with positive signals", () => {
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Closed", url: "https://a.com", content: "Permanently closed since 2024" },
-      { engine: "bing", title: "Review", url: "https://b.com", content: "Excellent food, open daily" },
+      {
+        engine: "google",
+        title: "Closed",
+        url: "https://a.com",
+        content: "Permanently closed since 2024",
+      },
+      {
+        engine: "bing",
+        title: "Review",
+        url: "https://b.com",
+        content: "Excellent food, open daily",
+      },
     ];
     const divergences = buildDivergences(snippets, noEnrichment);
     expect(divergences.some((d) => d.includes("closed"))).toBe(true);
@@ -1418,8 +1585,18 @@ describe("FVM-WS16: Divergence Detection (buildDivergences)", () => {
 
   it("WS16-8: divergences capped at 3", () => {
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "A", url: "https://a.com", content: "Open 9h00-17h00. Rating 4.8/5 stars. Permanently closed." },
-      { engine: "bing", title: "B", url: "https://b.com", content: "Open 11h00-22h00. Only 2.1/5 stars. Excellent restaurant, highly recommended." },
+      {
+        engine: "google",
+        title: "A",
+        url: "https://a.com",
+        content: "Open 9h00-17h00. Rating 4.8/5 stars. Permanently closed.",
+      },
+      {
+        engine: "bing",
+        title: "B",
+        url: "https://b.com",
+        content: "Open 11h00-22h00. Only 2.1/5 stars. Excellent restaurant, highly recommended.",
+      },
     ];
     const divergences = buildDivergences(snippets, noEnrichment);
     expect(divergences.length).toBeLessThanOrEqual(3);
@@ -1467,9 +1644,7 @@ describe("FVM-WS16: Source Confirmation (determineSourceConfirmation)", () => {
   });
 
   it("WS16-SC6: booking counts as review platform", () => {
-    const rollup = [
-      { platform: "booking" as const, brief: "Booking", url: "https://booking.com" },
-    ];
+    const rollup = [{ platform: "booking" as const, brief: "Booking", url: "https://booking.com" }];
     expect(determineSourceConfirmation(rollup)).toBe("reviews-only");
   });
 
@@ -1491,14 +1666,29 @@ describe("FVM-WS16: Sleeping Place Booking Integration", () => {
     const poi = makePoi({ name: "Hotel des Voyageurs", category: "Sleeping place" });
     const query = buildSearchQuery(poi, "Lyon");
     const lower = query.toLowerCase();
-    expect(lower.includes("booking") || lower.includes("hotels.com") || lower.includes("tarif") || lower.includes("reservation")).toBe(true);
+    expect(
+      lower.includes("booking") ||
+        lower.includes("hotels.com") ||
+        lower.includes("tarif") ||
+        lower.includes("reservation"),
+    ).toBe(true);
   });
 
   it("WS16-SP2: sleeping place structured content with booking source", () => {
     const poi = makePoi({ name: "Camping Les Pins", category: "Sleeping place" });
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Booking", url: "https://booking.com/camping-les-pins", content: "Camping Les Pins. Rated 7.8/10 on Booking. Pitch from 15€/night. Check-in 14:00." },
-      { engine: "bing", title: "Google", url: "https://google.com/maps/camping", content: "Camping Les Pins. 4.1/5 stars (89 reviews). Open April to October." },
+      {
+        engine: "google",
+        title: "Booking",
+        url: "https://booking.com/camping-les-pins",
+        content: "Camping Les Pins. Rated 7.8/10 on Booking. Pitch from 15€/night. Check-in 14:00.",
+      },
+      {
+        engine: "bing",
+        title: "Google",
+        url: "https://google.com/maps/camping",
+        content: "Camping Les Pins. 4.1/5 stars (89 reviews). Open April to October.",
+      },
     ];
     const enrichment = {
       rating: 4.1,
@@ -1517,7 +1707,12 @@ describe("FVM-WS16: Sleeping Place Booking Integration", () => {
   it("WS16-SP3: sleeping place with official site + booking = both confirmation", () => {
     const poi = makePoi({ name: "Gîte du Col", category: "Sleeping place" });
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Booking", url: "https://booking.com/gite-du-col", content: "Rated 8.5/10. From 45€/night." },
+      {
+        engine: "google",
+        title: "Booking",
+        url: "https://booking.com/gite-du-col",
+        content: "Rated 8.5/10. From 45€/night.",
+      },
     ];
     const websitePreview = {
       url: "https://gite-du-col.fr",
@@ -1546,8 +1741,8 @@ describe("FVM-WS16: Sleeping Place Booking Integration", () => {
 // FVM-I: Pipeline Integration (enrichPoi with mocked fetch)
 // ===========================================================================
 
-import { vi, beforeEach, afterEach } from "vitest";
-import { enrichPoi, enrichBatch } from "../lib/enrichment/enricher";
+import { afterEach, beforeEach, vi } from "vitest";
+import { enrichBatch, enrichPoi } from "../lib/enrichment/enricher";
 
 describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -1574,8 +1769,20 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
     };
     const searchResponse = options.search ?? {
       results: [
-        { title: "Google result", url: "https://google.com/maps/place/test", content: "Great restaurant near route", engine: "google", score: 1 },
-        { title: "Yelp result", url: "https://yelp.com/biz/test", content: "Good food and atmosphere", engine: "bing", score: 0.8 },
+        {
+          title: "Google result",
+          url: "https://google.com/maps/place/test",
+          content: "Great restaurant near route",
+          engine: "google",
+          score: 1,
+        },
+        {
+          title: "Yelp result",
+          url: "https://yelp.com/biz/test",
+          content: "Good food and atmosphere",
+          engine: "bing",
+          score: 0.8,
+        },
       ],
       query: "test",
     };
@@ -1766,15 +1973,23 @@ describe("FVM-I: enrichBatch mixed policies", () => {
         });
       }
       if (urlStr.includes("/search")) {
-        return new Response(JSON.stringify({
-          results: [
-            { title: "Result", url: "https://example.com", content: "Content here", engine: "google" },
-          ],
-          query: "test",
-        }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: "Result",
+                url: "https://example.com",
+                content: "Content here",
+                engine: "google",
+              },
+            ],
+            query: "test",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
       return new Response("Not found", { status: 404 });
     });
@@ -1826,12 +2041,15 @@ describe("FVM-I: enrichBatch mixed policies", () => {
         });
       }
       if (urlStr.includes("/search")) {
-        return new Response(JSON.stringify({
-          results: [
-            { title: "R", url: "https://g.com", content: "Review text", engine: "google" },
-          ],
-          query: "q",
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return new Response(
+          JSON.stringify({
+            results: [
+              { title: "R", url: "https://g.com", content: "Review text", engine: "google" },
+            ],
+            query: "q",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
       }
       return new Response("", { status: 404 });
     });
@@ -1922,15 +2140,20 @@ describe("FVM-C: Website Preview (fetchWebsitePreview)", () => {
   });
 
   it("C-preview-ok: returns title, description, excerpt, finalUrl on success", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      url: "https://chez-marcel.fr",
-      finalUrl: "https://chez-marcel.fr",
-      contentType: "text/html",
-      title: "Chez Marcel - Restaurant",
-      description: "French cuisine since 1952",
-      excerpt: "Welcome to Chez Marcel",
-      fetchedAt: "2026-04-13T00:00:00Z",
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          url: "https://chez-marcel.fr",
+          finalUrl: "https://chez-marcel.fr",
+          contentType: "text/html",
+          title: "Chez Marcel - Restaurant",
+          description: "French cuisine since 1952",
+          excerpt: "Welcome to Chez Marcel",
+          fetchedAt: "2026-04-13T00:00:00Z",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
 
     const result = await fetchWebsitePreview("https://chez-marcel.fr", "");
     expect(result).not.toBeNull();
@@ -1949,10 +2172,15 @@ describe("FVM-C: Website Preview (fetchWebsitePreview)", () => {
   });
 
   it("C-preview-nonhtml: degrades on non-HTML (returns null)", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      error: "Unsupported content type",
-      contentType: "application/pdf",
-    }), { status: 415 }));
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "Unsupported content type",
+          contentType: "application/pdf",
+        }),
+        { status: 415 },
+      ),
+    );
 
     const result = await fetchWebsitePreview("https://example.com/document.pdf", "");
     expect(result).toBeNull();
@@ -1974,9 +2202,12 @@ describe("FVM-N: Additional Stability Checks", () => {
     // Simulate no WebGPU: isEngineReady returns false, structured content still built
     const poi = makePoi({ category: "Restaurant or Bar" });
     const enrichment = {
-      rating: 4.0, reviewCount: 30, hours: "10-22",
+      rating: 4.0,
+      reviewCount: 30,
+      hours: "10-22",
       description: null,
-      priceLevel: 2, locality: "Grenoble",
+      priceLevel: 2,
+      locality: "Grenoble",
     };
     const snippets = makeSnippets(3);
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
@@ -1989,12 +2220,20 @@ describe("FVM-N: Additional Stability Checks", () => {
   it("N-noOfficialSite: absence of official site keeps useful behavior", () => {
     const poi = makePoi({ category: "Restaurant or Bar", tags: { amenity: "restaurant" } });
     const enrichment = {
-      rating: 3.5, reviewCount: 15, hours: "11-21",
+      rating: 3.5,
+      reviewCount: 15,
+      hours: "11-21",
       description: "Average brasserie",
-      priceLevel: 1, locality: "Montélimar",
+      priceLevel: 1,
+      locality: "Montélimar",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "G", url: "https://google.com/maps/test", content: "Good cheap food" },
+      {
+        engine: "google",
+        title: "G",
+        url: "https://google.com/maps/test",
+        content: "Good cheap food",
+      },
       { engine: "bing", title: "Y", url: "https://yelp.com/biz/test", content: "Average service" },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
@@ -2010,9 +2249,12 @@ describe("FVM-N: Additional Stability Checks", () => {
     for (const category of categories) {
       const poi = makePoi({ category, name: `Test ${category}` });
       const enrichment = {
-        rating: 4.0, reviewCount: 20, hours: "9-18",
+        rating: 4.0,
+        reviewCount: 20,
+        hours: "9-18",
         description: "Test summary",
-        priceLevel: 2, locality: "Lyon",
+        priceLevel: 2,
+        locality: "Lyon",
       };
       const snippets = makeSnippets(2);
       const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
@@ -2040,14 +2282,33 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { amenity: "restaurant", cuisine: "french", phone: "+33 4 72 00 00 00" },
     });
     const enrichment = {
-      rating: 4.4, reviewCount: 250, hours: "Tue-Sat 12:00-14:00, 19:00-22:00",
-      description: "Bouchon lyonnais traditionnel avec portions genereuses et selection de vins locaux.",
-      priceLevel: 2, locality: "Lyon",
+      rating: 4.4,
+      reviewCount: 250,
+      hours: "Tue-Sat 12:00-14:00, 19:00-22:00",
+      description:
+        "Bouchon lyonnais traditionnel avec portions genereuses et selection de vins locaux.",
+      priceLevel: 2,
+      locality: "Lyon",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Google Maps", url: "https://google.com/maps/place/le-petit-bouchon", content: "4.4 stars (250 reviews). Traditional Lyonnaise cuisine, terrace, cash only." },
-      { engine: "bing", title: "TripAdvisor", url: "https://tripadvisor.fr/le-petit-bouchon", content: "Excellent bouchon, must try quenelles and tablier de sapeur. Menu 22€." },
-      { engine: "duckduckgo", title: "Yelp", url: "https://yelp.fr/biz/le-petit-bouchon", content: "Authentic Lyon experience. Book ahead for Friday dinner." },
+      {
+        engine: "google",
+        title: "Google Maps",
+        url: "https://google.com/maps/place/le-petit-bouchon",
+        content: "4.4 stars (250 reviews). Traditional Lyonnaise cuisine, terrace, cash only.",
+      },
+      {
+        engine: "bing",
+        title: "TripAdvisor",
+        url: "https://tripadvisor.fr/le-petit-bouchon",
+        content: "Excellent bouchon, must try quenelles and tablier de sapeur. Menu 22€.",
+      },
+      {
+        engine: "duckduckgo",
+        title: "Yelp",
+        url: "https://yelp.fr/biz/le-petit-bouchon",
+        content: "Authentic Lyon experience. Book ahead for Friday dinner.",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "fr");
     expect(structured.headline).toContain("Bouchon lyonnais");
@@ -2067,12 +2328,20 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { shop: "bakery" },
     });
     const enrichment = {
-      rating: 4.7, reviewCount: 35, hours: "Tue-Sun 6:30-13:00",
+      rating: 4.7,
+      reviewCount: 35,
+      hours: "Tue-Sun 6:30-13:00",
       description: "Village bakery, great bread, closed Mondays.",
-      priceLevel: 1, locality: "Saint-Agrève",
+      priceLevel: 1,
+      locality: "Saint-Agrève",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Google", url: "https://google.com/maps/bakery", content: "4.7/5 (35 reviews). Best bread in the area. Opens early." },
+      {
+        engine: "google",
+        title: "Google",
+        url: "https://google.com/maps/bakery",
+        content: "4.7/5 (35 reviews). Best bread in the area. Opens early.",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     // headline is derived from enrichment.summary, not POI name
@@ -2090,13 +2359,26 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { tourism: "camp_site" },
     });
     const enrichment = {
-      rating: 4.0, reviewCount: 60, hours: "Apr-Oct",
+      rating: 4.0,
+      reviewCount: 60,
+      hours: "Apr-Oct",
       description: "Riverside camping, quiet, basic facilities.",
-      priceLevel: 1, locality: "Ardèche",
+      priceLevel: 1,
+      locality: "Ardèche",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Google", url: "https://google.com/maps/camping", content: "4.0/5 (60 reviews). Riverside camping." },
-      { engine: "bing", title: "Booking", url: "https://booking.com/camping-oliviers", content: "Rated 7.5/10 on Booking. Pitch from 12€. Check-in 15:00." },
+      {
+        engine: "google",
+        title: "Google",
+        url: "https://google.com/maps/camping",
+        content: "4.0/5 (60 reviews). Riverside camping.",
+      },
+      {
+        engine: "bing",
+        title: "Booking",
+        url: "https://booking.com/camping-oliviers",
+        content: "Rated 7.5/10 on Booking. Pitch from 12€. Check-in 15:00.",
+      },
     ];
     const websitePreview = {
       url: "https://camping-oliviers.fr",
@@ -2120,13 +2402,26 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { shop: "bicycle", "service:bicycle:repair": "yes" },
     });
     const enrichment = {
-      rating: 4.6, reviewCount: 80, hours: "Mon-Sat 9:00-18:00",
+      rating: 4.6,
+      reviewCount: 80,
+      hours: "Mon-Sat 9:00-18:00",
       description: "Well-equipped bike shop with repair service. Quick turnaround.",
-      priceLevel: 2, locality: "Aubenas",
+      priceLevel: 2,
+      locality: "Aubenas",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Google", url: "https://google.com/maps/cycles", content: "4.6/5 (80 reviews). Full repair service, spare parts." },
-      { engine: "bing", title: "Yelp", url: "https://yelp.fr/biz/cycles", content: "Great bike shop, fixed my derailleur in 30 min." },
+      {
+        engine: "google",
+        title: "Google",
+        url: "https://google.com/maps/cycles",
+        content: "4.6/5 (80 reviews). Full repair service, spare parts.",
+      },
+      {
+        engine: "bing",
+        title: "Yelp",
+        url: "https://yelp.fr/biz/cycles",
+        content: "Great bike shop, fixed my derailleur in 30 min.",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     expect(structured.headline).toContain("bike");
@@ -2141,17 +2436,27 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { amenity: "fast_food" },
     });
     const enrichment = {
-      rating: null, reviewCount: null, hours: null,
+      rating: null,
+      reviewCount: null,
+      hours: null,
       description: null,
-      priceLevel: null, locality: "Unknown village",
+      priceLevel: null,
+      locality: "Unknown village",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Facebook", url: "https://facebook.com/snackducoin", content: "Snack du Coin page." },
+      {
+        engine: "google",
+        title: "Facebook",
+        url: "https://facebook.com/snackducoin",
+        content: "Snack du Coin page.",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     expect(structured.cautions.length).toBeGreaterThan(0);
     // Only social source -> reliability caution
-    expect(structured.cautions.some((c) => c.includes("social") || c.includes("reliability"))).toBe(true);
+    expect(structured.cautions.some((c) => c.includes("social") || c.includes("reliability"))).toBe(
+      true,
+    );
     expect(structured.sourceConfirmation).toBe("none");
   });
 
@@ -2162,15 +2467,38 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { amenity: "cafe" },
     });
     const enrichment = {
-      rating: 3.5, reviewCount: 40, hours: "8:00-20:00",
+      rating: 3.5,
+      reviewCount: 40,
+      hours: "8:00-20:00",
       description: "Mixed reviews",
-      priceLevel: 1, locality: "Privas",
+      priceLevel: 1,
+      locality: "Privas",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Google", url: "https://google.com/maps/cafe", content: "4.5/5 stars. Open 8h00-20h00" },
-      { engine: "bing", title: "TripAdvisor", url: "https://tripadvisor.fr/cafe", content: "2.1/5 stars. Open 9h00-18h00. Terrible service." },
-      { engine: "duckduckgo", title: "Blog", url: "https://blog.com/cafe", content: "Permanently closed according to locals." },
-      { engine: "google", title: "Other", url: "https://review.com/cafe", content: "Excellent coffee, open daily." },
+      {
+        engine: "google",
+        title: "Google",
+        url: "https://google.com/maps/cafe",
+        content: "4.5/5 stars. Open 8h00-20h00",
+      },
+      {
+        engine: "bing",
+        title: "TripAdvisor",
+        url: "https://tripadvisor.fr/cafe",
+        content: "2.1/5 stars. Open 9h00-18h00. Terrible service.",
+      },
+      {
+        engine: "duckduckgo",
+        title: "Blog",
+        url: "https://blog.com/cafe",
+        content: "Permanently closed according to locals.",
+      },
+      {
+        engine: "google",
+        title: "Other",
+        url: "https://review.com/cafe",
+        content: "Excellent coffee, open daily.",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     expect(structured.divergences.length).toBeGreaterThan(0);
@@ -2191,14 +2519,32 @@ describe("FVM-L: Reference Case Snapshots", () => {
       tags: { amenity: "restaurant" },
     });
     const enrichment = {
-      rating: null, reviewCount: null, hours: null,
+      rating: null,
+      reviewCount: null,
+      hours: null,
       description: null,
-      priceLevel: null, locality: "Somewhere",
+      priceLevel: null,
+      locality: "Somewhere",
     };
     const snippets: SearchSnippet[] = [
-      { engine: "google", title: "Random blog", url: "https://random.com/1", content: "List of restaurants in France" },
-      { engine: "bing", title: "Another blog", url: "https://random.com/2", content: "Top 10 places to eat" },
-      { engine: "duckduckgo", title: "Directory", url: "https://random.com/3", content: "Business directory listing" },
+      {
+        engine: "google",
+        title: "Random blog",
+        url: "https://random.com/1",
+        content: "List of restaurants in France",
+      },
+      {
+        engine: "bing",
+        title: "Another blog",
+        url: "https://random.com/2",
+        content: "Top 10 places to eat",
+      },
+      {
+        engine: "duckduckgo",
+        title: "Directory",
+        url: "https://random.com/3",
+        content: "Business directory listing",
+      },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     // Should still produce output, not crash
@@ -2206,19 +2552,5 @@ describe("FVM-L: Reference Case Snapshots", () => {
     expect(structured.cautions.length).toBeGreaterThan(0);
     // No reputation platforms -> caution about reliability
     expect(structured.cautions.some((c) => c.toLowerCase().includes("rating"))).toBe(true);
-  });
-});
-
-// ===========================================================================
-// FVM-J: UI Rendering Verification (structural tests)
-// ===========================================================================
-
-describe("FVM-J: UI Rendering Verification", () => {
-  it("J4: ENRICHMENT_DISPLAY_ORDER has exactly 8 entries matching structured fields", () => {
-    expect(ENRICHMENT_DISPLAY_ORDER).toHaveLength(8);
-    const structuredKeys = ["headline", "operationalSummary", "practicalities", "cautions", "divergences", "unknowns", "sourceRollup", "sourceConfirmation"];
-    for (const key of structuredKeys) {
-      expect((ENRICHMENT_DISPLAY_ORDER as readonly string[])).toContain(key);
-    }
   });
 });

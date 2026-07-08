@@ -5,10 +5,10 @@
 // Sticky header + collapsible body to stay accessible in long sidebars.
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect, useRef } from "react";
-import type { PoiCategory, POI, TargetLanguage } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { t, translateCategory } from "../lib/i18n";
 import { POI_CATEGORIES } from "../lib/poi-config";
-import { translateCategory, t } from "../lib/i18n";
+import type { POI, PoiCategory, TargetLanguage } from "../types";
 
 interface Props {
   activeCategories: Set<PoiCategory>;
@@ -62,26 +62,30 @@ export function CategoryFilter({
 
   return (
     <div className="neo-box overflow-hidden filter-panel">
-      <div
-        className="filter-header"
-        onClick={() => setCollapsed((c) => !c)}
-        aria-expanded={!collapsed}
-        style={{ cursor: "pointer" }}
-      >
-        <span className="flex items-center gap-2">
-          <span className="filter-collapse-icon" aria-hidden="true">{collapsed ? "+" : "\u2212"}</span>
-          {showCounts ? t("filter.titleFilter", targetLanguage) : t("filter.titleSearch", targetLanguage)}
+      {/* AUDIT R34/R43: the collapse toggle is a real <button> (was an onClick div) */}
+      <div className="filter-header">
+        <button
+          type="button"
+          className="filter-header-toggle flex items-center gap-2"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-expanded={!collapsed}
+        >
+          <span className="filter-collapse-icon" aria-hidden="true">
+            {collapsed ? "+" : "\u2212"}
+          </span>
+          {showCounts
+            ? t("filter.titleFilter", targetLanguage)
+            : t("filter.titleSearch", targetLanguage)}
           {collapsed && (
-            <span className="filter-collapsed-count">{activeCount}/{POI_CATEGORIES.length}</span>
+            <span className="filter-collapsed-count">
+              {activeCount}/{POI_CATEGORIES.length}
+            </span>
           )}
-        </span>
+        </button>
         <button
           type="button"
           className="neo-btn-sm neo-btn-secondary"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectAll(!allOn);
-          }}
+          onClick={() => onSelectAll(!allOn)}
         >
           {allOn ? t("filter.none", targetLanguage) : t("filter.all", targetLanguage)}
         </button>
@@ -103,9 +107,7 @@ export function CategoryFilter({
               aria-label={t("filter.maxDistance", targetLanguage)}
               className="mt-3 w-full"
             />
-            <p className="mt-2 text-xs text-muted">
-              {t("filter.distanceHint", targetLanguage)}
-            </p>
+            <p className="mt-2 text-xs text-muted">{t("filter.distanceHint", targetLanguage)}</p>
           </div>
 
           {/* Essential categories */}
@@ -154,15 +156,8 @@ function CategoryRow({
 }) {
   return (
     <label className="filter-item">
-      <input
-        type="checkbox"
-        checked={active}
-        onChange={() => onToggle(cat.category)}
-      />
-      <span
-        className="filter-dot"
-        style={{ backgroundColor: cat.style.backgroundColor }}
-      />
+      <input type="checkbox" checked={active} onChange={() => onToggle(cat.category)} />
+      <span className="filter-dot" style={{ backgroundColor: cat.style.backgroundColor }} />
       <span className={`flex-1 ${active ? "font-bold" : ""}`}>
         {translateCategory(cat.category, targetLanguage)}
       </span>

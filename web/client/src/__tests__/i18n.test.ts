@@ -2,8 +2,8 @@
 // Tests for i18n – translateCategory and translatePoiName
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
-import { translateCategory, translatePoiName, t } from "../lib/i18n";
+import { describe, expect, it } from "vitest";
+import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import type { PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -12,10 +12,24 @@ import type { PoiCategory } from "../types";
 
 describe("translateCategory", () => {
   const ALL_CATEGORIES: PoiCategory[] = [
-    "Water", "Sleeping place", "Restroom", "Shelter", "Food shop",
-    "Restaurant or Bar", "Gears", "DIY", "Laundry", "Medical",
-    "Pharmacy", "Bank & ATM", "Post office", "Viewpoint",
-    "Tourist info", "Charging", "Picnic", "Wifi",
+    "Water",
+    "Sleeping place",
+    "Restroom",
+    "Shelter",
+    "Food shop",
+    "Restaurant or Bar",
+    "Gears",
+    "DIY",
+    "Laundry",
+    "Medical",
+    "Pharmacy",
+    "Bank & ATM",
+    "Post office",
+    "Viewpoint",
+    "Tourist info",
+    "Charging",
+    "Picnic",
+    "Wifi",
   ];
 
   it("returns English labels for lang=en", () => {
@@ -118,7 +132,14 @@ describe("t (UI strings)", () => {
   it("has a translation for every dynamic skip-reason key", () => {
     // PoiList builds these keys as `poi.skip.${reason}` — a missing one would
     // silently render the key string instead of a label.
-    const reasons = ["unnamed", "generic-name", "low-value-category", "no-results", "rate-limited", "cancelled"];
+    const reasons = [
+      "unnamed",
+      "generic-name",
+      "low-value-category",
+      "no-results",
+      "rate-limited",
+      "cancelled",
+    ];
     for (const r of reasons) {
       const key = `poi.skip.${r}`;
       expect(t(key, "fr")).not.toBe(key);
