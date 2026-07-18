@@ -28,26 +28,17 @@ Principe important: le GPX ne quitte jamais le navigateur.
 
 Prerequis:
 
-- Node.js 18+
-- npm
-
-Lancer le serveur:
+- [Bun](https://bun.sh) 1.x
+- [just](https://github.com/casey/just)
 
 ```bash
-cd web/server
-npm install
-npm run dev
+just install   # bun install (workspaces)
+just server    # backend dev sur :3001
+just client    # frontend dev sur :5173
 ```
 
-Lancer le client:
-
-```bash
-cd web/client
-npm install
-npm run dev
-```
-
-Ouvrir `http://localhost:5173`.
+Ouvrir `http://localhost:5173`. `just` sans argument liste toutes les recettes
+(`just check` = typecheck + tests + lint des deux workspaces).
 
 ## Repo Guide
 

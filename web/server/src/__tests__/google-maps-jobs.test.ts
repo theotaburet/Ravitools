@@ -7,6 +7,7 @@ import os from "node:os";
 import { join } from "node:path";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScraperFailureRecord } from "../scrapers/types";
 
 // ---------------------------------------------------------------------------
 // Environment setup before app import
@@ -74,13 +75,8 @@ const persistGoogleMapsJobs = googleMapsSystem.persist;
 const loadPersistedGoogleMapsJobs = googleMapsSystem.load;
 const GOOGLE_MAPS_JOBS_FILE = googleMapsSystem.jobsFile;
 const GOOGLE_MAPS_FAILURES_FILE = googleMapsSystem.failuresFile;
-const appendGoogleMapsFailure = (record: {
-  url: string;
-  poiName: string | null;
-  attempts: number;
-  lastError: string;
-  failedAt: string;
-}) => googleMapsSystem.appendFailure({ source: "google-maps", ...record });
+const appendGoogleMapsFailure = (record: Omit<ScraperFailureRecord, "source">) =>
+  googleMapsSystem.appendFailure({ source: "google-maps", ...record });
 
 // ---------------------------------------------------------------------------
 // T5a: Job lifecycle tests

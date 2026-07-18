@@ -1,15 +1,15 @@
-FROM node:20-alpine
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --only=production
+COPY package.json ./
+RUN bun install --production
 
 COPY . .
 
 # AUDIT R5: don't run the server (and Playwright's Chromium) as root.
-RUN chown -R node:node /app
-USER node
+RUN chown -R bun:bun /app
+USER bun
 
 EXPOSE 3001
 
@@ -17,4 +17,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
-CMD ["npm", "start"]
+CMD ["bun", "src/index.ts"]

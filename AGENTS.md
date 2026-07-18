@@ -70,9 +70,10 @@ Status: in-progress | done | blocked
 
 ## Verification minimale
 
-- Type check: `cd web/client && npx tsc --noEmit`
-- Tests: `cd web/client && npm test`
-- Build prod: `cd web/client && npm run build`
+- Tout: `just check` (typecheck + tests + lint, client et serveur, zero warning)
+- Type check: `just typecheck`
+- Tests: `just test` (ou `just test-client` / `just test-server`)
+- Build prod: `just build`
 - Si une modif touche la logique POI: verifier la requete OSM, le filtrage, l'export et le resultat sur un vrai GPX si possible.
 
 ## Token Saving
