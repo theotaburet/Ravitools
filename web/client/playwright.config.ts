@@ -6,7 +6,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: "list",
-  timeout: 120_000, // Overpass can be slow
+  timeout: 60_000,
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
@@ -17,19 +17,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: [
-    {
-      command: "npm run dev",
-      cwd: "../server",
-      port: 3001,
-      reuseExistingServer: !process.env.CI,
-      timeout: 15_000,
-    },
-    {
-      command: "npm run dev",
-      port: 5173,
-      reuseExistingServer: !process.env.CI,
-      timeout: 15_000,
-    },
-  ],
+  // API calls are stubbed in the specs — only the Vite dev server is needed.
+  webServer: {
+    command: "bun run dev",
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
 });
