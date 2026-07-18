@@ -1,6 +1,6 @@
 # Task: Migration bun/jotai/just + no-warning + dé-god-filisation
 Started: 2026-07-18
-Status: in-progress
+Status: done
 
 ## Steps
 - [x] Phase 1: Bun workspaces + justfile + CI + Dockerfile bun
@@ -9,7 +9,8 @@ Status: in-progress
 - [x] Phase 4: split export.ts, enricher.ts, search.ts
 - [x] Phase 5: migration jotai (state/, composants autonomes, App dégraissé)
 - [x] Phase 6: refonte tests (fvm.test.ts 2556 l. → 4 fichiers + helpers)
-- [ ] Phase 7: passe UI/UX (demande de Théo en cours de session — à cadrer)
+- [x] Phase 7 (1ère passe): carnet de route, tokens, Archivo, a11y — branche ui/neobrutalism-refine
+- [ ] Phase 7 (suite possible): PoiList/popups/EnrichmentPanel (bruit visuel des notices)
 
 ## Decisions
 - Express conservé sous Bun, vitest conservé, workspaces Bun, jotai pour tout l'état app
