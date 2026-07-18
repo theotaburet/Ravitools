@@ -51,8 +51,8 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
       {enrichment.openingHours && enrichment.openingHours.length > 0 ? (
         <table className="poi-hours-table">
           <tbody>
-            {enrichment.openingHours.map((entry, i) => (
-              <tr key={i}>
+            {enrichment.openingHours.map((entry) => (
+              <tr key={`${entry.day}-${entry.open}`}>
                 <td className="poi-hours-day">{entry.day}</td>
                 <td className="poi-hours-time">
                   {entry.open === "closed"
@@ -103,15 +103,15 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
       )}
       {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
         <div className="poi-enrichment-meta poi-divergences">
-          {enrichment.structured.divergences.map((d, i) => (
-            <span key={`div-${i}`}>⚠ {d}</span>
+          {enrichment.structured.divergences.map((d) => (
+            <span key={d}>⚠ {d}</span>
           ))}
         </div>
       )}
       {enrichment.structured?.cautions && enrichment.structured.cautions.length > 0 && (
         <div className="poi-enrichment-meta poi-cautions">
-          {enrichment.structured.cautions.slice(0, 2).map((c, i) => (
-            <span key={`caut-${i}`}>{c}</span>
+          {enrichment.structured.cautions.slice(0, 2).map((c) => (
+            <span key={c}>{c}</span>
           ))}
         </div>
       )}

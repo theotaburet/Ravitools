@@ -258,9 +258,9 @@ function PoiListInner({
                       {/* Sources disclosure */}
                       {showSources && enrichment.sourceUrls.length > 0 && (
                         <div className="poi-sources-list">
-                          {enrichment.sourceUrls.map((url, idx) => (
+                          {enrichment.sourceUrls.map((url) => (
                             <a
-                              key={idx}
+                              key={url}
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"

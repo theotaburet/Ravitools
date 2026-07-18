@@ -17,6 +17,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    // Le chunk WebLLM (~6MB de runtime WASM) est déjà code-splitté via dynamic
+    // import et ne se charge qu'à l'activation de l'enrichissement — le warning
+    // de taille par défaut (500kB) n'est pas actionnable ici.
+    chunkSizeWarningLimit: 6500,
   },
   test: {
     environment: "jsdom",
