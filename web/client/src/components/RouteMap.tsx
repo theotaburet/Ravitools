@@ -7,7 +7,16 @@ import { useAtom, useAtomValue } from "jotai";
 import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import {
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMap,
+} from "react-leaflet";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
@@ -15,7 +24,7 @@ import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
 import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
-import { selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
+import { profileHoverAtom, selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
 import type { TraceData } from "../types";
 import { EnrichmentDetails } from "./EnrichmentDetails";
 
@@ -82,6 +91,7 @@ export function RouteMap() {
   const [selectedPoiId, onSelectPoi] = useAtom(selectedPoiIdAtom);
   const enrichingPoiIds = useAtomValue(enrichingPoiIdsAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
+  const profileHover = useAtomValue(profileHoverAtom);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 
@@ -295,6 +305,16 @@ export function RouteMap() {
             </Marker>
           );
         })}
+
+        {/* Position mirrored from the elevation profile hover */}
+        {profileHover && (
+          <CircleMarker
+            center={[profileHover.lat, profileHover.lon]}
+            radius={7}
+            pathOptions={{ color: "#000", weight: 3, fillColor: "#a3e635", fillOpacity: 1 }}
+            interactive={false}
+          />
+        )}
 
         {/* Trace legend overlay (only when multiple traces) */}
         {traces.length > 1 && (

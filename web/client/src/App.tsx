@@ -6,6 +6,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { DebugPanel } from "./components/DebugPanel";
+import { ElevationProfile } from "./components/ElevationProfile";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
@@ -326,9 +327,12 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Map */}
+        {/* Map + elevation profile */}
         <main className="map-container">
-          <RouteMap />
+          <div className="map-area">
+            <RouteMap />
+          </div>
+          <ElevationProfile />
         </main>
       </div>
     </div>

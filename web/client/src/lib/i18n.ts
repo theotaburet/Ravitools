@@ -88,6 +88,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "map.hours": { en: "Hours:", fr: "Horaires :" },
   "map.tel": { en: "Tel:", fr: "Tél :" },
   "map.website": { en: "Website", fr: "Site web" },
+  "profile.title": { en: "Elevation profile", fr: "Profil altimétrique" },
   "map.searchDegraded": {
     en: "Search degraded. Retry after cooldown or IP change.",
     fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",
