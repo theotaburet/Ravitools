@@ -11,6 +11,7 @@ import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
+import { Step, type StepState } from "./components/Step";
 import { t } from "./lib/i18n";
 import { clearSession, hasSession, loadSession, saveSession } from "./lib/session";
 import { enrichmentsAtom, resetEnrichmentAtom, restoreEnrichmentsAtom } from "./state/enrichment";
@@ -143,132 +144,181 @@ export default function App() {
     clearSession();
   }, [reset, resetEnrichment, setSelectedPoiId]);
 
+  // Carnet de route: the sidebar is a numbered checklist of the real sequence.
+  const traceStep: StepState = stage === "done" ? "done" : "active";
+  const filterStep: StepState = stage === "done" ? "active" : "open";
+  const enrichStep: StepState = stage !== "done" ? "todo" : enrichments.size > 0 ? "done" : "open";
+  const exportStep: StepState = stage === "done" ? "open" : "todo";
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <header className="flex items-center gap-4 px-5 py-3 border-b-3 border-black bg-white shrink-0">
         <h1 className="text-2xl font-black uppercase tracking-tight">Ravitools</h1>
         <span className="neo-tag bg-lime">beta</span>
-        <p className="text-sm text-muted hidden sm:block">{t("app.subtitle", targetLanguage)}</p>
+        <p className="text-sm text-muted hidden sm:block flex-1">
+          {t("app.subtitle", targetLanguage)}
+        </p>
+        <div className="flex gap-1">
+          {(["fr", "en"] as const).map((lang) => (
+            <button
+              type="button"
+              key={lang}
+              className={`neo-btn-sm ${lang === targetLanguage ? "neo-btn-primary" : "neo-btn-secondary"}`}
+              aria-pressed={lang === targetLanguage}
+              onClick={() => setTargetLanguage(lang)}
+            >
+              {lang.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </header>
 
       <div className="app-layout">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          {/* Category selector – pinned at top, never scrolls away */}
-          <CategoryFilter />
-
-          {/* Scrollable area for everything else */}
+        {/* Sidebar — carnet de route */}
+        <aside className="sidebar" aria-label={t("steps.label", targetLanguage)}>
           <div className="sidebar-scroll">
-            {/* Resume prompt */}
-            {showResumePrompt && (
-              <div className="session-prompt">
-                <p className="session-prompt-text">{t("session.prompt", targetLanguage)}</p>
-                <div className="session-prompt-actions">
-                  <button type="button" className="neo-btn-sm neo-btn-lime" onClick={handleResume}>
-                    {t("session.resume", targetLanguage)}
-                  </button>
-                  <button
-                    type="button"
-                    className="neo-btn-sm neo-btn-secondary"
-                    onClick={handleDismissResume}
-                  >
-                    {t("session.fresh", targetLanguage)}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Upload area – show when idle, or at error with no traces loaded */}
-            {(stage === "idle" || (stage === "error" && traces.length === 0)) &&
-              !showResumePrompt && <GpxUpload />}
-
-            {/* Status / Progress */}
-            {progress && (
-              <div
-                className={`status-bar ${stage === "error" ? "error" : ""}`}
-                role="status"
-                aria-live="polite"
-              >
-                {isProcessing && <span className="spinner" />}
-                <div style={{ flex: 1 }}>
-                  <span>{progress}</span>
-                  {progressRatio != null && (
-                    <div className="progress-bar-track" style={{ marginTop: "0.5rem" }}>
-                      <div
-                        className="progress-bar-fill"
-                        style={{
-                          width: `${Math.round(progressRatio * 100)}%`,
-                          backgroundColor: "var(--color-lime)",
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Warning banner (partial results) */}
-            {warning && (
-              <div className="warning-box">
-                <p>
-                  <span className="font-black uppercase">
-                    {t("status.warning", targetLanguage)}
-                  </span>{" "}
-                  {warning}
-                </p>
-                <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                  {t("action.retryChunks", targetLanguage)}
-                </button>
-              </div>
-            )}
-
-            {/* Error message */}
-            {error && (
-              <div className="error-box">
-                <p>
-                  <span className="font-black uppercase">{t("status.error", targetLanguage)}</span>{" "}
-                  {error}
-                </p>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  {traces.length > 0 && (
-                    <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                      {t("action.retryQuery", targetLanguage)}
+            {/* 01 — Load a route: upload, resume, pipeline status, errors */}
+            <Step
+              num={1}
+              title={t("steps.trace", targetLanguage)}
+              state={traceStep}
+              doneLabel={t("steps.done", targetLanguage)}
+            >
+              {showResumePrompt && (
+                <div className="session-prompt">
+                  <p className="session-prompt-text">{t("session.prompt", targetLanguage)}</p>
+                  <div className="session-prompt-actions">
+                    <button
+                      type="button"
+                      className="neo-btn-sm neo-btn-lime"
+                      onClick={handleResume}
+                    >
+                      {t("session.resume", targetLanguage)}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="neo-btn-sm neo-btn-secondary"
-                    onClick={handleReset}
-                  >
-                    {traces.length > 0
-                      ? t("action.startOver", targetLanguage)
-                      : t("action.tryAgain", targetLanguage)}
+                    <button
+                      type="button"
+                      className="neo-btn-sm neo-btn-secondary"
+                      onClick={handleDismissResume}
+                    >
+                      {t("session.fresh", targetLanguage)}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(stage === "idle" || (stage === "error" && traces.length === 0)) &&
+                !showResumePrompt && <GpxUpload />}
+
+              {progress && (
+                <div
+                  className={`status-bar ${stage === "error" ? "error" : ""}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {isProcessing && <span className="spinner" />}
+                  <div style={{ flex: 1 }}>
+                    <span>{progress}</span>
+                    {progressRatio != null && (
+                      <div
+                        className="progress-bar-track"
+                        style={{ marginTop: "0.5rem" }}
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(progressRatio * 100)}
+                      >
+                        <div
+                          className="progress-bar-fill"
+                          style={{
+                            width: `${Math.round(progressRatio * 100)}%`,
+                            backgroundColor: "var(--color-lime)",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {warning && (
+                <div className="warning-box">
+                  <p>
+                    <span className="font-black uppercase">
+                      {t("status.warning", targetLanguage)}
+                    </span>{" "}
+                    {warning}
+                  </p>
+                  <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
+                    {t("action.retryChunks", targetLanguage)}
                   </button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Enrichment panel – shown when POIs are found */}
-            {stage === "done" && <EnrichmentPanel />}
+              {error && (
+                <div className="error-box" role="alert">
+                  <p>
+                    <span className="font-black uppercase">
+                      {t("status.error", targetLanguage)}
+                    </span>{" "}
+                    {error}
+                  </p>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    {traces.length > 0 && (
+                      <button
+                        type="button"
+                        className="neo-btn-sm neo-btn-lime"
+                        onClick={retryQuery}
+                      >
+                        {t("action.retryQuery", targetLanguage)}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="neo-btn-sm neo-btn-secondary"
+                      onClick={handleReset}
+                    >
+                      {traces.length > 0
+                        ? t("action.startOver", targetLanguage)
+                        : t("action.tryAgain", targetLanguage)}
+                    </button>
+                  </div>
+                </div>
+              )}
 
-            {sandboxMode && stage === "done" && (
-              <Suspense fallback={null}>
-                <EnrichmentSandbox />
-              </Suspense>
-            )}
+              {stage === "done" && (
+                <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
+                  {t("action.loadNew", targetLanguage)}
+                </button>
+              )}
+            </Step>
 
-            {/* Export */}
-            {stage === "done" && <ExportPanel />}
+            {/* 02 — Refine: categories + max distance (usable before and after upload) */}
+            <Step num={2} title={t("steps.filter", targetLanguage)} state={filterStep}>
+              <CategoryFilter />
+            </Step>
 
-            {/* Reset button */}
-            {stage === "done" && (
-              <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
-                {t("action.loadNew", targetLanguage)}
-              </button>
-            )}
+            {/* 03 — Enrich (optional, needs POIs) */}
+            <Step
+              num={3}
+              title={t("steps.enrich", targetLanguage)}
+              state={enrichStep}
+              doneLabel={t("steps.done", targetLanguage)}
+            >
+              <EnrichmentPanel />
+              {sandboxMode && (
+                <Suspense fallback={null}>
+                  <EnrichmentSandbox />
+                </Suspense>
+              )}
+            </Step>
 
-            {/* POI list */}
+            {/* 04 — Export offline */}
+            <Step num={4} title={t("steps.export", targetLanguage)} state={exportStep}>
+              <ExportPanel />
+            </Step>
+
+            {/* Results */}
             {stage === "done" && <PoiList />}
 
             {/* Debug panel – always available */}

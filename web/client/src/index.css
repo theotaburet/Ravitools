@@ -1,27 +1,30 @@
+@import "@fontsource-variable/archivo";
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Neobrutalist theme tokens
-   Heavy borders, solid shadows, bold colors, no gradients, no blur
+   Neobrutalist theme tokens — "carnet de route" refinement
+   Heavy borders, solid shadows, no gradients, no blur.
+   One signal color (lime) for actions; blue is reserved for links/info.
    --------------------------------------------------------------------------- */
 
 @theme {
-  --color-bg: #fffdf5;
+  --color-bg: #faf7ee;
   --color-surface: #ffffff;
-  --color-text: #1a1a1a;
-  --color-muted: #6b6b6b;
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
+  --color-text: #141310;
+  --color-muted: #67635a;
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #1e40af;
   --color-danger: #ef4444;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
-  --color-border: #1a1a1a;
-  --color-shadow: #1a1a1a;
+  --color-border: #141310;
+  --color-shadow: #141310;
   --color-pink: #f472b6;
   --color-lime: #a3e635;
   --color-cyan: #22d3ee;
   --color-orange: #fb923c;
 
+  --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }
 
@@ -34,10 +37,34 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   background-color: var(--color-bg);
   color: var(--color-text);
+}
+
+/* Native controls pick up the ink color instead of the browser default blue */
+input[type="range"],
+input[type="checkbox"] {
+  accent-color: var(--color-text);
+}
+
+/* Visible keyboard focus everywhere, on-brand (no default blue ring) */
+:focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: standard a11y kill-switch — must beat every component-level animation/transition */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: see above */
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -106,9 +133,10 @@ body {
   color: #000;
 }
 
+/* Primary action = the lime signal color (was template blue) */
 .neo-btn-primary {
-  background: var(--color-accent);
-  color: #fff;
+  background: var(--color-lime);
+  color: #000;
 }
 
 .neo-btn-secondary {
@@ -1346,4 +1374,124 @@ body {
 .debug-log-data {
   color: #888;
   font-size: 0.625rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Carnet de route — numbered step sections in the sidebar
+   The prep flow is a real sequence (load → refine → enrich → export), so the
+   numbering encodes progress, brevet-checklist style.
+   --------------------------------------------------------------------------- */
+
+.step {
+  border: 3px solid #000;
+  background: var(--color-surface);
+  box-shadow: 4px 4px 0 var(--color-shadow);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 3px solid #000;
+  background: var(--color-bg);
+}
+
+.step-num {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid #000;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.step-title {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.step-check {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.step--active .step-num {
+  background: var(--color-lime);
+}
+
+.step--done .step-num {
+  background: #000;
+  color: #fff;
+}
+
+.step--todo {
+  opacity: 0.55;
+}
+
+.step-body {
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Panels nested inside a step drop their own frame — the step is the frame */
+.step-body > .filter-panel,
+.step-body > .enrichment-panel,
+.step-body > .export-panel,
+.step-body > .upload-zone {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.step-body > .export-panel,
+.step-body > .enrichment-panel {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   Empty-state overlay on the map (before any GPX is loaded)
+   --------------------------------------------------------------------------- */
+
+.map-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 500; /* above leaflet tiles, below its controls (1000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.map-empty-card {
+  pointer-events: auto;
+  border: 3px solid #000;
+  background: var(--color-surface);
+  box-shadow: 6px 6px 0 var(--color-shadow);
+  padding: 1.25rem 1.5rem;
+  max-width: 22rem;
+  text-align: center;
+}
+
+.map-empty-card h2 {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+}
+
+.map-empty-card p {
+  font-size: 0.85rem;
+  color: var(--color-muted);
 }

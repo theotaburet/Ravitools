@@ -18,10 +18,6 @@ import {
 } from "../state/enrichment";
 import { filteredPoisAtom } from "../state/route";
 import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
-import type { TargetLanguage } from "../types";
-import { TARGET_LANGUAGE_LABELS } from "../types";
-
-const LANGUAGES: TargetLanguage[] = ["fr", "en"];
 
 /** Format seconds into a human-readable ETA string */
 function formatEta(seconds: number): string {
@@ -35,7 +31,7 @@ export function EnrichmentPanel() {
   const [job, setJob] = useAtom(enrichmentJobAtom);
   const enrichments = useAtomValue(enrichmentsAtom);
   const filteredPois = useAtomValue(filteredPoisAtom);
-  const [targetLanguage, onLanguageChange] = useAtom(targetLanguageAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   const [enrichAll, onEnrichAllChange] = useAtom(enrichAllAtom);
   const startEnrichment = useSetAtom(startEnrichmentAtom);
   const continueEnrichment = useSetAtom(continueEnrichmentAtom);
@@ -201,27 +197,6 @@ export function EnrichmentPanel() {
             )}
           </div>
         )}
-
-      {/* Language selector */}
-      {!isRunning && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-mono text-muted">
-            {t("enrich.summaryLanguage", targetLanguage)}
-          </span>
-          <div className="flex gap-1">
-            {LANGUAGES.map((lang) => (
-              <button
-                type="button"
-                key={lang}
-                className={`neo-btn-sm ${lang === targetLanguage ? "neo-btn-primary" : "neo-btn-secondary"}`}
-                onClick={() => onLanguageChange(lang)}
-              >
-                {TARGET_LANGUAGE_LABELS[lang]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Enrich-all toggle */}
       {!isRunning && (

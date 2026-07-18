@@ -11,7 +11,7 @@ import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } fro
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
-import { translateCategory, translatePoiName } from "../lib/i18n";
+import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
 import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
@@ -111,182 +111,194 @@ export function RouteMap() {
   );
 
   return (
-    <MapContainer center={center} zoom={6} className="route-map" scrollWheelZoom={true}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <>
+      {traces.length === 0 && (
+        <div className="map-empty">
+          <div className="map-empty-card">
+            <h2>{t("map.emptyTitle", targetLanguage)}</h2>
+            <p>{t("map.emptyBody", targetLanguage)}</p>
+          </div>
+        </div>
+      )}
+      <MapContainer center={center} zoom={6} className="route-map" scrollWheelZoom={true}>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      <FitBounds traces={traces} />
-      <FlyToSelected selectedPoiId={selectedPoiId ?? null} markerRefs={markerRefs} />
+        <FitBounds traces={traces} />
+        <FlyToSelected selectedPoiId={selectedPoiId ?? null} markerRefs={markerRefs} />
 
-      {/* Render each trace as a distinct Polyline */}
-      {traces.map((trace) => {
-        const positions = trace.original.map((p) => [p.lat, p.lon] as [number, number]);
-        if (positions.length === 0) return null;
+        {/* Render each trace as a distinct Polyline */}
+        {traces.map((trace) => {
+          const positions = trace.original.map((p) => [p.lat, p.lon] as [number, number]);
+          if (positions.length === 0) return null;
 
-        const isHighlighted = highlightedTraceId === trace.id;
-        const isDimmed = highlightedTraceId !== null && !isHighlighted;
+          const isHighlighted = highlightedTraceId === trace.id;
+          const isDimmed = highlightedTraceId !== null && !isHighlighted;
 
-        const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
-        const elevationLabel =
-          trace.elevationGainM > 0 || trace.elevationLossM > 0
-            ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
-            : "";
+          const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
+          const elevationLabel =
+            trace.elevationGainM > 0 || trace.elevationLossM > 0
+              ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
+              : "";
 
-        return (
-          <Polyline
-            key={trace.id}
-            positions={positions}
-            pathOptions={{
-              color: trace.color,
-              weight: isHighlighted ? 6 : 4,
-              opacity: isDimmed ? 0.3 : 0.9,
-            }}
-            eventHandlers={{
-              mouseover: () => setHighlightedTraceId(trace.id),
-              mouseout: () => setHighlightedTraceId(null),
-            }}
-          >
-            <Tooltip sticky>
-              {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
-            </Tooltip>
-          </Polyline>
-        );
-      })}
+          return (
+            <Polyline
+              key={trace.id}
+              positions={positions}
+              pathOptions={{
+                color: trace.color,
+                weight: isHighlighted ? 6 : 4,
+                opacity: isDimmed ? 0.3 : 0.9,
+              }}
+              eventHandlers={{
+                mouseover: () => setHighlightedTraceId(trace.id),
+                mouseout: () => setHighlightedTraceId(null),
+              }}
+            >
+              <Tooltip sticky>
+                {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
+              </Tooltip>
+            </Polyline>
+          );
+        })}
 
-      {pois.map((poi) => {
-        const enrichment = enrichments.get(poi.id);
-        const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
-        const isSelected = selectedPoiId === poi.id;
-        const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
-        const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
-        const size = isSelected ? 32 : 24;
+        {pois.map((poi) => {
+          const enrichment = enrichments.get(poi.id);
+          const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
+          const isSelected = selectedPoiId === poi.id;
+          const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
+          const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
+          const size = isSelected ? 32 : 24;
 
-        const markerClasses = [
-          "poi-marker",
-          isSelected ? "poi-marker-selected" : "",
-          isEnriching ? "poi-marker-enriching" : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
+          const markerClasses = [
+            "poi-marker",
+            isSelected ? "poi-marker-selected" : "",
+            isEnriching ? "poi-marker-enriching" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
 
-        // AUDIT U1: give the marker an accessible name (was an unlabeled emoji div).
-        const markerLabel = (poi.name || poi.category).replace(/"/g, "&quot;");
-        const icon = L.divIcon({
-          className: "poi-marker-icon",
-          html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-          popupAnchor: [0, -size / 2],
-        });
+          // AUDIT U1: give the marker an accessible name (was an unlabeled emoji div).
+          const markerLabel = (poi.name || poi.category).replace(/"/g, "&quot;");
+          const icon = L.divIcon({
+            className: "poi-marker-icon",
+            html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+            popupAnchor: [0, -size / 2],
+          });
 
-        return (
-          <Marker
-            key={poi.id}
-            ref={(el) => setMarkerRef(poi.id, el as unknown as L.Marker | null)}
-            position={[poi.lat, poi.lon]}
-            icon={icon}
-            eventHandlers={{
-              click: () => handleMarkerClick(poi.id),
-            }}
-          >
-            <Popup>
-              <div className="poi-popup">
-                <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
-                <div className="poi-popup-cat">
-                  {translateCategory(poi.category, targetLanguage)}
-                </div>
-                <div className="poi-popup-dist">
-                  km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
-                  {Math.round(poi.distanceToTrace)}m from route
-                </div>
-
-                {/* Enrichment data (AUDIT R27: shared with PoiList) */}
-                {enrichment && enrichment.status === "done" && (
-                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
-                    <EnrichmentDetails
-                      poi={poi}
-                      enrichment={enrichment}
-                      targetLanguage={targetLanguage}
-                    />
-                    {enrichment.sourceCount > 0 && (
-                      <div style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}>
-                        {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
-                        {enrichment.sourceEngines.length > 0 && (
-                          <> ({enrichment.sourceEngines.join(", ")})</>
-                        )}
-                      </div>
-                    )}
+          return (
+            <Marker
+              key={poi.id}
+              ref={(el) => setMarkerRef(poi.id, el as unknown as L.Marker | null)}
+              position={[poi.lat, poi.lon]}
+              icon={icon}
+              eventHandlers={{
+                click: () => handleMarkerClick(poi.id),
+              }}
+            >
+              <Popup>
+                <div className="poi-popup">
+                  <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
+                  <div className="poi-popup-cat">
+                    {translateCategory(poi.category, targetLanguage)}
                   </div>
-                )}
+                  <div className="poi-popup-dist">
+                    km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
+                    {Math.round(poi.distanceToTrace)}m from route
+                  </div>
 
-                {/* OSM tags fallback */}
-                {enrichment?.status !== "done" && (
-                  <>
-                    {poi.tags.opening_hours && (
-                      <div className="text-xs mt-1">Hours: {poi.tags.opening_hours}</div>
-                    )}
-                    {(() => {
-                      const osmAvail = getAvailabilityTags(
-                        null,
-                        poi.tags.opening_hours,
-                        targetLanguage as "fr" | "en",
-                      );
-                      return osmAvail.length > 0 ? (
-                        <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
-                          {osmAvail.join(" · ")}
+                  {/* Enrichment data (AUDIT R27: shared with PoiList) */}
+                  {enrichment && enrichment.status === "done" && (
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+                      <EnrichmentDetails
+                        poi={poi}
+                        enrichment={enrichment}
+                        targetLanguage={targetLanguage}
+                      />
+                      {enrichment.sourceCount > 0 && (
+                        <div
+                          style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}
+                        >
+                          {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                          {enrichment.sourceEngines.length > 0 && (
+                            <> ({enrichment.sourceEngines.join(", ")})</>
+                          )}
                         </div>
-                      ) : null;
-                    })()}
-                    {poi.tags.phone && <div className="text-xs">Tel: {poi.tags.phone}</div>}
-                  </>
-                )}
-                {isRetryableDegradedResult(enrichment) ? (
-                  <div className="poi-popup-retryable">
-                    Search degraded. Retry after cooldown or IP change.
-                  </div>
-                ) : null}
+                      )}
+                    </div>
+                  )}
 
-                {poi.tags.website && (
-                  <div className="text-xs">
+                  {/* OSM tags fallback */}
+                  {enrichment?.status !== "done" && (
+                    <>
+                      {poi.tags.opening_hours && (
+                        <div className="text-xs mt-1">Hours: {poi.tags.opening_hours}</div>
+                      )}
+                      {(() => {
+                        const osmAvail = getAvailabilityTags(
+                          null,
+                          poi.tags.opening_hours,
+                          targetLanguage as "fr" | "en",
+                        );
+                        return osmAvail.length > 0 ? (
+                          <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
+                            {osmAvail.join(" · ")}
+                          </div>
+                        ) : null;
+                      })()}
+                      {poi.tags.phone && <div className="text-xs">Tel: {poi.tags.phone}</div>}
+                    </>
+                  )}
+                  {isRetryableDegradedResult(enrichment) ? (
+                    <div className="poi-popup-retryable">
+                      Search degraded. Retry after cooldown or IP change.
+                    </div>
+                  ) : null}
+
+                  {poi.tags.website && (
+                    <div className="text-xs">
+                      <a
+                        href={poi.tags.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline font-bold"
+                      >
+                        Website
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Google Maps link */}
+                  <div style={{ marginTop: "0.5rem" }}>
                     <a
-                      href={poi.tags.website}
+                      href={gmapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="underline font-bold"
+                      className="poi-gmaps-link"
                     >
-                      Website
+                      Google Maps →
                     </a>
                   </div>
-                )}
-
-                {/* Google Maps link */}
-                <div style={{ marginTop: "0.5rem" }}>
-                  <a
-                    href={gmapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="poi-gmaps-link"
-                  >
-                    Google Maps →
-                  </a>
                 </div>
-              </div>
-            </Popup>
-          </Marker>
-        );
-      })}
+              </Popup>
+            </Marker>
+          );
+        })}
 
-      {/* Trace legend overlay (only when multiple traces) */}
-      {traces.length > 1 && (
-        <TraceLegend
-          traces={traces}
-          highlightedTraceId={highlightedTraceId}
-          onHighlight={setHighlightedTraceId}
-        />
-      )}
-    </MapContainer>
+        {/* Trace legend overlay (only when multiple traces) */}
+        {traces.length > 1 && (
+          <TraceLegend
+            traces={traces}
+            highlightedTraceId={highlightedTraceId}
+            onHighlight={setHighlightedTraceId}
+          />
+        )}
+      </MapContainer>
+    </>
   );
 }
 
