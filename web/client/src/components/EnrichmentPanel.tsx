@@ -3,8 +3,22 @@
 // Neobrutalist design: progress bar, model download, batch trigger
 // ---------------------------------------------------------------------------
 
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useEffect, useMemo } from "react";
+import { fetchGoogleMapsJobStats, isRetryableEnrichmentResult } from "../lib/enrichment";
 import { t } from "../lib/i18n";
-import type { EnrichedData, EnrichmentJobState, TargetLanguage } from "../types";
+import {
+  API_BASE,
+  cancelEnrichmentAtom,
+  continueEnrichmentAtom,
+  enrichmentJobAtom,
+  enrichmentsAtom,
+  resumeAfterCaptchaAtom,
+  startEnrichmentAtom,
+} from "../state/enrichment";
+import { filteredPoisAtom } from "../state/route";
+import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
+import type { TargetLanguage } from "../types";
 import { TARGET_LANGUAGE_LABELS } from "../types";
 
 const LANGUAGES: TargetLanguage[] = ["fr", "en"];
@@ -17,41 +31,57 @@ function formatEta(seconds: number): string {
   return secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`;
 }
 
-interface Props {
-  job: EnrichmentJobState;
-  poiCount: number;
-  enrichedCount: number;
-  /** Number of POIs that still need enrichment (unenriched + errors) */
-  pendingCount: number;
-  /** Enrichment results for aggregating engine failures */
-  enrichments: Map<string, EnrichedData>;
-  targetLanguage: TargetLanguage;
-  onLanguageChange: (lang: TargetLanguage) => void;
-  enrichAll: boolean;
-  onEnrichAllChange: (enrichAll: boolean) => void;
-  onStart: () => void;
-  /** Continue enrichment for remaining/failed POIs only */
-  onContinue: () => void;
-  onCancel: () => void;
-  /** Resume after user has manually resolved a CAPTCHA */
-  onResumeAfterCaptcha: () => void;
-}
+export function EnrichmentPanel() {
+  const [job, setJob] = useAtom(enrichmentJobAtom);
+  const enrichments = useAtomValue(enrichmentsAtom);
+  const filteredPois = useAtomValue(filteredPoisAtom);
+  const [targetLanguage, onLanguageChange] = useAtom(targetLanguageAtom);
+  const [enrichAll, onEnrichAllChange] = useAtom(enrichAllAtom);
+  const startEnrichment = useSetAtom(startEnrichmentAtom);
+  const continueEnrichment = useSetAtom(continueEnrichmentAtom);
+  const onCancel = useSetAtom(cancelEnrichmentAtom);
+  const onResumeAfterCaptcha = useSetAtom(resumeAfterCaptchaAtom);
 
-export function EnrichmentPanel({
-  job,
-  poiCount,
-  enrichedCount,
-  pendingCount,
-  enrichments,
-  targetLanguage,
-  onLanguageChange,
-  enrichAll,
-  onEnrichAllChange,
-  onStart,
-  onContinue,
-  onCancel,
-  onResumeAfterCaptcha,
-}: Props) {
+  const poiCount = filteredPois.length;
+  const enrichedCount = enrichments.size;
+  // Count POIs that still need enrichment (unenriched + retryable failures)
+  const pendingCount = useMemo(
+    () => filteredPois.filter((poi) => isRetryableEnrichmentResult(enrichments.get(poi.id))).length,
+    [filteredPois, enrichments],
+  );
+
+  const onStart = () => startEnrichment(filteredPois, targetLanguage, enrichAll);
+  const onContinue = () => continueEnrichment(filteredPois, targetLanguage, enrichAll);
+
+  // SearXNG availability check (once on mount)
+  useEffect(() => {
+    fetch(`${API_BASE}/health`)
+      .then((res) => res.json())
+      .then((data) => {
+        setJob((prev) => ({ ...prev, searxngAvailable: data.services?.searxng === "ok" }));
+      })
+      .catch(() => {
+        setJob((prev) => ({ ...prev, searxngAvailable: false }));
+      });
+  }, [setJob]);
+
+  // Poll Google Maps scraper job stats while a batch is running
+  useEffect(() => {
+    if (job.stage !== "running") return;
+    const ctrl = new AbortController();
+    const timer = setInterval(() => {
+      fetchGoogleMapsJobStats(API_BASE, ctrl.signal)
+        .then((stats) => {
+          if (stats) setJob((prev) => ({ ...prev, googleFallbackStats: stats }));
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => {
+      ctrl.abort();
+      clearInterval(timer);
+    };
+  }, [job.stage, setJob]);
+
   if (poiCount === 0) return null;
 
   const isRunning = job.stage === "loading-model" || job.stage === "running";

@@ -3,6 +3,7 @@
 // Supports multiple traces with distinct colors, legend, and hover highlight
 // ---------------------------------------------------------------------------
 
+import { useAtom, useAtomValue } from "jotai";
 import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,20 +13,11 @@ import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
 import { translateCategory, translatePoiName } from "../lib/i18n";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
-import type { EnrichedData, POI, TargetLanguage, TraceData } from "../types";
+import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
+import { filteredPoisAtom, tracesAtom } from "../state/route";
+import { selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
+import type { TraceData } from "../types";
 import { EnrichmentDetails } from "./EnrichmentDetails";
-
-interface Props {
-  traces: TraceData[];
-  pois: POI[];
-  enrichments: Map<string, EnrichedData>;
-  selectedPoiId?: string | null;
-  onSelectPoi?: (poiId: string | null) => void;
-  /** IDs of POIs currently being enriched (pulsing animation on all in-flight) */
-  enrichingPoiIds?: Set<string> | null;
-  /** Target language for i18n */
-  targetLanguage?: TargetLanguage;
-}
 
 function FitBounds({ traces }: { traces: TraceData[] }) {
   const map = useMap();
@@ -83,15 +75,13 @@ function FlyToSelected({
   return null;
 }
 
-export function RouteMap({
-  traces,
-  pois,
-  enrichments,
-  selectedPoiId,
-  onSelectPoi,
-  enrichingPoiIds,
-  targetLanguage = "en",
-}: Props) {
+export function RouteMap() {
+  const traces = useAtomValue(tracesAtom);
+  const pois = useAtomValue(filteredPoisAtom);
+  const enrichments = useAtomValue(enrichmentsAtom);
+  const [selectedPoiId, onSelectPoi] = useAtom(selectedPoiIdAtom);
+  const enrichingPoiIds = useAtomValue(enrichingPoiIdsAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
 

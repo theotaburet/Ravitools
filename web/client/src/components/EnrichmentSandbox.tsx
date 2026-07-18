@@ -1,11 +1,9 @@
+import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { enrichPoi, getOfficialWebsiteUrl } from "../lib/enrichment";
-import type { EnrichedData, POI, TargetLanguage } from "../types";
-
-interface Props {
-  pois: POI[];
-  targetLanguage: TargetLanguage;
-}
+import { filteredPoisAtom } from "../state/route";
+import { targetLanguageAtom } from "../state/ui";
+import type { EnrichedData, POI } from "../types";
 
 function isSandboxCandidate(poi: POI): boolean {
   return (
@@ -14,7 +12,9 @@ function isSandboxCandidate(poi: POI): boolean {
   );
 }
 
-export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
+export function EnrichmentSandbox() {
+  const pois = useAtomValue(filteredPoisAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   const candidates = useMemo(() => pois.filter(isSandboxCandidate), [pois]);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [result, setResult] = useState<EnrichedData | null>(null);

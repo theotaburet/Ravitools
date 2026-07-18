@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
-// useEnrichment hook test (M2/T4): model-load state machine, cache-hit
+// Enrichment state atoms test (M2/T4): model-load state machine, cache-hit
 // short-circuit, and CAPTCHA pause/resume. The enrichment lib + shared cache
 // are mocked so we drive transitions without WebGPU, SearXNG, or the network.
 // ---------------------------------------------------------------------------
 
-import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createStore } from "jotai";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EnrichedData, POI } from "../types";
 
 const mocks = vi.hoisted(() => ({
@@ -49,14 +49,19 @@ vi.mock("../lib/debug-log", () => ({
   }),
 }));
 
-import { useEnrichment } from "../hooks/useEnrichment";
+import {
+  cancelEnrichmentAtom,
+  enrichmentJobAtom,
+  enrichmentsAtom,
+  resumeAfterCaptchaAtom,
+  startEnrichmentAtom,
+} from "../state/enrichment";
 
 const poi = (id: string): POI =>
   ({ id, category: "Restaurant or Bar", name: id }) as unknown as POI;
-const flush = () =>
-  act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+let store: ReturnType<typeof createStore>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,14 +74,12 @@ beforeEach(() => {
   mocks.areAllEnginesSuspended.mockReturnValue(false);
   mocks.lookupPoiBatch.mockResolvedValue(new Map());
   mocks.getPoiCacheKey.mockImplementation((p: { id: string }) => p.id);
-  // Mount health-check effect
-  globalThis.fetch = vi.fn().mockResolvedValue({
-    json: () => Promise.resolve({ services: { searxng: "ok" } }),
-  }) as unknown as typeof fetch;
+  store = createStore();
+  // Clear module-level context (abort controller + paused CAPTCHA params)
+  store.set(cancelEnrichmentAtom);
 });
-afterEach(cleanup);
 
-describe("useEnrichment", () => {
+describe("enrichment state", () => {
   it("short-circuits to done when every POI is a fresh cache hit", async () => {
     mocks.lookupPoiBatch.mockResolvedValue(
       new Map([
@@ -84,46 +87,35 @@ describe("useEnrichment", () => {
         ["b", { is_stale: false, enrichment: { status: "done" } as EnrichedData }],
       ]),
     );
-    const { result } = renderHook(() => useEnrichment());
-    await act(async () => {
-      await result.current.startEnrichment([poi("a"), poi("b")]);
-    });
-    expect(result.current.job.stage).toBe("done");
-    expect(result.current.job.completed).toBe(2);
-    expect(result.current.enrichments.size).toBe(2);
+    await store.set(startEnrichmentAtom, [poi("a"), poi("b")]);
+    expect(store.get(enrichmentJobAtom).stage).toBe("done");
+    expect(store.get(enrichmentJobAtom).completed).toBe(2);
+    expect(store.get(enrichmentsAtom).size).toBe(2);
     expect(mocks.enrichBatch).not.toHaveBeenCalled();
     expect(mocks.initEngine).not.toHaveBeenCalled();
   });
 
   it("loads the model then completes when WebGPU is available", async () => {
     mocks.isWebGpuAvailable.mockReturnValue(true);
-    const { result } = renderHook(() => useEnrichment());
-    await act(async () => {
-      await result.current.startEnrichment([poi("a")]);
-    });
+    await store.set(startEnrichmentAtom, [poi("a")]);
     expect(mocks.initEngine).toHaveBeenCalledTimes(1);
     expect(mocks.enrichBatch).toHaveBeenCalledTimes(1);
-    expect(result.current.job.stage).toBe("done");
+    expect(store.get(enrichmentJobAtom).stage).toBe("done");
   });
 
   it("pauses for CAPTCHA when all engines are suspended, then resumes to done", async () => {
     mocks.areAllEnginesSuspended.mockReturnValue(true);
-    const { result } = renderHook(() => useEnrichment());
-    await act(async () => {
-      await result.current.startEnrichment([poi("a")]);
-    });
-    expect(result.current.job.stage).toBe("paused-captcha");
-    expect(result.current.job.captchaUrl).toBe("http://searxng/captcha");
+    await store.set(startEnrichmentAtom, [poi("a")]);
+    expect(store.get(enrichmentJobAtom).stage).toBe("paused-captcha");
+    expect(store.get(enrichmentJobAtom).captchaUrl).toBe("http://searxng/captcha");
     expect(mocks.enrichBatch).toHaveBeenCalledTimes(1);
 
     // User solved the CAPTCHA → engines no longer blocked.
     mocks.areAllEnginesSuspended.mockReturnValue(false);
-    await act(async () => {
-      result.current.resumeAfterCaptcha();
-    });
+    store.set(resumeAfterCaptchaAtom);
     await flush(); // let the un-awaited continueEnrichment chain settle
-    expect(result.current.job.stage).toBe("done");
-    expect(result.current.job.captchaUrl).toBeNull();
+    expect(store.get(enrichmentJobAtom).stage).toBe("done");
+    expect(store.get(enrichmentJobAtom).captchaUrl).toBeNull();
   });
 });
 
@@ -157,16 +149,14 @@ describe("retry progress clamp (R17)", () => {
           opts.onProgress(pois[0].id, done);
         });
 
-      const { result } = renderHook(() => useEnrichment());
-      await act(async () => {
-        const started = result.current.startEnrichment([poi("a")]);
-        await vi.advanceTimersByTimeAsync(20_000);
-        await started;
-      });
+      const started = store.set(startEnrichmentAtom, [poi("a")]);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await started;
 
       // the retry pass must actually have run for this test to mean anything
       expect(mocks.enrichBatch).toHaveBeenCalledTimes(2);
-      expect(result.current.job.completed).toBeLessThanOrEqual(result.current.job.total);
+      const job = store.get(enrichmentJobAtom);
+      expect(job.completed).toBeLessThanOrEqual(job.total);
     } finally {
       vi.useRealTimers();
     }
