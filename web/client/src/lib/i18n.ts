@@ -84,6 +84,14 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "steps.export": { en: "Export offline", fr: "Exporter hors ligne" },
   "steps.done": { en: "done", fr: "fait" },
   "map.emptyTitle": { en: "Your route will appear here", fr: "Votre route s'affichera ici" },
+  "map.fromRoute": { en: "m from route", fr: "m de la route" },
+  "map.hours": { en: "Hours:", fr: "Horaires :" },
+  "map.tel": { en: "Tel:", fr: "Tél :" },
+  "map.website": { en: "Website", fr: "Site web" },
+  "map.searchDegraded": {
+    en: "Search degraded. Retry after cooldown or IP change.",
+    fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",
+  },
   "map.emptyBody": {
     en: "Load one or more .GPX files — they never leave your browser.",
     fr: "Chargez un ou plusieurs fichiers .GPX — ils ne quittent jamais votre navigateur.",

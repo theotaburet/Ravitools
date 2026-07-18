@@ -180,8 +180,11 @@ export function RouteMap() {
             .filter(Boolean)
             .join(" ");
 
-          // AUDIT U1: give the marker an accessible name (was an unlabeled emoji div).
-          const markerLabel = (poi.name || poi.category).replace(/"/g, "&quot;");
+          // AUDIT U1: accessible name, HTML-escaped (injected into divIcon markup).
+          const markerLabel = (poi.name || poi.category).replace(
+            /[&<>"]/g,
+            (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string,
+          );
           const icon = L.divIcon({
             className: "poi-marker-icon",
             html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
@@ -208,22 +211,22 @@ export function RouteMap() {
                   </div>
                   <div className="poi-popup-dist">
                     km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
-                    {Math.round(poi.distanceToTrace)}m from route
+                    {Math.round(poi.distanceToTrace)}
+                    {t("map.fromRoute", targetLanguage)}
                   </div>
 
                   {/* Enrichment data (AUDIT R27: shared with PoiList) */}
                   {enrichment && enrichment.status === "done" && (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+                    <div className="poi-popup-enrichment">
                       <EnrichmentDetails
                         poi={poi}
                         enrichment={enrichment}
                         targetLanguage={targetLanguage}
                       />
                       {enrichment.sourceCount > 0 && (
-                        <div
-                          style={{ marginTop: "0.25rem", fontSize: "0.65rem", color: "#6b6b6b" }}
-                        >
-                          {enrichment.sourceCount} source{enrichment.sourceCount > 1 ? "s" : ""}
+                        <div className="poi-popup-sources">
+                          {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}
+                          {enrichment.sourceCount > 1 ? "s" : ""}
                           {enrichment.sourceEngines.length > 0 && (
                             <> ({enrichment.sourceEngines.join(", ")})</>
                           )}
@@ -236,7 +239,9 @@ export function RouteMap() {
                   {enrichment?.status !== "done" && (
                     <>
                       {poi.tags.opening_hours && (
-                        <div className="text-xs mt-1">Hours: {poi.tags.opening_hours}</div>
+                        <div className="text-xs mt-1">
+                          {t("map.hours", targetLanguage)} {poi.tags.opening_hours}
+                        </div>
                       )}
                       {(() => {
                         const osmAvail = getAvailabilityTags(
@@ -245,17 +250,19 @@ export function RouteMap() {
                           targetLanguage as "fr" | "en",
                         );
                         return osmAvail.length > 0 ? (
-                          <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
-                            {osmAvail.join(" · ")}
-                          </div>
+                          <div className="poi-popup-avail">{osmAvail.join(" · ")}</div>
                         ) : null;
                       })()}
-                      {poi.tags.phone && <div className="text-xs">Tel: {poi.tags.phone}</div>}
+                      {poi.tags.phone && (
+                        <div className="text-xs">
+                          {t("map.tel", targetLanguage)} {poi.tags.phone}
+                        </div>
+                      )}
                     </>
                   )}
                   {isRetryableDegradedResult(enrichment) ? (
                     <div className="poi-popup-retryable">
-                      Search degraded. Retry after cooldown or IP change.
+                      {t("map.searchDegraded", targetLanguage)}
                     </div>
                   ) : null}
 
@@ -267,13 +274,13 @@ export function RouteMap() {
                         rel="noopener noreferrer"
                         className="underline font-bold"
                       >
-                        Website
+                        {t("map.website", targetLanguage)}
                       </a>
                     </div>
                   )}
 
                   {/* Google Maps link */}
-                  <div style={{ marginTop: "0.5rem" }}>
+                  <div className="poi-popup-gmaps">
                     <a
                       href={gmapsUrl}
                       target="_blank"
@@ -322,17 +329,20 @@ function TraceLegend({
         const isHighlighted = highlightedTraceId === trace.id;
         const isDimmed = highlightedTraceId !== null && !isHighlighted;
         return (
-          // biome-ignore lint/a11y/noStaticElementInteractions: hover-only visual highlight — keyboard/tap access is R43 (P4 follow-up)
-          <div
+          // R43: button so keyboard focus and touch also drive the highlight
+          <button
+            type="button"
             key={trace.id}
             className={`trace-legend-item ${isHighlighted ? "highlighted" : ""} ${isDimmed ? "dimmed" : ""}`}
             onMouseEnter={() => onHighlight(trace.id)}
             onMouseLeave={() => onHighlight(null)}
+            onFocus={() => onHighlight(trace.id)}
+            onBlur={() => onHighlight(null)}
           >
             <span className="trace-legend-swatch" style={{ backgroundColor: trace.color }} />
             <span className="trace-legend-name">{trace.name ?? trace.id}</span>
             <span className="trace-legend-dist">{(trace.totalDistanceM / 1000).toFixed(0)} km</span>
-          </div>
+          </button>
         );
       })}
     </div>

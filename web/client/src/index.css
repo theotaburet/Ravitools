@@ -691,6 +691,27 @@ input[type="checkbox"] {
   color: var(--color-accent);
 }
 
+.poi-popup-enrichment {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.poi-popup-sources {
+  margin-top: 0.25rem;
+  font-size: 0.65rem;
+  color: #6b6b6b;
+}
+
+.poi-popup-avail {
+  font-size: 0.75rem;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.poi-popup-gmaps {
+  margin-top: 0.5rem;
+}
+
 /* ---------------------------------------------------------------------------
    Error box
    --------------------------------------------------------------------------- */
@@ -748,6 +769,27 @@ input[type="checkbox"] {
   padding: 0.5rem;
   margin-bottom: 0.75rem;
   line-height: 1.4;
+}
+
+/* Notice variants (severity is a class, not inline styles) */
+.enrichment-notice.notice-info {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.enrichment-notice.notice-warning {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.enrichment-notice.notice-progress {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.enrichment-notice.notice-danger {
+  background: #fee2e2;
+  border-color: #ef4444;
 }
 
 .enrichment-done {
@@ -1219,6 +1261,12 @@ input[type="checkbox"] {
   padding: 0.25rem 0;
   cursor: pointer;
   transition: opacity 150ms;
+  /* button reset (legend items are buttons for keyboard access) */
+  width: 100%;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
 }
 
 .trace-legend-item.dimmed {

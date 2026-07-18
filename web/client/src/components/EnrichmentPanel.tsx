@@ -118,10 +118,7 @@ export function EnrichmentPanel() {
 
       {/* Trust: AI summaries are not authoritative (M2) */}
       {job.webGpuAvailable && (
-        <p
-          className="enrichment-notice"
-          style={{ backgroundColor: "#f3f4f6", borderColor: "#9ca3af" }}
-        >
+        <p className="enrichment-notice notice-info">
           ⓘ {t("enrich.aiDisclaimer", targetLanguage)}
         </p>
       )}
@@ -133,39 +130,21 @@ export function EnrichmentPanel() {
 
       {/* SearXNG status */}
       {!job.searxngAvailable && (
-        <div
-          className="enrichment-notice"
-          style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}
-        >
+        <div className="enrichment-notice notice-warning">
           {t("enrich.searxngUnavailable", targetLanguage)}{" "}
           <code>docker run -d -p 8888:8080 --rm searxng/searxng</code>
         </div>
       )}
 
-      {job.warning && (
-        <div
-          className="enrichment-notice"
-          style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}
-        >
-          {job.warning}
-        </div>
-      )}
+      {job.warning && <div className="enrichment-notice notice-warning">{job.warning}</div>}
 
       {job.googleFallbackStatus && (
-        <div
-          className="enrichment-notice"
-          style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}
-        >
-          {job.googleFallbackStatus}
-        </div>
+        <div className="enrichment-notice notice-progress">{job.googleFallbackStatus}</div>
       )}
 
       {/* Scraper blocked signal (M2): CAPTCHA/anti-bot on Google/Yandex */}
       {(job.googleFallbackStats?.counts.blocked ?? 0) > 0 && (
-        <div
-          className="enrichment-notice"
-          style={{ backgroundColor: "#fee2e2", borderColor: "#ef4444" }}
-        >
+        <div className="enrichment-notice notice-danger">
           ⚠ {t("enrich.scraperBlocked", targetLanguage)}
         </div>
       )}
@@ -173,10 +152,7 @@ export function EnrichmentPanel() {
       {job.googleFallbackStats &&
         (job.googleFallbackStats.counts.queued > 0 ||
           job.googleFallbackStats.counts.running > 0) && (
-          <div
-            className="enrichment-notice"
-            style={{ backgroundColor: "#dbeafe", borderColor: "#60a5fa" }}
-          >
+          <div className="enrichment-notice notice-progress">
             {t("enrich.googleQueue", targetLanguage)} {job.googleFallbackStats.counts.queued}{" "}
             {t("enrich.queued", targetLanguage)}, {job.googleFallbackStats.counts.running}{" "}
             {t("enrich.running", targetLanguage)}
@@ -355,10 +331,7 @@ export function EnrichmentPanel() {
       {/* Paused — CAPTCHA required */}
       {isPausedCaptcha && (
         <div className="flex flex-col gap-2">
-          <div
-            className="enrichment-notice"
-            style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}
-          >
+          <div className="enrichment-notice notice-warning">
             <strong>{t("enrich.captchaBlocked", targetLanguage)}</strong>
             <br />
             {t("enrich.captchaInstructions", targetLanguage)}
