@@ -7,8 +7,8 @@
 .mempalace/
 *.log
 
-# Node.js
-web/*/node_modules/
+# Node.js / Bun
+node_modules/
 web/*/.cache/
 web/client/dist/
 web/server/dist/
@@ -16,7 +16,7 @@ web/server/dist/
 
 # Preserve config files
 !package.json
-!package-lock.json
+!bun.lock
 !tsconfig.json
 
 # GPX / KMZ (binary outputs, not source)

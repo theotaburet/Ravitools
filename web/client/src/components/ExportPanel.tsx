@@ -3,6 +3,7 @@
 // Two sections: GPS devices + Smartphone offline apps
 // ---------------------------------------------------------------------------
 
+import { useAtomValue } from "jotai";
 import {
   exportToGeoJson,
   exportToGpx,
@@ -11,16 +12,15 @@ import {
   exportToOsmAndGpx,
 } from "../lib/export";
 import { t } from "../lib/i18n";
-import type { EnrichedData, POI, TargetLanguage, TraceData } from "../types";
+import { enrichmentsAtom } from "../state/enrichment";
+import { filteredPoisAtom, tracesAtom } from "../state/route";
+import { targetLanguageAtom } from "../state/ui";
 
-interface Props {
-  pois: POI[];
-  traces: TraceData[];
-  enrichments?: Map<string, EnrichedData>;
-  targetLanguage?: TargetLanguage;
-}
-
-export function ExportPanel({ pois, traces, enrichments, targetLanguage = "en" }: Props) {
+export function ExportPanel() {
+  const pois = useAtomValue(filteredPoisAtom);
+  const traces = useAtomValue(tracesAtom);
+  const enrichments = useAtomValue(enrichmentsAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   if (pois.length === 0) return null;
 
   const firstName = traces[0]?.name;

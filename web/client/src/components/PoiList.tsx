@@ -3,12 +3,16 @@
 // ---------------------------------------------------------------------------
 
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
-import type { EnrichedData, POI, TargetLanguage } from "../types";
+import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
+import { filteredPoisAtom } from "../state/route";
+import { selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
+import type { POI } from "../types";
 import { EnrichmentDetails } from "./EnrichmentDetails";
 
 /** Format confidence as a label */
@@ -40,24 +44,12 @@ function sortPois(pois: POI[], mode: SortMode): POI[] {
   return sorted;
 }
 
-interface Props {
-  pois: POI[];
-  enrichments: Map<string, EnrichedData>;
-  selectedPoiId?: string | null;
-  onSelectPoi?: (poiId: string | null) => void;
-  /** IDs of POIs currently being enriched (for in-progress indicator) */
-  enrichingPoiIds?: Set<string> | null;
-  targetLanguage?: TargetLanguage;
-}
-
-function PoiListInner({
-  pois,
-  enrichments,
-  selectedPoiId,
-  onSelectPoi,
-  enrichingPoiIds,
-  targetLanguage = "en",
-}: Props) {
+function PoiListInner() {
+  const pois = useAtomValue(filteredPoisAtom);
+  const enrichments = useAtomValue(enrichmentsAtom);
+  const [selectedPoiId, onSelectPoi] = useAtom(selectedPoiIdAtom);
+  const enrichingPoiIds = useAtomValue(enrichingPoiIdsAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
@@ -258,9 +250,9 @@ function PoiListInner({
                       {/* Sources disclosure */}
                       {showSources && enrichment.sourceUrls.length > 0 && (
                         <div className="poi-sources-list">
-                          {enrichment.sourceUrls.map((url, idx) => (
+                          {enrichment.sourceUrls.map((url) => (
                             <a
-                              key={idx}
+                              key={url}
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"

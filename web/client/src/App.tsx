@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// App – main application component (neobrutalist Tailwind)
-// Supports multiple GPX files simultaneously
+// App – layout + session lifecycle (state lives in jotai atoms, src/state/)
 // ---------------------------------------------------------------------------
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { DebugPanel } from "./components/DebugPanel";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
@@ -11,12 +11,31 @@ import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
-import { useEnrichment } from "./hooks/useEnrichment";
-import { useRavitools } from "./hooks/useRavitools";
-import { isRetryableEnrichmentResult } from "./lib/enrichment";
 import { t } from "./lib/i18n";
 import { clearSession, hasSession, loadSession, saveSession } from "./lib/session";
-import type { TargetLanguage } from "./types";
+import { enrichmentsAtom, resetEnrichmentAtom, restoreEnrichmentsAtom } from "./state/enrichment";
+import {
+  activeCategoriesAtom,
+  filteredPoisAtom,
+  isProcessingAtom,
+  poisAtom,
+  progressAtom,
+  progressRatioAtom,
+  resetRouteAtom,
+  restoreRouteAtom,
+  retryQueryAtom,
+  routeErrorAtom,
+  routeSettingsAtom,
+  routeWarningAtom,
+  stageAtom,
+  tracesAtom,
+} from "./state/route";
+import {
+  enrichAllAtom,
+  selectedPoiIdAtom,
+  showResumePromptAtom,
+  targetLanguageAtom,
+} from "./state/ui";
 
 const EnrichmentSandbox = lazy(() =>
   import("./components/EnrichmentSandbox").then((module) => ({
@@ -30,33 +49,31 @@ export default function App() {
       typeof window !== "undefined" && new URLSearchParams(window.location.search).has("sandbox"),
     [],
   );
-  const {
-    state,
-    filteredPois,
-    processFiles,
-    retryQuery,
-    reset,
-    restoreState,
-    toggleCategory,
-    setAllCategories,
-    setMaxDistance,
-  } = useRavitools();
 
-  const {
-    job: enrichmentJob,
-    enrichments,
-    startEnrichment,
-    continueEnrichment,
-    cancelEnrichment,
-    resumeAfterCaptcha,
-    resetEnrichment,
-    restoreEnrichments,
-  } = useEnrichment();
+  const stage = useAtomValue(stageAtom);
+  const traces = useAtomValue(tracesAtom);
+  const pois = useAtomValue(poisAtom);
+  const activeCategories = useAtomValue(activeCategoriesAtom);
+  const routeSettings = useAtomValue(routeSettingsAtom);
+  const filteredPois = useAtomValue(filteredPoisAtom);
+  const isProcessing = useAtomValue(isProcessingAtom);
+  const progress = useAtomValue(progressAtom);
+  const progressRatio = useAtomValue(progressRatioAtom);
+  const warning = useAtomValue(routeWarningAtom);
+  const error = useAtomValue(routeErrorAtom);
+  const enrichments = useAtomValue(enrichmentsAtom);
 
-  const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("en");
-  const [enrichAll, setEnrichAll] = useState(false);
-  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useAtom(targetLanguageAtom);
+  const [enrichAll, setEnrichAll] = useAtom(enrichAllAtom);
+  const [selectedPoiId, setSelectedPoiId] = useAtom(selectedPoiIdAtom);
+  const [showResumePrompt, setShowResumePrompt] = useAtom(showResumePromptAtom);
+
+  const retryQuery = useSetAtom(retryQueryAtom);
+  const reset = useSetAtom(resetRouteAtom);
+  const restoreRoute = useSetAtom(restoreRouteAtom);
+  const resetEnrichment = useSetAtom(resetEnrichmentAtom);
+  const restoreEnrichments = useSetAtom(restoreEnrichmentsAtom);
+
   const restoredRef = useRef(false);
 
   // On mount: check for saved session
@@ -66,12 +83,12 @@ export default function App() {
     if (hasSession()) {
       setShowResumePrompt(true);
     }
-  }, []);
+  }, [setShowResumePrompt]);
 
   const handleResume = useCallback(() => {
     const session = loadSession();
     if (session) {
-      restoreState({
+      restoreRoute({
         traces: session.traces,
         pois: session.pois,
         activeCategories: session.activeCategories,
@@ -82,73 +99,49 @@ export default function App() {
       setEnrichAll(session.enrichAll);
     }
     setShowResumePrompt(false);
-  }, [restoreState, restoreEnrichments]);
+  }, [restoreRoute, restoreEnrichments, setTargetLanguage, setEnrichAll, setShowResumePrompt]);
 
   const handleDismissResume = useCallback(() => {
     clearSession();
     setShowResumePrompt(false);
-  }, []);
+  }, [setShowResumePrompt]);
 
   // Clear selection when the selected POI leaves the filtered set
   useEffect(() => {
     if (selectedPoiId && !filteredPois.some((p) => p.id === selectedPoiId)) {
       setSelectedPoiId(null);
     }
-  }, [filteredPois, selectedPoiId]);
+  }, [filteredPois, selectedPoiId, setSelectedPoiId]);
 
   // Auto-save session when pipeline is done and we have POIs
   useEffect(() => {
-    if (state.stage !== "done" || state.pois.length === 0) return;
+    if (stage !== "done" || pois.length === 0) return;
     saveSession({
-      activeCategories: state.activeCategories,
-      traces: state.traces,
-      pois: state.pois,
+      activeCategories,
+      traces,
+      pois,
       enrichments,
       targetLanguage,
       enrichAll,
-      routeSettings: state.routeSettings,
+      routeSettings,
     });
   }, [
-    state.stage,
-    state.pois,
-    state.activeCategories,
-    state.traces,
-    state.routeSettings,
+    stage,
+    pois,
+    activeCategories,
+    traces,
+    routeSettings,
     enrichments,
     targetLanguage,
     enrichAll,
   ]);
-
-  const isProcessing =
-    state.stage === "parsing" ||
-    state.stage === "simplifying" ||
-    state.stage === "querying" ||
-    state.stage === "processing";
-
-  const hasPois = state.pois.length > 0;
-
-  // Count POIs that still need enrichment (unenriched + retryable failures)
-  const pendingEnrichmentCount = useMemo(
-    () =>
-      filteredPois.filter((poi) => {
-        const e = enrichments.get(poi.id);
-        return isRetryableEnrichmentResult(e);
-      }).length,
-    [filteredPois, enrichments],
-  );
 
   const handleReset = useCallback(() => {
     reset();
     resetEnrichment();
     setSelectedPoiId(null);
     clearSession();
-  }, [reset, resetEnrichment]);
-
-  // Stable ref so the inline ternary stops defeating memo(PoiList) every render
-  const enrichingPoiIds = useMemo(
-    () => (enrichmentJob.stage === "running" ? enrichmentJob.activePoiIds : null),
-    [enrichmentJob.stage, enrichmentJob.activePoiIds],
-  );
+  }, [reset, resetEnrichment, setSelectedPoiId]);
 
   return (
     <div className="flex flex-col h-full">
@@ -163,16 +156,7 @@ export default function App() {
         {/* Sidebar */}
         <aside className="sidebar">
           {/* Category selector – pinned at top, never scrolls away */}
-          <CategoryFilter
-            activeCategories={state.activeCategories}
-            onToggle={toggleCategory}
-            onSelectAll={setAllCategories}
-            pois={state.pois}
-            showCounts={hasPois}
-            maxDistanceM={state.routeSettings.maxDistanceM}
-            onMaxDistanceChange={setMaxDistance}
-            targetLanguage={targetLanguage}
-          />
+          <CategoryFilter />
 
           {/* Scrollable area for everything else */}
           <div className="sidebar-scroll">
@@ -196,27 +180,25 @@ export default function App() {
             )}
 
             {/* Upload area – show when idle, or at error with no traces loaded */}
-            {(state.stage === "idle" || (state.stage === "error" && state.traces.length === 0)) &&
-              !showResumePrompt && (
-                <GpxUpload onFiles={processFiles} disabled={isProcessing} lang={targetLanguage} />
-              )}
+            {(stage === "idle" || (stage === "error" && traces.length === 0)) &&
+              !showResumePrompt && <GpxUpload />}
 
             {/* Status / Progress */}
-            {state.progress && (
+            {progress && (
               <div
-                className={`status-bar ${state.stage === "error" ? "error" : ""}`}
+                className={`status-bar ${stage === "error" ? "error" : ""}`}
                 role="status"
                 aria-live="polite"
               >
                 {isProcessing && <span className="spinner" />}
                 <div style={{ flex: 1 }}>
-                  <span>{state.progress}</span>
-                  {state.progressRatio != null && (
+                  <span>{progress}</span>
+                  {progressRatio != null && (
                     <div className="progress-bar-track" style={{ marginTop: "0.5rem" }}>
                       <div
                         className="progress-bar-fill"
                         style={{
-                          width: `${Math.round(state.progressRatio * 100)}%`,
+                          width: `${Math.round(progressRatio * 100)}%`,
                           backgroundColor: "var(--color-lime)",
                         }}
                       />
@@ -227,13 +209,13 @@ export default function App() {
             )}
 
             {/* Warning banner (partial results) */}
-            {state.warning && (
+            {warning && (
               <div className="warning-box">
                 <p>
                   <span className="font-black uppercase">
                     {t("status.warning", targetLanguage)}
                   </span>{" "}
-                  {state.warning}
+                  {warning}
                 </p>
                 <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
                   {t("action.retryChunks", targetLanguage)}
@@ -242,14 +224,14 @@ export default function App() {
             )}
 
             {/* Error message */}
-            {state.error && (
+            {error && (
               <div className="error-box">
                 <p>
                   <span className="font-black uppercase">{t("status.error", targetLanguage)}</span>{" "}
-                  {state.error}
+                  {error}
                 </p>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
-                  {state.traces.length > 0 && (
+                  {traces.length > 0 && (
                     <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
                       {t("action.retryQuery", targetLanguage)}
                     </button>
@@ -259,7 +241,7 @@ export default function App() {
                     className="neo-btn-sm neo-btn-secondary"
                     onClick={handleReset}
                   >
-                    {state.traces.length > 0
+                    {traces.length > 0
                       ? t("action.startOver", targetLanguage)
                       : t("action.tryAgain", targetLanguage)}
                   </button>
@@ -268,58 +250,26 @@ export default function App() {
             )}
 
             {/* Enrichment panel – shown when POIs are found */}
-            {state.stage === "done" && (
-              <EnrichmentPanel
-                job={enrichmentJob}
-                poiCount={filteredPois.length}
-                enrichedCount={enrichments.size}
-                pendingCount={pendingEnrichmentCount}
-                enrichments={enrichments}
-                targetLanguage={targetLanguage}
-                onLanguageChange={setTargetLanguage}
-                enrichAll={enrichAll}
-                onEnrichAllChange={setEnrichAll}
-                onStart={() => startEnrichment(filteredPois, targetLanguage, enrichAll)}
-                onContinue={() => continueEnrichment(filteredPois, targetLanguage, enrichAll)}
-                onCancel={cancelEnrichment}
-                onResumeAfterCaptcha={resumeAfterCaptcha}
-              />
-            )}
+            {stage === "done" && <EnrichmentPanel />}
 
-            {sandboxMode && state.stage === "done" && (
+            {sandboxMode && stage === "done" && (
               <Suspense fallback={null}>
-                <EnrichmentSandbox pois={filteredPois} targetLanguage={targetLanguage} />
+                <EnrichmentSandbox />
               </Suspense>
             )}
 
             {/* Export */}
-            {state.stage === "done" && (
-              <ExportPanel
-                pois={filteredPois}
-                traces={state.traces}
-                enrichments={enrichments}
-                targetLanguage={targetLanguage}
-              />
-            )}
+            {stage === "done" && <ExportPanel />}
 
             {/* Reset button */}
-            {state.stage === "done" && (
+            {stage === "done" && (
               <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
                 {t("action.loadNew", targetLanguage)}
               </button>
             )}
 
             {/* POI list */}
-            {state.stage === "done" && (
-              <PoiList
-                pois={filteredPois}
-                enrichments={enrichments}
-                selectedPoiId={selectedPoiId}
-                onSelectPoi={setSelectedPoiId}
-                enrichingPoiIds={enrichingPoiIds}
-                targetLanguage={targetLanguage}
-              />
-            )}
+            {stage === "done" && <PoiList />}
 
             {/* Debug panel – always available */}
             <DebugPanel />
@@ -328,15 +278,7 @@ export default function App() {
 
         {/* Map */}
         <main className="map-container">
-          <RouteMap
-            traces={state.traces}
-            pois={filteredPois}
-            enrichments={enrichments}
-            selectedPoiId={selectedPoiId}
-            onSelectPoi={setSelectedPoiId}
-            enrichingPoiIds={enrichingPoiIds}
-            targetLanguage={targetLanguage}
-          />
+          <RouteMap />
         </main>
       </div>
     </div>

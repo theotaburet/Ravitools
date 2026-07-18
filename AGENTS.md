@@ -61,18 +61,18 @@ Status: in-progress | done | blocked
 - `web/client/src/lib/poi-config.ts`
 - `web/client/src/lib/overpass.ts`
 - `web/client/src/lib/poi-processor.ts`
-- `web/client/src/lib/export.ts`
+- `web/client/src/lib/export/` (un module par format)
 - `web/client/src/lib/enrichment/`
-- `web/client/src/hooks/useRavitools.ts`
-- `web/client/src/hooks/useEnrichment.ts`
-- `web/server/src/index.ts`
+- `web/client/src/state/` (atoms jotai: route, enrichment, ui)
+- `web/server/src/app.ts` + `web/server/src/routes/`
 - `web/README.md`
 
 ## Verification minimale
 
-- Type check: `cd web/client && npx tsc --noEmit`
-- Tests: `cd web/client && npm test`
-- Build prod: `cd web/client && npm run build`
+- Tout: `just check` (typecheck + tests + lint, client et serveur, zero warning)
+- Type check: `just typecheck`
+- Tests: `just test` (ou `just test-client` / `just test-server`)
+- Build prod: `just build`
 - Si une modif touche la logique POI: verifier la requete OSM, le filtrage, l'export et le resultat sur un vrai GPX si possible.
 
 ## Token Saving

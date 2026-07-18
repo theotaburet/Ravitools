@@ -3,17 +3,16 @@
 // Supports multiple GPX files simultaneously
 // ---------------------------------------------------------------------------
 
+import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { t } from "../lib/i18n";
-import type { TargetLanguage } from "../types";
+import { isProcessingAtom, processFilesAtom } from "../state/route";
+import { targetLanguageAtom } from "../state/ui";
 
-interface Props {
-  onFiles: (files: File[]) => void;
-  disabled?: boolean;
-  lang?: TargetLanguage;
-}
-
-export function GpxUpload({ onFiles, disabled, lang = "en" }: Props) {
+export function GpxUpload() {
+  const onFiles = useSetAtom(processFilesAtom);
+  const disabled = useAtomValue(isProcessingAtom);
+  const lang = useAtomValue(targetLanguageAtom);
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(

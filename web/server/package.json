@@ -2,11 +2,9 @@
   "name": "ravitools-server",
   "version": "1.0.0",
   "description": "Lightweight Overpass proxy/cache server for Ravitools",
-  "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -35,7 +33,6 @@
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.4"
   }

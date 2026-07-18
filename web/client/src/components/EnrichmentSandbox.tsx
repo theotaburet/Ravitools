@@ -1,11 +1,9 @@
+import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { enrichPoi, getOfficialWebsiteUrl } from "../lib/enrichment";
-import type { EnrichedData, POI, TargetLanguage } from "../types";
-
-interface Props {
-  pois: POI[];
-  targetLanguage: TargetLanguage;
-}
+import { filteredPoisAtom } from "../state/route";
+import { targetLanguageAtom } from "../state/ui";
+import type { EnrichedData, POI } from "../types";
 
 function isSandboxCandidate(poi: POI): boolean {
   return (
@@ -14,7 +12,9 @@ function isSandboxCandidate(poi: POI): boolean {
   );
 }
 
-export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
+export function EnrichmentSandbox() {
+  const pois = useAtomValue(filteredPoisAtom);
+  const targetLanguage = useAtomValue(targetLanguageAtom);
   const candidates = useMemo(() => pois.filter(isSandboxCandidate), [pois]);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [result, setResult] = useState<EnrichedData | null>(null);
@@ -133,8 +133,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
               {result.openingHours && result.openingHours.length > 0 ? (
                 <table className="poi-hours-table">
                   <tbody>
-                    {result.openingHours.map((entry, i) => (
-                      <tr key={i}>
+                    {result.openingHours.map((entry) => (
+                      <tr key={`${entry.day}-${entry.open}`}>
                         <td className="poi-hours-day">{entry.day}</td>
                         <td className="poi-hours-time">
                           {entry.open === "closed"
@@ -157,8 +157,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                   <strong>Cautions</strong>
                   {result.structured.cautions.length ? (
                     <ul className="sandbox-list">
-                      {result.structured.cautions.map((item, index) => (
-                        <li key={`caution-${index}`}>{item}</li>
+                      {result.structured.cautions.map((item) => (
+                        <li key={item}>{item}</li>
                       ))}
                     </ul>
                   ) : (
@@ -169,8 +169,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                   <strong>Divergences</strong>
                   {result.structured.divergences.length ? (
                     <ul className="sandbox-list sandbox-divergences">
-                      {result.structured.divergences.map((item, index) => (
-                        <li key={`div-${index}`}>{item}</li>
+                      {result.structured.divergences.map((item) => (
+                        <li key={item}>{item}</li>
                       ))}
                     </ul>
                   ) : (
@@ -181,8 +181,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
                   <strong>Source Rollup</strong>
                   {result.structured.sourceRollup.length ? (
                     <ul className="sandbox-list">
-                      {result.structured.sourceRollup.map((digest, index) => (
-                        <li key={`rollup-${index}`}>
+                      {result.structured.sourceRollup.map((digest) => (
+                        <li key={`${digest.platform}-${digest.brief}`}>
                           <span className="sandbox-platform">{digest.platform}</span>
                           <span>{digest.brief}</span>
                           {digest.url && (
@@ -260,8 +260,8 @@ export function EnrichmentSandbox({ pois, targetLanguage }: Props) {
             )}
             {result.rawSnippets.length > 0 ? (
               <ul className="sandbox-list">
-                {result.rawSnippets.map((snippet, index) => (
-                  <li key={`${snippet.url}-${index}`}>
+                {result.rawSnippets.map((snippet) => (
+                  <li key={`${snippet.url}-${snippet.title}`}>
                     <a
                       className="poi-source-link"
                       href={snippet.url}

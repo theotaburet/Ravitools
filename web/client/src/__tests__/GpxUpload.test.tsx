@@ -1,22 +1,46 @@
 // ---------------------------------------------------------------------------
 // GpxUpload component test (M3 key component tests)
 // Focus: the .gpx filtering / disabled guard in the drop + change handlers.
+// The processFiles action atom is mocked so the real pipeline never runs.
 // ---------------------------------------------------------------------------
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { atom, createStore, Provider } from "jotai";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const onFiles = vi.fn();
+
+vi.mock("../state/route", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("../state/route")>();
+  return {
+    ...orig,
+    processFilesAtom: atom(null, (_get, _set, files: File[]) => onFiles(files)),
+  };
+});
+
 import { GpxUpload } from "../components/GpxUpload";
+import { stageAtom } from "../state/route";
 
 afterEach(cleanup);
+beforeEach(() => onFiles.mockReset());
 
 function gpx(name: string): File {
   return new File(["<gpx></gpx>"], name, { type: "application/gpx+xml" });
 }
 
+function renderUpload(processing = false) {
+  const store = createStore();
+  if (processing) store.set(stageAtom, "querying");
+  return render(
+    <Provider store={store}>
+      <GpxUpload />
+    </Provider>,
+  );
+}
+
 describe("GpxUpload", () => {
-  it("passes only .gpx files to onFiles on drop", () => {
-    const onFiles = vi.fn();
-    const { container } = render(<GpxUpload onFiles={onFiles} />);
+  it("passes only .gpx files to processFiles on drop", () => {
+    const { container } = renderUpload();
     const zone = container.querySelector(".upload-zone") as HTMLElement;
 
     fireEvent.drop(zone, {
@@ -28,9 +52,8 @@ describe("GpxUpload", () => {
     expect(passed.map((f) => f.name)).toEqual(["route.gpx"]);
   });
 
-  it("does not call onFiles when a non-.gpx file is dropped", () => {
-    const onFiles = vi.fn();
-    const { container } = render(<GpxUpload onFiles={onFiles} />);
+  it("does not call processFiles when a non-.gpx file is dropped", () => {
+    const { container } = renderUpload();
     const zone = container.querySelector(".upload-zone") as HTMLElement;
 
     fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "notes.txt")] } });
@@ -38,9 +61,8 @@ describe("GpxUpload", () => {
     expect(onFiles).not.toHaveBeenCalled();
   });
 
-  it("ignores drops while disabled", () => {
-    const onFiles = vi.fn();
-    const { container } = render(<GpxUpload onFiles={onFiles} disabled />);
+  it("ignores drops while the pipeline is processing", () => {
+    const { container } = renderUpload(true);
     const zone = container.querySelector(".upload-zone") as HTMLElement;
 
     fireEvent.drop(zone, { dataTransfer: { files: [gpx("route.gpx")] } });
@@ -49,8 +71,7 @@ describe("GpxUpload", () => {
   });
 
   it("forwards picked files via the file input", () => {
-    const onFiles = vi.fn();
-    render(<GpxUpload onFiles={onFiles} />);
+    renderUpload();
     const input = screen.getByLabelText("Upload GPX files") as HTMLInputElement;
 
     fireEvent.change(input, { target: { files: [gpx("a.gpx"), gpx("b.gpx")] } });

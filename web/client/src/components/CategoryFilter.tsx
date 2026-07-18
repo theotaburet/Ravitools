@@ -5,38 +5,33 @@
 // Sticky header + collapsible body to stay accessible in long sidebars.
 // ---------------------------------------------------------------------------
 
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { t, translateCategory } from "../lib/i18n";
 import { POI_CATEGORIES } from "../lib/poi-config";
-import type { POI, PoiCategory, TargetLanguage } from "../types";
-
-interface Props {
-  activeCategories: Set<PoiCategory>;
-  onToggle: (cat: PoiCategory) => void;
-  onSelectAll: (on: boolean) => void;
-  maxDistanceM: number;
-  onMaxDistanceChange: (distanceM: number) => void;
-  /** Pass pois only after query is done; empty array before upload */
-  pois: POI[];
-  /** When true, shows counts next to each category */
-  showCounts?: boolean;
-  /** Target language for i18n */
-  targetLanguage?: TargetLanguage;
-}
+import {
+  activeCategoriesAtom,
+  poisAtom,
+  routeSettingsAtom,
+  setAllCategoriesAtom,
+  setMaxDistanceAtom,
+  toggleCategoryAtom,
+} from "../state/route";
+import { targetLanguageAtom } from "../state/ui";
+import type { PoiCategory, TargetLanguage } from "../types";
 
 const essentialCats = POI_CATEGORIES.filter((c) => c.defaultEnabled !== false);
 const optionalCats = POI_CATEGORIES.filter((c) => c.defaultEnabled === false);
 
-export function CategoryFilter({
-  activeCategories,
-  onToggle,
-  onSelectAll,
-  maxDistanceM,
-  onMaxDistanceChange,
-  pois,
-  showCounts = false,
-  targetLanguage = "en",
-}: Props) {
+export function CategoryFilter() {
+  const activeCategories = useAtomValue(activeCategoriesAtom);
+  const pois = useAtomValue(poisAtom);
+  const maxDistanceM = useAtomValue(routeSettingsAtom).maxDistanceM;
+  const targetLanguage = useAtomValue(targetLanguageAtom);
+  const onToggle = useSetAtom(toggleCategoryAtom);
+  const onSelectAll = useSetAtom(setAllCategoriesAtom);
+  const onMaxDistanceChange = useSetAtom(setMaxDistanceAtom);
+  const showCounts = pois.length > 0;
   const [collapsed, setCollapsed] = useState(false);
 
   // AUDIT U4: keep the slider snappy but only re-process POIs ~once per 150ms,
