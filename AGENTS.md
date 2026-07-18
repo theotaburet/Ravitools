@@ -61,11 +61,10 @@ Status: in-progress | done | blocked
 - `web/client/src/lib/poi-config.ts`
 - `web/client/src/lib/overpass.ts`
 - `web/client/src/lib/poi-processor.ts`
-- `web/client/src/lib/export.ts`
+- `web/client/src/lib/export/` (un module par format)
 - `web/client/src/lib/enrichment/`
-- `web/client/src/hooks/useRavitools.ts`
-- `web/client/src/hooks/useEnrichment.ts`
-- `web/server/src/index.ts`
+- `web/client/src/state/` (atoms jotai: route, enrichment, ui)
+- `web/server/src/app.ts` + `web/server/src/routes/`
 - `web/README.md`
 
 ## Verification minimale
