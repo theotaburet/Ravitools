@@ -196,6 +196,18 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     en: "Invalid or incompatible plan file (.ravitools.json)",
     fr: "Fichier de plan invalide ou incompatible (.ravitools.json)",
   },
+  "roadbook.title": { en: "Roadbook", fr: "Roadbook" },
+  "roadbook.open": { en: "Open the roadbook", fr: "Ouvrir le roadbook" },
+  "roadbook.body": {
+    en: "Printable route sheet: profile + POI table per trace.",
+    fr: "Feuille de route imprimable : profil + tableau des POI par trace.",
+  },
+  "roadbook.print": { en: "Print", fr: "Imprimer" },
+  "roadbook.close": { en: "Close", fr: "Fermer" },
+  "roadbook.km": { en: "km", fr: "km" },
+  "roadbook.category": { en: "Category", fr: "Catégorie" },
+  "roadbook.name": { en: "Name", fr: "Nom" },
+  "roadbook.hours": { en: "Hours", fr: "Horaires" },
   // Enrichment panel
   "enrich.title": { en: "Enrich POIs", fr: "Enrichir les POI" },
   "enrich.subtitle": {

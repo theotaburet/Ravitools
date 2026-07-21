@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { useAtomValue } from "jotai";
+import { lazy, Suspense, useState } from "react";
 import {
   exportToGeoJson,
   exportToGpx,
@@ -25,6 +26,8 @@ import {
 } from "../state/route";
 import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
 
+const Roadbook = lazy(() => import("./Roadbook").then((m) => ({ default: m.Roadbook })));
+
 export function ExportPanel() {
   const pois = useAtomValue(filteredPoisAtom);
   const allPois = useAtomValue(poisAtom);
@@ -35,6 +38,7 @@ export function ExportPanel() {
   const enrichments = useAtomValue(enrichmentsAtom);
   const enrichAll = useAtomValue(enrichAllAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
+  const [roadbookOpen, setRoadbookOpen] = useState(false);
   if (pois.length === 0) return null;
 
   const firstName = traces[0]?.name;
@@ -129,6 +133,24 @@ export function ExportPanel() {
       >
         {t("export.savePlan", targetLanguage)}
       </button>
+
+      {/* Roadbook */}
+      <div className="export-divider" />
+      <h3>{t("roadbook.title", targetLanguage)}</h3>
+      <p className="text-xs text-muted font-mono mb-3">{t("roadbook.body", targetLanguage)}</p>
+      <button
+        type="button"
+        className="neo-btn-secondary w-full"
+        disabled={stage !== "done"}
+        onClick={() => setRoadbookOpen(true)}
+      >
+        {t("roadbook.open", targetLanguage)}
+      </button>
+      {roadbookOpen && (
+        <Suspense fallback={null}>
+          <Roadbook onClose={() => setRoadbookOpen(false)} />
+        </Suspense>
+      )}
 
       <p className="text-xs text-muted mt-3 leading-snug">
         <strong>OsmAnd GPX</strong> {t("export.osmandBody", targetLanguage)}
