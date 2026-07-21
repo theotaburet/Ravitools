@@ -3,14 +3,20 @@
 // trace with POIs positioned along it. Hover mirrors a marker on the map.
 // ---------------------------------------------------------------------------
 
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildProfile, downsampleProfile, profileAt } from "../lib/elevation";
-import { TraceIndex } from "../lib/gpx-parser";
+import { findGaps } from "../lib/gaps";
 import { t } from "../lib/i18n";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
-import { filteredPoisAtom, tracesAtom } from "../state/route";
-import { profileHoverAtom, selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
+import { poisForTrace } from "../lib/trace-attribution";
+import { filteredPoisAtom, poisAtom, tracesAtom } from "../state/route";
+import {
+  gapThresholdKmAtom,
+  profileHoverAtom,
+  selectedPoiIdAtom,
+  targetLanguageAtom,
+} from "../state/ui";
 
 const VIEW_W = 1000;
 const VIEW_H = 100;
@@ -19,6 +25,8 @@ const PAD_Y = 8;
 export function ElevationProfile() {
   const traces = useAtomValue(tracesAtom);
   const pois = useAtomValue(filteredPoisAtom);
+  const allPois = useAtomValue(poisAtom);
+  const [gapThresholdKm, setGapThresholdKm] = useAtom(gapThresholdKmAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
   const setSelectedPoiId = useSetAtom(selectedPoiIdAtom);
   const setProfileHover = useSetAtom(profileHoverAtom);
@@ -36,24 +44,26 @@ export function ElevationProfile() {
   );
 
   // Attribute each POI to its nearest trace so dots land on the right profile
-  const tracePois = useMemo(() => {
-    if (!trace) return [];
-    if (traces.length === 1) return pois;
-    const indices = traces.map((tr) => new TraceIndex(tr.original));
-    const selectedIdx = traces.indexOf(trace);
-    return pois.filter((poi) => {
-      let best = 0;
-      let bestDist = Infinity;
-      for (let i = 0; i < indices.length; i++) {
-        const d = indices[i].distanceTo(poi);
-        if (d < bestDist) {
-          bestDist = d;
-          best = i;
-        }
-      }
-      return best === selectedIdx;
-    });
-  }, [trace, traces, pois]);
+  const tracePois = useMemo(
+    () => (trace ? poisForTrace(pois, traces, trace) : []),
+    [trace, traces, pois],
+  );
+
+  // Ravito gaps — computed from ALL POIs (unfiltered): unchecking a category
+  // in the filter must not turn the trace into a fake desert.
+  const { waterGaps, foodGaps } = useMemo(() => {
+    if (!trace) return { waterGaps: [], foodGaps: [] };
+    const mine = poisForTrace(allPois, traces, trace);
+    const thresholdM = gapThresholdKm * 1000;
+    const water = mine.filter((p) => p.category === "Water").map((p) => p.alongTraceDistance);
+    const food = mine
+      .filter((p) => p.category === "Food shop" || p.category === "Restaurant or Bar")
+      .map((p) => p.alongTraceDistance);
+    return {
+      waterGaps: findGaps(water, trace.totalDistanceM, thresholdM),
+      foodGaps: findGaps(food, trace.totalDistanceM, thresholdM),
+    };
+  }, [trace, traces, allPois, gapThresholdKm]);
 
   // Clear the map marker when the strip unmounts (trace reset)
   useEffect(() => () => setProfileHover(null), [setProfileHover]);
@@ -107,6 +117,32 @@ export function ElevationProfile() {
           {trace.name ?? trace.id} · {(trace.totalDistanceM / 1000).toFixed(1)} km · ↑
           {trace.elevationGainM}m ↓{trace.elevationLossM}m
         </span>
+        <span className="gap-controls">
+          <label className="gap-threshold">
+            &gt;
+            <input
+              type="number"
+              min={1}
+              value={gapThresholdKm}
+              aria-label={t("profile.gapThreshold", targetLanguage)}
+              onChange={(e) => setGapThresholdKm(Math.max(1, Number(e.target.value) || 1))}
+            />
+            km
+          </label>
+          {(waterGaps.length > 0 || foodGaps.length > 0) && (
+            <span className="gap-summary" role="status">
+              ⚠{" "}
+              {[
+                waterGaps.length > 0 &&
+                  `${waterGaps.length} × >${gapThresholdKm} km ${t("profile.without", targetLanguage)} 💧`,
+                foodGaps.length > 0 &&
+                  `${foodGaps.length} × >${gapThresholdKm} km ${t("profile.without", targetLanguage)} 🛒`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
+        </span>
         {hoverInfo && !collapsed && (
           <span className="elevation-cursor-info">
             km {(hoverInfo.dist / 1000).toFixed(1)} · {Math.round(hoverInfo.ele)}m
@@ -146,6 +182,26 @@ export function ElevationProfile() {
           >
             <path d={areaPath} className="elevation-area" />
             <path d={linePath} className="elevation-line" vectorEffect="non-scaling-stroke" />
+            {waterGaps.map((g) => (
+              <rect
+                key={`w${g.startM}`}
+                x={x(g.startM)}
+                y={0}
+                width={Math.min(VIEW_W, x(g.endM)) - x(g.startM)}
+                height={VIEW_H}
+                className="gap-band-water"
+              />
+            ))}
+            {foodGaps.map((g) => (
+              <rect
+                key={`f${g.startM}`}
+                x={x(g.startM)}
+                y={0}
+                width={Math.min(VIEW_W, x(g.endM)) - x(g.startM)}
+                height={VIEW_H}
+                className="gap-band-food"
+              />
+            ))}
             {hoverX != null && (
               <line
                 x1={hoverX * VIEW_W}

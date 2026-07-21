@@ -89,6 +89,11 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "map.tel": { en: "Tel:", fr: "Tél :" },
   "map.website": { en: "Website", fr: "Site web" },
   "profile.title": { en: "Elevation profile", fr: "Profil altimétrique" },
+  "profile.gapThreshold": {
+    en: "Ravito gap alert threshold (km)",
+    fr: "Seuil d'alerte désert de ravito (km)",
+  },
+  "profile.without": { en: "without", fr: "sans" },
   "map.searchDegraded": {
     en: "Search degraded. Retry after cooldown or IP change.",
     fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",
