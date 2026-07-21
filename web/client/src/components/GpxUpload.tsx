@@ -6,38 +6,91 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { t } from "../lib/i18n";
-import { isProcessingAtom, processFilesAtom } from "../state/route";
-import { targetLanguageAtom } from "../state/ui";
+import { parseSession } from "../lib/session";
+import { restoreEnrichmentsAtom } from "../state/enrichment";
+import {
+  isProcessingAtom,
+  processFilesAtom,
+  restoreRouteAtom,
+  routeErrorAtom,
+} from "../state/route";
+import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
+
+// ponytail: FileReader instead of File.text() — jsdom (tests) doesn't implement the latter
+function readText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsText(file);
+  });
+}
 
 export function GpxUpload() {
   const onFiles = useSetAtom(processFilesAtom);
   const disabled = useAtomValue(isProcessingAtom);
   const lang = useAtomValue(targetLanguageAtom);
+  const restoreRoute = useSetAtom(restoreRouteAtom);
+  const restoreEnrichments = useSetAtom(restoreEnrichmentsAtom);
+  const setTargetLanguage = useSetAtom(targetLanguageAtom);
+  const setEnrichAll = useSetAtom(enrichAllAtom);
+  const setRouteError = useSetAtom(routeErrorAtom);
   const [dragOver, setDragOver] = useState(false);
+
+  const importPlan = useCallback(
+    async (file: File) => {
+      const session = parseSession(await readText(file));
+      if (!session) {
+        setRouteError(t("upload.badPlan", lang));
+        return;
+      }
+      // Same restore path as the "Resume" prompt in App.tsx
+      restoreRoute({
+        traces: session.traces,
+        pois: session.pois,
+        activeCategories: session.activeCategories,
+        routeSettings: session.routeSettings,
+      });
+      restoreEnrichments(session.enrichments);
+      setTargetLanguage(session.targetLanguage);
+      setEnrichAll(session.enrichAll);
+    },
+    [restoreRoute, restoreEnrichments, setTargetLanguage, setEnrichAll, setRouteError, lang],
+  );
+
+  const handleFiles = useCallback(
+    (files: File[]) => {
+      const plan = files.find((f) => f.name.toLowerCase().endsWith(".json"));
+      if (plan) {
+        void importPlan(plan);
+        return;
+      }
+      const gpxFiles = files.filter((f) => f.name.toLowerCase().endsWith(".gpx"));
+      if (gpxFiles.length > 0) {
+        onFiles(gpxFiles);
+      }
+    },
+    [importPlan, onFiles],
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
       if (disabled) return;
-      const gpxFiles = Array.from(e.dataTransfer.files).filter((f) =>
-        f.name.toLowerCase().endsWith(".gpx"),
-      );
-      if (gpxFiles.length > 0) {
-        onFiles(gpxFiles);
-      }
+      handleFiles(Array.from(e.dataTransfer.files));
     },
-    [onFiles, disabled],
+    [handleFiles, disabled],
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (files && files.length > 0) {
-        onFiles(Array.from(files));
+        handleFiles(Array.from(files));
       }
     },
-    [onFiles],
+    [handleFiles],
   );
 
   return (
@@ -71,10 +124,11 @@ export function GpxUpload() {
 
       <p className="text-lg font-black uppercase tracking-tight">{t("upload.drop", lang)}</p>
       <p className="text-sm text-muted font-mono">{t("upload.browse", lang)}</p>
+      <p className="text-xs text-muted font-mono">{t("upload.plan", lang)}</p>
 
       <input
         type="file"
-        accept=".gpx"
+        accept=".gpx,.json"
         multiple
         onChange={handleChange}
         disabled={disabled}

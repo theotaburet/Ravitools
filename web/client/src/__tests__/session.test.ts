@@ -5,7 +5,14 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearSession, hasSession, loadSession, saveSession } from "../lib/session";
+import {
+  clearSession,
+  hasSession,
+  loadSession,
+  parseSession,
+  saveSession,
+  serializeSession,
+} from "../lib/session";
 import type { EnrichedData, POI, PoiCategory } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -269,5 +276,39 @@ describe("session persistence", () => {
     expect(loaded?.traces[0].original).toHaveLength(2);
     expect(loaded?.traces[0].id).toBe("trace_1");
     expect(loaded?.traces[0].color).toBe("#1a1a1a");
+  });
+});
+
+describe("plan file serialize/parse", () => {
+  function snapshot() {
+    return {
+      activeCategories: new Set(["Water"] as PoiCategory[]),
+      traces: [],
+      pois: [makePoi("a")],
+      enrichments: new Map<string, EnrichedData>([["a", makeEnrichment()]]),
+      targetLanguage: "fr" as const,
+      enrichAll: true,
+      routeSettings: { maxDistanceM: 900 },
+    };
+  }
+
+  it("round-trips serialize → parse", () => {
+    const parsed = parseSession(serializeSession(snapshot()));
+    expect(parsed).not.toBeNull();
+    expect(parsed?.pois[0].id).toBe("a");
+    expect(parsed?.enrichments.get("a")?.rating).toBe(4.2);
+    expect(parsed?.activeCategories.has("Water")).toBe(true);
+    expect(parsed?.targetLanguage).toBe("fr");
+    expect(parsed?.routeSettings.maxDistanceM).toBe(900);
+  });
+
+  it("rejects an unknown schema version", () => {
+    const data = JSON.parse(serializeSession(snapshot()));
+    data.version = 999;
+    expect(parseSession(JSON.stringify(data))).toBeNull();
+  });
+
+  it("rejects corrupt JSON", () => {
+    expect(parseSession("not-json{{{")).toBeNull();
   });
 });

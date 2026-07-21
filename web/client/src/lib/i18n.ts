@@ -179,6 +179,23 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     en: "(ratings, hours, reviews) is included in export descriptions.",
     fr: "(notes, horaires, avis) sont incluses dans les descriptions d'export.",
   },
+  "export.plan": { en: "Plan file", fr: "Fichier de plan" },
+  "export.savePlan": {
+    en: "Save plan (.ravitools.json)",
+    fr: "Sauvegarder le plan (.ravitools.json)",
+  },
+  "export.planBody": {
+    en: "Reload it later or share it — traces, POIs and enrichments included.",
+    fr: "Rechargez-le plus tard ou partagez-le — traces, POI et enrichissements inclus.",
+  },
+  "upload.plan": {
+    en: "…or a .ravitools.json plan to reload",
+    fr: "…ou un plan .ravitools.json à recharger",
+  },
+  "upload.badPlan": {
+    en: "Invalid or incompatible plan file (.ravitools.json)",
+    fr: "Fichier de plan invalide ou incompatible (.ravitools.json)",
+  },
   // Enrichment panel
   "enrich.title": { en: "Enrich POIs", fr: "Enrichir les POI" },
   "enrich.subtitle": {

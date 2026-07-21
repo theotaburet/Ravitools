@@ -58,52 +58,32 @@ export interface SessionSnapshot {
   savedAt: string;
 }
 
-/**
- * Save current session state to localStorage.
- * Returns false (and warns) if the write fails — e.g. quota exceeded — so callers
- * can tell the user that "resume session" won't work, instead of failing silently
- * (AUDIT §5). A visible toast is deferred until a notification surface exists (M3).
- */
-export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): boolean {
-  try {
-    const data: PersistedSession = {
-      version: SCHEMA_VERSION,
-      savedAt: new Date().toISOString(),
-      activeCategories: [...snapshot.activeCategories],
-      traces: snapshot.traces,
-      pois: snapshot.pois,
-      enrichments: [...snapshot.enrichments.entries()],
-      targetLanguage: snapshot.targetLanguage,
-      enrichAll: snapshot.enrichAll,
-      routeSettings: snapshot.routeSettings,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    return true;
-  } catch (err) {
-    console.warn(
-      "Ravitools: session save failed (localStorage full or unavailable); resume won't work this session.",
-      err,
-    );
-    return false;
-  }
+/** Serialize a snapshot to the versioned wire format (localStorage + .ravitools.json). */
+export function serializeSession(snapshot: Omit<SessionSnapshot, "savedAt">): string {
+  const data: PersistedSession = {
+    version: SCHEMA_VERSION,
+    savedAt: new Date().toISOString(),
+    activeCategories: [...snapshot.activeCategories],
+    traces: snapshot.traces,
+    pois: snapshot.pois,
+    enrichments: [...snapshot.enrichments.entries()],
+    targetLanguage: snapshot.targetLanguage,
+    enrichAll: snapshot.enrichAll,
+    routeSettings: snapshot.routeSettings,
+  };
+  return JSON.stringify(data);
 }
 
 /**
- * Load a previously saved session from localStorage.
- * Returns null if no session exists, version mismatch, or data is corrupt.
+ * Parse + validate the wire format. Returns null on version mismatch or
+ * corrupt payload (same per-element validation as before — AUDIT C6).
  */
-export function loadSession(): SessionSnapshot | null {
+export function parseSession(json: string): SessionSnapshot | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-
-    const data: PersistedSession = JSON.parse(raw);
+    const data: PersistedSession = JSON.parse(json);
 
     // Version gate
-    if (data.version !== SCHEMA_VERSION) {
-      clearSession();
-      return null;
-    }
+    if (data.version !== SCHEMA_VERSION) return null;
 
     // Basic shape validation
     if (
@@ -111,7 +91,6 @@ export function loadSession(): SessionSnapshot | null {
       !Array.isArray(data.enrichments) ||
       !Array.isArray(data.traces)
     ) {
-      clearSession();
       return null;
     }
 
@@ -130,10 +109,7 @@ export function loadSession(): SessionSnapshot | null {
         typeof (p as { lon?: unknown }).lon === "number" &&
         (p as { category?: unknown }).category != null,
     );
-    if (!tracesOk || !poisOk) {
-      clearSession();
-      return null;
-    }
+    if (!tracesOk || !poisOk) return null;
 
     return {
       activeCategories: new Set(data.activeCategories),
@@ -145,6 +121,41 @@ export function loadSession(): SessionSnapshot | null {
       routeSettings: data.routeSettings ?? { maxDistanceM: 1500 },
       savedAt: data.savedAt,
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save current session state to localStorage.
+ * Returns false (and warns) if the write fails — e.g. quota exceeded — so callers
+ * can tell the user that "resume session" won't work, instead of failing silently
+ * (AUDIT §5). A visible toast is deferred until a notification surface exists (M3).
+ */
+export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, serializeSession(snapshot));
+    return true;
+  } catch (err) {
+    console.warn(
+      "Ravitools: session save failed (localStorage full or unavailable); resume won't work this session.",
+      err,
+    );
+    return false;
+  }
+}
+
+/**
+ * Load a previously saved session from localStorage.
+ * Returns null if no session exists, version mismatch, or data is corrupt.
+ */
+export function loadSession(): SessionSnapshot | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = parseSession(raw);
+    if (!parsed) clearSession();
+    return parsed;
   } catch {
     clearSession();
     return null;
