@@ -34,11 +34,11 @@ const VIEW_W = 1000;
 const VIEW_H = 100;
 const PAD_Y = 8;
 
-/** Continuous slope → color: pale blue (descent) → green → yellow → red → near-black */
+/** Continuous slope → color: sky (descent) → lime (theme) → yellow → red → near-black */
 const SLOPE_STOPS: [number, [number, number, number]][] = [
-  [-6, [147, 197, 253]],
-  [-2, [219, 234, 254]],
-  [1, [74, 222, 128]],
+  [-6, [125, 211, 252]],
+  [-2, [224, 242, 254]],
+  [1, [190, 242, 100]],
   [5, [250, 204, 21]],
   [8, [251, 146, 60]],
   [11, [239, 68, 68]],
