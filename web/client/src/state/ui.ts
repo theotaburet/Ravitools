@@ -13,3 +13,15 @@ export const profileHoverAtom = atom<{ lat: number; lon: number } | null>(null);
 export const showResumePromptAtom = atom(false);
 /** Ravito-gap alert threshold in km (not persisted on purpose) */
 export const gapThresholdKmAtom = atom(25);
+
+export interface MapViewBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+/** Current map viewport — the elevation profile windows itself to it */
+export const mapViewBoundsAtom = atom<MapViewBounds | null>(null);
+
+/** One-shot zoom request (profile cluster click → map fitBounds, then reset) */
+export const mapFocusAtom = atom<MapViewBounds | null>(null);

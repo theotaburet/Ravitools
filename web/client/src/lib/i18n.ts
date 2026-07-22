@@ -94,6 +94,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Seuil d'alerte désert de ravito (km)",
   },
   "profile.without": { en: "without", fr: "sans" },
+  "profile.cluster": { en: "POIs — click to zoom", fr: "POI — cliquer pour zoomer" },
   "map.searchDegraded": {
     en: "Search degraded. Retry after cooldown or IP change.",
     fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",

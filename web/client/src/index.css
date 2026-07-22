@@ -270,21 +270,10 @@ input[type="checkbox"] {
   text-overflow: ellipsis;
 }
 
-.elevation-cursor-info {
-  font-size: 0.7rem;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  margin-left: auto;
-}
-
 .elevation-chips {
   display: flex;
   gap: 0.375rem;
   margin-left: auto;
-}
-
-.elevation-cursor-info + .elevation-chips {
-  margin-left: 0;
 }
 
 .elevation-chip {
@@ -313,10 +302,176 @@ input[type="checkbox"] {
   height: 100%;
 }
 
-.elevation-area {
-  fill: var(--color-lime);
-  opacity: 0.35;
-  stroke: none;
+.elevation-slope-fill {
+  opacity: 0.7;
+}
+
+.elevation-legend {
+  position: absolute;
+  bottom: 2px;
+  right: 24px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #000;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.elevation-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.elevation-legend-item i {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  border: 1px solid #000;
+}
+
+.elevation-grid {
+  stroke: #000;
+  opacity: 0.15;
+  stroke-dasharray: 4 4;
+}
+
+.elevation-gain-line {
+  fill: none;
+  stroke: #52525b;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+  opacity: 0.7;
+}
+
+.elevation-gridlabel {
+  position: absolute;
+  left: 4px;
+  transform: translateY(-115%);
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.elevation-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-lime);
+  border: 2px solid #000;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.elevation-tooltip {
+  position: absolute;
+  transform: translate(12px, -130%);
+  background: #fff;
+  border: 2px solid #000;
+  box-shadow: 3px 3px 0 var(--color-shadow);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.elevation-tooltip.flip {
+  transform: translate(calc(-100% - 12px), -130%);
+}
+
+.elevation-flag {
+  position: absolute;
+  bottom: 8px;
+  font-size: 1rem;
+  pointer-events: none;
+  filter: drop-shadow(1px 1px 0 #fff);
+}
+
+.elevation-flag.left {
+  left: 2px;
+}
+
+.elevation-flag.right {
+  right: 2px;
+}
+
+.elevation-offscreen {
+  position: absolute;
+  top: 4px;
+  background: #fff;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.elevation-offscreen.left {
+  left: 4px;
+}
+
+.elevation-offscreen.right {
+  right: 4px;
+}
+
+.poi-cluster-icon {
+  background: none;
+  border: none;
+}
+
+.poi-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-lime);
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* Map: direction arrows + start/finish flags */
+.trace-arrow-icon,
+.trace-flag-icon {
+  background: none;
+  border: none;
+}
+
+.trace-arrow {
+  display: block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: #000;
+  text-shadow:
+    -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+    -1px 1px 0 #fff,
+    1px 1px 0 #fff;
+  pointer-events: none;
+}
+
+.trace-flag {
+  font-size: 1.2rem;
+  filter: drop-shadow(1px 1px 0 #fff);
+  pointer-events: none;
 }
 
 .elevation-line {
@@ -325,10 +480,13 @@ input[type="checkbox"] {
   stroke-width: 2px;
 }
 
-.elevation-cursor {
-  stroke: #000;
-  stroke-width: 1px;
-  stroke-dasharray: 3 3;
+.elevation-cursor-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed #000;
+  pointer-events: none;
 }
 
 .elevation-axis {
@@ -361,6 +519,19 @@ input[type="checkbox"] {
 
 .elevation-poi:hover {
   transform: translate(-50%, -100%) scale(1.4);
+}
+
+.elevation-poi-cluster {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid #000;
+  border-radius: 999px;
+  background: #a3e635;
+  box-shadow: 2px 2px 0 #000;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {

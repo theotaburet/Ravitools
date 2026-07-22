@@ -1,7 +1,7 @@
 import { app, googleMapsSystem } from "./app.js";
 import { closeBrowser } from "./browser.js";
 import { closeBrowserContext } from "./browser-context.js";
-import { OVERPASS_URL, PORT } from "./config.js";
+import { OVERPASS_URLS, PORT } from "./config.js";
 import { closeDb, initDb } from "./db.js";
 import { log } from "./logger.js";
 
@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== "test") {
   initDb().catch((err) => log.error({ err: err?.message }, "DB init unexpected error"));
 
   app.listen(PORT, () => {
-    log.info({ port: PORT, overpass: OVERPASS_URL }, "Ravitools proxy started");
+    log.info({ port: PORT, overpass: OVERPASS_URLS.join(", ") }, "Ravitools proxy started");
   });
 
   // Graceful shutdown — close Playwright browser to avoid orphaned Chromium processes

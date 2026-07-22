@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
-import { buildChunkedQueries, buildOverpassQuery } from "../lib/overpass";
+import { buildChunkedQueries, buildOverpassQuery, chunkPoints, splitChunk } from "../lib/overpass";
 import type { TracePoint } from "../types";
 
 const TRACE: TracePoint[] = [
@@ -61,5 +61,32 @@ describe("buildChunkedQueries", () => {
       expect(q).toContain("[out:json]");
       expect(q).toContain("out center");
     }
+  });
+});
+
+describe("splitChunk", () => {
+  const pts: TracePoint[] = Array.from({ length: 10 }, (_, i) => ({ lat: 48 + i, lon: 2 }));
+
+  it("halves a chunk with a 1-point overlap (no corridor gap)", () => {
+    const [a, b] = splitChunk(pts);
+    expect(a.length + b.length).toBe(11);
+    expect(a[a.length - 1]).toBe(b[0]);
+    expect(a[0]).toBe(pts[0]);
+    expect(b[b.length - 1]).toBe(pts[9]);
+  });
+
+  it("leaves tiny chunks alone", () => {
+    const tiny = pts.slice(0, 3);
+    expect(splitChunk(tiny)).toEqual([tiny]);
+  });
+});
+
+describe("chunkPoints", () => {
+  it("covers every point across overlapping chunks", () => {
+    const pts: TracePoint[] = Array.from({ length: 120 }, (_, i) => ({ lat: 48 + i, lon: 2 }));
+    const chunks = chunkPoints(pts, 50);
+    expect(chunks.length).toBeGreaterThan(2);
+    const covered = new Set(chunks.flat().map((p) => p.lat));
+    expect(covered.size).toBe(120);
   });
 });

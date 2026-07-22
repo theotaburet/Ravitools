@@ -100,26 +100,37 @@ export function buildOverpassQuery(
  * @param maxPointsPerQuery - Maximum points per query chunk
  * @param categories - Categories to query
  */
+/** Split trace points into overlapping chunks (overlap avoids boundary gaps). */
+export function chunkPoints(points: TracePoint[], maxPointsPerQuery: number = 25): TracePoint[][] {
+  if (points.length <= maxPointsPerQuery) return [points];
+  const chunks: TracePoint[][] = [];
+  const overlap = 3;
+  for (let i = 0; i < points.length; i += maxPointsPerQuery - overlap) {
+    const chunk = points.slice(i, i + maxPointsPerQuery);
+    if (chunk.length >= 2) chunks.push(chunk);
+  }
+  return chunks;
+}
+
+/**
+ * Halve a chunk (1-point overlap) — used when a chunk keeps failing: POI-dense
+ * areas (cities) time Overpass out, and a smaller corridor is much cheaper.
+ */
+export function splitChunk(points: TracePoint[]): TracePoint[][] {
+  if (points.length < 4) return [points];
+  const mid = Math.floor(points.length / 2);
+  return [points.slice(0, mid + 1), points.slice(mid)];
+}
+
 export function buildChunkedQueries(
   points: TracePoint[],
   radiusM: number = 1000,
   maxPointsPerQuery: number = 25,
   categories?: PoiCategory[],
 ): string[] {
-  if (points.length <= maxPointsPerQuery) {
-    return [buildOverpassQuery(points, radiusM, categories)];
-  }
-
-  const queries: string[] = [];
-  // Overlap chunks by a few points to avoid gaps at boundaries
-  const overlap = 3;
-  for (let i = 0; i < points.length; i += maxPointsPerQuery - overlap) {
-    const chunk = points.slice(i, i + maxPointsPerQuery);
-    if (chunk.length >= 2) {
-      queries.push(buildOverpassQuery(chunk, radiusM, categories));
-    }
-  }
-  return queries;
+  return chunkPoints(points, maxPointsPerQuery).map((chunk) =>
+    buildOverpassQuery(chunk, radiusM, categories),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -246,68 +257,62 @@ export async function queryAllPois(
   maxRetryRounds: number = 3,
 ): Promise<QueryAllPoisResult> {
   const log = dlog("overpass");
-  const queries = buildChunkedQueries(simplifiedPoints, radiusM, maxPointsPerQuery, categories);
+  const initialChunks = chunkPoints(simplifiedPoints, maxPointsPerQuery);
 
-  log.info(`Built ${queries.length} chunks from ${simplifiedPoints.length} simplified points`, {
-    chunks: queries.length,
-    simplifiedPoints: simplifiedPoints.length,
-    radiusM,
-    maxPointsPerQuery,
-    concurrency,
-    avgQueryChars: Math.round(queries.reduce((s, q) => s + q.length, 0) / queries.length),
-  });
+  log.info(
+    `Built ${initialChunks.length} chunks from ${simplifiedPoints.length} simplified points`,
+    {
+      chunks: initialChunks.length,
+      simplifiedPoints: simplifiedPoints.length,
+      radiusM,
+      maxPointsPerQuery,
+      concurrency,
+    },
+  );
 
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
   let dedupedCount = 0; // running count of cross-chunk duplicates dropped (AUDIT C+1)
 
-  // Track which chunk indices still need to be fetched
-  let pendingIndices = queries.map((_, i) => i);
+  // Chunks are point arrays, not query strings: a chunk that keeps failing
+  // (POI-dense city area → Overpass timeout) is split in two for the next
+  // round — smaller corridors are much cheaper server-side.
+  let pending: TracePoint[][] = initialChunks;
+  let totalChunks = initialChunks.length;
+  let completed = 0;
   let retryRound = 0;
 
-  const endTotal = log.time(`All ${queries.length} chunks`);
+  const endTotal = log.time(`All ${initialChunks.length} chunks`);
 
-  while (pendingIndices.length > 0 && retryRound <= maxRetryRounds) {
+  while (pending.length > 0 && retryRound <= maxRetryRounds) {
     if (retryRound > 0) {
       // Backoff before retry round: 10s, 20s, 30s
       const backoffMs = 10_000 * retryRound;
       log.warn(
-        `Retry round ${retryRound}/${maxRetryRounds}: ${pendingIndices.length} chunks to retry after ${backoffMs / 1000}s backoff`,
-        {
-          retryRound,
-          pendingCount: pendingIndices.length,
-          backoffMs,
-        },
+        `Retry round ${retryRound}/${maxRetryRounds}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
+        { retryRound, pendingCount: pending.length, backoffMs },
       );
       await new Promise((r) => setTimeout(r, backoffMs));
     }
 
-    const failedThisRound: number[] = [];
-    let completedOverall = queries.length - pendingIndices.length;
+    const failedThisRound: TracePoint[][] = [];
 
     // Process pending chunks with limited concurrency
     let i = 0;
-    while (i < pendingIndices.length) {
-      const batch = pendingIndices.slice(i, i + concurrency);
-      log.debug(
-        `${retryRound > 0 ? `[retry ${retryRound}] ` : ""}Sending batch (chunks ${batch.map((c) => c + 1).join(",")})`,
-        {
-          batchSize: batch.length,
-          retryRound,
-        },
-      );
+    while (i < pending.length) {
+      const batch = pending.slice(i, i + concurrency);
 
       const results = await Promise.allSettled(
-        batch.map((chunkIdx) =>
-          queryOverpass(queries[chunkIdx]).then((r) => ({ chunkIndex: chunkIdx, result: r })),
+        batch.map((chunk) =>
+          queryOverpass(buildOverpassQuery(chunk, radiusM, categories)).then((result) => result),
         ),
       );
 
-      for (const r of results) {
+      for (const [j, r] of results.entries()) {
         if (r.status === "fulfilled") {
-          const { chunkIndex, result } = r.value;
+          completed++;
           let newCount = 0;
-          for (const el of result.elements) {
+          for (const el of r.value.elements) {
             const uid = `${el.type}_${el.id}`;
             if (!seenIds.has(uid)) {
               seenIds.add(uid);
@@ -315,43 +320,48 @@ export async function queryAllPois(
               newCount++;
             }
           }
-          dedupedCount += result.elements.length - newCount;
-          log.debug(
-            `Chunk ${chunkIndex + 1}: ${result.elements.length} elements, ${newCount} new (${result.elements.length - newCount} deduped)`,
-          );
+          dedupedCount += r.value.elements.length - newCount;
+          log.debug(`Chunk ok: ${r.value.elements.length} elements, ${newCount} new`);
         } else {
-          failedThisRound.push(batch[results.indexOf(r)]);
-          log.error(`Chunk ${batch[results.indexOf(r)] + 1} failed: ${r.reason}`);
+          const chunk = batch[j];
+          if (retryRound < maxRetryRounds && chunk.length >= 4) {
+            const halves = splitChunk(chunk);
+            failedThisRound.push(...halves);
+            totalChunks += halves.length - 1;
+            log.warn(`Chunk of ${chunk.length} pts failed — split for next round: ${r.reason}`);
+          } else {
+            failedThisRound.push(chunk);
+            log.error(`Chunk failed: ${r.reason}`);
+          }
         }
-        completedOverall++;
         onProgress?.({
-          completedChunks: completedOverall,
-          totalChunks: queries.length,
+          completedChunks: completed,
+          totalChunks,
           retryRound,
-          retryingCount: retryRound > 0 ? pendingIndices.length : 0,
+          retryingCount: retryRound > 0 ? pending.length : 0,
         });
       }
 
       i += concurrency;
     }
 
-    pendingIndices = failedThisRound;
+    pending = failedThisRound;
     retryRound++;
   }
 
-  const finalFailed = pendingIndices.length;
+  const finalFailed = pending.length;
 
   endTotal();
   log.info(
-    `Total: ${allElements.length} unique elements from ${queries.length} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`,
+    `Total: ${allElements.length} unique elements from ${totalChunks} chunks (${finalFailed} permanently failed after ${retryRound - 1} retry rounds)`,
     {
       totalElements: allElements.length,
       totalDeduped: dedupedCount,
       failedChunks: finalFailed,
-      totalChunks: queries.length,
+      totalChunks,
       retryRounds: retryRound - 1,
     },
   );
 
-  return { elements: allElements, failedChunks: finalFailed, totalChunks: queries.length };
+  return { elements: allElements, failedChunks: finalFailed, totalChunks };
 }

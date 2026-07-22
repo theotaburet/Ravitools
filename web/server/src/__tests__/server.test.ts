@@ -22,15 +22,27 @@ const { default: app } = await import("../index");
 // ---------------------------------------------------------------------------
 
 /** Create a fake Response object matching the Fetch API */
-function fakeResponse(body: string, init: { status?: number; ok?: boolean } = {}): Response {
+function fakeResponse(
+  body: string,
+  init: { status?: number; ok?: boolean; headers?: Record<string, string> } = {},
+): Response {
   const status = init.status ?? 200;
   return {
     ok: init.ok ?? (status >= 200 && status < 300),
     status,
     text: () => Promise.resolve(body),
     json: () => Promise.resolve(JSON.parse(body)),
-    headers: new Headers({ "Content-Type": "application/json" }),
+    headers: new Headers({ "Content-Type": "application/json", ...init.headers }),
   } as unknown as Response;
+}
+
+/** 429 with Retry-After: 0 so mirror-retry tests don't sleep */
+function rateLimited(): Response {
+  return fakeResponse("Rate limited", {
+    status: 429,
+    ok: false,
+    headers: { "Retry-After": "0" },
+  });
 }
 
 /** Generate a unique Overpass query to avoid cache collisions between tests */
@@ -130,13 +142,25 @@ describe("/overpass", () => {
 
   it("forwards upstream error status", async () => {
     const query = uniqueQuery("upstream-err");
-    // Both Overpass URLs return 429 (fallback tries both)
-    mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
-    mockFetch.mockResolvedValueOnce(fakeResponse("Rate limited", { status: 429, ok: false }));
+    // Every mirror rate-limits (each gets one Retry-After retry → 2 calls per mirror)
+    mockFetch.mockResolvedValue(rateLimited());
 
     const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(429);
     expect(res.body.error).toMatch(/Overpass API error/);
+    expect(mockFetch).toHaveBeenCalledTimes(8);
+  });
+
+  it("retries the same mirror once after a 429", async () => {
+    const query = uniqueQuery("retry-429");
+    const upstream = JSON.stringify({ elements: [{ id: 7 }] });
+    mockFetch.mockResolvedValueOnce(rateLimited());
+    mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
+
+    const res = await request(app).post("/overpass").send({ data: query });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text).elements[0].id).toBe(7);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("returns 504 on timeout (AbortError)", async () => {
@@ -152,8 +176,8 @@ describe("/overpass", () => {
 
   it("returns 502 on generic fetch failure", async () => {
     const query = uniqueQuery("network-err");
-    mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
-    mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    // All mirrors unreachable
+    mockFetch.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const res = await request(app).post("/overpass").send({ data: query });
     expect(res.status).toBe(502);

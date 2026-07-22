@@ -44,17 +44,96 @@ export function buildProfile(points: TracePoint[]): ProfilePoint[] | null {
 
 /**
  * Reduce a profile to at most maxPoints, always keeping first and last.
- * ponytail: plain stride sampling — bucket min/max preservation if spikes
- * visibly disappear on real routes.
+ * Per-bucket min AND max are kept (not a stride) so short steep spikes —
+ * the ones that hurt legs — survive the reduction.
  */
 export function downsampleProfile(profile: ProfilePoint[], maxPoints = 300): ProfilePoint[] {
   if (profile.length <= maxPoints) return profile;
-  const out: ProfilePoint[] = [];
-  const step = (profile.length - 1) / (maxPoints - 1);
-  for (let i = 0; i < maxPoints; i++) {
-    out.push(profile[Math.round(i * step)]);
+  const buckets = Math.max(1, Math.floor(maxPoints / 2) - 1);
+  const out: ProfilePoint[] = [profile[0]];
+  const step = (profile.length - 2) / buckets;
+  for (let k = 0; k < buckets; k++) {
+    const from = 1 + Math.floor(k * step);
+    const to = Math.min(profile.length - 2, 1 + Math.floor((k + 1) * step) - 1);
+    if (to < from) continue;
+    let lo = from;
+    let hi = from;
+    for (let i = from; i <= to; i++) {
+      if (profile[i].ele < profile[lo].ele) lo = i;
+      if (profile[i].ele > profile[hi].ele) hi = i;
+    }
+    if (lo === hi) out.push(profile[lo]);
+    else out.push(profile[Math.min(lo, hi)], profile[Math.max(lo, hi)]);
   }
+  out.push(profile[profile.length - 1]);
   return out;
+}
+
+export interface SlopeBucket {
+  startM: number;
+  endM: number;
+  /** Signed % slope; the steepest (by |value|) segment touching the bucket */
+  slopePct: number;
+}
+
+/**
+ * Worst slope per distance bucket over [startM, endM], computed on the
+ * FULL-RESOLUTION profile — downsampling would smooth away exactly the short
+ * steep ramps this is meant to expose.
+ * ponytail: segments < 5m run are skipped and slopes clamped to ±35% — GPS
+ * elevation noise on tiny runs produces absurd gradients.
+ */
+export function slopeBuckets(
+  profile: ProfilePoint[],
+  startM: number,
+  endM: number,
+  buckets: number,
+): SlopeBucket[] {
+  if (profile.length < 2 || endM <= startM || buckets < 1) return [];
+  const w = (endM - startM) / buckets;
+  const worst = new Array<number>(buckets).fill(0);
+  for (let i = 1; i < profile.length; i++) {
+    const a = profile[i - 1];
+    const b = profile[i];
+    if (b.dist < startM || a.dist > endM) continue;
+    const run = b.dist - a.dist;
+    if (run < 5) continue;
+    const slope = Math.max(-35, Math.min(35, ((b.ele - a.ele) / run) * 100));
+    const k0 = Math.max(0, Math.floor((a.dist - startM) / w));
+    const k1 = Math.min(buckets - 1, Math.floor((b.dist - startM) / w));
+    for (let k = k0; k <= k1; k++) {
+      if (Math.abs(slope) > Math.abs(worst[k])) worst[k] = slope;
+    }
+  }
+  return worst.map((s, k) => ({
+    startM: startM + k * w,
+    endM: startM + (k + 1) * w,
+    slopePct: s,
+  }));
+}
+
+/**
+ * Cumulative elevation gain (D+) from the trace start up to `dist`, with
+ * linear interpolation inside the last segment.
+ * ponytail: O(n) per call over a ≤300-point downsampled profile — fine for
+ * mousemove; prefix sums if a profiler ever disagrees.
+ */
+export function gainAt(profile: ProfilePoint[], dist: number): number {
+  let gain = 0;
+  for (let i = 1; i < profile.length; i++) {
+    const a = profile[i - 1];
+    const b = profile[i];
+    if (a.dist >= dist) break;
+    if (b.dist <= dist) {
+      if (b.ele > a.ele) gain += b.ele - a.ele;
+      continue;
+    }
+    const f = b.dist === a.dist ? 0 : (dist - a.dist) / (b.dist - a.dist);
+    const ele = a.ele + (b.ele - a.ele) * f;
+    if (ele > a.ele) gain += ele - a.ele;
+    break;
+  }
+  return gain;
 }
 
 /** Linear interpolation of the profile at a given distance (clamped to ends). */

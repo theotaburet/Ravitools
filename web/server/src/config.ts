@@ -2,17 +2,27 @@
 // Config — env vars parsed once at import time
 // ---------------------------------------------------------------------------
 export const PORT = parseInt(process.env.PORT || "3001", 10);
-export const OVERPASS_URL = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
-export const OVERPASS_FALLBACK_URL =
-  process.env.OVERPASS_FALLBACK_URL || "https://overpass.kumi.systems/api/interpreter";
+// Mirror pool, tried in order. Public instances flap (429/406/slowness),
+// so robustness comes from the pool, not from any single URL.
+export const OVERPASS_URLS = (
+  process.env.OVERPASS_URLS ||
+  [
+    process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  ].join(",")
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 export const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
 export const NOMINATIM_URL = process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
 
 // AUDIT S1: fail fast on a malformed upstream URL from env (config typo) rather than
 // discovering it on the first request. (Not a public-IP check — SearXNG is intentionally local.)
 for (const [name, url] of Object.entries({
-  OVERPASS_URL,
-  OVERPASS_FALLBACK_URL,
+  ...Object.fromEntries(OVERPASS_URLS.map((u, i) => [`OVERPASS_URLS[${i}]`, u])),
   SEARXNG_URL,
   NOMINATIM_URL,
 })) {
