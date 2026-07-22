@@ -147,6 +147,8 @@ M0 first (gates everything: CI catches regressions in all later work). M1 before
 
 ## Out of v1 (post-v1 backlog)
 
+- **Dark mode** (priorité haute) — `prefers-color-scheme` + toggle ; thème néobrutaliste lime a déjà des tokens CSS centralisés dans `index.css`.
+- Enrichissement priorisé par isolement (déserts d'abord, zones denses en dernier — le rate-limit tombe alors sur les POIs les moins utiles).
 - Spatial radius-search endpoint (GIST index already exists).
 - Languages beyond FR/EN.
 - Multi-tenant/public hardening (open-proxy, CORS tightening, stronger rate limits) — only if the instance is ever shared.
