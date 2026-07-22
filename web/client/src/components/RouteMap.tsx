@@ -20,6 +20,7 @@ import {
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
+import { haversine } from "../lib/gpx-parser";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { clusterPois, type PoiCluster } from "../lib/poi-cluster";
 import { CATEGORY_EMOJI } from "../lib/poi-config";
@@ -27,6 +28,7 @@ import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
 import {
   mapFocusAtom,
+  mapTraceHoverAtom,
   mapViewBoundsAtom,
   profileHoverAtom,
   selectedPoiIdAtom,
@@ -124,10 +126,19 @@ const TraceLine = memo(function TraceLine({
   isDimmed: boolean;
   onHighlight: (id: string | null) => void;
 }) {
+  const setMapTraceHover = useSetAtom(mapTraceHoverAtom);
   const positions = useMemo(
     () => trace.original.map((p) => [p.lat, p.lon] as [number, number]),
     [trace],
   );
+  // Cumulative meters per point — same referential as the elevation profile
+  const cumDist = useMemo(() => {
+    const d = new Float64Array(trace.original.length);
+    for (let i = 1; i < trace.original.length; i++) {
+      d[i] = d[i - 1] + haversine(trace.original[i - 1], trace.original[i]);
+    }
+    return d;
+  }, [trace]);
   if (positions.length === 0) return null;
 
   const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
@@ -147,7 +158,27 @@ const TraceLine = memo(function TraceLine({
         }}
         eventHandlers={{
           mouseover: () => onHighlight(trace.id),
-          mouseout: () => onHighlight(null),
+          mouseout: () => {
+            onHighlight(null);
+            setMapTraceHover(null);
+          },
+          // ponytail: argmin over all points per mousemove — O(n) is µs even at 20k pts
+          mousemove: (e) => {
+            const { lat, lng } = e.latlng;
+            const cos = Math.cos((lat * Math.PI) / 180);
+            let best = 0;
+            let bestD = Infinity;
+            for (let i = 0; i < positions.length; i++) {
+              const dLat = positions[i][0] - lat;
+              const dLon = (positions[i][1] - lng) * cos;
+              const d2 = dLat * dLat + dLon * dLon;
+              if (d2 < bestD) {
+                bestD = d2;
+                best = i;
+              }
+            }
+            setMapTraceHover({ traceId: trace.id, dist: cumDist[best] });
+          },
         }}
       >
         <Tooltip sticky>

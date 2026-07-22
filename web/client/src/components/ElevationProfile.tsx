@@ -23,6 +23,7 @@ import { filteredPoisAtom, poisAtom, tracesAtom } from "../state/route";
 import {
   gapThresholdKmAtom,
   mapFocusAtom,
+  mapTraceHoverAtom,
   mapViewBoundsAtom,
   profileHoverAtom,
   selectedPoiIdAtom,
@@ -34,12 +35,10 @@ const VIEW_W = 1000;
 const VIEW_H = 100;
 const PAD_Y = 8;
 
-/** Continuous slope → color: sky (descent) → lime (theme) → yellow → red → near-black */
+/** Continuous slope → color: lime (≤0%, theme green) → yellow → red → near-black */
 const SLOPE_STOPS: [number, [number, number, number]][] = [
-  [-6, [125, 211, 252]],
-  [-2, [224, 242, 254]],
-  [1, [190, 242, 100]],
-  [5, [250, 204, 21]],
+  [0, [190, 242, 100]],
+  [4, [250, 204, 21]],
   [8, [251, 146, 60]],
   [11, [239, 68, 68]],
   [15, [153, 27, 27]],
@@ -320,6 +319,7 @@ export function ElevationProfile() {
 
   const trace = traces.find((tr) => tr.id === traceChoice) ?? traces[0];
   const mapBounds = useAtomValue(mapViewBoundsAtom);
+  const mapHover = useAtomValue(mapTraceHoverAtom);
 
   // Full-resolution profile for slope/D+ (no smoothing), downsampled for drawing
   const fullProfile = useMemo(() => (trace ? (buildProfile(trace.original) ?? []) : []), [trace]);
@@ -425,8 +425,19 @@ export function ElevationProfile() {
     setProfileHover(null);
   };
 
+  // Map-trace hover mirrored onto the profile; local mouse hover wins
+  const mirroredX =
+    hoverX == null &&
+    mapHover &&
+    mapHover.traceId === trace.id &&
+    mapHover.dist >= winStart &&
+    mapHover.dist <= winEnd
+      ? (mapHover.dist - winStart) / (winEnd - winStart)
+      : null;
+  const cursorX = hoverX ?? mirroredX;
+
   const hoverInfo =
-    hoverX != null ? profileAt(profile, winStart + hoverX * (winEnd - winStart)) : null;
+    cursorX != null ? profileAt(profile, winStart + cursorX * (winEnd - winStart)) : null;
   // Local slope at the cursor: ±50m window on the full-res profile
   let hoverSlope = 0;
   if (hoverInfo) {
@@ -522,25 +533,25 @@ export function ElevationProfile() {
             onSelectPoi={setSelectedPoiId}
             onFocusCluster={handleFocusCluster}
           />
-          {hoverX != null && (
+          {cursorX != null && (
             <div
               className="elevation-cursor-line"
-              style={{ left: `${(hoverX * 100).toFixed(2)}%` }}
+              style={{ left: `${(cursorX * 100).toFixed(2)}%` }}
             />
           )}
-          {hoverInfo && hoverX != null && (
+          {hoverInfo && cursorX != null && (
             <>
               <div
                 className="elevation-dot"
                 style={{
-                  left: `${(hoverX * 100).toFixed(2)}%`,
+                  left: `${(cursorX * 100).toFixed(2)}%`,
                   top: `${((y(hoverInfo.ele) / VIEW_H) * 100).toFixed(2)}%`,
                 }}
               />
               <div
-                className={`elevation-tooltip${hoverX > 0.6 ? " flip" : ""}`}
+                className={`elevation-tooltip${cursorX > 0.6 ? " flip" : ""}`}
                 style={{
-                  left: `${(hoverX * 100).toFixed(2)}%`,
+                  left: `${(cursorX * 100).toFixed(2)}%`,
                   top: `${((y(hoverInfo.ele) / VIEW_H) * 100).toFixed(2)}%`,
                 }}
               >
