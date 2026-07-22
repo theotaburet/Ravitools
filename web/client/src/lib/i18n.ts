@@ -77,6 +77,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Une session est enregistrée. Reprendre où vous en étiez ?",
   },
   "session.resume": { en: "Resume", fr: "Reprendre" },
+  "theme.toggle": { en: "Toggle dark mode", fr: "Basculer le mode sombre" },
   "steps.label": { en: "Route preparation steps", fr: "Étapes de préparation" },
   "steps.trace": { en: "Load a route", fr: "Charger une trace" },
   "steps.filter": { en: "Refine the POIs", fr: "Affiner les POI" },

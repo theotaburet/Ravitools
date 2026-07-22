@@ -21,11 +21,56 @@
   --color-shadow: #141310;
   --color-pink: #f472b6;
   --color-lime: #a3e635;
+  --color-ink: #141310;
   --color-cyan: #22d3ee;
   --color-orange: #fb923c;
 
   --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme — token overrides only; data-theme is set on <html> by App
+   (stored preference, defaults to prefers-color-scheme). Ink stays constant:
+   text on lime/pink/cyan chips is near-black in both themes.
+   --------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --color-bg: #191813;
+  --color-surface: #24221b;
+  --color-text: #f2efe4;
+  --color-muted: #a5a091;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93c5fd;
+  --color-border: #f2efe4;
+  --color-shadow: #000000;
+  color-scheme: dark;
+}
+
+/* Map in dark: invert the OSM tiles (classic trick, no dark tile provider) */
+[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.6);
+}
+
+/* Leaflet chrome (popups, zoom buttons, attribution) follows the theme */
+[data-theme="dark"] .leaflet-popup-content-wrapper,
+[data-theme="dark"] .leaflet-popup-tip,
+[data-theme="dark"] .leaflet-bar a,
+[data-theme="dark"] .leaflet-control-attribution,
+[data-theme="dark"] .leaflet-tooltip {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+[data-theme="dark"] .leaflet-tooltip {
+  border-color: var(--color-border);
+}
+[data-theme="dark"] .leaflet-tooltip-top::before {
+  border-top-color: var(--color-border);
+}
+[data-theme="dark"] .leaflet-bar a {
+  border-bottom-color: var(--color-border);
+}
+[data-theme="dark"] .leaflet-container a.leaflet-popup-close-button {
+  color: var(--color-muted);
 }
 
 /* Base resets */
@@ -73,14 +118,14 @@ input[type="checkbox"] {
 
 /* Hard shadow boxes */
 .neo-box {
-  border: 3px solid #000;
-  background: #fff;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
 }
 
 .neo-box-sm {
-  border: 2px solid #000;
-  background: #fff;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 3px 3px 0 var(--color-shadow);
 }
 
@@ -96,7 +141,7 @@ input[type="checkbox"] {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   font-weight: 700;
   font-size: 0.875rem;
   text-transform: uppercase;
@@ -129,19 +174,19 @@ input[type="checkbox"] {
 
 /* Button variants */
 .neo-btn {
-  background: #fff;
-  color: #000;
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 /* Primary action = the lime signal color (was template blue) */
 .neo-btn-primary {
   background: var(--color-lime);
-  color: #000;
+  color: var(--color-ink);
 }
 
 .neo-btn-secondary {
-  background: #fff;
-  color: #000;
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .neo-btn-danger {
@@ -151,12 +196,12 @@ input[type="checkbox"] {
 
 .neo-btn-lime {
   background: var(--color-lime);
-  color: #000;
+  color: var(--color-ink);
 }
 
 .neo-btn-pink {
   background: var(--color-pink);
-  color: #000;
+  color: var(--color-ink);
 }
 
 /* Small button modifier */
@@ -171,16 +216,17 @@ input[type="checkbox"] {
   transform: translate(1px, 1px);
 }
 
-/* Tags / badges */
+/* Tags / badges — always sit on a colored bg (bg-lime, …): ink text */
 .neo-tag {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   padding: 0.125rem 0.5rem;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
+  color: var(--color-ink);
   box-shadow: 2px 2px 0 var(--color-shadow);
 }
 
@@ -200,8 +246,8 @@ input[type="checkbox"] {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-right: 3px solid #000;
-  background: #fff;
+  border-right: 3px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .sidebar-scroll {
@@ -237,8 +283,8 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .elevation-strip {
-  border-top: 3px solid #000;
-  background: #fff;
+  border-top: 3px solid var(--color-border);
+  background: var(--color-surface);
   flex-shrink: 0;
 }
 
@@ -279,7 +325,7 @@ input[type="checkbox"] {
 .elevation-chip {
   width: 1.25rem;
   height: 0.75rem;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   cursor: pointer;
   opacity: 0.4;
   padding: 0;
@@ -293,7 +339,7 @@ input[type="checkbox"] {
 .elevation-body {
   position: relative;
   height: 160px;
-  border-top: 2px solid #000;
+  border-top: 2px solid var(--color-border);
 }
 
 .elevation-svg {
@@ -313,8 +359,8 @@ input[type="checkbox"] {
   display: flex;
   gap: 6px;
   align-items: center;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid #000;
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  border: 1px solid var(--color-border);
   padding: 1px 5px;
   font-family: var(--font-mono);
   font-size: 0.55rem;
@@ -332,11 +378,11 @@ input[type="checkbox"] {
   width: 8px;
   height: 8px;
   display: inline-block;
-  border: 1px solid #000;
+  border: 1px solid var(--color-border);
 }
 
 .elevation-grid {
-  stroke: #000;
+  stroke: var(--color-border);
   opacity: 0.15;
   stroke-dasharray: 4 4;
 }
@@ -365,7 +411,7 @@ input[type="checkbox"] {
   height: 10px;
   border-radius: 50%;
   background: var(--color-lime);
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -373,8 +419,8 @@ input[type="checkbox"] {
 .elevation-tooltip {
   position: absolute;
   transform: translate(12px, -130%);
-  background: #fff;
-  border: 2px solid #000;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
   box-shadow: 3px 3px 0 var(--color-shadow);
   padding: 2px 8px;
   font-family: var(--font-mono);
@@ -393,7 +439,7 @@ input[type="checkbox"] {
   bottom: 8px;
   font-size: 1rem;
   pointer-events: none;
-  filter: drop-shadow(1px 1px 0 #fff);
+  filter: drop-shadow(1px 1px 0 var(--color-surface));
 }
 
 .elevation-flag.left {
@@ -407,8 +453,8 @@ input[type="checkbox"] {
 .elevation-offscreen {
   position: absolute;
   top: 4px;
-  background: #fff;
-  border: 2px solid #000;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
   box-shadow: 2px 2px 0 var(--color-shadow);
   padding: 1px 6px;
   font-family: var(--font-mono);
@@ -437,7 +483,7 @@ input[type="checkbox"] {
   justify-content: center;
   border-radius: 50%;
   background: var(--color-lime);
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   box-shadow: 2px 2px 0 var(--color-shadow);
   font-family: var(--font-mono);
   font-weight: 700;
@@ -459,18 +505,18 @@ input[type="checkbox"] {
   line-height: 14px;
   text-align: center;
   font-size: 11px;
-  color: #000;
+  color: var(--color-text);
   text-shadow:
-    -1px -1px 0 #fff,
-    1px -1px 0 #fff,
-    -1px 1px 0 #fff,
-    1px 1px 0 #fff;
+    -1px -1px 0 var(--color-surface),
+    1px -1px 0 var(--color-surface),
+    -1px 1px 0 var(--color-surface),
+    1px 1px 0 var(--color-surface);
   pointer-events: none;
 }
 
 .trace-flag {
   font-size: 1.2rem;
-  filter: drop-shadow(1px 1px 0 #fff);
+  filter: drop-shadow(1px 1px 0 var(--color-surface));
   pointer-events: none;
 }
 
@@ -496,7 +542,7 @@ input[type="checkbox"] {
 
 .elevation-line {
   fill: none;
-  stroke: #000;
+  stroke: var(--color-border);
   stroke-width: 2px;
 }
 
@@ -505,7 +551,7 @@ input[type="checkbox"] {
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 1px dashed #000;
+  border-left: 1px dashed var(--color-border);
   pointer-events: none;
 }
 
@@ -545,10 +591,10 @@ input[type="checkbox"] {
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   border-radius: 999px;
   background: #a3e635;
-  box-shadow: 2px 2px 0 #000;
+  box-shadow: 2px 2px 0 var(--color-border);
   font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 700;
@@ -572,7 +618,7 @@ input[type="checkbox"] {
   justify-content: center;
   gap: 0.75rem;
   padding: 2rem 1rem;
-  border: 3px dashed #000;
+  border: 3px dashed var(--color-border);
   cursor: pointer;
   transition:
     background-color 150ms,
@@ -602,8 +648,8 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .status-bar {
-  border: 2px solid #000;
-  background: #fff;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 3px 3px 0 var(--color-shadow);
   display: flex;
   align-items: center;
@@ -623,7 +669,7 @@ input[type="checkbox"] {
   display: inline-block;
   width: 1rem;
   height: 1rem;
-  border: 3px solid #000;
+  border: 3px solid var(--color-border);
   border-top-color: transparent;
   border-radius: 50%;
   flex-shrink: 0;
@@ -724,8 +770,8 @@ input[type="checkbox"] {
   justify-content: center;
   width: 1.25rem;
   height: 1.25rem;
-  border: 2px solid #000;
-  background: #fff;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   font-weight: 900;
   font-size: 0.875rem;
   line-height: 1;
@@ -736,10 +782,10 @@ input[type="checkbox"] {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
-  color: #000;
+  color: var(--color-text);
   padding: 0 0.375rem;
-  background: #fff;
-  border: 1.5px solid #000;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
 }
 
 .filter-body {
@@ -753,7 +799,7 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  border-bottom: 2px solid #000;
+  border-bottom: 2px solid var(--color-border);
   background: var(--color-lime);
   font-weight: 700;
   font-size: 0.875rem;
@@ -777,7 +823,7 @@ input[type="checkbox"] {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 15%, transparent);
   font-size: 0.875rem;
   transition: background-color 100ms;
 }
@@ -794,14 +840,14 @@ input[type="checkbox"] {
   width: 1rem;
   height: 1rem;
   cursor: pointer;
-  accent-color: #000;
+  accent-color: var(--color-text);
 }
 
 .filter-dot {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 50%;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -821,7 +867,7 @@ input[type="checkbox"] {
   letter-spacing: 0.1em;
   color: var(--color-muted);
   background: var(--color-bg);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 10%, transparent);
 }
 
 /* ---------------------------------------------------------------------------
@@ -829,8 +875,8 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .export-panel {
-  border: 3px solid #000;
-  background: #fff;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
   padding: 1rem;
 }
@@ -843,7 +889,7 @@ input[type="checkbox"] {
 }
 
 .export-divider {
-  border-top: 2px dashed #000;
+  border-top: 2px dashed var(--color-border);
   margin: 0.75rem 0;
 }
 
@@ -856,17 +902,17 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  border-bottom: 2px solid #000;
+  border-bottom: 2px solid var(--color-border);
   background: var(--color-cyan);
   font-weight: 700;
   font-size: 0.875rem;
   text-transform: uppercase;
-  color: #000;
+  color: var(--color-ink);
 }
 
 .poi-sort-btn {
   background: none;
-  border: 1.5px solid #000;
+  border: 1.5px solid var(--color-border);
   padding: 0.125rem 0.5rem;
   font-size: 0.625rem;
   font-weight: 700;
@@ -877,7 +923,7 @@ input[type="checkbox"] {
 }
 
 .poi-sort-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: color-mix(in srgb, var(--color-border) 10%, transparent);
 }
 
 .poi-list-scroll {
@@ -890,7 +936,7 @@ input[type="checkbox"] {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 12%, transparent);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background-color 100ms;
@@ -918,7 +964,7 @@ input[type="checkbox"] {
   width: 0.625rem;
   height: 0.625rem;
   border-radius: 50%;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   margin-top: 0.375rem;
   flex-shrink: 0;
 }
@@ -956,10 +1002,10 @@ input[type="checkbox"] {
   justify-content: center;
   border-radius: 50%;
   border: 2.5px solid currentColor;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   font-size: 13px;
   line-height: 1;
-  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 1px 1px 0 color-mix(in srgb, var(--color-shadow) 30%, transparent);
   cursor: pointer;
   transition:
     transform 100ms,
@@ -968,10 +1014,10 @@ input[type="checkbox"] {
 
 .poi-marker-selected {
   border-width: 3px;
-  background: rgba(255, 255, 255, 0.95);
+  background: color-mix(in srgb, var(--color-surface) 95%, transparent);
   box-shadow:
     0 0 0 2px rgba(59, 130, 246, 0.5),
-    2px 2px 0 rgba(0, 0, 0, 0.3);
+    2px 2px 0 color-mix(in srgb, var(--color-shadow) 30%, transparent);
   /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet marker stacking */
   z-index: 1000 !important;
 }
@@ -1011,7 +1057,7 @@ input[type="checkbox"] {
   align-items: center;
   gap: 0.25rem;
   padding: 0.125rem 0.5rem;
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1083,8 +1129,8 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .enrichment-panel {
-  border: 3px solid #000;
-  background: #fff;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
   padding: 1rem;
 }
@@ -1101,7 +1147,7 @@ input[type="checkbox"] {
   font-family: var(--font-mono);
   color: var(--color-muted);
   background: var(--color-bg);
-  border: 2px solid rgba(0, 0, 0, 0.2);
+  border: 2px solid color-mix(in srgb, var(--color-border) 20%, transparent);
   padding: 0.5rem;
   margin-bottom: 0.75rem;
   line-height: 1.4;
@@ -1136,8 +1182,8 @@ input[type="checkbox"] {
 }
 
 .sandbox-panel {
-  border: 3px solid #000;
-  background: #fff;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
   padding: 1rem;
 }
@@ -1178,8 +1224,8 @@ input[type="checkbox"] {
 }
 
 .sandbox-field select {
-  border: 2px solid #000;
-  background: #fff;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   padding: 0.5rem;
   font-size: 0.75rem;
 }
@@ -1200,7 +1246,7 @@ input[type="checkbox"] {
 }
 
 .sandbox-card {
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   padding: 0.75rem;
   background: var(--color-bg);
 }
@@ -1266,7 +1312,7 @@ input[type="checkbox"] {
   width: 100%;
   height: 0.75rem;
   background: var(--color-bg);
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   overflow: hidden;
 }
 
@@ -1364,13 +1410,13 @@ input[type="checkbox"] {
   display: inline-flex;
   align-items: center;
   padding: 0.05rem 0.35rem;
-  border: 1.5px solid #000;
+  border: 1.5px solid var(--color-border);
   font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #000;
-  background: #e5e5e5;
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
 .poi-badge-ai {
@@ -1414,7 +1460,7 @@ input[type="checkbox"] {
 .poi-confidence {
   display: inline-flex;
   padding: 0 0.375rem;
-  border: 1.5px solid #000;
+  border: 1.5px solid var(--color-border);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1422,17 +1468,17 @@ input[type="checkbox"] {
 
 .poi-confidence-high {
   background: var(--color-lime);
-  color: #000;
+  color: var(--color-text);
 }
 
 .poi-confidence-medium {
   background: var(--color-warning);
-  color: #000;
+  color: var(--color-text);
 }
 
 .poi-confidence-low {
   background: #fecaca;
-  color: #000;
+  color: var(--color-text);
 }
 
 .poi-confidence-none {
@@ -1462,7 +1508,7 @@ input[type="checkbox"] {
   gap: 0.125rem;
   margin-top: 0.25rem;
   padding-left: 0.25rem;
-  border-left: 2px solid rgba(0, 0, 0, 0.15);
+  border-left: 2px solid color-mix(in srgb, var(--color-border) 15%, transparent);
 }
 
 .poi-source-link {
@@ -1484,8 +1530,8 @@ input[type="checkbox"] {
   width: 1rem;
   height: 1rem;
   cursor: pointer;
-  accent-color: #000;
-  border: 2px solid #000;
+  accent-color: var(--color-text);
+  border: 2px solid var(--color-border);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1493,7 +1539,7 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .session-prompt {
-  border: 3px solid #000;
+  border: 3px solid var(--color-border);
   background: var(--color-lime);
   box-shadow: 4px 4px 0 var(--color-shadow);
   padding: 1rem;
@@ -1524,7 +1570,7 @@ input[type="checkbox"] {
     min-width: unset;
     max-height: 50vh;
     border-right: none;
-    border-top: 3px solid #000;
+    border-top: 3px solid var(--color-border);
   }
 
   .map-container {
@@ -1573,8 +1619,8 @@ input[type="checkbox"] {
   bottom: 24px;
   left: 12px;
   z-index: 1000;
-  border: 3px solid #000;
-  background: #fff;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
   padding: 0.5rem 0.75rem;
   max-width: 220px;
@@ -1617,7 +1663,7 @@ input[type="checkbox"] {
   display: inline-block;
   width: 1rem;
   height: 4px;
-  border: 1px solid #000;
+  border: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -1642,7 +1688,7 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .debug-panel {
-  border: 2px solid #000;
+  border: 2px solid var(--color-border);
   background: #1a1a1a;
   box-shadow: 3px 3px 0 var(--color-shadow);
 }
@@ -1678,7 +1724,7 @@ input[type="checkbox"] {
   font-size: 0.625rem;
   padding: 0 0.375rem;
   background: var(--color-lime);
-  color: #000;
+  color: var(--color-text);
   font-weight: 700;
 }
 
@@ -1767,7 +1813,7 @@ input[type="checkbox"] {
    --------------------------------------------------------------------------- */
 
 .step {
-  border: 3px solid #000;
+  border: 3px solid var(--color-border);
   background: var(--color-surface);
   box-shadow: 4px 4px 0 var(--color-shadow);
 }
@@ -1777,7 +1823,7 @@ input[type="checkbox"] {
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0.85rem;
-  border-bottom: 3px solid #000;
+  border-bottom: 3px solid var(--color-border);
   background: var(--color-bg);
 }
 
@@ -1789,8 +1835,8 @@ input[type="checkbox"] {
   height: 1.9rem;
   display: grid;
   place-items: center;
-  border: 2px solid #000;
-  background: #fff;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   flex-shrink: 0;
 }
 
@@ -1814,8 +1860,8 @@ input[type="checkbox"] {
 }
 
 .step--done .step-num {
-  background: #000;
-  color: #fff;
+  background: var(--color-text);
+  color: var(--color-surface);
 }
 
 .step--todo {
@@ -1860,7 +1906,7 @@ input[type="checkbox"] {
 
 .map-empty-card {
   pointer-events: auto;
-  border: 3px solid #000;
+  border: 3px solid var(--color-border);
   background: var(--color-surface);
   box-shadow: 6px 6px 0 var(--color-shadow);
   padding: 1.25rem 1.5rem;
@@ -1956,6 +2002,16 @@ input[type="checkbox"] {
 }
 
 @media print {
+  /* Paper is always light — undo the dark theme for the roadbook */
+  [data-theme="dark"] {
+    --color-bg: #faf7ee;
+    --color-surface: #ffffff;
+    --color-text: #141310;
+    --color-muted: #67635a;
+    --color-border: #141310;
+    --color-shadow: #141310;
+    color-scheme: light;
+  }
   body:has(.roadbook-overlay) > *:not(.roadbook-overlay) {
     display: none;
   }

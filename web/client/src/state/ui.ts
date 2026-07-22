@@ -3,7 +3,14 @@
 // ---------------------------------------------------------------------------
 
 import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import type { TargetLanguage } from "../types";
+
+/** Persisted theme; defaults to the OS preference on first visit */
+export const themeAtom = atomWithStorage<"light" | "dark">(
+  "ravitools.theme",
+  window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+);
 
 export const targetLanguageAtom = atom<TargetLanguage>("en");
 export const enrichAllAtom = atom(false);

@@ -37,6 +37,7 @@ import {
   selectedPoiIdAtom,
   showResumePromptAtom,
   targetLanguageAtom,
+  themeAtom,
 } from "./state/ui";
 
 const EnrichmentSandbox = lazy(() =>
@@ -66,6 +67,10 @@ export default function App() {
   const enrichments = useAtomValue(enrichmentsAtom);
 
   const [targetLanguage, setTargetLanguage] = useAtom(targetLanguageAtom);
+  const [theme, setTheme] = useAtom(themeAtom);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
   const [enrichAll, setEnrichAll] = useAtom(enrichAllAtom);
   const [selectedPoiId, setSelectedPoiId] = useAtom(selectedPoiIdAtom);
   const [showResumePrompt, setShowResumePrompt] = useAtom(showResumePromptAtom);
@@ -154,13 +159,23 @@ export default function App() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center gap-4 px-5 py-3 border-b-3 border-black bg-white shrink-0">
+      <header className="flex items-center gap-4 px-5 py-3 border-b-3 border-border bg-surface shrink-0">
         <h1 className="text-2xl font-black uppercase tracking-tight">Ravitools</h1>
         <span className="neo-tag bg-lime">beta</span>
         <p className="text-sm text-muted hidden sm:block flex-1">
           {t("app.subtitle", targetLanguage)}
         </p>
         <div className="flex gap-1">
+          <button
+            type="button"
+            className="neo-btn-sm neo-btn-secondary"
+            aria-pressed={theme === "dark"}
+            title={t("theme.toggle", targetLanguage)}
+            aria-label={t("theme.toggle", targetLanguage)}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           {(["fr", "en"] as const).map((lang) => (
             <button
               type="button"

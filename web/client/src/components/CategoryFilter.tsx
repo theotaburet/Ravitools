@@ -87,7 +87,7 @@ export function CategoryFilter() {
       </div>
       {!collapsed && (
         <div className="filter-body">
-          <div className="px-4 py-3 border-b-2 border-black bg-white">
+          <div className="px-4 py-3 border-b-2 border-border bg-surface">
             <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
               <span>{t("filter.maxDistance", targetLanguage)}</span>
               <span>{displayDist}m</span>
