@@ -474,6 +474,26 @@ input[type="checkbox"] {
   pointer-events: none;
 }
 
+/* Map: antpath overlay — marching dashes along the trace (dashArray 10 20 → period 30) */
+.trace-antpath {
+  animation: antpath-march 1.5s linear infinite;
+}
+
+@keyframes antpath-march {
+  from {
+    stroke-dashoffset: 30;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace-antpath {
+    animation: none;
+  }
+}
+
 .elevation-line {
   fill: none;
   stroke: #000;

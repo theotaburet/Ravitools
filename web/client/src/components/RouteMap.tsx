@@ -96,52 +96,6 @@ function MapFocus() {
   return null;
 }
 
-/**
- * Polyline that draws itself start→end (stroke-dashoffset). The animation
- * waits for the post-upload fitBounds to settle (moveend, 600ms fallback):
- * animating before it plays on a path that gets redrawn mid-flight.
- */
-function AnimatedPolyline({ children, ...props }: React.ComponentProps<typeof Polyline>) {
-  const ref = useRef<L.Polyline | null>(null);
-  const map = useMap();
-  const played = useRef(false);
-
-  useEffect(() => {
-    let cleanupId: ReturnType<typeof setTimeout> | undefined;
-    const play = () => {
-      if (played.current) return;
-      played.current = true;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const el = ref.current?.getElement();
-      if (!(el instanceof SVGPathElement)) return;
-      const len = el.getTotalLength();
-      el.style.strokeDasharray = `${len}`;
-      el.style.strokeDashoffset = `${len}`;
-      el.getBoundingClientRect(); // flush so the transition starts from the hidden state
-      el.style.transition = "stroke-dashoffset 2.5s ease-out";
-      el.style.strokeDashoffset = "0";
-      cleanupId = setTimeout(() => {
-        el.style.strokeDasharray = "";
-        el.style.strokeDashoffset = "";
-        el.style.transition = "";
-      }, 2600);
-    };
-    map.once("moveend", play);
-    const fallbackId = setTimeout(play, 600);
-    return () => {
-      map.off("moveend", play);
-      clearTimeout(fallbackId);
-      if (cleanupId) clearTimeout(cleanupId);
-    };
-  }, [map]);
-
-  return (
-    <Polyline ref={ref} {...props}>
-      {children}
-    </Polyline>
-  );
-}
-
 /** Bearing a→b in degrees clockwise from north (flat-earth approx, fine at 500m) */
 function bearing(a: TracePoint, b: TracePoint): number {
   return (
@@ -183,22 +137,36 @@ const TraceLine = memo(function TraceLine({
       : "";
 
   return (
-    <AnimatedPolyline
-      positions={positions}
-      pathOptions={{
-        color: trace.color,
-        weight: isHighlighted ? 6 : 4,
-        opacity: isDimmed ? 0.3 : 0.9,
-      }}
-      eventHandlers={{
-        mouseover: () => onHighlight(trace.id),
-        mouseout: () => onHighlight(null),
-      }}
-    >
-      <Tooltip sticky>
-        {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
-      </Tooltip>
-    </AnimatedPolyline>
+    <>
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: trace.color,
+          weight: isHighlighted ? 6 : 4,
+          opacity: isDimmed ? 0.3 : 0.9,
+        }}
+        eventHandlers={{
+          mouseover: () => onHighlight(trace.id),
+          mouseout: () => onHighlight(null),
+        }}
+      >
+        <Tooltip sticky>
+          {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
+        </Tooltip>
+      </Polyline>
+      {/* ponytail: antpath = dashed overlay + CSS keyframes, no leaflet-ant-path dep */}
+      <Polyline
+        positions={positions}
+        interactive={false}
+        pathOptions={{
+          color: "#ffffff",
+          weight: isHighlighted ? 3 : 2,
+          opacity: isDimmed ? 0.15 : 0.7,
+          dashArray: "10 20",
+          className: "trace-antpath",
+        }}
+      />
+    </>
   );
 });
 
