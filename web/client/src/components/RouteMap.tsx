@@ -127,6 +127,8 @@ const TraceLine = memo(function TraceLine({
   onHighlight: (id: string | null) => void;
 }) {
   const setMapTraceHover = useSetAtom(mapTraceHoverAtom);
+  const clearTimer = useRef<number>(0);
+  useEffect(() => () => clearTimeout(clearTimer.current), []);
   const positions = useMemo(
     () => trace.original.map((p) => [p.lat, p.lon] as [number, number]),
     [trace],
@@ -151,19 +153,43 @@ const TraceLine = memo(function TraceLine({
     <>
       <Polyline
         positions={positions}
+        interactive={false}
         pathOptions={{
           color: trace.color,
           weight: isHighlighted ? 6 : 4,
           opacity: isDimmed ? 0.3 : 0.9,
         }}
+      />
+      {/* ponytail: antpath = dashed overlay + CSS keyframes, no leaflet-ant-path dep */}
+      <Polyline
+        positions={positions}
+        interactive={false}
+        pathOptions={{
+          color: "#ffffff",
+          weight: isHighlighted ? 3 : 2,
+          opacity: isDimmed ? 0.15 : 0.7,
+          dashArray: "10 20",
+          className: "trace-antpath",
+        }}
+      />
+      {/* Invisible wide hit zone: forgiving hover + 600ms grace before clearing */}
+      <Polyline
+        positions={positions}
+        pathOptions={{ color: "#000", weight: 20, opacity: 0 }}
         eventHandlers={{
-          mouseover: () => onHighlight(trace.id),
+          mouseover: () => {
+            clearTimeout(clearTimer.current);
+            onHighlight(trace.id);
+          },
           mouseout: () => {
-            onHighlight(null);
-            setMapTraceHover(null);
+            clearTimer.current = window.setTimeout(() => {
+              onHighlight(null);
+              setMapTraceHover(null);
+            }, 600);
           },
           // ponytail: argmin over all points per mousemove — O(n) is µs even at 20k pts
           mousemove: (e) => {
+            clearTimeout(clearTimer.current);
             const { lat, lng } = e.latlng;
             const cos = Math.cos((lat * Math.PI) / 180);
             let best = 0;
@@ -185,18 +211,6 @@ const TraceLine = memo(function TraceLine({
           {trace.name ?? trace.id} · {distanceKm} km {elevationLabel}
         </Tooltip>
       </Polyline>
-      {/* ponytail: antpath = dashed overlay + CSS keyframes, no leaflet-ant-path dep */}
-      <Polyline
-        positions={positions}
-        interactive={false}
-        pathOptions={{
-          color: "#ffffff",
-          weight: isHighlighted ? 3 : 2,
-          opacity: isDimmed ? 0.15 : 0.7,
-          dashArray: "10 20",
-          className: "trace-antpath",
-        }}
-      />
     </>
   );
 });

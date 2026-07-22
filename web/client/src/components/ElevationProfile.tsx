@@ -417,7 +417,8 @@ export function ElevationProfile() {
     if (!rect) return;
     const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     setHoverX(frac);
-    const at = profileAt(profile, winStart + frac * (winEnd - winStart));
+    // Full-res profile: the downsampled one cuts corners on the map marker
+    const at = profileAt(fullProfile, winStart + frac * (winEnd - winStart));
     setProfileHover({ lat: at.lat, lon: at.lon });
   };
   const handleLeave = () => {
