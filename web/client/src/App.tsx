@@ -46,6 +46,9 @@ const EnrichmentSandbox = lazy(() =>
   })),
 );
 
+// Static build (GitHub Pages): no server, so no enrichment.
+const STANDALONE = import.meta.env.VITE_STANDALONE === "true";
+
 export default function App() {
   const sandboxMode = useMemo(
     () =>
@@ -314,23 +317,29 @@ export default function App() {
               <CategoryFilter />
             </Step>
 
-            {/* 03 — Enrich (optional, needs POIs) */}
-            <Step
-              num={3}
-              title={t("steps.enrich", targetLanguage)}
-              state={enrichStep}
-              doneLabel={t("steps.done", targetLanguage)}
-            >
-              <EnrichmentPanel />
-              {sandboxMode && (
-                <Suspense fallback={null}>
-                  <EnrichmentSandbox />
-                </Suspense>
-              )}
-            </Step>
+            {/* 03 — Enrich (optional, needs POIs and the server: not in the static build) */}
+            {!STANDALONE && (
+              <Step
+                num={3}
+                title={t("steps.enrich", targetLanguage)}
+                state={enrichStep}
+                doneLabel={t("steps.done", targetLanguage)}
+              >
+                <EnrichmentPanel />
+                {sandboxMode && (
+                  <Suspense fallback={null}>
+                    <EnrichmentSandbox />
+                  </Suspense>
+                )}
+              </Step>
+            )}
 
             {/* 04 — Export offline */}
-            <Step num={4} title={t("steps.export", targetLanguage)} state={exportStep}>
+            <Step
+              num={STANDALONE ? 3 : 4}
+              title={t("steps.export", targetLanguage)}
+              state={exportStep}
+            >
               <ExportPanel />
             </Step>
 

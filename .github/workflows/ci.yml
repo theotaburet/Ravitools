@@ -28,3 +28,35 @@ jobs:
       - name: Lint
         run: bun run lint
         working-directory: ${{ matrix.package }}
+
+  # Static demo on GitHub Pages: no server, the browser asks Overpass itself
+  # and the enrich step is hidden. Only from main, once checks pass.
+  pages:
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx vite build --base=/Ravitools/
+        working-directory: web/client
+        env:
+          VITE_STANDALONE: "true"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/client/dist
+      - id: deploy
+        uses: actions/deploy-pages@v5

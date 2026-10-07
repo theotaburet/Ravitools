@@ -13,6 +13,13 @@ const PROXY_BASE =
     ((window as unknown as Record<string, unknown>).__RAVITOOLS_API_URL__ as string)) ||
   "/api";
 
+// Static build (VITE_STANDALONE=true, e.g. GitHub Pages): no proxy, the browser
+// asks Overpass itself. Both mirrors send CORS headers; each retry moves on to the next.
+const DIRECT_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+];
+
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
 // ponytail: TTL so stale OSM data isn't served for the whole page lifetime (AUDIT C4).
 // OSM POIs don't change minute-to-minute; 1h is plenty for a planning session.
@@ -174,11 +181,17 @@ export async function queryOverpass(query: string, retries: number = 3): Promise
 
     try {
       const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
-      const res = await fetch(`${PROXY_BASE}/overpass`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
+      const res =
+        import.meta.env.VITE_STANDALONE === "true"
+          ? await fetch(DIRECT_URLS[attempt % DIRECT_URLS.length], {
+              method: "POST",
+              body: new URLSearchParams({ data: query }),
+            })
+          : await fetch(`${PROXY_BASE}/overpass`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query }),
+            });
 
       if (res.status === 429 || res.status === 504) {
         const reason = res.status === 429 ? "Rate limited by proxy" : "Overpass server timeout";

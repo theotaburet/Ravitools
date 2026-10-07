@@ -2,8 +2,14 @@
 // Tests for Overpass query builder
 // ---------------------------------------------------------------------------
 
-import { describe, expect, it } from "vitest";
-import { buildChunkedQueries, buildOverpassQuery, chunkPoints, splitChunk } from "../lib/overpass";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  buildChunkedQueries,
+  buildOverpassQuery,
+  chunkPoints,
+  queryOverpass,
+  splitChunk,
+} from "../lib/overpass";
 import type { TracePoint } from "../types";
 
 const TRACE: TracePoint[] = [
@@ -88,5 +94,33 @@ describe("chunkPoints", () => {
     expect(chunks.length).toBeGreaterThan(2);
     const covered = new Set(chunks.flat().map((p) => p.lat));
     expect(covered.size).toBe(120);
+  });
+});
+
+describe("queryOverpass, static build", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("asks Overpass directly, then the next mirror when one is busy", async () => {
+    vi.stubEnv("VITE_STANDALONE", "true");
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("busy", { status: 429 }))
+      .mockResolvedValueOnce(Response.json({ elements: [{ type: "node", id: 1 }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = queryOverpass("[out:json];node(1);out;", 1);
+    await vi.advanceTimersByTimeAsync(5000);
+    const data = await pending;
+
+    expect(data.elements).toHaveLength(1);
+    const [first, second] = fetchMock.mock.calls;
+    expect(first[0]).toBe("https://overpass-api.de/api/interpreter");
+    expect(second[0]).toBe("https://maps.mail.ru/osm/tools/overpass/api/interpreter");
+    expect((second[1].body as URLSearchParams).get("data")).toBe("[out:json];node(1);out;");
   });
 });

@@ -2,6 +2,8 @@
 
 Ravitools trouve des POI utiles le long d'un GPX de voyage a velo, les filtre pour reduire le bruit, puis les exporte pour un usage offline sur GPS, smartphone ou carte web.
 
+Demo: <https://theotaburet.github.io/Ravitools/> (version statique, sans serveur ni enrichissement).
+
 ## Features
 
 - import d'un ou plusieurs fichiers `.gpx` dans le navigateur

@@ -1,5 +1,22 @@
 # VPS Deployment
 
+## Static demo (GitHub Pages)
+
+`ci.yml` publishes the client to <https://theotaburet.github.io/Ravitools/> on every
+push to `main`, once typecheck, tests and lint pass. No server is involved:
+
+```bash
+cd web/client
+VITE_STANDALONE=true bunx vite build --base=/Ravitools/
+```
+
+- `VITE_STANDALONE=true` makes the browser query Overpass directly
+  (`overpass-api.de`, then `maps.mail.ru`, the mirrors that send CORS headers).
+- The enrich step is hidden: SearXNG, page scraping and the PostGIS cache need the server.
+- The GPX still never leaves the browser.
+
+The rest of this page deploys the full app, server included, on a VPS.
+
 ## Prerequisites
 
 - A VPS with Node.js >= 18 and nginx
