@@ -1,6 +1,12 @@
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import { enrichPoi, getOfficialWebsiteUrl } from "../lib/enrichment";
+import {
+  enrichPoi,
+  getOfficialWebsiteUrl,
+  initEngine,
+  isEngineReady,
+  isWebGpuAvailable,
+} from "../lib/enrichment";
 import { filteredPoisAtom } from "../state/route";
 import { targetLanguageAtom } from "../state/ui";
 import type { EnrichedData, POI } from "../types";
@@ -34,6 +40,9 @@ export function EnrichmentSandbox() {
     setLoading(true);
     setError(null);
     try {
+      // The main panel loads the model itself; the sandbox must do it too or every
+      // run falls back to the deterministic builder.
+      if (isWebGpuAvailable() && !isEngineReady()) await initEngine();
       const enriched = await enrichPoi(selectedPoi, {
         apiBase: "/api",
         targetLanguage,

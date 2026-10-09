@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Snippet filtering: obvious noise + geographic coherence
-// ---------------------------------------------------------------------------
+// --- Snippet filtering: obvious noise + geographic coherence ---
 
 import type { GeoContext, POI, SearchSnippet } from "../../types";
 import { dlog } from "../debug-log";
@@ -121,7 +119,83 @@ export function isSnippetGeographicallyCoherent(
     }
   }
 
-  // URL-based check intentionally omitted — too many false positives.
+  // URL-based check intentionally omitted: too many false positives.
 
   return true; // Default: keep the snippet (conservative)
+}
+
+// --- Name relevance: a snippet that never mentions the place is not a source for it ---
+
+/** Category words and function words that say nothing about which place a snippet is about. */
+const GENERIC_NAME_WORDS = new Set([
+  "hotel",
+  "restaurant",
+  "bar",
+  "cafe",
+  "bistro",
+  "brasserie",
+  "pizzeria",
+  "snack",
+  "boulangerie",
+  "patisserie",
+  "epicerie",
+  "supermarche",
+  "supermarket",
+  "market",
+  "marche",
+  "camping",
+  "gite",
+  "auberge",
+  "chambre",
+  "chambres",
+  "hotes",
+  "refuge",
+  "hostel",
+  "shop",
+  "store",
+  "sport",
+  "sports",
+  "bike",
+  "bikes",
+  "velo",
+  "velos",
+  "cycles",
+  "cycle",
+  "the",
+  "and",
+  "les",
+  "des",
+  "chez",
+  "sur",
+  "sous",
+  "aux",
+  "del",
+  "della",
+  "los",
+  "las",
+  "von",
+  "der",
+  "die",
+  "das",
+  "saint",
+  "sainte",
+]);
+
+function foldAccents(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/**
+ * True when the snippet mentions at least one distinctive word of the POI name.
+ * Portal homepages (Booking, Hotels.com, dictionaries) never do, and a 3B model given such
+ * snippets invents a description anyway, so they must not reach the LLM.
+ * Names made only of generic words ("Boulangerie", "Le Bar") cannot be checked: kept.
+ */
+export function mentionsPoiName(snippet: { title: string; content: string }, poi: POI): boolean {
+  const tokens = foldAccents(poi.name)
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3 && !GENERIC_NAME_WORDS.has(token));
+  if (tokens.length === 0) return true;
+  const text = foldAccents(`${snippet.title} ${snippet.content}`);
+  return tokens.some((token) => text.includes(token));
 }

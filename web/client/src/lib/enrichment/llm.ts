@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
-// WebLLM integration – in-browser LLM for POI snippet synthesis
+// WebLLM integration: in-browser LLM for POI snippet synthesis
 // Uses @mlc-ai/web-llm with Qwen2.5-3B-Instruct (q4f16_1-MLC)
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
-// ---------------------------------------------------------------------------
 
 import type {
   OpeningHoursEntry,
@@ -14,9 +12,7 @@ import type {
 import { dlog } from "../debug-log";
 import { getEnrichmentContract } from "../poi-config";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// --- Types ---
 
 /** Compact structured output from LLM synthesis (Google Maps style) */
 export interface LlmSynthesis {
@@ -24,9 +20,9 @@ export interface LlmSynthesis {
   reviewCount: number | null;
   /** Structured opening hours table */
   hours: OpeningHoursEntry[] | null;
-  /** Flat hours string for backward compat & export (derived from hours table) */
+  /** Flat hours string for export (derived from hours table) */
   hoursFlat: string | null;
-  /** One-sentence description in target language (merges what was previously summary + specialty) */
+  /** One-sentence description in target language */
   description: string | null;
   /** One-sentence review/verdict in target language */
   review: string | null;
@@ -61,29 +57,25 @@ function getSynthesisRejectionReason(
 /** Progress callback for model loading */
 export type ModelLoadProgressCallback = (progress: number) => void;
 
-// ---------------------------------------------------------------------------
-// WebGPU detection
-// ---------------------------------------------------------------------------
+// --- WebGPU detection ---
 
 export function isWebGpuAvailable(): boolean {
   return typeof navigator !== "undefined" && "gpu" in navigator;
 }
 
-// ---------------------------------------------------------------------------
 // LLM Engine singleton
 // We lazy-load @mlc-ai/web-llm to keep the main bundle small.
 // The engine is a singleton: one model loaded at a time.
-// ---------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: dynamic import — web-llm types not available at module level
+// biome-ignore lint/suspicious/noExplicitAny: dynamic import: web-llm types not available at module level
 let engineInstance: any = null;
 let engineReady = false;
-/** AUDIT R18: in-flight load — concurrent initEngine() calls share one download. */
+/** In-flight load: concurrent initEngine() calls share one download. */
 let initPromise: Promise<boolean> | null = null;
 
-// ponytail: Qwen2.5-3B-Instruct is the sweet spot for this constrained JSON-extraction task
+// Qwen2.5-3B-Instruct is the sweet spot for this constrained JSON-extraction task
 // (better JSON adherence + FR than the 1.5B, same API, no Qwen3 <think> pitfall). ~2.5GB VRAM.
-// Bigger/newer option if your GPU has headroom: "Qwen3-4B-q4f16_1-MLC" (~3.4GB) — but then you
+// Bigger/newer option if your GPU has headroom: "Qwen3-4B-q4f16_1-MLC" (~3.4GB): but then you
 // MUST disable thinking mode or it emits <think> blocks that break JSON parsing.
 const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
 
@@ -99,7 +91,7 @@ export async function initEngine(onProgress?: ModelLoadProgressCallback): Promis
     return false;
   }
 
-  // AUDIT R18: a second caller (double-click "Re-enrich all") must await the
+  // A second caller (double-click "Re-enrich all") must await the
   // same in-flight load, not start a second ~2.5GB download.
   if (initPromise) return initPromise;
 
@@ -159,44 +151,26 @@ export function resetLlmState(): void {
   initPromise = null;
 }
 
-// ---------------------------------------------------------------------------
-// Contract-aware prompt sections (WS8)
-// ---------------------------------------------------------------------------
+// --- Contract-aware prompt sections ---
 
 /**
  * Build a prompt block from a category contract.
  * Injected into the system prompt to give the LLM category-specific guidance.
- * (WS8: category-specific LLM prompt hardening)
+ *
  */
-function buildContractBlock(
-  category: string,
-  priorities: readonly string[],
-  valuableSignals: readonly string[],
-  bannedPatterns: readonly string[],
-): string {
-  const priorityList = priorities.map((p, i) => `  ${i + 1}. ${p}`).join("\n");
-  const signalList = valuableSignals
-    .slice(0, 5)
-    .map((s) => `  - ${s}`)
-    .join("\n");
+function buildContractBlock(category: string, bannedPatterns: readonly string[]): string {
+  // Only the banned list is injected. Listing "priority signals" made the 3B model
+  // copy them into its output ("terrace", "bike parking", "cyclist friendliness").
   const bannedList = bannedPatterns.map((b) => `  - ${b}`).join("\n");
 
   return `
 Category-specific instructions for "${category}":
 
-Priority signals for description and review:
-${priorityList}
-
-Valuable signals to include when found:
-${signalList}
-
 NEVER include in your output:
 ${bannedList}`;
 }
 
-// ---------------------------------------------------------------------------
-// Synthesis prompt
-// ---------------------------------------------------------------------------
+// --- Synthesis prompt ---
 
 /**
  * Build the system prompt for POI synthesis.
@@ -204,7 +178,7 @@ ${bannedList}`;
  * WS8: category-specific prompt hardening using contracts.
  * @param targetLanguage - language for the translatedSummary field
  * @param category - POI category for contract-aware prompt sections
- * Exported for testing (WS8).
+ * Exported for testing.
  */
 export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: string): string {
   const langName = targetLanguage === "fr" ? "French" : "English";
@@ -212,12 +186,7 @@ export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: str
   // WS8: inject contract-specific instructions if available
   const contract = category ? getEnrichmentContract(category as PoiCategory) : null;
   const contractBlock = contract
-    ? buildContractBlock(
-        contract.category,
-        contract.priorities,
-        contract.valuableSignals,
-        contract.bannedPatterns,
-      )
+    ? buildContractBlock(contract.category, contract.bannedPatterns)
     : "";
 
   // Price emphasis for commercial categories
@@ -238,20 +207,21 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
 {
   "rating": <number 1-5 or null>,
   "reviewCount": <number or null>,
-  "hours": [{"day":"Mon-Fri","open":"08:00","close":"19:00"},{"day":"Sat","open":"09:00","close":"13:00"},{"day":"Sun","open":"closed","close":null}],
-  "description": <one sentence in ${langName}, what the place is and why it matters for a cyclist, or null>,
+  "hours": <array of {"day": "<Mon..Sun or a range like Mon-Fri>", "open": "<HH:MM or closed>", "close": "<HH:MM or null>"}, or null>,
+  "description": <one sentence in ${langName}: what kind of place it is plus one practical detail stated in the snippets, or null>,
   "review": <one sentence in ${langName}, synthesis of reviews/reputation, or null>,
   "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>
 }
 
 Rules:
 - Extract ONLY what the snippets say. Do NOT invent or guess.
+- Every value must come from a snippet. If the snippets are generic portals, directories or unrelated pages, return null for every field.
 - If a field cannot be determined, use null. Never guess.
 - Write ALL natural-language fields strictly in ${langName}. Never answer in Spanish, Basque, Romanian, or the source language unless ${langName} matches it.
 - "rating": only from explicit ratings (e.g. "4.2/5"). Do not estimate from sentiment.
 - "reviewCount": only from explicit counts (e.g. "238 reviews").
 - "hours": structured table. Each entry has "day" (e.g. "Mon", "Mon-Fri", "Sat-Sun"), "open" (time or "closed"), "close" (time or null if closed). Use null for the whole field if no hours found.
-- "description": ONE short sentence in ${langName}, max 160 characters. Include type/specialty if known (e.g. "Italian restaurant with terrace, good for resupply"). Merge utility first, vibe second.
+- "description": ONE short sentence in ${langName}, max 160 characters: what kind of place it is (type, specialty) plus one practical detail a snippet states. Never mention cyclists unless a snippet does.
 - "review": ONE short sentence in ${langName}, max 160 characters. Summarize reputation only: rating, review sentiment, key strengths or caveats. If sources disagree, say so.${priceBlock}
 - Be maximally concise. No filler. Prefer null over uncertain data.
 - Ignore snippets clearly unrelated to the POI (banking, novels, generic portals, wrong business).
@@ -285,12 +255,35 @@ ${websiteText}
 Extract the JSON:`;
 }
 
-// ---------------------------------------------------------------------------
-// Synthesis
-// ---------------------------------------------------------------------------
+// --- Synthesis ---
 
-/** Max tokens for LLM response — 512 to fit full 7-day hours table + description + review */
+/** Max tokens for LLM response: 512 to fit full 7-day hours table + description + review */
 const MAX_TOKENS = 512;
+
+/** JSON schema enforced by web-llm (XGrammar): output is always valid JSON with these keys. */
+const SYNTHESIS_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    rating: { type: ["number", "null"] },
+    reviewCount: { type: ["integer", "null"] },
+    hours: {
+      type: ["array", "null"],
+      items: {
+        type: "object",
+        properties: {
+          day: { type: "string" },
+          open: { type: "string" },
+          close: { type: ["string", "null"] },
+        },
+        required: ["day", "open", "close"],
+      },
+    },
+    description: { type: ["string", "null"] },
+    review: { type: ["string", "null"] },
+    priceLevel: { type: ["integer", "null"] },
+  },
+  required: ["rating", "reviewCount", "hours", "description", "review", "priceLevel"],
+});
 
 /** Temperature for synthesis (low = more factual) */
 const TEMPERATURE = 0.1;
@@ -307,7 +300,7 @@ function looksLikeTargetLanguage(text: string | null, targetLanguage: TargetLang
       lower,
     );
   }
-  // Reject if clearly English — use unambiguous multi-word English-only phrases that don't
+  // Reject if clearly English: use unambiguous multi-word English-only phrases that don't
   // appear in French text (avoid single words like "restaurant", "open", "good").
   return !/(\breviews?\b|\bopening hours\b|\bclosed on\b|\bopen daily\b|\bopen every day\b|\brated\b|\brated \d|\bworth a visit\b|\bgreat place\b|\bthis place\b|\bnice place\b|\bgreat food\b|\bhighly recommend\b|\bmust try\b|\bstaff was\b|\bvery good\b|\bvery nice\b|\bthe food\b|\bthe place\b|\bthe staff\b|\bi loved\b|\bi visited\b|\bwe had\b|\bwe went\b)/i.test(
     lower,
@@ -387,6 +380,7 @@ export async function synthesize(
                 ],
           max_tokens: MAX_TOKENS,
           temperature: TEMPERATURE,
+          response_format: { type: "json_object", schema: SYNTHESIS_SCHEMA },
         });
 
       text = response.choices?.[0]?.message?.content?.trim() ?? null;
@@ -408,7 +402,7 @@ export async function synthesize(
     }
 
     if (!parsed) return null;
-    // AUDIT R23: repairs exhausted and still rejected → let the deterministic
+    // Repairs exhausted and still rejected → let the deterministic
     // builder take over instead of shipping a bad synthesis.
     if (!isSynthesisAcceptable(parsed, targetLanguage)) return null;
     const rawOutput = text ?? "";
@@ -443,7 +437,7 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
       cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
     }
 
-    // Try to find JSON object in the text — use first { to last } to handle
+    // Try to find JSON object in the text: use first { to last } to handle
     // verbose LLM output that wraps the object in surrounding text.
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
@@ -484,15 +478,13 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Hours parsing helpers
-// ---------------------------------------------------------------------------
+// --- Hours parsing helpers ---
 
 /**
  * Parse the hours field from LLM output.
  * Accepts either:
  * - An array of OpeningHoursEntry objects (new format)
- * - A string (legacy format) — converted to a single entry
+ * - A string (legacy format): converted to a single entry
  * Returns null if invalid.
  */
 function parseHoursField(raw: unknown): OpeningHoursEntry[] | null {
@@ -525,7 +517,7 @@ function parseHoursField(raw: unknown): OpeningHoursEntry[] | null {
 }
 
 /**
- * Flatten structured hours to a human-readable string for exports and backward compat.
+ * Flatten structured hours to a human-readable string for exports.
  * e.g. [{ day: "Mon-Fri", open: "08:00", close: "19:00" }] → "Mon-Fri: 08:00-19:00"
  */
 export function flattenHours(entries: OpeningHoursEntry[]): string {

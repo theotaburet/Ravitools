@@ -1,5 +1,5 @@
 /**
- * Google Maps scraper — pure parsing helpers + Playwright extraction.
+ * Google Maps scraper: pure parsing helpers + Playwright extraction.
  *
  * Extracted from index.ts in Phase 3b (PR1: pure refactor, no behavior change).
  * The job system (queue, persisted jobs map, retry orchestration) remains in
@@ -13,9 +13,7 @@ import type { Logger } from "pino";
 import type { Browser, Page } from "playwright";
 import { getBrowserContext, saveBrowserState } from "../browser-context.js";
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
+// --- Public types ---
 
 export type GoogleMapsHoursEntry = { day: string; open: string; close: string | null };
 
@@ -29,7 +27,7 @@ export type GoogleMapsPreview = {
   priceLevel: number | null;
   hoursText: string | null;
   /** Structured opening hours extracted from the expanded hours panel.
-   *  Array of {day, open, close} — compatible with client OpeningHoursEntry. */
+   *  Array of {day, open, close}: compatible with client OpeningHoursEntry. */
   structuredHours: GoogleMapsHoursEntry[] | null;
   address: string | null;
   phone: string | null;
@@ -51,9 +49,7 @@ export interface GoogleMapsScraperDeps {
  */
 export const GOOGLE_MAPS_PROXY_URL = process.env.GOOGLE_MAPS_PROXY_URL ?? null;
 
-// ---------------------------------------------------------------------------
-// Pure text helpers (no Playwright dependency, trivially testable)
-// ---------------------------------------------------------------------------
+// --- Pure text helpers (no Playwright dependency, trivially testable) ---
 
 export function parseGoogleMapsText(text: string | null | undefined): string | null {
   if (!text) return null;
@@ -69,7 +65,6 @@ export function extractPriceLevelFromText(text: string | null): number | null {
 }
 
 export function normalizeGoogleMapsGlyphs(text: string | null): string | null {
-  // ponytail: the PUA-glyph strip was an empty class (matched nothing) — whitespace collapse is all it ever did.
   return text ? text.replace(/\s+/g, " ").trim() : null;
 }
 
@@ -115,9 +110,7 @@ export function cleanGoogleMapsHours(hoursText: string | null): string | null {
   return cleaned;
 }
 
-// ---------------------------------------------------------------------------
-// Day & time normalization
-// ---------------------------------------------------------------------------
+// --- Day & time normalization ---
 
 const DAY_NORMALIZATIONS: Record<string, string> = {
   // English
@@ -213,9 +206,7 @@ export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | nul
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Rating / review count extraction (pure)
-// ---------------------------------------------------------------------------
+// --- Rating / review count extraction (pure) ---
 
 export function extractGoogleMapsReviewCount(localText: string | null): number | null {
   if (!localText) return null;
@@ -242,22 +233,17 @@ export function extractGoogleMapsRating(localText: string | null): number | null
   return Number.isFinite(value) && value >= 1 && value <= 5 ? value : null;
 }
 
-// ---------------------------------------------------------------------------
-// Playwright-backed extraction helpers
-// ---------------------------------------------------------------------------
+// --- Playwright-backed extraction helpers ---
 
 export async function extractTextBySelectors(
   page: Page,
   selectors: string[],
 ): Promise<string | null> {
   for (const selector of selectors) {
-    const value = parseGoogleMapsText(
-      await page
-        .locator(selector)
-        .first()
-        .innerText({ timeout: 1_500 })
-        .catch(() => ""),
-    );
+    const locator = page.locator(selector).first();
+    // count() answers at once; innerText() on a missing element waits the full timeout.
+    if (!(await locator.count())) continue;
+    const value = parseGoogleMapsText(await locator.innerText({ timeout: 1_500 }).catch(() => ""));
     if (value) return value;
   }
   return null;
@@ -423,9 +409,7 @@ export async function extractExpandedGoogleMapsHours(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Main extraction entry point
-// ---------------------------------------------------------------------------
+// --- Main extraction entry point ---
 
 /**
  * Fetch a single Google Maps preview for the given URL.
@@ -442,9 +426,6 @@ export async function fetchGoogleMapsPreviewOnce(
 ): Promise<GoogleMapsPreview | null> {
   const { log, sleep, randomDelay } = deps;
   const context = await getBrowserContext(browser);
-  // Page-level locale/UA/viewport overrides removed: the shared context owns
-  // identity. Rotating per page would defeat session continuity (Google detects
-  // the inconsistency and increases captcha rate).
   const page = await context.newPage();
 
   try {
@@ -535,7 +516,7 @@ export async function fetchGoogleMapsPreviewOnce(
     );
     const website = await page
       .locator('a[data-item-id="authority"], a[data-tooltip="Open website"]')
-      .getAttribute("href")
+      .getAttribute("href", { timeout: 1_500 })
       .catch(() => null);
     const address =
       normalizeGoogleMapsGlyphs(
@@ -601,10 +582,8 @@ export async function fetchGoogleMapsPreviewOnce(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Plugin export — wires this scraper into the generic plugin system.
+// Plugin export: wires this scraper into the generic plugin system.
 // See web/server/src/scrapers/types.ts for the contract.
-// ---------------------------------------------------------------------------
 
 import type { MapScraperPlugin, ScraperDeps } from "./types.js";
 import { BLOCKED_ERROR_PREFIX } from "./types.js";

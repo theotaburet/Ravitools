@@ -1,13 +1,11 @@
-// ---------------------------------------------------------------------------
-// Server endpoint tests (WS10)
-// ---------------------------------------------------------------------------
+// --- Server endpoint tests ---
 
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Set test environment before importing app (prevents app.listen)
 process.env.NODE_ENV = "test";
-// Disable rate limiting for tests – set high limits
+// Disable rate limiting for tests: set high limits
 process.env.RATE_LIMIT_MAX = "1000";
 
 // Mock global fetch before importing app
@@ -17,9 +15,7 @@ vi.stubGlobal("fetch", mockFetch);
 // Import app after mocks are set up
 const { default: app } = await import("../index");
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// --- Helpers ---
 
 /** Create a fake Response object matching the Fetch API */
 function fakeResponse(
@@ -51,9 +47,7 @@ function uniqueQuery(_prefix = "test"): string {
   return `[out:json];node(${++queryCounter});out;`;
 }
 
-// ---------------------------------------------------------------------------
-// /health
-// ---------------------------------------------------------------------------
+// --- /health ---
 
 describe("/health", () => {
   it("returns status ok", async () => {
@@ -65,9 +59,7 @@ describe("/health", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /cache/stats
-// ---------------------------------------------------------------------------
+// --- /cache/stats ---
 
 describe("/cache/stats", () => {
   it("returns stats for all three caches", async () => {
@@ -82,9 +74,7 @@ describe("/cache/stats", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /overpass
-// ---------------------------------------------------------------------------
+// --- /overpass ---
 
 describe("/overpass", () => {
   beforeEach(() => {
@@ -128,11 +118,11 @@ describe("/overpass", () => {
     const upstream = JSON.stringify({ elements: [] });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
-    // First request – cache MISS
+    // First request: cache MISS
     const res1 = await request(app).post("/overpass").send({ data: query });
     expect(res1.headers["x-cache"]).toBe("MISS");
 
-    // Second request – cache HIT (no fetch)
+    // Second request: cache HIT (no fetch)
     const res2 = await request(app).post("/overpass").send({ data: query });
     expect(res2.status).toBe(200);
     expect(res2.headers["x-cache"]).toBe("HIT");
@@ -166,7 +156,7 @@ describe("/overpass", () => {
   it("returns 504 on timeout (AbortError)", async () => {
     const query = uniqueQuery("timeout");
     const abortErr = new DOMException("The operation was aborted.", "AbortError");
-    // AbortError now re-throws past the per-URL catch into the outer catch → 504 (AUDIT T+1).
+    // AbortError re-throws past the per-URL catch into the outer catch → 504.
     mockFetch.mockRejectedValueOnce(abortErr);
 
     const res = await request(app).post("/overpass").send({ data: query });
@@ -210,9 +200,7 @@ describe("/overpass", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /search
-// ---------------------------------------------------------------------------
+// --- /search ---
 
 describe("/search", () => {
   beforeEach(() => {
@@ -329,6 +317,17 @@ describe("/search", () => {
     expect(fetchUrl).toContain("categories=general");
   });
 
+  it("sends engines without categories so SearXNG does not merge the whole category", async () => {
+    const searchQuery = `Engines test ${++queryCounter}`;
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ results: [] })));
+
+    await request(app).post("/search").send({ query: searchQuery, engines: "bing,yandex" });
+
+    const fetchUrl = mockFetch.mock.calls[0][0] as string;
+    expect(fetchUrl).toContain("engines=bing%2Cyandex");
+    expect(fetchUrl).not.toContain("categories=");
+  });
+
   it("forwards 403 from SearXNG (bot detection / JSON disabled)", async () => {
     const searchQuery = `Forbidden test ${++queryCounter}`;
     mockFetch.mockResolvedValueOnce(
@@ -342,9 +341,7 @@ describe("/search", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /geocode
-// ---------------------------------------------------------------------------
+// --- /geocode ---
 
 describe("/geocode", () => {
   beforeEach(() => {
@@ -478,9 +475,7 @@ describe("/geocode", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /fetch-page
-// ---------------------------------------------------------------------------
+// --- /fetch-page ---
 
 describe("/fetch-page", () => {
   beforeEach(() => {
@@ -592,11 +587,9 @@ describe("/fetch-page", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R7: admin route must fail closed when ADMIN_API_KEY is not configured
-// ---------------------------------------------------------------------------
+// --- Admin route must fail closed when ADMIN_API_KEY is not configured ---
 
-describe("DELETE /cache/search (R7)", () => {
+describe("DELETE /cache/search", () => {
   afterAll(() => {
     delete process.env.ADMIN_API_KEY;
   });
@@ -620,11 +613,9 @@ describe("DELETE /cache/search (R7)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R14: /search cache key must include language
-// ---------------------------------------------------------------------------
+// --- R14: /search cache key must include language ---
 
-describe("/search cache key includes language (R14)", () => {
+describe("/search cache key includes language", () => {
   it("fr and en of the same query are cached separately", async () => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValue(fakeResponse(JSON.stringify({ results: [] })));

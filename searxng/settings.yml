@@ -2,10 +2,10 @@
 # Enables JSON API format and relaxes limiter for local/server usage.
 # Mount this file at /etc/searxng/settings.yml in the container.
 #
-# Engine strategy (April 2026):
-#   - Google/Startpage/DuckDuckGo/Brave: frequently blocked or CAPTCHA'd
-#   - Working engines: yandex, presearch, mojeek, bing, aol, seznam
-#   - We explicitly enable reliable engines and increase request timeout
+# Engine strategy (measured 2026-10-09):
+#   - Google/Startpage/DuckDuckGo/Brave/Qwant: blocked or CAPTCHA'd
+#   - presearch, mojeek, aol, yahoo: access denied or HTTP error on every call
+#   - Working: bing, yandex (the client requests exactly these, see engine-health.ts)
 
 use_default_settings: true
 
@@ -68,25 +68,22 @@ engines:
   - name: qwant
     disabled: true
 
-  # --- ENABLED & PRIORITIZED: reliably return results for European POIs ---
   - name: presearch
-    disabled: false
-    weight: 1.5
+    disabled: true
+  - name: mojeek
+    disabled: true
+  - name: aol
+    disabled: true
+  - name: yahoo
+    disabled: true
+
+  # --- ENABLED: the only engines that answered on 2026-10-09 ---
   - name: yandex
     disabled: false
     weight: 1.5
-  - name: mojeek
-    disabled: false
-    weight: 1.2
   - name: bing
     disabled: false
     weight: 1.0
-  - name: aol
-    disabled: false
-    weight: 0.8
   - name: seznam
-    disabled: false
-    weight: 0.5
-  - name: yahoo
     disabled: false
     weight: 0.5

@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
 // Enrichment state atoms test (M2/T4): model-load state machine, cache-hit
 // short-circuit, and CAPTCHA pause/resume. The enrichment lib + shared cache
 // are mocked so we drive transitions without WebGPU, SearXNG, or the network.
-// ---------------------------------------------------------------------------
 
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,6 +93,24 @@ describe("enrichment state", () => {
     expect(mocks.initEngine).not.toHaveBeenCalled();
   });
 
+  it("re-enriches a cached deterministic result when WebGPU is available", async () => {
+    mocks.isWebGpuAvailable.mockReturnValue(true);
+    mocks.lookupPoiBatch.mockResolvedValue(
+      new Map([
+        [
+          "a",
+          {
+            is_stale: false,
+            enrichment: { status: "done", synthesisSource: "deterministic" } as EnrichedData,
+          },
+        ],
+      ]),
+    );
+    await store.set(startEnrichmentAtom, [poi("a")]);
+    expect(mocks.enrichBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.enrichBatch).toHaveBeenCalledWith([poi("a")], expect.anything());
+  });
+
   it("loads the model then completes when WebGPU is available", async () => {
     mocks.isWebGpuAvailable.mockReturnValue(true);
     await store.set(startEnrichmentAtom, [poi("a")]);
@@ -119,11 +135,9 @@ describe("enrichment state", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R17: a retry pass must never push completed past total ("12/10", bar >100%)
-// ---------------------------------------------------------------------------
+// --- A retry pass must never push completed past total ("12/10", bar >100%) ---
 
-describe("retry progress clamp (R17)", () => {
+describe("retry progress clamp", () => {
   it("never reports completed > total after a retry pass", async () => {
     vi.useFakeTimers();
     try {

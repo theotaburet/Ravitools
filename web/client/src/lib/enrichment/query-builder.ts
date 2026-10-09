@@ -1,17 +1,15 @@
-// ---------------------------------------------------------------------------
-// Search query construction — per-category tuning + name cleanup (WS6)
-// ---------------------------------------------------------------------------
+// --- Search query construction: per-category tuning + name cleanup ---
 
-import type { GeoContext, POI } from "../../types";
+import type { POI } from "../../types";
 
 /**
  * Category-specific search biases.
  * Each category has lightweight context keywords that improve
  * the quality of search results from SearXNG.
- * No site: dorks — SearXNG handles multi-engine discovery;
+ * No site: dorks: SearXNG handles multi-engine discovery;
  * Google Maps, Booking, Yelp, etc. surface naturally when relevant.
  * Geographic filtering post-search handles false positives.
- * (WS6: search query quality)
+ *
  */
 const CATEGORY_SEARCH_BIAS: Record<string, { contextKeywords: string }> = {
   "Restaurant or Bar": {
@@ -36,7 +34,7 @@ const DEFAULT_SEARCH_BIAS = {
 /**
  * Clean a POI name before using it in a search query.
  * Removes noise like parenthetical annotations, extra whitespace, etc.
- * (WS6: POI name cleanup)
+ *
  */
 export function cleanPoiNameForSearch(name: string): string {
   if (!name) return "";
@@ -51,16 +49,12 @@ export function cleanPoiNameForSearch(name: string): string {
 /**
  * Build an effective search query for a POI.
  * Cleans the POI name and adds locality for disambiguation.
- * (WS6: per-category query tuning)
+ *
  */
-export function buildSearchQuery(
-  poi: POI,
-  locality: string | null,
-  geoContext?: GeoContext | null,
-): string {
+export function buildSearchQuery(poi: POI, locality: string | null): string {
   const parts: string[] = [];
 
-  // POI name — cleaned and quoted
+  // POI name: cleaned and quoted
   const rawName = poi.name.trim();
   const cleanedName = cleanPoiNameForSearch(rawName);
   const isGeneric = !cleanedName || ["Unknown", "unnamed", ""].includes(cleanedName);
@@ -69,21 +63,8 @@ export function buildSearchQuery(
     parts.push(`"${cleanedName}"`);
   }
 
-  // Geographic precision: locality + county/state for disambiguation
-  // This is critical for filtering irrelevant results from wrong cities
-  const geoTerms: string[] = [];
-  if (locality) geoTerms.push(locality);
-  if (geoContext?.county && geoContext.county !== locality) geoTerms.push(geoContext.county);
-  if (
-    geoContext?.state &&
-    geoContext.state !== locality &&
-    geoContext.state !== geoContext?.county
-  ) {
-    geoTerms.push(geoContext.state);
-  }
-  if (geoTerms.length > 0) {
-    parts.push(geoTerms.join(" "));
-  }
+  // Locality only: adding county and region made Bing drift to regional portals.
+  if (locality) parts.push(locality);
 
   // Category hint for generic names or unnamed POIs
   if (isGeneric) {
@@ -101,12 +82,8 @@ export function buildSearchQuery(
   return parts.join(" ");
 }
 
-export function buildQueryVariants(
-  poi: POI,
-  locality: string | null,
-  geoContext?: GeoContext | null,
-): string[] {
-  const base = buildSearchQuery(poi, locality, geoContext);
+export function buildQueryVariants(poi: POI, locality: string | null): string[] {
+  const base = buildSearchQuery(poi, locality);
   const cleanName = cleanPoiNameForSearch(poi.name);
 
   // Keep only 2 variants to reduce noise and request count:

@@ -27,7 +27,7 @@ searchRouter.post("/search", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // Cache key includes engines and language (AUDIT R14) so different engine
+    // Cache key includes engines and language so different engine
     // sets or locales never share a cached result.
     const cacheInput = `${query}|lang=${language || "auto"}${engines ? `|engines=${engines}` : ""}`;
     const cacheKey = `search:${createHash("md5").update(cacheInput).digest("hex")}`;
@@ -43,15 +43,17 @@ searchRouter.post("/search", enrichLimiter, async (req, res) => {
     const params = new URLSearchParams({
       q: query,
       format: "json",
-      categories: "general",
       language: language || "auto",
       time_range: "",
       safesearch: "0",
     });
 
-    // Forward engine selection to SearXNG if specified
+    // SearXNG merges every engine of a category into an explicit engine list when
+    // both parameters are present, so the category is only a default.
     if (engines && typeof engines === "string") {
       params.set("engines", engines);
+    } else {
+      params.set("categories", "general");
     }
 
     log.info({ query: query.slice(0, 80), engines: engines || "default" }, "Searching SearXNG");

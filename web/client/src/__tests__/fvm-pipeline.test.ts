@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// FVM — pipeline integration, stability checks, reference snapshots
+// FVM: pipeline integration, stability checks, reference snapshots
 // (split from fvm.test.ts)
-// ---------------------------------------------------------------------------
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,9 +9,7 @@ import { getEnrichabilityPolicy } from "../lib/poi-config";
 import type { EnrichmentStructuredContent, SearchSnippet } from "../types";
 import { makePoi, makeSnippets } from "./fvm-helpers";
 
-// ===========================================================================
-// I. Pipeline Integration (isGenericPoiName)
-// ===========================================================================
+// --- I. Pipeline Integration (isGenericPoiName) ---
 
 describe("FVM-I: Pipeline Integration helpers", () => {
   it("I1: isGenericPoiName detects empty/unnamed", () => {
@@ -61,9 +57,7 @@ describe("FVM-I: Pipeline Integration helpers", () => {
   });
 });
 
-// ===========================================================================
-// N. Perf And Stability Checks (structural, not load)
-// ===========================================================================
+// --- N. Perf And Stability Checks (structural, not load) ---
 
 describe("FVM-N: Stability Checks", () => {
   it("N3: buildStructuredContent handles empty inputs gracefully", () => {
@@ -143,14 +137,14 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
     const searchResponse = options.search ?? {
       results: [
         {
-          title: "Google result",
+          title: "Chez Marcel: Google result",
           url: "https://google.com/maps/place/test",
           content: "Great restaurant near route",
           engine: "google",
           score: 1,
         },
         {
-          title: "Yelp result",
+          title: "Chez Marcel: Yelp result",
           url: "https://yelp.com/biz/test",
           content: "Good food and atmosphere",
           engine: "bing",
@@ -249,7 +243,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
       fetchPage: null, // 404 on fetch-page
     });
     const result = await enrichPoi(poi, { apiBase: "" });
-    // Should still succeed — website is non-critical
+    // Should still succeed: website is non-critical
     expect(result.status).toBe("done");
     expect(result.officialWebsite).toBeNull();
     expect(result.sourceCount).toBeGreaterThan(0);
@@ -274,7 +268,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
   });
 
   it("I-canonical: enrichPoi done result has canonical structured shape", async () => {
-    const poi = makePoi({ category: "Food shop", name: "Carrefour Contact" });
+    const poi = makePoi({ category: "Food shop", name: "Chez Marcel" });
     mockFetchResponses({});
     const result = await enrichPoi(poi, { apiBase: "" });
     expect(result.status).toBe("done");
@@ -352,7 +346,7 @@ describe("FVM-I: enrichBatch mixed policies", () => {
               {
                 title: "Result",
                 url: "https://example.com",
-                content: "Content here",
+                content: "Le Bistrot and Cycles Pro: content here",
                 engine: "google",
               },
             ],
@@ -417,7 +411,12 @@ describe("FVM-I: enrichBatch mixed policies", () => {
         return new Response(
           JSON.stringify({
             results: [
-              { title: "R", url: "https://g.com", content: "Review text", engine: "google" },
+              {
+                title: "R",
+                url: "https://g.com",
+                content: "Le Zinc and Hotel Soleil review text",
+                engine: "google",
+              },
             ],
             query: "q",
           }),
@@ -492,9 +491,7 @@ describe("FVM-I: enrichBatch mixed policies", () => {
   });
 });
 
-// ===========================================================================
-// FVM-N: Additional Stability Checks
-// ===========================================================================
+// --- FVM-N: Additional Stability Checks ---
 
 describe("FVM-N: Additional Stability Checks", () => {
   it("N-noWebGPU: absence of WebGPU keeps useful behavior (deterministic fallback)", () => {
@@ -569,9 +566,7 @@ describe("FVM-N: Additional Stability Checks", () => {
   });
 });
 
-// ===========================================================================
-// FVM-L: Non-Regression Reference Cases (deterministic snapshot tests)
-// ===========================================================================
+// --- FVM-L: Non-Regression Reference Cases (deterministic snapshot tests) ---
 
 describe("FVM-L: Reference Case Snapshots", () => {
   it("L1: rich urban restaurant produces dense, actionable output", () => {
@@ -645,7 +640,7 @@ describe("FVM-L: Reference Case Snapshots", () => {
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     // headline is derived from enrichment.summary, not POI name
     expect(structured.headline).toContain("bakery");
-    // Food shop contract cares about resupply — check cautions or practicalities instead
+    // Food shop contract cares about resupply: check cautions or practicalities instead
     expect(structured.practicalities.length).toBeGreaterThan(0);
     expect(structured.practicalities.some((p) => p.includes("6:30"))).toBe(true);
     expect(structured.sourceConfirmation).toBe("reviews-only");

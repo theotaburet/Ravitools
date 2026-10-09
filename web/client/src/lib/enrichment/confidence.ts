@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Confidence scoring for enrichment results
-// ---------------------------------------------------------------------------
+// --- Confidence scoring for enrichment results ---
 
 /**
  * Compute a confidence score (0-1) for an enrichment result.
@@ -12,6 +10,7 @@
  *   diversityFactor(0-0.15): distinct search engines
  *   fieldFactor    (0-0.20): each non-null structured field adds weight
  *   officialBonus  (0-0.15): official website presence
+ *   googleMapsBonus(0-0.15): structured fields read from the Google Maps preview
  *   qualityFactor  (0-0.15): snippet content quality (avg length, URL diversity)
  */
 export function computeConfidence(enrichment: {
@@ -22,14 +21,14 @@ export function computeConfidence(enrichment: {
   description: string | null;
   review: string | null;
   officialWebsite?: { url: string } | null;
+  googleMapsFields?: string[];
   structured?: { divergences: string[] } | null;
 }): number {
   const snippetCount = enrichment.rawSnippets.length;
   if (snippetCount === 0) return 0;
 
   // --- Source count factor (0-0.25): diminishing returns, saturates at ~6 snippets ---
-  // ponytail: capped lower than before so raw snippet count no longer dominates over
-  // authoritative sources (AUDIT C9). 6/24 = 0.25.
+  // Capped so raw snippet count never outweighs authoritative sources: 6/24 = 0.25.
   const sourceFactor = Math.min(snippetCount / 24, 0.25);
 
   // --- Engine diversity factor (0-0.15): multiple engines = higher confidence ---
@@ -45,8 +44,9 @@ export function computeConfidence(enrichment: {
   if (enrichment.review != null) fieldFactor += 0.04;
   fieldFactor = Math.min(fieldFactor, 0.2);
 
-  // --- Official website bonus (0-0.15): an official source is worth more than snippet volume (AUDIT C9) ---
+  // --- Official website bonus (0-0.15): an official source is worth more than snippet volume ---
   const officialBonus = enrichment.officialWebsite ? 0.15 : 0;
+  const googleMapsBonus = enrichment.googleMapsFields?.length ? 0.15 : 0;
 
   // --- Snippet quality factor (0-0.15) ---
   let qualityFactor = 0;
@@ -73,7 +73,7 @@ export function computeConfidence(enrichment: {
   }
   qualityFactor = Math.min(qualityFactor, 0.15);
 
-  // --- Contradiction penalty (WS11): divergences reduce confidence ---
+  // --- Contradiction penalty: divergences reduce confidence ---
   const divergenceCount = enrichment.structured?.divergences?.length ?? 0;
   const contradictionPenalty = Math.min(divergenceCount * 0.05, 0.15);
 
@@ -82,6 +82,7 @@ export function computeConfidence(enrichment: {
     diversityFactor +
     fieldFactor +
     officialBonus +
+    googleMapsBonus +
     qualityFactor -
     contradictionPenalty;
   return Math.min(Math.max(Math.round(raw * 100) / 100, 0), 1);

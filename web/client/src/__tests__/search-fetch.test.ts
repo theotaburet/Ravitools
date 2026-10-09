@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// Tests for searchPoi – mock global fetch to test the real function logic
-// ---------------------------------------------------------------------------
+// --- Tests for searchPoi: mock global fetch to test the real function logic ---
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchPoi } from "../lib/enrichment/search";
 import type { POI } from "../types";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// --- Helpers ---
 
 function makePoi(overrides: Partial<POI> = {}): POI {
   return {
@@ -32,20 +28,18 @@ function makePoi(overrides: Partial<POI> = {}): POI {
   };
 }
 
-/** Build a successful SearXNG response body */
+/** Build a successful SearXNG response body. Real sources name the place, so every title does too. */
 function makeSearxResponse(
   results: Array<{ title: string; url: string; content?: string; engine: string }>,
 ) {
   return {
-    results,
+    results: results.map((r) => ({ ...r, title: `Le Petit Zinc: ${r.title}` })),
     query: "test",
     number_of_results: results.length,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Mock fetch
-// ---------------------------------------------------------------------------
+// --- Mock fetch ---
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -58,9 +52,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// --- Tests ---
 
 describe("searchPoi", () => {
   it("returns parsed snippets from a successful response", async () => {
@@ -76,7 +68,7 @@ describe("searchPoi", () => {
 
     const result = await searchPoi(makePoi(), "Tours", "/api");
     expect(result.snippets).toHaveLength(2);
-    expect(result.snippets[0].title).toBe("Review 1");
+    expect(result.snippets[0].title).toBe("Le Petit Zinc: Review 1");
     expect(result.snippets[0].content).toBe("Great place");
     expect(result.snippets[0].engine).toBe("google");
     expect(result.snippets[1].url).toBe("https://b.com");
@@ -115,7 +107,7 @@ describe("searchPoi", () => {
 
     const result = await searchPoi(makePoi(), null, "/api");
     expect(result.snippets).toHaveLength(1);
-    expect(result.snippets[0].title).toBe("Has content");
+    expect(result.snippets[0].title).toBe("Le Petit Zinc: Has content");
   });
 
   it("limits results to MAX_SNIPPETS (8)", async () => {
@@ -151,7 +143,7 @@ describe("searchPoi", () => {
 
     const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
     expect(result.snippets).toHaveLength(1);
-    expect(result.snippets[0].title).toBe("After retry");
+    expect(result.snippets[0].title).toBe("Le Petit Zinc: After retry");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 10_000);
 
@@ -194,7 +186,7 @@ describe("searchPoi", () => {
   });
 
   it("returns empty array when SearXNG returns no results", async () => {
-    // AUDIT R13: searchPoi now tries every query variant on a 0-snippet
+    // SearchPoi tries every query variant on a 0-snippet
     // response, so the empty result must be mocked for all calls, not once.
     fetchMock.mockResolvedValue({
       ok: true,
@@ -222,7 +214,26 @@ describe("searchPoi", () => {
     expect(body.query).toContain('"Chez Marie"');
     expect(body.query).toContain("Lyon");
     expect(body.language).toBe("fr");
-    expect(body.engines).toBe("presearch,bing,aol");
+    expect(body.engines).toBe("bing,yandex");
+  });
+
+  it("keeps county and region out of the query even when the geocoder provides them", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => makeSearxResponse([]),
+    });
+
+    await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon", "/api", undefined, 3, {
+      locality: "Lyon",
+      county: "Rhône",
+      state: "Auvergne-Rhône-Alpes",
+      country: "France",
+      countryCode: "fr",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.query).toBe('"Chez Marie" Lyon avis restaurant horaires');
   });
 
   it("trims whitespace from snippet content", async () => {
@@ -244,7 +255,7 @@ describe("searchPoi", () => {
       ok: true,
       status: 200,
       json: async () => ({
-        results: [{ title: "T", url: "https://a.com", content: "C", engine: "" }],
+        results: [{ title: "Le Petit Zinc: T", url: "https://a.com", content: "C", engine: "" }],
         query: "test",
       }),
     });

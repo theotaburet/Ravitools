@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { computeConfidence } from "../lib/enrichment/enricher";
 
-// AUDIT C9: an authoritative (official-website) result should beat a pile of
+// An authoritative (official-website) result should beat a pile of
 // mediocre snippets, instead of raw snippet count dominating the score.
-describe("computeConfidence weighting (AUDIT C9)", () => {
+describe("computeConfidence weighting", () => {
   const snippet = (engine: string, url: string, content = "") => ({ engine, url, content });
 
   const manySnippetsNoOfficial = {
@@ -39,5 +39,12 @@ describe("computeConfidence weighting (AUDIT C9)", () => {
   it("caps the raw snippet contribution at 0.25", () => {
     // 8 identical no-everything snippets: only sourceFactor(0.25) + diversity(0.05) + 1 domain quality(0.025)
     expect(computeConfidence(manySnippetsNoOfficial)).toBeLessThanOrEqual(0.33);
+  });
+
+  it("counts Google Maps structured fields as a grounded source", () => {
+    const withFields = { ...fewSnippetsWithOfficial, officialWebsite: null };
+    expect(
+      computeConfidence({ ...withFields, googleMapsFields: ["rating", "reviewCount"] }),
+    ).toBeGreaterThan(computeConfidence(withFields));
   });
 });

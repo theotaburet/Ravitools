@@ -1,14 +1,16 @@
-// ---------------------------------------------------------------------------
-// SearXNG search adapter — searchPoi + re-exports of the search submodules
+// SearXNG search adapter: searchPoi + re-exports of the search submodules
 // (engine-health, query-builder, snippet-filters, websites, google-maps, geocode)
-// ---------------------------------------------------------------------------
 
 import type { GeoContext, POI, SearchSnippet } from "../../types";
 import { dlog } from "../debug-log";
 import { getHealthyEngineList, noteEngineFailures, noteSuccessfulEngines } from "./engine-health";
 import { REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
 import { buildQueryVariants, buildSearchQuery } from "./query-builder";
-import { isObviousNoiseSnippet, isSnippetGeographicallyCoherent } from "./snippet-filters";
+import {
+  isObviousNoiseSnippet,
+  isSnippetGeographicallyCoherent,
+  mentionsPoiName,
+} from "./snippet-filters";
 import { normalizeUrlForDedup } from "./websites";
 
 // Re-exports kept on this module for existing import sites (tests, hooks, barrel).
@@ -74,7 +76,7 @@ export async function searchPoi(
 ): Promise<{ snippets: SearchSnippet[]; query: string; unresponsiveEngines: [string, string][] }> {
   let lastError: Error | null = null;
   let lastUnresponsiveEngines: [string, string][] = [];
-  const queries = buildQueryVariants(poi, locality, geoContext);
+  const queries = buildQueryVariants(poi, locality);
   const requestedEngines = getHealthyEngineList();
   const log = dlog("search");
 
@@ -87,7 +89,7 @@ export async function searchPoi(
         await new Promise((r) => setTimeout(r, delayMs));
       }
 
-      // AUDIT R25: native timeout+signal combination — no manual listeners to leak (R20)
+      // Native timeout+signal combination: no manual listeners to leak
       const fetchSignal = timeoutSignal(REQUEST_TIMEOUT, signal);
 
       try {
@@ -143,7 +145,7 @@ export async function searchPoi(
         let filteredCount = 0;
         for (const s of rawSnippets) {
           if (snippets.length >= MAX_SNIPPETS) break;
-          if (isObviousNoiseSnippet(s, poi, locality)) {
+          if (isObviousNoiseSnippet(s, poi, locality) || !mentionsPoiName(s, poi)) {
             filteredCount++;
             continue;
           }
@@ -180,7 +182,7 @@ export async function searchPoi(
           return { snippets, query, unresponsiveEngines: data.unresponsive_engines ?? [] };
         }
 
-        // AUDIT R13: 0 kept snippets is a soft miss — try the next query
+        // 0 kept snippets is a soft miss: try the next query
         // variant instead of returning (the fallback was dead code).
         continue queryLoop;
       } catch (err) {
@@ -213,7 +215,7 @@ export async function searchPoi(
   });
   return {
     snippets: [],
-    query: queries[queries.length - 1] ?? buildSearchQuery(poi, locality, geoContext),
+    query: queries[queries.length - 1] ?? buildSearchQuery(poi, locality),
     unresponsiveEngines: lastUnresponsiveEngines,
   };
 }

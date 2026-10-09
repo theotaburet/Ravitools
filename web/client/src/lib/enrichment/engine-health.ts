@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// SearXNG engine health — failure tracking, cooldown suspension, CAPTCHA URL
-// ---------------------------------------------------------------------------
+// --- SearXNG engine health: failure tracking, cooldown suspension, CAPTCHA URL ---
 
 import type { SearchSnippet } from "../../types";
 
@@ -8,11 +6,11 @@ import type { SearchSnippet } from "../../types";
  * Known-good SearXNG engines for POI enrichment.
  * Keep this explicit so we don't silently fall back to noisy/broken defaults.
  *
- * Engines removed:
- *   - yandex: constantly CAPTCHA'd, returns Russian/German noise
- *   - mojeek: access denied in a loop, English-biased, no French local content
+ * Measured 2026-10-09 on the bundled SearXNG config: only bing and yandex answer;
+ * presearch, aol, mojeek, qwant, brave, startpage, duckduckgo come back as
+ * "access denied" / CAPTCHA / HTTP error on every call.
  */
-export const SEARXNG_ENGINES = "presearch,bing,aol";
+export const SEARXNG_ENGINES = "bing,yandex";
 
 const ENGINE_COOLDOWN_MS = 30 * 60 * 1000;
 const ENGINE_FAILURE_THRESHOLD = 2;

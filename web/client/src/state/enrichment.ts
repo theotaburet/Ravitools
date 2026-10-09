@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Enrichment state — jotai atoms + action atoms
+// Enrichment state: jotai atoms + action atoms
 // Manages: model loading → batch enrichment → retry failed → results
-// ---------------------------------------------------------------------------
 
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
@@ -54,9 +52,7 @@ const INITIAL_JOB: EnrichmentJobState = {
   captchaUrl: null,
 };
 
-// ---------------------------------------------------------------------------
-// Base atoms
-// ---------------------------------------------------------------------------
+// --- Base atoms ---
 
 export const enrichmentJobAtom = atom<EnrichmentJobState>({
   ...INITIAL_JOB,
@@ -71,17 +67,13 @@ export const enrichingPoiIdsAtom = atom((get) => {
   return job.stage === "running" ? job.activePoiIds : null;
 });
 
-// ---------------------------------------------------------------------------
-// Non-reactive context (module singletons)
-// ---------------------------------------------------------------------------
+// --- Non-reactive context (module singletons) ---
 
 let abortCtrl: AbortController | null = null;
 /** Stored params to resume after CAPTCHA resolution */
 let pausedParams: { pois: POI[]; targetLanguage: TargetLanguage; enrichAll: boolean } | null = null;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+// --- Internal helpers ---
 
 function patchJob(get: Getter, set: Setter, partial: Partial<EnrichmentJobState>): void {
   set(enrichmentJobAtom, { ...get(enrichmentJobAtom), ...partial });
@@ -122,9 +114,7 @@ function markPoiStarted(get: Getter, set: Setter, poiId: string, poiName: string
   });
 }
 
-// ---------------------------------------------------------------------------
-// Action atoms
-// ---------------------------------------------------------------------------
+// --- Action atoms ---
 
 /**
  * Start enrichment for a list of POIs.
@@ -151,10 +141,8 @@ export const startEnrichmentAtom = atom(
     const hasWebGpu = isWebGpuAvailable();
 
     try {
-      // -----------------------------------------------------------------
-      // Step 0: Shared cache lookup — POIs found non-stale in the DB are
+      // Step 0: Shared cache lookup: POIs found non-stale in the DB are
       // reused directly. Stale or missing POIs continue through the pipeline.
-      // -----------------------------------------------------------------
       let poisToEnrich: POI[] = pois;
       try {
         const cached = await lookupPoiBatch(pois);
@@ -165,7 +153,13 @@ export const startEnrichmentAtom = atom(
             const key = getPoiCacheKey(poi);
             if (!key) continue;
             const hit = cached.get(key);
-            if (hit && !hit.is_stale) {
+            // A deterministic (no-LLM) result is only worth reusing when this
+            // browser cannot do better; otherwise it would be locked in for 90 days.
+            const reusable =
+              hit &&
+              !hit.is_stale &&
+              !(hasWebGpu && hit.enrichment.synthesisSource === "deterministic");
+            if (reusable) {
               next.set(poi.id, hit.enrichment);
               reusedIds.push(poi.id);
             }
@@ -220,7 +214,7 @@ export const startEnrichmentAtom = atom(
           patchJob(get, set, { modelLoadProgress: progress });
         });
         if (!ok) {
-          // Model load failed — continue without LLM
+          // Model load failed: continue without LLM
           patchJob(get, set, { webGpuAvailable: false });
         }
       }
@@ -288,10 +282,8 @@ export const startEnrichmentAtom = atom(
 
       if (ctrl.signal.aborted) return;
 
-      // -----------------------------------------------------------------
       // Step 3: Retry transient failures after cooldown
-      // Skip if all engines are still suspended — pause for CAPTCHA instead
-      // -----------------------------------------------------------------
+      // Skip if all engines are still suspended: pause for CAPTCHA instead
       for (let retryPass = 1; retryPass <= MAX_RETRY_PASSES; retryPass++) {
         if (ctrl.signal.aborted) break;
 
@@ -357,7 +349,7 @@ export const startEnrichmentAtom = atom(
             nextActive.delete(poiId);
             set(enrichmentJobAtom, {
               ...prev,
-              // AUDIT R17: retries re-report already-counted POIs — never exceed total
+              // Retries re-report already-counted POIs: never exceed total
               completed: Math.min(prev.completed + 1, prev.total),
               errorCount: retrySucceeded ? Math.max(0, prev.errorCount - 1) : prev.errorCount,
               currentPoiName: retrySucceeded ? null : prev.currentPoiName,
@@ -439,7 +431,7 @@ export const continueEnrichmentAtom = atom(
     );
 
     if (pendingPois.length === 0) {
-      // Nothing to do — everything is already enriched
+      // Nothing to do: everything is already enriched
       patchJob(get, set, { stage: "done" });
       return;
     }

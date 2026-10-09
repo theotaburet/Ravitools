@@ -1,11 +1,9 @@
-// ---------------------------------------------------------------------------
-// R18: two concurrent initEngine() calls must share one model download
-// ---------------------------------------------------------------------------
+// --- Two concurrent initEngine() calls must share one model download ---
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const chatCreate = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn(async (_request: unknown) => ({
     choices: [{ message: { content: "not acceptable" } }],
   })),
 );
@@ -27,7 +25,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("initEngine in-flight guard (R18)", () => {
+describe("initEngine in-flight guard", () => {
   it("two concurrent calls invoke the engine factory once", async () => {
     vi.stubGlobal("navigator", { gpu: {} });
     const { initEngine, resetLlmState, isWebGpuAvailable } = await import("../lib/enrichment/llm");
@@ -41,12 +39,10 @@ describe("initEngine in-flight guard (R18)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R23: after MAX_REPAIR_ATTEMPTS a still-rejected synthesis must return null
+// After MAX_REPAIR_ATTEMPTS a still-rejected synthesis must return null
 // (deterministic builder takes over), not the bad output
-// ---------------------------------------------------------------------------
 
-describe("synthesize repair exhaustion (R23)", () => {
+describe("synthesize repair exhaustion", () => {
   it("returns null when every repair attempt is still rejected", async () => {
     vi.stubGlobal("navigator", { gpu: {} });
     const { initEngine, resetLlmState, synthesize } = await import("../lib/enrichment/llm");
@@ -73,5 +69,11 @@ describe("synthesize repair exhaustion (R23)", () => {
 
     expect(chatCreate.mock.calls.length).toBeGreaterThan(1); // repairs were attempted
     expect(result).toBeNull();
+    // Every call constrains the output to the JSON schema (no free-text, no invalid JSON).
+    const request = chatCreate.mock.calls[0]?.[0] as {
+      response_format?: { type?: string; schema?: string };
+    };
+    expect(request.response_format?.type).toBe("json_object");
+    expect(request.response_format?.schema).toContain("priceLevel");
   });
 });

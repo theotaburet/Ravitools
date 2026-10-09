@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// FVM — structured content, LLM contract, confidence, divergences
+// FVM: structured content, LLM contract, confidence, divergences
 // (split from fvm.test.ts)
-// ---------------------------------------------------------------------------
 // @vitest-environment jsdom
 
 import { describe, expect, it } from "vitest";
@@ -17,9 +15,7 @@ import { ENRICHMENT_CONTRACTS, getEnrichmentContract } from "../lib/poi-config";
 import type { SearchSnippet } from "../types";
 import { makePoi, makeSnippets } from "./fvm-helpers";
 
-// ===========================================================================
-// D. Structured Output Core
-// ===========================================================================
+// --- D. Structured Output Core ---
 
 describe("FVM-D: Structured Output Core", () => {
   const richEnrichment = {
@@ -137,9 +133,7 @@ describe("FVM-D: Structured Output Core", () => {
   });
 });
 
-// ===========================================================================
-// E. Category-Specific Structured Rules (contracts exist)
-// ===========================================================================
+// --- E. Category-Specific Structured Rules (contracts exist) ---
 
 describe("FVM-E: Category-Specific Contracts", () => {
   it("E1: contracts exist for all 4 full categories", () => {
@@ -225,9 +219,7 @@ describe("FVM-E: Category-Specific Contracts", () => {
   });
 });
 
-// ===========================================================================
-// F. LLM Output Contract (extends existing parseLlmOutput tests)
-// ===========================================================================
+// --- F. LLM Output Contract (extends existing parseLlmOutput tests) ---
 
 describe("FVM-F: LLM Output Contract", () => {
   it("F1: parseLlmOutput accepts full valid JSON with new compact format", () => {
@@ -308,9 +300,7 @@ describe("FVM-F: LLM Output Contract", () => {
   });
 });
 
-// ===========================================================================
-// G. Confidence And Coverage
-// ===========================================================================
+// --- G. Confidence And Coverage ---
 
 describe("FVM-G: Confidence And Coverage", () => {
   const baseEnrichment = {
@@ -322,7 +312,7 @@ describe("FVM-G: Confidence And Coverage", () => {
   };
 
   it("G1: confidence increases with more useful sources (below saturation)", () => {
-    // sourceFactor = min(snippets/7, 0.7) — saturates at ~5 snippets (5/7 ≈ 0.71 → capped 0.7)
+    // sourceFactor = min(snippets/7, 0.7): saturates at ~5 snippets (5/7 ≈ 0.71 → capped 0.7)
     const score1 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
     const score2 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(2) });
     const score4 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(4) });
@@ -389,9 +379,7 @@ describe("FVM-G: Confidence And Coverage", () => {
   });
 });
 
-// ===========================================================================
-// H. Contradictions And Missing Data
-// ===========================================================================
+// --- H. Contradictions And Missing Data ---
 
 describe("FVM-H: Contradictions And Missing Data", () => {
   it("H1: missing hours produces explicit caution", () => {
@@ -481,15 +469,18 @@ describe("FVM-H: Contradictions And Missing Data", () => {
   });
 });
 
-// ===========================================================================
-// WS8: Category-Specific LLM Prompt Hardening
-// ===========================================================================
+// --- WS8: Category-Specific LLM Prompt Hardening ---
 
 describe("FVM-WS8: Category-Specific LLM Prompts", () => {
-  it("WS8-1: Restaurant prompt includes cuisine and terrace priorities", () => {
+  it("WS8-1: Restaurant prompt carries the banned list but no priority phrases (the 3B model echoes them)", () => {
     const prompt = buildSystemPrompt("en", "Restaurant or Bar");
-    expect(prompt).toContain("Cuisine type");
-    expect(prompt).toContain("terrace");
+    expect(prompt).toContain("NEVER include in your output");
+    expect(prompt).not.toContain("Cuisine type");
+    expect(prompt).not.toContain("terrace");
+  });
+
+  it("WS8-1b: prompt shows no example values the model could copy (no HH:MM times)", () => {
+    expect(buildSystemPrompt("en", "Food shop")).not.toMatch(/\d{1,2}:\d{2}/);
   });
 
   it("WS8-2: Restaurant prompt bans marketing language", () => {
@@ -497,16 +488,16 @@ describe("FVM-WS8: Category-Specific LLM Prompts", () => {
     expect(prompt).toContain("Marketing language");
   });
 
-  it("WS8-3: Food shop prompt prioritizes opening hours", () => {
+  it("WS8-3: Food shop prompt bans invented hours and keeps no priority wording", () => {
     const prompt = buildSystemPrompt("en", "Food shop");
-    expect(prompt).toContain("Opening hours");
-    expect(prompt).toContain("resupply");
+    expect(prompt).toContain("Invented hours from chain typical schedules");
+    expect(prompt).not.toContain("resupply");
   });
 
-  it("WS8-4: Sleeping place prompt includes booking and check-in", () => {
+  it("WS8-4: Sleeping place prompt bans assumed booking requirements", () => {
     const prompt = buildSystemPrompt("en", "Sleeping place");
-    expect(prompt).toContain("Booking requirement");
-    expect(prompt).toContain("Check-in");
+    expect(prompt).toContain("Assumed booking requirements");
+    expect(prompt).not.toContain("Check-in");
   });
 
   it("WS8-5: Sleeping place prompt bans invented amenity lists", () => {
@@ -514,14 +505,14 @@ describe("FVM-WS8: Category-Specific LLM Prompts", () => {
     expect(prompt).toContain("Invented amenity lists");
   });
 
-  it("WS8-6: Gears prompt includes repair service priority", () => {
+  it("WS8-6: Gears prompt bans assumed repair capability", () => {
     const prompt = buildSystemPrompt("en", "Gears");
-    expect(prompt).toContain("bike repair");
+    expect(prompt).toContain("Assumed repair capability from shop type");
   });
 
-  it("WS8-7: Gears prompt includes valuable signals like spare parts", () => {
+  it("WS8-7: Gears prompt carries no valuable-signal wording the model could echo", () => {
     const prompt = buildSystemPrompt("en", "Gears");
-    expect(prompt).toContain("Spare parts");
+    expect(prompt).not.toContain("Spare parts");
   });
 
   it("WS8-8: unknown category does not inject contract block", () => {
@@ -552,9 +543,7 @@ describe("FVM-WS8: Category-Specific LLM Prompts", () => {
   });
 });
 
-// ===========================================================================
-// WS10: Richer Confidence Formula
-// ===========================================================================
+// --- WS10: Richer Confidence Formula ---
 
 describe("FVM-WS10: Richer Confidence Formula", () => {
   const baseEnrichment = {
@@ -652,9 +641,7 @@ describe("FVM-WS10: Richer Confidence Formula", () => {
   });
 });
 
-// ===========================================================================
-// WS11: Contradiction Confidence Penalty
-// ===========================================================================
+// --- WS11: Contradiction Confidence Penalty ---
 
 describe("FVM-WS11: Contradiction Confidence Penalty", () => {
   const baseEnrichment = {
@@ -734,9 +721,7 @@ describe("FVM-WS11: Contradiction Confidence Penalty", () => {
   });
 });
 
-// ===========================================================================
-// WS16: Direct Divergence Detection Tests
-// ===========================================================================
+// --- WS16: Direct Divergence Detection Tests ---
 
 describe("FVM-WS16: Divergence Detection (buildDivergences)", () => {
   const noEnrichment = { hours: null, rating: null };
@@ -834,9 +819,7 @@ describe("FVM-WS16: Divergence Detection (buildDivergences)", () => {
   });
 });
 
-// ===========================================================================
-// WS16: Source Confirmation Tests
-// ===========================================================================
+// --- WS16: Source Confirmation Tests ---
 
 describe("FVM-WS16: Source Confirmation (determineSourceConfirmation)", () => {
   it("WS16-SC1: returns 'both' when official + review platforms present", () => {
@@ -888,9 +871,7 @@ describe("FVM-WS16: Source Confirmation (determineSourceConfirmation)", () => {
   });
 });
 
-// ===========================================================================
-// WS16: Sleeping Place with Booking/Hotels.com
-// ===========================================================================
+// --- WS16: Sleeping Place with Booking/Hotels.com ---
 
 describe("FVM-WS16: Sleeping Place Booking Integration", () => {
   it("WS16-SP1: sleeping place search query includes booking bias", () => {
