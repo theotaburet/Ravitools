@@ -1,7 +1,7 @@
 services:
   searxng:
     image: searxng/searxng:latest
-    # AUDIT R8: localhost only — settings.yml ships limiter:false and a static
+    # Localhost only: settings.yml ships limiter:false and a static
     # secret_key, so this port must never be reachable from outside the host.
     ports:
       - "127.0.0.1:8888:8080"
@@ -14,7 +14,7 @@ services:
 
   postgis:
     image: postgis/postgis:16-3.4
-    # AUDIT R4: localhost only, and no default password — set POSTGRES_PASSWORD
+    # Localhost only, and no default password: set POSTGRES_PASSWORD
     # in your environment or a .env file (see .env.example).
     ports:
       - "127.0.0.1:5432:5432"

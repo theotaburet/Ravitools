@@ -1,13 +1,11 @@
-// ---------------------------------------------------------------------------
 // Overpass query builder & client
 // Port of overpass_client.py logic, adapted for client-heavy architecture
-// ---------------------------------------------------------------------------
 
 import type { PoiCategory, TracePoint } from "../types";
 import { dlog } from "./debug-log";
 import { POI_CATEGORIES } from "./poi-config";
 
-/** Proxy base URL – in dev, Vite proxies /api to the server */
+/** Proxy base URL: in dev, Vite proxies /api to the server */
 const PROXY_BASE =
   (typeof window !== "undefined" &&
     ((window as unknown as Record<string, unknown>).__RAVITOOLS_API_URL__ as string)) ||
@@ -21,7 +19,7 @@ const DIRECT_URLS = [
 ];
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
-// ponytail: TTL so stale OSM data isn't served for the whole page lifetime (AUDIT C4).
+// TTL so stale OSM data isn't served for the whole page lifetime.
 // OSM POIs don't change minute-to-minute; 1h is plenty for a planning session.
 const OVERPASS_CACHE_TTL_MS = 60 * 60 * 1000;
 const overpassResultCache = new Map<string, { value: OverpassResponse; ts: number }>();
@@ -47,9 +45,7 @@ function cacheGet(key: string): OverpassResponse | undefined {
   return entry.value;
 }
 
-// ---------------------------------------------------------------------------
-// Query building
-// ---------------------------------------------------------------------------
+// --- Query building ---
 
 /**
  * Build an Overpass QL query for the given trace corridor.
@@ -120,7 +116,7 @@ export function chunkPoints(points: TracePoint[], maxPointsPerQuery: number = 25
 }
 
 /**
- * Halve a chunk (1-point overlap) — used when a chunk keeps failing: POI-dense
+ * Halve a chunk (1-point overlap): used when a chunk keeps failing: POI-dense
  * areas (cities) time Overpass out, and a smaller corridor is much cheaper.
  */
 export function splitChunk(points: TracePoint[]): TracePoint[][] {
@@ -140,9 +136,7 @@ export function buildChunkedQueries(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Overpass API communication (via proxy)
-// ---------------------------------------------------------------------------
+// --- Overpass API communication (via proxy) ---
 
 export interface OverpassElement {
   type: "node" | "way" | "relation";
@@ -197,7 +191,7 @@ export async function queryOverpass(query: string, retries: number = 3): Promise
         const reason = res.status === 429 ? "Rate limited by proxy" : "Overpass server timeout";
         endTimer();
         log.warn(`${reason} (HTTP ${res.status})`, { status: res.status, attempt });
-        // Rate limited or timeout – wait and retry
+        // Rate limited or timeout: wait and retry
         lastError = new Error(reason);
         continue;
       }
@@ -229,7 +223,7 @@ export async function queryOverpass(query: string, retries: number = 3): Promise
   throw lastError ?? new Error("Overpass query failed");
 }
 
-/** Result of queryAllPois — includes chunk failure info for user feedback */
+/** Result of queryAllPois: includes chunk failure info for user feedback */
 export interface QueryAllPoisResult {
   elements: OverpassElement[];
   failedChunks: number;
@@ -285,11 +279,11 @@ export async function queryAllPois(
 
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
-  let dedupedCount = 0; // running count of cross-chunk duplicates dropped (AUDIT C+1)
+  let dedupedCount = 0; // running count of cross-chunk duplicates dropped
 
   // Chunks are point arrays, not query strings: a chunk that keeps failing
   // (POI-dense city area → Overpass timeout) is split in two for the next
-  // round — smaller corridors are much cheaper server-side.
+  // round: smaller corridors are much cheaper server-side.
   let pending: TracePoint[][] = initialChunks;
   let totalChunks = initialChunks.length;
   let completed = 0;
@@ -341,7 +335,7 @@ export async function queryAllPois(
             const halves = splitChunk(chunk);
             failedThisRound.push(...halves);
             totalChunks += halves.length - 1;
-            log.warn(`Chunk of ${chunk.length} pts failed — split for next round: ${r.reason}`);
+            log.warn(`Chunk of ${chunk.length} pts failed: split for next round: ${r.reason}`);
           } else {
             failedThisRound.push(chunk);
             log.error(`Chunk failed: ${r.reason}`);

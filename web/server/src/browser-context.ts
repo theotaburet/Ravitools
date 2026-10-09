@@ -11,7 +11,7 @@
  * - One BrowserContext singleton, lazily created with storageState if file exists
  * - Pages are ephemeral and inherit cookies from the context
  * - Locale + UA are fixed at the context level (rotating per page would defeat
- *   session continuity — Google detects the inconsistency)
+ *   session continuity: Google detects the inconsistency)
  * - StorageState saved to disk:
  *   - Manually after a captcha is solved (call `saveBrowserState()`)
  *   - Periodically (debounced, max 1x / 30s)
@@ -86,7 +86,7 @@ async function loadStorageState(): Promise<{ cookies?: unknown; origins?: unknow
  * to create ephemeral pages that share cookies with the rest of the session.
  */
 export async function getBrowserContext(browser: Browser): Promise<BrowserContext> {
-  // AUDIT R12: rebind if the caller holds a new Browser (old one crashed/relaunched).
+  // Rebind if the caller holds a new Browser (old one crashed/relaunched).
   if (!contextPromise || contextBrowser !== browser) {
     contextBrowser = browser;
     const created = (async () => {
@@ -108,7 +108,7 @@ export async function getBrowserContext(browser: Browser): Promise<BrowserContex
       return ctx;
     })();
     contextPromise = created;
-    // AUDIT R12: don't cache a rejected promise forever — let the next call retry.
+    // Don't cache a rejected promise forever: let the next call retry.
     created.catch(() => {
       if (contextPromise === created) {
         contextPromise = null;

@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Config — env vars parsed once at import time
-// ---------------------------------------------------------------------------
+// --- Config: env vars parsed once at import time ---
 export const PORT = parseInt(process.env.PORT || "3001", 10);
 // Mirror pool, tried in order. Public instances flap (429/406/slowness),
 // so robustness comes from the pool, not from any single URL.
@@ -19,8 +17,8 @@ export const OVERPASS_URLS = (
 export const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
 export const NOMINATIM_URL = process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
 
-// AUDIT S1: fail fast on a malformed upstream URL from env (config typo) rather than
-// discovering it on the first request. (Not a public-IP check — SearXNG is intentionally local.)
+// Fail fast on a malformed upstream URL from env (config typo) rather than
+// discovering it on the first request. (Not a public-IP check: SearXNG is intentionally local.)
 for (const [name, url] of Object.entries({
   ...Object.fromEntries(OVERPASS_URLS.map((u, i) => [`OVERPASS_URLS[${i}]`, u])),
   SEARXNG_URL,

@@ -1,13 +1,11 @@
-// ---------------------------------------------------------------------------
-// POI enrichment cache — client
+// POI enrichment cache: client
 //
 // Wraps the server's /poi/* endpoints. Anonymous shared cache: a POI enriched
 // by user A is reused by user B if requested within the TTL window.
 //
 // Graceful degradation: any network/HTTP error (including 503 when the server
-// has no DATABASE_URL) returns null/empty without throwing — the enrichment
+// has no DATABASE_URL) returns null/empty without throwing: the enrichment
 // pipeline keeps working as if no cache existed.
-// ---------------------------------------------------------------------------
 
 import type { EnrichedData, POI } from "../types";
 
@@ -15,7 +13,7 @@ const API_BASE = "/api";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_AGE_DAYS = 90;
-/** AUDIT R11: must stay ≤ the server's MAX_BATCH_KEYS (200). */
+/** Must stay ≤ the server's MAX_BATCH_KEYS (200). */
 const BATCH_CHUNK_SIZE = 200;
 
 export interface CachedEnrichment {
@@ -73,7 +71,7 @@ export async function lookupPoiBatch(
     osm_id: String(p.osmId),
   }));
 
-  // AUDIT R11: the server rejects >MAX_BATCH_KEYS (200) with a 400 — chunk and merge
+  // The server rejects >MAX_BATCH_KEYS (200) with a 400: chunk and merge
   // so large routes still benefit from the cache. A failed chunk degrades to a miss.
   for (let i = 0; i < keys.length; i += BATCH_CHUNK_SIZE) {
     const chunk = keys.slice(i, i + BATCH_CHUNK_SIZE);
@@ -84,24 +82,22 @@ export async function lookupPoiBatch(
         body: JSON.stringify({ keys: chunk, max_age_days: maxAgeDays }),
         signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
       });
-      // ponytail: still degrade gracefully (empty Map), but don't do it *silently* —
-      // a cache outage looks identical to an all-miss otherwise (AUDIT C5).
+      // Still degrade gracefully (empty Map), but don't do it *silently*:
+      // a cache outage looks identical to an all-miss otherwise.
       if (!res.ok) {
-        console.warn(
-          `Ravitools: POI cache unavailable (HTTP ${res.status}) — enriching without it`,
-        );
+        console.warn(`Ravitools: POI cache unavailable (HTTP ${res.status}): enriching without it`);
         continue;
       }
       const body = (await res.json()) as BatchResponse;
       if (!Array.isArray(body?.results)) {
-        console.warn("Ravitools: POI cache returned a malformed body — enriching without it");
+        console.warn("Ravitools: POI cache returned a malformed body: enriching without it");
         continue;
       }
       for (const r of body.results) {
         result.set(`${r.osm_type}/${r.osm_id}`, r);
       }
     } catch (err) {
-      console.warn("Ravitools: POI cache request failed — enriching without it", err);
+      console.warn("Ravitools: POI cache request failed: enriching without it", err);
     }
   }
   return result;

@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Neobrutalist theme tokens — "carnet de route" refinement
+   Neobrutalist theme tokens: "carnet de route" refinement
    Heavy borders, solid shadows, no gradients, no blur.
    One signal color (lime) for actions; blue is reserved for links/info.
    --------------------------------------------------------------------------- */
@@ -30,7 +30,7 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Dark theme — token overrides only; data-theme is set on <html> by App
+   Dark theme: token overrides only; data-theme is set on <html> by App
    (stored preference, defaults to prefers-color-scheme). Ink stays constant:
    text on lime/pink/cyan chips is near-black in both themes.
    --------------------------------------------------------------------------- */
@@ -104,7 +104,7 @@ input[type="checkbox"] {
   *,
   *::before,
   *::after {
-    /* biome-ignore-start lint/complexity/noImportantStyles: standard a11y kill-switch — must beat every component-level animation/transition */
+    /* biome-ignore-start lint/complexity/noImportantStyles: standard a11y kill-switch: must beat every component-level animation/transition */
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -113,7 +113,7 @@ input[type="checkbox"] {
 }
 
 /* ---------------------------------------------------------------------------
-   Neobrutalist utility classes – plain CSS, no @apply self-references
+   Neobrutalist utility classes: plain CSS, no @apply self-references
    --------------------------------------------------------------------------- */
 
 /* Hard shadow boxes */
@@ -216,7 +216,7 @@ input[type="checkbox"] {
   transform: translate(1px, 1px);
 }
 
-/* Tags / badges — always sit on a colored bg (bg-lime, …): ink text */
+/* Tags / badges: always sit on a colored bg (bg-lime, …): ink text */
 .neo-tag {
   display: inline-flex;
   align-items: center;
@@ -520,7 +520,7 @@ input[type="checkbox"] {
   pointer-events: none;
 }
 
-/* Map: antpath overlay — marching dashes along the trace (dashArray 10 20 → period 30) */
+/* Map: antpath overlay: marching dashes along the trace (dashArray 10 20 → period 30) */
 .trace-antpath {
   animation: antpath-march 1.5s linear infinite;
 }
@@ -607,7 +607,7 @@ input[type="checkbox"] {
 }
 
 /* ---------------------------------------------------------------------------
-   Upload zone – big, bold, inviting
+   Upload zone: big, bold, inviting
    --------------------------------------------------------------------------- */
 
 .upload-zone {
@@ -806,7 +806,7 @@ input[type="checkbox"] {
   text-transform: uppercase;
 }
 
-/* AUDIT R34/R43: collapse toggle is a real <button> — inherit the header look */
+/* Collapse toggle is a real <button>: inherit the header look */
 .filter-header-toggle {
   background: none;
   border: none;
@@ -1582,7 +1582,7 @@ input[type="checkbox"] {
   }
 }
 
-/* AUDIT U6: small-phone breakpoint + touch targets */
+/* Small-phone breakpoint + touch targets */
 @media (max-width: 480px) {
   .sidebar {
     max-height: 55vh;
@@ -1684,7 +1684,7 @@ input[type="checkbox"] {
 }
 
 /* ---------------------------------------------------------------------------
-   Debug panel – collapsible log viewer
+   Debug panel: collapsible log viewer
    --------------------------------------------------------------------------- */
 
 .debug-panel {
@@ -1807,7 +1807,7 @@ input[type="checkbox"] {
 }
 
 /* ---------------------------------------------------------------------------
-   Carnet de route — numbered step sections in the sidebar
+   Carnet de route: numbered step sections in the sidebar
    The prep flow is a real sequence (load → refine → enrich → export), so the
    numbering encodes progress, brevet-checklist style.
    --------------------------------------------------------------------------- */
@@ -1875,7 +1875,7 @@ input[type="checkbox"] {
   gap: 0.75rem;
 }
 
-/* Panels nested inside a step drop their own frame — the step is the frame */
+/* Panels nested inside a step drop their own frame: the step is the frame */
 .step-body > .filter-panel,
 .step-body > .enrichment-panel,
 .step-body > .export-panel,
@@ -2002,7 +2002,7 @@ input[type="checkbox"] {
 }
 
 @media print {
-  /* Paper is always light — undo the dark theme for the roadbook */
+  /* Paper is always light: undo the dark theme for the roadbook */
   [data-theme="dark"] {
     --color-bg: #faf7ee;
     --color-surface: #ffffff;

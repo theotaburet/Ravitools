@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type express from "express";
 
-/** Send a cached-or-fresh JSON proxy response with its X-Cache marker (AUDIT R32). */
+/** Send a cached-or-fresh JSON proxy response with its X-Cache marker. */
 export function sendProxyJson(
   res: express.Response,
   body: string,
@@ -12,7 +12,7 @@ export function sendProxyJson(
   res.send(body);
 }
 
-/** Constant-time secret compare so the admin key can't be probed by timing (AUDIT S2). */
+/** Constant-time secret compare so the admin key can't be probed by timing. */
 export function timingSafeEqualStr(a: string, b: string): boolean {
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);

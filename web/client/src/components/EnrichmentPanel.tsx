@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// EnrichmentPanel – UI for POI enrichment via SearXNG + WebLLM
+// EnrichmentPanel: UI for POI enrichment via SearXNG + WebLLM
 // Neobrutalist design: progress bar, model download, batch trigger
-// ---------------------------------------------------------------------------
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo } from "react";
@@ -116,7 +114,7 @@ export function EnrichmentPanel() {
         {job.webGpuAvailable ? t("enrich.aiSynthesis", targetLanguage) : ""}
       </p>
 
-      {/* Trust: AI summaries are not authoritative (M2) */}
+      {/* Trust: AI summaries are not authoritative */}
       {job.webGpuAvailable && (
         <p className="enrichment-notice notice-info">
           ⓘ {t("enrich.aiDisclaimer", targetLanguage)}
@@ -142,7 +140,7 @@ export function EnrichmentPanel() {
         <div className="enrichment-notice notice-progress">{job.googleFallbackStatus}</div>
       )}
 
-      {/* Scraper blocked signal (M2): CAPTCHA/anti-bot on Google/Yandex */}
+      {/* Scraper blocked signal: CAPTCHA/anti-bot on Google/Yandex */}
       {(job.googleFallbackStats?.counts.blocked ?? 0) > 0 && (
         <div className="enrichment-notice notice-danger">
           ⚠ {t("enrich.scraperBlocked", targetLanguage)}
@@ -189,7 +187,7 @@ export function EnrichmentPanel() {
         </label>
       )}
 
-      {/* Idle state — show trigger button */}
+      {/* Idle state: show trigger button */}
       {job.stage === "idle" && enrichedCount === 0 && (
         <div className="flex flex-col gap-2">
           {!enrichAll && poiCount > 0 && (
@@ -213,13 +211,13 @@ export function EnrichmentPanel() {
         </div>
       )}
 
-      {/* Idle after partial enrichment — offer continue or re-enrich */}
+      {/* Idle after partial enrichment: offer continue or re-enrich */}
       {job.stage === "idle" && enrichedCount > 0 && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-mono text-muted">
             {enrichedCount}/{poiCount} {t("enrich.poisEnriched", targetLanguage)}
             {pendingCount > 0 &&
-              ` — ${pendingCount} ${t("enrich.retryableRemaining", targetLanguage)}`}
+              `: ${pendingCount} ${t("enrich.retryableRemaining", targetLanguage)}`}
           </div>
           {pendingCount > 0 && (
             <button
@@ -328,7 +326,7 @@ export function EnrichmentPanel() {
         </div>
       )}
 
-      {/* Paused — CAPTCHA required */}
+      {/* Paused: CAPTCHA required */}
       {isPausedCaptcha && (
         <div className="flex flex-col gap-2">
           <div className="enrichment-notice notice-warning">

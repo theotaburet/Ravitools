@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
-// Step – one numbered section of the sidebar "carnet de route".
+// Step: one numbered section of the sidebar "carnet de route".
 // The prep flow is a real sequence (load → refine → enrich → export), so the
 // numbers encode progress. "todo" steps render header-only, dimmed.
-// ---------------------------------------------------------------------------
 
 import type { ReactNode } from "react";
 

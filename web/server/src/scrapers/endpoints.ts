@@ -11,8 +11,8 @@
  *   GET    {base}/jobs            list recent jobs + counts
  *
  * Request body for POST endpoints:
- *   { url: string }                                   — direct URL
- *   { poiName: string, lat: number, lon: number, ...} — server builds URL via plugin.buildUrl
+ *   { url: string }                                  : direct URL
+ *   { poiName: string, lat: number, lon: number, ...}: server builds URL via plugin.buildUrl
  *
  * Backward-compat aliases (e.g. `/google-maps-preview`) are mounted by
  * passing a custom `basePath` in addition to the canonical `/scrape/{name}`.
@@ -41,7 +41,7 @@ function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugi
   const poiName = typeof b.poiName === "string" ? b.poiName : null;
 
   if (rawUrl) {
-    // First reject malformed URL syntax (back-compat with legacy endpoints)
+    // Reject malformed URL syntax first
     try {
       // eslint-disable-next-line no-new
       new URL(rawUrl);
@@ -59,7 +59,7 @@ function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugi
   if (!plugin.buildUrl) {
     return { error: "Missing 'url' in request body" };
   }
-  // AUDIT R22: only accept real numbers — Number(null) === 0 silently scraped 0,0.
+  // Only accept real numbers: Number(null) === 0 silently scraped 0,0.
   const lat = typeof b.lat === "number" ? b.lat : Number.NaN;
   const lon = typeof b.lon === "number" ? b.lon : Number.NaN;
   if (!poiName || !Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -78,7 +78,7 @@ function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugi
   return { url: built, poiName };
 }
 
-/** AUDIT R6: max queued+running jobs per source before POST /jobs returns 429. */
+/** Max queued+running jobs per source before POST /jobs returns 429. */
 const MAX_PENDING_JOBS = 50;
 
 export function mountScraperEndpoints<T extends MapPreview>(
@@ -91,7 +91,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
   const middlewares: RequestHandler[] = options.limiter ? [options.limiter] : [];
   const log = options.log;
 
-  // POST {base} — synchronous fetch
+  // POST {base}: synchronous fetch
   app.post(base, ...middlewares, async (req, res) => {
     try {
       const parsed = parseInput(req.body, plugin);
@@ -123,7 +123,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
     }
   });
 
-  // POST {base}/jobs — queue background job
+  // POST {base}/jobs: queue background job
   app.post(`${base}/jobs`, ...middlewares, async (req, res) => {
     try {
       const parsed = parseInput(req.body, plugin);
@@ -132,15 +132,15 @@ export function mountScraperEndpoints<T extends MapPreview>(
         return;
       }
 
-      // AUDIT R6: the queue is floodable — refuse new jobs once too many are
-      // pending for this source. ponytail: O(n) scan over ≤5000 keys per POST.
+      // The queue is floodable: refuse new jobs once too many are
+      // pending for this source. O(n) scan over ≤5000 keys per POST.
       const pending = system.jobCache.keys().filter((k) => {
         const j = system.jobCache.get<ScraperJob<T>>(k);
         return j?.status === "queued" || j?.status === "running";
       }).length;
       if (pending >= MAX_PENDING_JOBS) {
         res.status(429).json({
-          error: `Too many pending ${plugin.displayName} jobs — retry later`,
+          error: `Too many pending ${plugin.displayName} jobs: retry later`,
         });
         return;
       }
@@ -181,7 +181,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
     res.status(204).send();
   });
 
-  // GET {base}/jobs/:jobId — must come BEFORE GET {base}/jobs in Express? No, distinct paths.
+  // GET {base}/jobs/:jobId: must come BEFORE GET {base}/jobs in Express? No, distinct paths.
   app.get(`${base}/jobs/:jobId`, ...middlewares, (req, res) => {
     const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
     const job = system.jobCache.get<ScraperJob<T>>(jobId);
@@ -192,7 +192,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
     res.json(job);
   });
 
-  // GET {base}/jobs — list recent + counts
+  // GET {base}/jobs: list recent + counts
   app.get(`${base}/jobs`, ...middlewares, (_req, res) => {
     const jobs = system.jobCache
       .keys()
@@ -204,7 +204,7 @@ export function mountScraperEndpoints<T extends MapPreview>(
       done: jobs.filter((j) => j.status === "done").length,
       error: jobs.filter((j) => j.status === "error").length,
       // Blocked is a subset signal (CAPTCHA/anti-bot), counted across any status
-      // whose lastError carries the BLOCKED_ sentinel — surfaced as a UI hint.
+      // whose lastError carries the BLOCKED_ sentinel: surfaced as a UI hint.
       blocked: jobs.filter((j) => isBlockedError(j.lastError)).length,
     };
     res.json({ counts, jobs: jobs.slice(-20).reverse() });

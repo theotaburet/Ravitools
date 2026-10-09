@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// UI preferences and selection state
-// ---------------------------------------------------------------------------
+// --- UI preferences and selection state ---
 
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
@@ -29,7 +27,7 @@ export interface MapViewBounds {
   north: number;
   east: number;
 }
-/** Current map viewport — the elevation profile windows itself to it */
+/** Current map viewport: the elevation profile windows itself to it */
 export const mapViewBoundsAtom = atom<MapViewBounds | null>(null);
 
 /** One-shot zoom request (profile cluster click → map fitBounds, then reset) */

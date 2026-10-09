@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// GPX Upload component – drag & drop or file picker (neobrutalist)
+// GPX Upload component: drag & drop or file picker (neobrutalist)
 // Supports multiple GPX files simultaneously
-// ---------------------------------------------------------------------------
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
@@ -16,7 +14,7 @@ import {
 } from "../state/route";
 import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
 
-// ponytail: FileReader instead of File.text() — jsdom (tests) doesn't implement the latter
+// FileReader instead of File.text(): jsdom (tests) doesn't implement the latter
 function readText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -94,7 +92,7 @@ export function GpxUpload() {
   );
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement — the overlaid file input is the accessible control (AUDIT R34)
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement: the overlaid file input is the accessible control
     <div
       className={`upload-zone ${dragOver ? "drag-over" : ""} ${disabled ? "disabled" : ""}`}
       onDragOver={(e) => {

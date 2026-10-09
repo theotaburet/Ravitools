@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for Overpass query builder
-// ---------------------------------------------------------------------------
+// --- Tests for Overpass query builder ---
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {

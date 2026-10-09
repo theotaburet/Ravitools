@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// Tests for parseLlmOutput – pure function, no mocks needed
-// ---------------------------------------------------------------------------
+// --- Tests for parseLlmOutput: pure function, no mocks needed ---
 
 import { describe, expect, it } from "vitest";
 import { parseLlmOutput } from "../lib/enrichment/llm";
 
 describe("parseLlmOutput", () => {
-  // -------------------------------------------------------------------------
-  // Happy path – clean JSON
-  // -------------------------------------------------------------------------
+  // --- Happy path: clean JSON ---
 
   it("parses a well-formed JSON object", () => {
     const input = JSON.stringify({
@@ -50,9 +46,7 @@ describe("parseLlmOutput", () => {
     expect(result?.priceLevel).toBeNull();
   });
 
-  // -------------------------------------------------------------------------
-  // Markdown code block stripping
-  // -------------------------------------------------------------------------
+  // --- Markdown code block stripping ---
 
   it("strips ```json wrapper", () => {
     const json = JSON.stringify({
@@ -86,9 +80,7 @@ describe("parseLlmOutput", () => {
     expect(result?.description).toBe("Perfect.");
   });
 
-  // -------------------------------------------------------------------------
-  // JSON extraction from mixed text
-  // -------------------------------------------------------------------------
+  // --- JSON extraction from mixed text ---
 
   it("extracts JSON from surrounding text", () => {
     const input = `Here is the information:
@@ -100,9 +92,7 @@ I hope this helps!`;
     expect(result?.description).toBe("Good café.");
   });
 
-  // -------------------------------------------------------------------------
-  // Type validation and coercion
-  // -------------------------------------------------------------------------
+  // --- Type validation and coercion ---
 
   it("rounds rating to 1 decimal place", () => {
     const input = JSON.stringify({
@@ -211,9 +201,7 @@ I hope this helps!`;
     expect(result?.description?.length).toBe(180);
   });
 
-  // -------------------------------------------------------------------------
-  // Type coercion – wrong types become null
-  // -------------------------------------------------------------------------
+  // --- Type coercion: wrong types become null ---
 
   it("treats string rating as null", () => {
     const input = JSON.stringify({
@@ -275,9 +263,7 @@ I hope this helps!`;
     expect(parseLlmOutput(input)?.description).toBeNull();
   });
 
-  // -------------------------------------------------------------------------
-  // Edge cases / error handling
-  // -------------------------------------------------------------------------
+  // --- Edge cases / error handling ---
 
   it("returns null for non-JSON text", () => {
     expect(parseLlmOutput("I don't know anything about this place.")).toBeNull();
@@ -322,7 +308,7 @@ I hope this helps!`;
   });
 
   it("returns null for clearly garbled/gibberish text", () => {
-    // No JSON object at all — pure LLM hallucination noise
+    // No JSON object at all: pure LLM hallucination noise
     expect(parseLlmOutput("aaaaaaaaaaaa bbbbbbbbbbb!!!!")).toBeNull();
   });
 

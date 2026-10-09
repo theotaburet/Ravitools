@@ -1,9 +1,7 @@
-// ---------------------------------------------------------------------------
 // EnrichmentPanel component test (M3 key component tests)
 // Focus: the stage state machine drives which block renders + the searxng gate.
 // Asserts on stable structure (classNames) rather than translatable copy.
 // State is injected through a jotai store (job atom + POIs for poiCount).
-// ---------------------------------------------------------------------------
 
 import { cleanup, render } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
@@ -15,7 +13,7 @@ import type { EnrichmentJobState, POI, PoiCategory } from "../types";
 
 afterEach(cleanup);
 beforeEach(() => {
-  // The panel's mount effect fetches /api/health — keep it quiet and stable.
+  // The panel's mount effect fetches /api/health: keep it quiet and stable.
   globalThis.fetch = vi.fn().mockResolvedValue({
     json: () => Promise.resolve({ services: { searxng: "ok" } }),
   }) as unknown as typeof fetch;

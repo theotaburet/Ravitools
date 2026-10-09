@@ -1,8 +1,5 @@
-// ---------------------------------------------------------------------------
 // POI category configuration
-// Direct TypeScript port of config/config.yaml OSM_POI_configuration
-// Extended with optional categories for bikepacking
-// ---------------------------------------------------------------------------
+// Categories and their OSM tag matchers
 
 import type {
   EnrichabilityPolicy,
@@ -12,9 +9,7 @@ import type {
 } from "../types";
 
 export const POI_CATEGORIES: PoiCategoryConfig[] = [
-  // -----------------------------------------------------------------------
-  // Essential categories (enabled by default)
-  // -----------------------------------------------------------------------
+  // --- Essential categories (enabled by default) ---
   {
     category: "Water",
     defaultEnabled: true,
@@ -180,9 +175,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
     tags: [{ key: "shop", value: "laundry", icon: "shirt" }],
   },
 
-  // -----------------------------------------------------------------------
-  // Optional categories (disabled by default, user opts in)
-  // -----------------------------------------------------------------------
+  // --- Optional categories (disabled by default, user opts in) ---
   {
     category: "Medical",
     defaultEnabled: false,
@@ -356,16 +349,12 @@ export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES.filter(
   (c) => c.defaultEnabled !== false,
 ).map((c) => c.category);
 
-// ---------------------------------------------------------------------------
 // OsmAnd extension mappings
 // OsmAnd GPX supports custom extensions for icon, color, and background shape.
 // Namespace: osmand:
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Map marker emoji per category
 // Used as DivIcon content on the Leaflet map (no external icon font needed)
-// ---------------------------------------------------------------------------
 
 export const CATEGORY_EMOJI: Record<PoiCategory, string> = {
   Water: "💧",
@@ -411,7 +400,7 @@ export const OSMAND_CATEGORY_ICONS: Record<PoiCategory, string> = {
 };
 
 /**
- * OsmAnd colors – hex values.
+ * OsmAnd colors: hex values.
  * These map directly to the category background colors.
  */
 export const OSMAND_CATEGORY_COLORS: Record<PoiCategory, string> = {
@@ -527,13 +516,11 @@ export const OSMAND_TAG_ICONS: Record<string, string> = {
   "amenity=library": "amenity_library",
 };
 
-// ---------------------------------------------------------------------------
 // Enrichability policy per category
 // Determines how much enrichment effort each category deserves.
 // - "full": geocode + search + LLM synthesis (high-value places)
 // - "minimal": geocode only (locality), no web search, no LLM
 // - "skip": no network calls at all, just Google Maps link
-// ---------------------------------------------------------------------------
 
 export const ENRICHABILITY_POLICY: Record<PoiCategory, EnrichabilityPolicy> = {
   "Restaurant or Bar": "full",
@@ -561,12 +548,10 @@ export function getEnrichabilityPolicy(category: PoiCategory): EnrichabilityPoli
   return ENRICHABILITY_POLICY[category] ?? "skip";
 }
 
-// ---------------------------------------------------------------------------
 // Category-level enrichment contracts
 // Defines what each "full" enrichment category must produce, what matters,
 // what must NOT be said, and how to handle weak/contradictory sources.
 // These contracts guide both the LLM prompt and the deterministic builder.
-// ---------------------------------------------------------------------------
 
 const RESTAURANT_CONTRACT: EnrichmentCategoryContract = {
   category: "Restaurant or Bar",
@@ -598,7 +583,7 @@ const RESTAURANT_CONTRACT: EnrichmentCategoryContract = {
     "Listed on Google Maps but no review platform coverage found.",
   ],
   contradictionFormulations: [
-    "Sources disagree on opening hours — verify locally.",
+    "Sources disagree on opening hours: verify locally.",
     "Rating varies between platforms ({platform_a}: {rating_a}, {platform_b}: {rating_b}).",
   ],
   silenceConditions: [
@@ -611,7 +596,7 @@ const FOOD_SHOP_CONTRACT: EnrichmentCategoryContract = {
   category: "Food shop",
   priorities: [
     "Shop type (supermarket, bakery, convenience, farm shop, etc.)",
-    "Opening hours — critical for resupply timing",
+    "Opening hours: critical for resupply timing",
     "Whether it is a chain or independent (resupply reliability signal)",
     "Size/range: small village shop vs full supermarket",
     "Sunday/holiday opening if detectable",
@@ -632,10 +617,10 @@ const FOOD_SHOP_CONTRACT: EnrichmentCategoryContract = {
   ],
   weakSourceFormulations: [
     "Listed on maps but no online reviews; verify hours and stock on-site.",
-    "Appears to be a small independent shop — hours and availability may vary.",
+    "Appears to be a small independent shop: hours and availability may vary.",
   ],
   contradictionFormulations: [
-    "Hours vary between sources — listed as {hours_a} on Google, {hours_b} on the official site.",
+    "Hours vary between sources: listed as {hours_a} on Google, {hours_b} on the official site.",
   ],
   silenceConditions: [
     "Only an OSM node with a shop tag and no web footprint at all",
@@ -671,7 +656,7 @@ const SLEEPING_PLACE_CONTRACT: EnrichmentCategoryContract = {
     "Assumed booking requirements",
   ],
   weakSourceFormulations: [
-    "Limited info online — contact directly to confirm availability and price.",
+    "Limited info online: contact directly to confirm availability and price.",
     "Listed on OSM but not found on major booking platforms.",
     "Few reviews; condition and reliability unclear from web sources.",
   ],
@@ -690,7 +675,7 @@ const GEARS_CONTRACT: EnrichmentCategoryContract = {
   priorities: [
     "Shop type: bike shop, outdoor gear, sports general",
     "Whether bike repair service is offered",
-    "Opening hours — critical for a rider in need",
+    "Opening hours: critical for a rider in need",
     "Brands or specialty (road, MTB, touring, e-bike)",
     "Walk-in repair vs appointment only",
   ],
@@ -710,11 +695,11 @@ const GEARS_CONTRACT: EnrichmentCategoryContract = {
     "Marketing language ('best bike shop', 'expert mechanics')",
   ],
   weakSourceFormulations: [
-    "Listed as a bike/sports shop but limited online info — call ahead for repair availability.",
+    "Listed as a bike/sports shop but limited online info: call ahead for repair availability.",
     "Google listing exists but no reviews; capability unclear.",
   ],
   contradictionFormulations: [
-    "Sources disagree on repair service availability — verify in person.",
+    "Sources disagree on repair service availability: verify in person.",
     "Hours listed on Google ({hours_google}) differ from the website ({hours_site}).",
   ],
   silenceConditions: [

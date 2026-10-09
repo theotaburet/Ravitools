@@ -29,7 +29,7 @@ fetchPageRouter.post("/fetch-page", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // SSRF guard — block private/internal IPs
+    // SSRF guard: block private/internal IPs
     try {
       await assertPublicHostname(parsedUrl.hostname);
     } catch (err) {
@@ -38,12 +38,12 @@ fetchPageRouter.post("/fetch-page", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // One shared 12s deadline across all redirect hops (AUDIT R25).
+    // One shared 12s deadline across all redirect hops.
     const timeoutSignal = AbortSignal.timeout(12_000);
 
-    // AUDIT R2: never let fetch() follow redirects itself — re-validate the
+    // Never let fetch() follow redirects itself: re-validate the
     // hostname of every hop so a public URL can't 302 into a private address.
-    // ponytail: no IP pinning between lookup() and fetch() (DNS rebinding TOCTOU);
+    // No IP pinning between lookup() and fetch() (DNS rebinding TOCTOU);
     // add an undici Agent with a pinned connect address if that threat matters.
     const REDIRECT_STATUSES = [301, 302, 303, 307, 308];
     const MAX_REDIRECT_HOPS = 3;

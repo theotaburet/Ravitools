@@ -31,9 +31,8 @@ Thumbs.db
 *.kmz
 !web/examples/*.gpx
 
-# Docs & support (not needed in container)
+# Docs (not needed in container)
 tasks
-skills
-shared
-_config
+tasks_archive
+docs
 *.md

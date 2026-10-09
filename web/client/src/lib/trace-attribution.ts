@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Nearest-trace POI attribution — shared by ElevationProfile and Roadbook
-// ---------------------------------------------------------------------------
+// --- Nearest-trace POI attribution: shared by ElevationProfile and Roadbook ---
 
 import type { POI, TraceData } from "../types";
 import { TraceIndex } from "./gpx-parser";

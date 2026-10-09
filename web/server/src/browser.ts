@@ -19,8 +19,8 @@ export async function getBrowser(): Promise<Browser> {
       launchOptions.proxy = { server: GOOGLE_MAPS_PROXY_URL };
       log.info({ proxy: GOOGLE_MAPS_PROXY_URL }, "Google Maps browser: using proxy");
     }
-    // ponytail: clear the slot if launch rejects, else a single failed launch is
-    // cached forever and scrapers never recover until restart (AUDIT S5).
+    // Clear the slot if launch rejects, else a single failed launch is
+    // cached forever and scrapers never recover until restart.
     browserPromise = chromium.launch(launchOptions).catch((e) => {
       browserPromise = null;
       throw e;

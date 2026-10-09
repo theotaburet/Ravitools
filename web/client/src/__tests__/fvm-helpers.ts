@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Shared factories for the Feature Validation Matrix (FVM) test suite
-// ---------------------------------------------------------------------------
+// --- Shared factories for the Feature Validation Matrix (FVM) test suite ---
 
 import type { EnrichedData, POI, SearchSnippet } from "../types";
 

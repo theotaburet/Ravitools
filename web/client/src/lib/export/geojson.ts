@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// GeoJSON Export – for web/apps that prefer GeoJSON
-// ---------------------------------------------------------------------------
+// --- GeoJSON Export: for web/apps that prefer GeoJSON ---
 
 import type { EnrichedData, POI } from "../../types";
 import { downloadFile } from "./shared";

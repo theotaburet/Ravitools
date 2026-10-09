@@ -1,13 +1,11 @@
-// ---------------------------------------------------------------------------
-// Server-proxy fetch helpers shared by the enrichment adapters
-// ---------------------------------------------------------------------------
+// --- Server-proxy fetch helpers shared by the enrichment adapters ---
 
 /** Timeout for search/geocode requests (ms) */
 export const REQUEST_TIMEOUT = 15_000;
 
 /**
- * JSON fetch helper — GET (no body) or POST JSON; null on any failure.
- * Shared by the proxy-endpoint wrappers (AUDIT R32).
+ * JSON fetch helper: GET (no body) or POST JSON; null on any failure.
+ * Shared by the proxy-endpoint wrappers.
  */
 export async function fetchJson<T>(
   url: string,
@@ -27,7 +25,7 @@ export async function fetchJson<T>(
   }
 }
 
-/** Combine an optional caller signal with a timeout (AUDIT R25). */
+/** Combine an optional caller signal with a timeout. */
 export function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal {
   return signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 }

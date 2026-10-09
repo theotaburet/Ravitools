@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for session persistence (WS7)
-// ---------------------------------------------------------------------------
+// --- Tests for session persistence ---
 
 // @vitest-environment jsdom
 
@@ -15,11 +13,9 @@ import {
 } from "../lib/session";
 import type { EnrichedData, POI, PoiCategory } from "../types";
 
-// ---------------------------------------------------------------------------
-// localStorage polyfill – Node v25 ships a broken globalThis.localStorage
+// localStorage polyfill: Node v25 ships a broken globalThis.localStorage
 // (getItem exists but setItem is undefined). We replace it with a proper
 // in-memory implementation so the session helpers work correctly.
-// ---------------------------------------------------------------------------
 
 function createStorage(): Storage {
   let store: Record<string, string> = {};
@@ -53,9 +49,7 @@ Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
 });
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
+// --- Test helpers ---
 
 function makePoi(id: string, category: PoiCategory = "Restaurant or Bar"): POI {
   return {
@@ -99,9 +93,7 @@ function makeEnrichment(): EnrichedData {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// --- Tests ---
 
 describe("session persistence", () => {
   beforeEach(() => {

@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for POI config lookups
-// ---------------------------------------------------------------------------
+// --- Tests for POI config lookups ---
 
 import { describe, expect, it } from "vitest";
 import {
@@ -15,9 +13,7 @@ import {
   POI_CATEGORIES,
 } from "../lib/poi-config";
 
-// ---------------------------------------------------------------------------
-// Category completeness
-// ---------------------------------------------------------------------------
+// --- Category completeness ---
 
 describe("POI_CATEGORIES", () => {
   it("should have 18 categories total (9 essential + 9 optional)", () => {
@@ -85,9 +81,7 @@ describe("POI_CATEGORIES", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// DEFAULT_CATEGORIES
-// ---------------------------------------------------------------------------
+// --- DEFAULT_CATEGORIES ---
 
 describe("DEFAULT_CATEGORIES", () => {
   it("should contain exactly the 9 essential categories", () => {
@@ -119,9 +113,7 @@ describe("DEFAULT_CATEGORIES", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ALL_CATEGORIES
-// ---------------------------------------------------------------------------
+// --- ALL_CATEGORIES ---
 
 describe("ALL_CATEGORIES", () => {
   it("should match POI_CATEGORIES length", () => {
@@ -133,9 +125,7 @@ describe("ALL_CATEGORIES", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// findCategoryForTag
-// ---------------------------------------------------------------------------
+// --- findCategoryForTag ---
 
 describe("findCategoryForTag", () => {
   it("should find Water for amenity=drinking_water", () => {
@@ -199,9 +189,7 @@ describe("findCategoryForTag", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getCategoryConfig
-// ---------------------------------------------------------------------------
+// --- getCategoryConfig ---
 
 describe("getCategoryConfig", () => {
   it("should return config for known essential category", () => {
@@ -225,9 +213,7 @@ describe("getCategoryConfig", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// OsmAnd mappings
-// ---------------------------------------------------------------------------
+// --- OsmAnd mappings ---
 
 describe("OsmAnd mappings", () => {
   it("should have icons for all 18 categories", () => {

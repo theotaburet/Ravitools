@@ -1,8 +1,6 @@
 import { lookup } from "node:dns/promises";
 
-// ---------------------------------------------------------------------------
-// SSRF guard — block requests to private/internal IPs
-// ---------------------------------------------------------------------------
+// --- SSRF guard: block requests to private/internal IPs ---
 const PRIVATE_IP_RANGES = [
   /^127\./, // loopback
   /^10\./, // RFC 1918

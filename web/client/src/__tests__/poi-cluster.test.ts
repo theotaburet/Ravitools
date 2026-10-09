@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Screen-grid POI clustering
-// ---------------------------------------------------------------------------
+// --- Screen-grid POI clustering ---
 
 import { describe, expect, it } from "vitest";
 import { clusterPois, clusterProfilePois, poiBounds } from "../lib/poi-cluster";

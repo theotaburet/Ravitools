@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Website/source handling: official-site detection (WS5), platform
-// classification (WS7), URL dedup, official-site preview snippets
-// ---------------------------------------------------------------------------
+// Website/source handling: official-site detection, platform
+// classification, URL dedup, official-site preview snippets
 
 import type { EnrichmentPlatform, POI, SearchSnippet, WebsitePreview } from "../../types";
 import { fetchJson, REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
@@ -12,7 +10,7 @@ const OFFICIAL_SITE_TAGS = ["website", "contact:website", "url", "contact:web"] 
  * Domains that should NOT be treated as official websites.
  * Social profiles, aggregators, and review platforms are not official sites.
  * Includes exact domains and base-name prefixes for multi-TLD platforms.
- * (WS5: harden official website detection)
+ *
  */
 const REJECTED_OFFICIAL_DOMAINS = new Set([
   "facebook.com",
@@ -52,7 +50,7 @@ const REJECTED_DOMAIN_PREFIXES = ["tripadvisor", "airbnb", "expedia", "yelp", "b
 /**
  * Pick the best official website URL from OSM tags when present.
  * Rejects social profiles, aggregators, and review platform URLs.
- * (WS5: harden official website detection)
+ *
  */
 export function getOfficialWebsiteUrl(poi: POI): string | null {
   for (const key of OFFICIAL_SITE_TAGS) {
@@ -80,7 +78,7 @@ export function getOfficialWebsiteUrl(poi: POI): string | null {
 /**
  * Check if a URL points to a known non-official domain (social, aggregator, review).
  * Exported for testing.
- * (WS5)
+ *
  */
 export function isRejectedOfficialDomain(url: string): boolean {
   try {
@@ -125,7 +123,7 @@ export function classifySourcePlatform(url: string): EnrichmentPlatform {
 /**
  * Normalize a URL for deduplication.
  * Strips tracking params, mobile prefixes, locale variants, trailing slashes.
- * (WS7: URL normalization & dedup)
+ *
  */
 export function normalizeUrlForDedup(url: string): string {
   try {

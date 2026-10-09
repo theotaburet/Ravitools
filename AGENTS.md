@@ -1,105 +1,319 @@
-# AGENTS.md
+# AGENTS.md - Ravitools Development Instructions
 
-## Mission
+## Project Context
 
-Ravitools enrichit des traces GPX avec des POI OpenStreetMap utiles pour le voyage a velo et le bikepacking, puis exporte des resultats consultables hors ligne sur GPS ou en visualisation web.
+You are working on **Ravitools**: a web app that enriches a cycling GPX trace with useful OpenStreetMap POIs (water, food, sleep, repair...) and exports them for offline use on GPS units, phones and web maps.
 
-Le coeur metier est: trouver des POI vraiment utiles le long d'un itineraire, pas simplement dans un rayon large et bruite.
+The core value is relevance: POIs along the actual route, with low noise, not everything in a wide radius. The GPX file never leaves the browser.
 
-## Regles globales
+### Reference Documents
 
-- Garder ce fichier court. Tout ce qui devient trop specifique doit aller dans `skills/`, `shared/` ou `tasks/`.
-- Travailler avec un contexte minimal: charger seulement les fichiers utiles a la tache en cours.
-- Ne pas introduire de `CLAUDE.md` dans ce projet. La source d'instructions agentiques partagees est `AGENTS.md`.
-- Preferer des changements minimaux, verifiables et orientes usage reel.
+- `CONTRIBUTING.md`: setup, verification, where things live, how to add a POI category
+- `web/docs/architecture.md`: pipeline, what runs where, file map, server endpoints
+- `web/docs/poi-categories.md`: the 18 categories and their OSM tags
+- `web/docs/deployment.md`: GitHub Pages demo and VPS deployment
+- `tasks/`: active work tracking (see below)
 
-## Task Tracking
+This file is the single source of agent instructions. Do not add a `CLAUDE.md`.
 
-Chaque session de travail substantielle doit etre suivie dans un fichier `tasks/tasks_{id}.md`.
+---
 
-### Regles
+## ABSOLUTE Rules
 
-1. **Creer** un fichier `tasks/tasks_{id}.md` au debut d'une session (id = nom court descriptif, ex: `phase18-enrichment`, `fix-overpass-timeout`).
-2. **Mettre a jour** le fichier au fur et a mesure: cocher les items termines, ajouter les items decouverts en cours de route.
-3. **Format standard** (Markdown checkboxes):
+| Constraint                        | Reason                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| Ask for clarification if in doubt | Avoid unnecessary work                                        |
+| Read files before modification    | Understand the context                                        |
+| **Committing**                    | User manages git, not you. If asked: one-line message, no body |
+| **Bun only**                      | Runtime, package manager, scripts. Never `npm`, never `node`  |
+| **just**                          | Task runner; `just check` is the definition of done           |
+| **Jotai**                         | All app state lives in atoms under `web/client/src/state/`    |
+| **No new dependency**             | Without explicit approval; a few lines beat a package         |
+| **GPX stays in the browser**      | Privacy by design; the server only proxies OSM/search/geocode |
+| **No dead code**                  | What you replace, you drop                                    |
+| **Minimal diff**                  | Smallest correct change, fewest files touched                 |
+
+## Typography
+
+**Never use em-dashes (U+2014) anywhere**: not in code comments, doc comments,
+UI strings, log messages, Markdown, or reports, in English or in French.
+Use the appropriate standard punctuation instead: a colon to introduce an
+explanation, a semicolon or comma to join clauses, parentheses for asides.
+For empty table cells or missing values, use a plain hyphen `-`.
+(In French, keep the space before the colon: ` : `.)
+
+En-dashes are allowed only inside numeric ranges (`0–3`, `9h00–18h00`).
+
+## Fundamental Principles
+
+### DRY - Don't Repeat Yourself
+
+**Never duplicate logic or values.**
+
+- A constant (URL, threshold, tag list) = ONE place only
+- Business logic = ONE function only
+- If you modify the same thing in multiple places, it's WRONG
+
+**Concrete examples:**
+
+```typescript
+// BAD: the threshold typed again in a component, a visible string inline
+if (poi.distanceToTrace > 1500) { ... }
+<span>POIs enriched</span>
+
+// GOOD: read the one setting that owns it, one string table
+const { maxDistanceM } = useAtomValue(routeSettingsAtom); // state/route.ts, default 1500
+<span>{t("enrich.poisEnriched", targetLanguage)}</span>   // lib/i18n.ts, fr + en
+```
+
+- POI categories, OSM tags, OsmAnd mappings, enrichment contracts: `web/client/src/lib/poi-config.ts`
+- Every user-visible string: `t(key, lang)` in `web/client/src/lib/i18n.ts`, fr + en
+- Export formats share `lib/export/shared.ts`, `description.ts`, `hours.ts`; never re-implement a formatter per format
+
+### KISS - Keep It Simple, Stupid
+
+**The simplest solution is always the best.**
+
+- No premature abstraction
+- No over-engineering
+- If it's complicated, it's probably wrong
+- One change = minimum files modified
+
+**Before coding, ask yourself:**
+
+1. Can I make it simpler?
+2. Am I modifying the right place (the most centralized)?
+3. Would someone else understand in 5 seconds?
+
+### No shortcuts
+
+**Even if something is simpler, think about edge cases before doing the "simple thing"**: multi-GPX traces, a trace crossing a big city (POI density), Overpass rate limits, no WebGPU, no server (static GitHub Pages build), restored sessions without raw Overpass elements.
+
+---
+
+## Tech Stack
+
+### Frontend (`web/client`)
+
+```
+Runtime: Bun 1.x
+Framework: React 18 + TypeScript strict + Vite 5
+UI: Tailwind v4 + plain CSS tokens (neobrutalist "carnet de route", dark theme via tokens)
+State: Jotai (atoms + action atoms in src/state/)
+Map: Leaflet 1.9 via react-leaflet 4
+Enrichment: @mlc-ai/web-llm (WebGPU, Qwen2.5-3B), SearXNG + Nominatim through the server proxy
+Tests: vitest (+ jsdom per file), Playwright e2e
+```
+
+### Backend (`web/server`)
+
+```
+Runtime: Bun (bun src/index.ts, no build step)
+Framework: Express 4 (helmet, compression, express-rate-limit, node-cache)
+DB: Postgres + PostGIS, optional shared enrichment cache (proxy-only mode without DATABASE_URL)
+Scraping: Playwright (Google Maps fallback), SSRF-guarded fetch-page
+Tests: vitest + supertest
+```
+
+### Tooling
+
+```
+Lint/format: biome (zero warnings)
+Task runner: just (justfile at repo root)
+CI: GitHub Actions (typecheck, test, lint on both packages; Pages deploy of the static client)
+```
+
+### Data Model
+
+Do not duplicate schemas here. Source of truth:
+
+- Domain types: `web/client/src/types/index.ts` (TracePoint, TraceData, POI, PoiCategoryConfig, EnrichedData, EnrichmentJobState)
+- Server cache table `poi_enrichment`: `web/server/migrations/001_init.sql`, keyed by (osm_type, osm_id), PostGIS point, JSONB enrichment
+
+---
+
+## Patterns to Follow
+
+### State Management (Jotai)
+
+```typescript
+// Pattern: derived state is an atom, never recomputed in components
+// filteredPoisAtom derives from poisAtom + activeCategoriesAtom + routeSettingsAtom
+
+// Pattern: pipelines are action atoms (atom(null, async (get, set, ...) => ...))
+// processFilesAtom, retryQueryAtom, startEnrichmentAtom live in src/state/, not in components
+
+// Pattern: components read atoms and dispatch action atoms; no business logic in JSX
+```
+
+### Pure Libraries
+
+```typescript
+// lib/ is pure: no React, no DOM except gpx-parser (DOMParser) and export (Blob)
+// Everything testable in vitest without a browser
+```
+
+### Components
+
+```typescript
+// Pattern: one component per sidebar step (Step.tsx wraps it), explicit props
+// Pattern: shared rendering extracted once (EnrichmentDetails is used by PoiList and RouteMap)
+```
+
+### Timers (strict)
+
+**NEVER use `setTimeout`, `setInterval`, debounce, throttle, rAF (requestAnimationFrame) or `queueMicrotask`** without explicit permission from the master. These techniques cause visual desynchronizations and are very hard to debug. If you think one is necessary, ASK FIRST.
+
+Already approved, do not add to this list without asking:
+
+- UI: `CategoryFilter` slider commit (150 ms), `EnrichmentPanel` scraper job-stats polling, `RouteMap` hover grace and open-popup-after-flyTo delay
+- Async sleeps for retry/backoff/stagger/cooldown: `lib/overpass.ts`, `lib/enrichment/search.ts`, `run-concurrent.ts`, `google-fallback.ts`, `state/enrichment.ts`, server `browser.ts` and `routes/overpass.ts`
+
+---
+
+## Development Workflow
+
+### Before coding
+
+1. **Ask for clarification** if something is unclear
+2. **Announce what you're going to do** before starting
+3. Create `tasks/tasks_{id}.md` for any substantial session (format below)
+
+### During dev
+
+1. **One feature at a time** - no parallel changes
+2. **Tests at the same time** as the code
+3. **Run `just check`** before moving on
+
+### After dev
+
+1. **Update the task file** (steps, decisions, blockers)
+2. **Summarize what was done**
+3. Mark the task `done` and move it to `tasks_archive/` (local only, not tracked by git)
+
+### Task file format
 
 ```markdown
-# Task: {titre}
+# Task: {title}
 Started: {date}
-Status: in-progress | done | blocked
+Status: in-progress | done | blocked | abandoned
 
 ## Steps
 - [x] Step completed
 - [ ] Step pending
-- [ ] Step not started
 
 ## Decisions
-- {decision prise et pourquoi}
+- {decision and why}
 
 ## Blockers
-- {si applicable}
+- {if any}
 ```
 
-4. Quand une session est terminee, marquer `Status: done` et mettre a jour la liste.
-5. Deplacer les fichiers tasks termines dans `tasks_archive/` pour garder `tasks/` reserve aux travaux actifs ou futurs.
-6. Si un fichier task est abandonne, marquer `Status: abandoned` avec une explication.
+---
 
-## Architecture metier actuelle (web)
+## Critical Features to Understand
 
-1. Upload GPX dans le navigateur (drag & drop).
-2. Parsing et simplification de la trace (resampling 500m).
-3. Construction de requetes Overpass par chunks (25 pts/chunk, `around:1000`).
-4. Proxy serveur Express (cache memoire, rate-limit, guard taille).
-5. Matching tags OSM -> 18 categories POI (9 essential + 9 optional).
-6. Filtrage distance perpendiculaire (< 1500m), dedup (50m meme categorie).
-7. Export 5 formats: GPX, KML, GeoJSON, OsmAnd GPX (extensions), KMZ (ZIP builder).
-8. (WIP) Enrichissement POI via SearXNG + LLM in-browser (WebLLM).
+### POI pipeline
 
-## Sources prioritaires
+```
+GPX upload (browser)
+    ↓ parse + resample to ~500 m
+Overpass query by chunks (25 pts, 3 pts overlap, around:1000)
+    ↓ via server proxy, or directly in the static build (VITE_STANDALONE)
+Tag matching → 18 categories
+    ↓ perpendicular distance to trace (< maxDistanceM), dedup 50 m same category, sort along trace
+Map + list + elevation profile (gaps without water/food)
+    ↓ optional enrichment: geocode → SearXNG → WebLLM synthesis, deterministic fallback
+Export: GPX, KML, GeoJSON, OsmAnd GPX, KMZ, plan file (.ravitools.json)
+```
 
-- `web/client/src/types/index.ts`
-- `web/client/src/lib/poi-config.ts`
-- `web/client/src/lib/overpass.ts`
-- `web/client/src/lib/poi-processor.ts`
-- `web/client/src/lib/export/` (un module par format)
-- `web/client/src/lib/enrichment/`
-- `web/client/src/state/` (atoms jotai: route, enrichment, ui)
-- `web/server/src/app.ts` + `web/server/src/routes/`
-- `web/README.md`
+### Multi-GPX
 
-## Verification minimale
+Several traces at once; each POI is attributed to its nearest trace (`lib/trace-attribution.ts`). Distance filtering is the minimum over all traces.
 
-- Tout: `just check` (typecheck + tests + lint, client et serveur, zero warning)
-- Type check: `just typecheck`
-- Tests: `just test` (ou `just test-client` / `just test-server`)
-- Build prod: `just build`
-- Si une modif touche la logique POI: verifier la requete OSM, le filtrage, l'export et le resultat sur un vrai GPX si possible.
+### Session restore
 
-## Token Saving
+Restored sessions have no raw Overpass elements: re-filter from the restored POI superset, never re-query silently.
 
-- Ne pas relire tout le depot si la tache est locale.
-- Utiliser `skills/` pour les workflows repetables plutot que de gonfler `AGENTS.md`.
-- Utiliser `tasks/` pour le suivi operationnel actif et `tasks_archive/` pour l'historique.
+### Enrichment trust
+
+Every enriched POI carries confidence, provenance and `synthesisSource` (AI / AI-repaired / deterministic). Surface it; never present LLM output as fact.
+
+---
+
+## Expected Quality
+
+### TypeScript
+
+- `strict: true`
+- No `any`
+- No `@ts-ignore`
+- `biome-ignore` only with a reason and explicit approval
+- Explicit types for props and returns
+
+### Tests
+
+- A bug fix starts with a failing regression test
+- GPX-parsing tests need `// @vitest-environment jsdom` (no `DOMParser` in Node)
+- Any POI-logic change is also checked on a real GPX from `web/examples/`
+
+---
+
+## Mandatory Linting
+
+### Absolute Rule
+
+**You MUST run the linter after every code modification and fix errors BEFORE moving on.**
+
+### Commands
+
+```bash
+just check        # typecheck + tests + lint, client and server, zero warning
+just typecheck
+just test         # or just test-client / just test-server
+just lint
+just format
+just test-e2e     # Playwright (client)
+```
+
+### Workflow
+
+1. Modify code
+2. **Run `just check`**
+3. Fix reported errors
+4. Re-run until 0 errors and 0 warnings
+5. Only then, consider the task complete
+
+**NEVER ignore linter warnings.** If a warning seems incorrect, ask for confirmation before ignoring it.
+
+---
+
+## Product Decisions
+
+- Personal, single-user deployment: no multi-tenant hardening, no heavy observability
+- Languages: FR + EN (UI and enrichment output)
+- Export targets: generic GPX viewers, OsmAnd, Garmin, Wahoo. COROS DURA cannot ingest custom POIs
+- Offline boundary: exports and an already-loaded session work offline; discovery (Overpass) and enrichment need network
+- Data: no user route stored server-side; caches Overpass 24 h, search 7 d, geocode 30 d, PostGIS enrichment 90 d
+- License MIT; OpenStreetMap ODbL attribution on the map and in exports
+
+## Known Constraints
+
+- Tailwind v4 does not support `@apply` on custom classes defined in the same CSS file: use plain CSS
+- `DOMParser` does not exist in Node: GPX-parsing tests need `// @vitest-environment jsdom`
+- Example GPX files live in `web/examples/`
+- The WebLLM chunk is ~6 MB (WASM runtime); dynamic import is code-split but Vite still bundles it. Cosmetic
+- Firefox has no WebGPU by default: LLM enrichment needs Chrome/Edge/Safari
+- MemPalace must run with the repo's Python 3.12 venv, not Python 3.14
 
 ## MemPalace
 
-- Environnement local: `./.tools/mempalace-py312`
-- Palace local du projet: `./.mempalace/palace`
-- Config projet: `mempalace.yaml`
+- Local env: `./.tools/mempalace-py312`
+- Local palace: `./.mempalace/palace`
+- Config: `mempalace.yaml`
 
-Commandes utiles:
-
-- `./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace status`
-- `./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace search "query"`
-- `./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace wake-up`
-
-## Contraintes connues
-
-- `MemPalace` doit tourner avec le venv Python 3.12 du repo, pas avec Python 3.14.
-- Tailwind v4 ne supporte pas `@apply` sur des classes custom definies dans le meme fichier CSS — utiliser du CSS pur.
-- `DOMParser` n'existe pas en Node — les tests qui parsent du GPX ont besoin de `// @vitest-environment jsdom`.
-- Le GPX ne quitte jamais le navigateur (privacy by design).
-- Les fichiers GPX d'exemple sont dans `web/examples/`.
-- COROS DURA ne supporte pas les POI custom (fichiers `.csm` = Garmin IMG renommes, format de rendu non documente).
-- Le chunk WebLLM fait ~6MB (runtime WASM). Dynamic import code-split mais Vite le bundle quand meme. Cosmetique.
-- Firefox n'a pas WebGPU par defaut — l'enrichissement LLM necessite Chrome/Edge/Safari.
+```bash
+./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace status
+./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace search "query"
+./.tools/mempalace-py312/bin/mempalace --palace ./.mempalace/palace wake-up
+```

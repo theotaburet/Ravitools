@@ -1,15 +1,11 @@
-// ---------------------------------------------------------------------------
-// enrichBatch pipeline – mocked search/LLM, policies, cancellation
+// enrichBatch pipeline: mocked search/LLM, policies, cancellation
 // (split from enrichment.test.ts)
-// ---------------------------------------------------------------------------
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { POI, PoiCategory } from "../types";
 import { makePoi } from "./enrichment-helpers";
 
-// ---------------------------------------------------------------------------
-// Batch enrichment pipeline (WS4)
-// ---------------------------------------------------------------------------
+// --- Batch enrichment pipeline ---
 
 // We mock the network-dependent modules so enrichBatch runs fully in test.
 vi.mock("../lib/enrichment/search", async () => {
@@ -202,7 +198,7 @@ describe("enrichBatch pipeline", () => {
 
     // Should have fewer completed than total (some may have finished before abort)
     expect(results.size).toBeLessThanOrEqual(3);
-    // The batch should not hang — it returned
+    // The batch should not hang: it returned
   });
 
   it("cancels before LLM synthesis stage preserves search-stage results", async () => {
@@ -215,7 +211,7 @@ describe("enrichBatch pipeline", () => {
     const originalImpl = vi.mocked(searchPoi).getMockImplementation()!;
     vi.mocked(searchPoi).mockImplementation(async (poi, _locality, _apiBase, _signal) => {
       await new Promise((r) => setTimeout(r, 5));
-      // Abort right after the first search completes — synthesis hasn't started
+      // Abort right after the first search completes: synthesis hasn't started
       controller.abort();
       return {
         snippets: [{ title: "R", url: "https://ex.com", content: "Good", engine: "google" }],
@@ -230,7 +226,7 @@ describe("enrichBatch pipeline", () => {
       searchStaggerMs: 0,
     });
 
-    // The POI was in search stage when abort fired — it might have an
+    // The POI was in search stage when abort fired: it might have an
     // incomplete result or no result, but batch should return without hanging.
     expect(results.size).toBeLessThanOrEqual(1);
 

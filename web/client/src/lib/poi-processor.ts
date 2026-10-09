@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// POI processor – converts raw Overpass elements into typed POIs
+// POI processor: converts raw Overpass elements into typed POIs
 // Port of data_processor.py logic with deduplication and trace-distance filtering
-// ---------------------------------------------------------------------------
 
 import type { POI, PoiCategory, TracePoint } from "../types";
 import { alongTraceProjection, distanceToTrace, haversine, TraceIndex } from "./gpx-parser";
@@ -25,9 +23,7 @@ function generateId(): string {
   return `poi_${nextId++}`;
 }
 
-// ---------------------------------------------------------------------------
-// Main processing function
-// ---------------------------------------------------------------------------
+// --- Main processing function ---
 
 /**
  * Process raw Overpass elements into POI objects.
@@ -97,9 +93,7 @@ export function processElements(
   return deduped;
 }
 
-// ---------------------------------------------------------------------------
-// Element to POI conversion
-// ---------------------------------------------------------------------------
+// --- Element to POI conversion ---
 
 function elementToPoi(el: OverpassElement): POI | null {
   const tags = el.tags ?? {};
@@ -148,9 +142,7 @@ function formatFallbackName(_category: string, _key: string, value: string): str
   return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
-// ---------------------------------------------------------------------------
-// Deduplication
-// ---------------------------------------------------------------------------
+// --- Deduplication ---
 
 /**
  * Remove near-duplicate POIs of the same category.

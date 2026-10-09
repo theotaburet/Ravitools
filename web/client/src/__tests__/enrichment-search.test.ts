@@ -1,16 +1,12 @@
-// ---------------------------------------------------------------------------
-// Enrichment search helpers – Google Maps URL, search query, WebGPU
+// Enrichment search helpers: Google Maps URL, search query, WebGPU
 // (split from enrichment.test.ts)
-// ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
 import { buildGoogleMapsUrl, buildSearchQuery } from "../lib/enrichment/search";
 import { makePoi } from "./enrichment-helpers";
 
-// ---------------------------------------------------------------------------
-// Google Maps link builder
-// ---------------------------------------------------------------------------
+// --- Google Maps link builder ---
 
 describe("buildGoogleMapsUrl", () => {
   it("builds a valid Google Maps search URL", () => {
@@ -37,9 +33,7 @@ describe("buildGoogleMapsUrl", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Search query builder
-// ---------------------------------------------------------------------------
+// --- Search query builder ---
 
 describe("buildSearchQuery", () => {
   it("includes POI name in quotes", () => {
@@ -85,9 +79,7 @@ describe("buildSearchQuery", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// WebGPU detection
-// ---------------------------------------------------------------------------
+// --- WebGPU detection ---
 
 describe("isWebGpuAvailable", () => {
   it("returns false in test environment (no navigator.gpu)", () => {

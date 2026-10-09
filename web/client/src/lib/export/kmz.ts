@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// KMZ Export – zipped KML for Organic Maps, Guru Maps, Google Earth
+// KMZ Export: zipped KML for Organic Maps, Guru Maps, Google Earth
 // KMZ is a ZIP archive containing a single doc.kml file.
-// ---------------------------------------------------------------------------
 
 import type { EnrichedData, POI, TraceData } from "../../types";
 import { buildKmlString } from "./kml";

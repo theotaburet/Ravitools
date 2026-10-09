@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// JSON-LD structured-data extraction from fetched HTML pages
-// ---------------------------------------------------------------------------
+// --- JSON-LD structured-data extraction from fetched HTML pages ---
 export type WebsiteStructuredData = {
   description: string | null;
   telephone: string | null;
@@ -12,7 +10,7 @@ export type WebsiteStructuredData = {
 
 function parseJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
-  // ponytail: cap regex work on untrusted fetched HTML (AUDIT S6).
+  // Cap regex work on untrusted fetched HTML.
   const capped = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html;
   const matches = capped.matchAll(
     /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,

@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// OsmAnd GPX Export – GPX with osmand: extensions for icon/color/background
+// OsmAnd GPX Export: GPX with osmand: extensions for icon/color/background
 // Best experience on OsmAnd; other apps simply ignore the extensions.
-// ---------------------------------------------------------------------------
 
 import type { EnrichedData, POI, PoiCategory, TraceData } from "../../types";
 import { getOsmAndIcon, OSMAND_CATEGORY_BACKGROUNDS, OSMAND_CATEGORY_COLORS } from "../poi-config";

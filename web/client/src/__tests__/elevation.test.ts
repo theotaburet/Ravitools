@@ -1,12 +1,10 @@
-// ---------------------------------------------------------------------------
-// Elevation profile helpers – buildProfile, downsampleProfile, profileAt
-// ---------------------------------------------------------------------------
+// --- Elevation profile helpers: buildProfile, downsampleProfile, profileAt ---
 
 import { describe, expect, it } from "vitest";
 import { buildProfile, downsampleProfile, gainAt, profileAt, slopeBuckets } from "../lib/elevation";
 import type { TracePoint } from "../types";
 
-// ~111m per 0.001° latitude — convenient for distance assertions
+// ~111m per 0.001° latitude: convenient for distance assertions
 function pt(latOffset: number, ele?: number): TracePoint {
   return { lat: 45 + latOffset * 0.001, lon: 5, ele };
 }
@@ -82,7 +80,7 @@ describe("profileAt", () => {
 });
 
 describe("gainAt", () => {
-  // up 50, down 30, up 60 — only climbs count
+  // up 50, down 30, up 60: only climbs count
   const profile = buildProfile([pt(0, 100), pt(1, 150), pt(2, 120), pt(3, 180)])!;
   const seg = profile[1].dist;
 

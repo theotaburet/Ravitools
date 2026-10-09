@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// i18n – lightweight translation layer for category labels and generic POI names
+// i18n: lightweight translation layer for category labels and generic POI names
 // No external dependency; just lookup tables keyed by TargetLanguage.
-// ---------------------------------------------------------------------------
 
 import type { PoiCategory, TargetLanguage } from "../types";
 
-// ---------------------------------------------------------------------------
 // Category label translations
 // English is the canonical key (PoiCategory type), so "en" returns as-is.
-// ---------------------------------------------------------------------------
 
 const CATEGORY_LABELS_FR: Record<PoiCategory, string> = {
   Water: "Eau",
@@ -63,9 +59,7 @@ export function translateCategory(category: PoiCategory, lang: TargetLanguage): 
   return CATEGORY_LABELS[lang]?.[category] ?? category;
 }
 
-// ---------------------------------------------------------------------------
-// UI chrome strings (AUDIT U2) — keyed table, FR + EN. English is the fallback.
-// ---------------------------------------------------------------------------
+// --- UI chrome strings: keyed table, FR + EN. English is the fallback. ---
 
 const UI: Record<string, Record<TargetLanguage, string>> = {
   "app.subtitle": {
@@ -95,14 +89,14 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Seuil d'alerte désert de ravito (km)",
   },
   "profile.without": { en: "without", fr: "sans" },
-  "profile.cluster": { en: "POIs — click to zoom", fr: "POI — cliquer pour zoomer" },
+  "profile.cluster": { en: "POIs : click to zoom", fr: "POI : cliquer pour zoomer" },
   "map.searchDegraded": {
     en: "Search degraded. Retry after cooldown or IP change.",
     fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",
   },
   "map.emptyBody": {
-    en: "Load one or more .GPX files — they never leave your browser.",
-    fr: "Chargez un ou plusieurs fichiers .GPX — ils ne quittent jamais votre navigateur.",
+    en: "Load one or more .GPX files. They never leave your browser.",
+    fr: "Chargez un ou plusieurs fichiers .GPX. Ils ne quittent jamais votre navigateur.",
   },
   "session.fresh": { en: "Start fresh", fr: "Recommencer" },
   "status.warning": { en: "Warning:", fr: "Attention :" },
@@ -173,8 +167,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "inclut des icônes et couleurs par catégorie. Les autres apps l'importent comme GPX standard.",
   },
   "export.kmzBody": {
-    en: "groups POIs by category in folders — best for Organic Maps and Guru Maps.",
-    fr: "regroupe les POI par catégorie en dossiers — idéal pour Organic Maps et Guru Maps.",
+    en: "groups POIs by category in folders: best for Organic Maps and Guru Maps.",
+    fr: "regroupe les POI par catégorie en dossiers : idéal pour Organic Maps et Guru Maps.",
   },
   "export.enrichedLabel": { en: "Enriched data", fr: "Données enrichies" },
   "export.enrichedBody": {
@@ -187,8 +181,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Sauvegarder le plan (.ravitools.json)",
   },
   "export.planBody": {
-    en: "Reload it later or share it — traces, POIs and enrichments included.",
-    fr: "Rechargez-le plus tard ou partagez-le — traces, POI et enrichissements inclus.",
+    en: "Reload it later or share it: traces, POIs and enrichments included.",
+    fr: "Rechargez-le plus tard ou partagez-le : traces, POI et enrichissements inclus.",
   },
   "upload.plan": {
     en: "…or a .ravitools.json plan to reload",
@@ -218,16 +212,16 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   },
   "enrich.aiSynthesis": { en: " + AI synthesis", fr: " + synthèse IA" },
   "enrich.noWebgpu": {
-    en: "No WebGPU — raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.",
-    fr: "Pas de WebGPU — extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète.",
+    en: "No WebGPU: raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.",
+    fr: "Pas de WebGPU : extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète.",
   },
   "enrich.searxngUnavailable": {
-    en: "SearXNG unavailable — search enrichment disabled. Start SearXNG:",
-    fr: "SearXNG indisponible — enrichissement par recherche désactivé. Démarrez SearXNG :",
+    en: "SearXNG unavailable: search enrichment disabled. Start SearXNG:",
+    fr: "SearXNG indisponible : enrichissement par recherche désactivé. Démarrez SearXNG :",
   },
   "enrich.scraperBlocked": {
-    en: "Map scraper blocked (CAPTCHA / anti-bot). Some POIs may stay un-enriched — wait a few minutes or change your IP, then retry.",
-    fr: "Scraper de cartes bloqué (CAPTCHA / anti-bot). Certains POI peuvent rester non enrichis — attendez quelques minutes ou changez d'IP, puis réessayez.",
+    en: "Map scraper blocked (CAPTCHA / anti-bot). Some POIs may stay un-enriched: wait a few minutes or change your IP, then retry.",
+    fr: "Scraper de cartes bloqué (CAPTCHA / anti-bot). Certains POI peuvent rester non enrichis : attendez quelques minutes ou changez d'IP, puis réessayez.",
   },
   "enrich.googleQueue": { en: "Google queue:", fr: "File Google :" },
   "enrich.queued": { en: "queued", fr: "en file" },
@@ -235,8 +229,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.summaryLanguage": { en: "Summary language:", fr: "Langue du résumé :" },
   "enrich.enrichEverything": { en: "Enrich everything (slower)", fr: "Tout enrichir (plus lent)" },
   "enrich.poisTotalHint": {
-    en: "POIs total — enrichment targets high-value categories",
-    fr: "POI au total — l'enrichissement cible les catégories à forte valeur",
+    en: "POIs total: enrichment targets high-value categories",
+    fr: "POI au total : l'enrichissement cible les catégories à forte valeur",
   },
   "enrich.enrichButton": { en: "Enrich", fr: "Enrichir" },
   "enrich.all": { en: "all", fr: "tous les" },
@@ -260,8 +254,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.phaseRetry": { en: "Retrying failed...", fr: "Réessai des échecs..." },
   "enrich.phaseEnriching": { en: "Enriching...", fr: "Enrichissement..." },
   "enrich.googleWait": {
-    en: "Google Maps can take 30-90s per place. Still running — please wait.",
-    fr: "Google Maps peut prendre 30-90s par lieu. Toujours en cours — patientez.",
+    en: "Google Maps can take 30-90s per place. Still running: please wait.",
+    fr: "Google Maps peut prendre 30-90s par lieu. Toujours en cours : patientez.",
   },
   "enrich.processing": { en: "Processing", fr: "Traitement de" },
   "enrich.current": { en: "Current:", fr: "Actuel :" },
@@ -278,8 +272,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Ouvrez SearXNG dans un nouvel onglet, complétez le CAPTCHA, puis revenez et reprenez.",
   },
   "enrich.openSearxng": {
-    en: "Open SearXNG — solve CAPTCHA",
-    fr: "Ouvrir SearXNG — résoudre le CAPTCHA",
+    en: "Open SearXNG: solve CAPTCHA",
+    fr: "Ouvrir SearXNG : résoudre le CAPTCHA",
   },
   "enrich.resume": { en: "Resume enrichment", fr: "Reprendre l'enrichissement" },
   "enrich.remaining": { en: "remaining", fr: "restants" },
@@ -292,8 +286,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "moteurs de recherche dégradés",
   },
   "enrich.aiDisclaimer": {
-    en: "AI-generated summaries can be wrong — check hours/prices before relying on them.",
-    fr: "Les résumés générés par IA peuvent être faux — vérifiez horaires/prix avant de vous y fier.",
+    en: "AI-generated summaries can be wrong: check hours/prices before relying on them.",
+    fr: "Les résumés générés par IA peuvent être faux : vérifiez horaires/prix avant de vous y fier.",
   },
   "enrich.error": { en: "Error:", fr: "Erreur :" },
   "enrich.enrichedBeforeError": { en: "enriched before error", fr: "enrichis avant l'erreur" },
@@ -305,12 +299,10 @@ export function t(key: string, lang: TargetLanguage): string {
   return UI[key]?.[lang] ?? UI[key]?.en ?? key;
 }
 
-// ---------------------------------------------------------------------------
 // Generic POI name translations
 // These are OSM tag-derived names that appear as POI names when no
 // real business name is set. We translate them for display purposes.
 // Matching is case-insensitive on the English/source name.
-// ---------------------------------------------------------------------------
 
 const GENERIC_NAME_FR: Record<string, string> = {
   // Water & sanitation

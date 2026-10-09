@@ -1,9 +1,7 @@
-// ---------------------------------------------------------------------------
 // Minimal ZIP builder (STORE method, single file)
 // Builds a valid ZIP archive for a single uncompressed file.
 // This avoids any dependency on jszip or fflate for the simple KMZ case.
 // See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
-// ---------------------------------------------------------------------------
 
 export function buildZipSingleFile(filename: string, data: Uint8Array): Uint8Array {
   const enc = new TextEncoder();

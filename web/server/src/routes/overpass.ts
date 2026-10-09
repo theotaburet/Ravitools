@@ -9,7 +9,7 @@ import { safeSet } from "../safe-set.js";
 
 export const overpassRouter = Router();
 
-// ponytail: overpass-api.de allows 2 slots/IP — serialize upstream calls so
+// Overpass-api.de allows 2 slots/IP: serialize upstream calls so
 // concurrent chunks don't 429 each other. Per-mirror queue if throughput matters.
 let overpassQueue: Promise<unknown> = Promise.resolve();
 function enqueueOverpass<T>(fn: () => Promise<T>): Promise<T> {
@@ -43,7 +43,7 @@ async function fetchFromMirrors(
           signal,
         });
       } catch (err) {
-        // A timeout must surface as 504, not be swallowed into a 502 (AUDIT T+1).
+        // A timeout must surface as 504, not be swallowed into a 502.
         if (isTimeoutError(err)) throw err;
         log.warn({ url }, "Overpass fetch failed, trying next");
         break;
@@ -55,7 +55,7 @@ async function fetchFromMirrors(
       const header = overpassRes.headers.get("retry-after");
       const parsed = header === null ? Number.NaN : Number(header);
       const waitS = Math.min(Math.max(Number.isFinite(parsed) ? parsed : 15, 0), 45);
-      // Waiting must not eat the whole deadline — better to move to the next mirror
+      // Waiting must not eat the whole deadline: better to move to the next mirror
       if (Date.now() + waitS * 1000 > deadline - 10_000) break;
       await sleep(waitS * 1000);
     }
@@ -96,7 +96,7 @@ overpassRouter.post("/overpass", limiter, async (req, res) => {
     // Forward to Overpass
     log.info({ queryLength: query.length }, "Forwarding to Overpass");
 
-    // One shared 180s deadline across all Overpass instances (AUDIT R25).
+    // One shared 180s deadline across all Overpass instances.
     const timeoutSignal = AbortSignal.timeout(180_000);
     const deadline = Date.now() + 180_000;
 
@@ -117,7 +117,7 @@ overpassRouter.post("/overpass", limiter, async (req, res) => {
     const data = await hit.res.text();
 
     // Don't cache/serve a non-JSON body (e.g. an HTML error page returned with 200)
-    // as application/json (AUDIT S7).
+    // as application/json.
     try {
       JSON.parse(data);
     } catch {

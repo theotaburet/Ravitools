@@ -12,9 +12,7 @@ import type {
 import { getEnrichabilityPolicy, getEnrichmentContract } from "../poi-config";
 import { classifySourcePlatform } from "./search";
 
-// ---------------------------------------------------------------------------
-// Platform labels and priority (WS4: source strategy)
-// ---------------------------------------------------------------------------
+// --- Platform labels and priority ---
 
 const PLATFORM_LABELS: Record<EnrichmentPlatform, string> = {
   google_maps: "Google Maps",
@@ -32,7 +30,7 @@ const PLATFORM_LABELS: Record<EnrichmentPlatform, string> = {
 /**
  * Platform priority order for source rollup display.
  * Official site first, then review platforms by reliability, social last.
- * (WS4: source strategy & ranking)
+ *
  */
 const PLATFORM_PRIORITY: Record<EnrichmentPlatform, number> = {
   official_website: 0,
@@ -60,9 +58,7 @@ const REPUTATION_PLATFORMS: Set<EnrichmentPlatform> = new Set([
   "hotels_com",
 ]);
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// --- Helpers ---
 
 function compact(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -85,9 +81,7 @@ function representativeSnippet(snippets: SearchSnippet[]): SearchSnippet | null 
   return [...snippets].sort((a, b) => b.content.length - a.content.length)[0] ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// Price level extraction from snippets (deterministic, no LLM needed)
-// ---------------------------------------------------------------------------
+// --- Price level extraction from snippets (deterministic, no LLM needed) ---
 
 /**
  * Currency symbol patterns used for price extraction.
@@ -137,9 +131,9 @@ const NUMERIC_PRICE_RE = /(?:([€$£¥])\s*(\d+(?:[.,]\d{1,2})?))|((\d+(?:[.,]\
  * Extract a price level (1-4) from search snippets using deterministic heuristics.
  *
  * Strategy (in priority order):
- * 1. Repeated currency symbols (€€€ = 3) — most reliable, used by review platforms
- * 2. Textual price labels ("Moderate" = 2) — used by Google Maps
- * 3. Numeric price values — infer bracket from median price
+ * 1. Repeated currency symbols (€€€ = 3): most reliable, used by review platforms
+ * 2. Textual price labels ("Moderate" = 2): used by Google Maps
+ * 3. Numeric price values: infer bracket from median price
  *
  * Returns null if no price signal is found.
  * Exported for direct testing.
@@ -226,9 +220,7 @@ export function extractPriceLevel(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Category-aware lead inference (WS9: better deterministic fallback)
-// ---------------------------------------------------------------------------
+// --- Category-aware lead inference ---
 
 function inferCategoryLead(poi: POI): string {
   // Use OSM tags for richer fallback when no LLM summary
@@ -237,21 +229,19 @@ function inferCategoryLead(poi: POI): string {
 
   switch (poi.category) {
     case "Restaurant or Bar":
-      return `${poi.name}${typePart} — food stop near the route.`;
+      return `${poi.name}${typePart}: food stop near the route.`;
     case "Food shop":
-      return `${poi.name}${typePart} — food resupply option near the route.`;
+      return `${poi.name}${typePart}: food resupply option near the route.`;
     case "Sleeping place":
-      return `${poi.name}${typePart} — sleep option near the route.`;
+      return `${poi.name}${typePart}: sleep option near the route.`;
     case "Gears":
-      return `${poi.name}${typePart} — bike gear or repair stop near the route.`;
+      return `${poi.name}${typePart}: bike gear or repair stop near the route.`;
     default:
-      return `${poi.name} — ${poi.category.toLowerCase()} near the route.`;
+      return `${poi.name}: ${poi.category.toLowerCase()} near the route.`;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Practicalities builder (WS9: richer deterministic output)
-// ---------------------------------------------------------------------------
+// --- Practicalities builder ---
 
 function buildPracticalities(
   enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "priceLevel" | "locality">,
@@ -260,8 +250,7 @@ function buildPracticalities(
 ): string[] {
   const facts: string[] = [];
 
-  // Type hint from the OSM tag (the LLM-extracted "specialty" field was removed;
-  // the one-sentence `description` now carries cuisine/type when known).
+  // Type hint from the OSM tag
   const osmType = poi.tags.cuisine ?? poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? null;
   if (osmType && osmType !== poi.name.toLowerCase()) {
     facts.push(`Type (OSM): ${osmType.replace(/_/g, " ")}`);
@@ -293,9 +282,7 @@ function buildPracticalities(
   return uniqueStrings(facts).slice(0, 6);
 }
 
-// ---------------------------------------------------------------------------
-// Source rollup builder (WS4: platform priority ordering)
-// ---------------------------------------------------------------------------
+// --- Source rollup builder ---
 
 function buildSourceRollup(
   snippets: SearchSnippet[],
@@ -332,7 +319,7 @@ function buildSourceRollup(
     }
   }
 
-  // Sort by platform priority (WS4)
+  // Sort by platform priority
   digests.sort(
     (a, b) => (PLATFORM_PRIORITY[a.platform] ?? 99) - (PLATFORM_PRIORITY[b.platform] ?? 99),
   );
@@ -340,9 +327,7 @@ function buildSourceRollup(
   return digests;
 }
 
-// ---------------------------------------------------------------------------
-// Cautions builder
-// ---------------------------------------------------------------------------
+// --- Cautions builder ---
 
 function buildCautions(
   enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount">,
@@ -369,20 +354,18 @@ function buildCautions(
   if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null)
     cautions.push("Rating found, but review volume was not confirmed.");
 
-  // Check source quality — only social platforms, no reputation sources
+  // Check source quality: only social platforms, no reputation sources
   const hasReputation = sourceRollup.some((d) => REPUTATION_PLATFORMS.has(d.platform));
   if (sourceRollup.length > 0 && !hasReputation) {
     cautions.push(
-      "Sources are limited to social profiles or generic directories — reliability uncertain.",
+      "Sources are limited to social profiles or generic directories: reliability uncertain.",
     );
   }
 
   return cautions.slice(0, 4);
 }
 
-// ---------------------------------------------------------------------------
-// Unknowns builder
-// ---------------------------------------------------------------------------
+// --- Unknowns builder ---
 
 function buildUnknowns(
   _enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount">,
@@ -395,14 +378,12 @@ function buildUnknowns(
   return unknowns.slice(0, 2);
 }
 
-// ---------------------------------------------------------------------------
-// Divergence detection (WS11: contradiction handling)
-// ---------------------------------------------------------------------------
+// --- Divergence detection ---
 
 /**
  * Detect divergences/contradictions across source snippets.
- * Currently pattern-based heuristics — can be extended with LLM-assisted detection.
- * Exported for direct testing (WS16).
+ * Currently pattern-based heuristics: can be extended with LLM-assisted detection.
+ * Exported for direct testing.
  */
 export function buildDivergences(
   snippets: SearchSnippet[],
@@ -426,7 +407,7 @@ export function buildDivergences(
   if (hourPatterns.length >= 2) {
     const uniqueHours = new Set(hourPatterns.map((h) => h.hours.toLowerCase()));
     if (uniqueHours.size > 1) {
-      divergences.push("Sources report different opening hours — verify locally.");
+      divergences.push("Sources report different opening hours: verify locally.");
     }
   }
 
@@ -461,22 +442,20 @@ export function buildDivergences(
 
   if (hasClosureSignal && hasPositiveSignal) {
     divergences.push(
-      "Some sources suggest this place may be closed — verify before counting on it.",
+      "Some sources suggest this place may be closed: verify before counting on it.",
     );
   } else if (hasClosureSignal) {
     divergences.push(
-      "Closure signals detected in sources — may be permanently or temporarily closed.",
+      "Closure signals detected in sources: may be permanently or temporarily closed.",
     );
   }
 
   return divergences.slice(0, 3);
 }
 
-// ---------------------------------------------------------------------------
-// Source confirmation (WS2: official site vs reviews distinction)
-// ---------------------------------------------------------------------------
+// --- Source confirmation ---
 
-/** Exported for direct testing (WS16). */
+/** Exported for direct testing. */
 export function determineSourceConfirmation(
   sourceRollup: EnrichmentSourceDigest[],
 ): EnrichmentStructuredContent["sourceConfirmation"] {
@@ -489,9 +468,7 @@ export function determineSourceConfirmation(
   return "none";
 }
 
-// ---------------------------------------------------------------------------
-// Main structured content builder
-// ---------------------------------------------------------------------------
+// --- Main structured content builder ---
 
 export function buildStructuredContent(
   poi: POI,
@@ -543,9 +520,7 @@ export function buildSourceDigests(
   return buildSourceRollup(snippets, websitePreview);
 }
 
-// ---------------------------------------------------------------------------
-// Source-quality scoring — rank snippets by domain reliability before LLM
-// ---------------------------------------------------------------------------
+// --- Source-quality scoring: rank snippets by domain reliability before LLM ---
 
 /**
  * Domain-level quality scores (0–3).
@@ -618,9 +593,7 @@ export function rankSnippetsByQuality(snippets: SearchSnippet[]): SearchSnippet[
     .map(({ snippet }) => snippet);
 }
 
-// ---------------------------------------------------------------------------
-// Deterministic hours extraction from snippets (multi-platform)
-// ---------------------------------------------------------------------------
+// --- Deterministic hours extraction from snippets (multi-platform) ---
 
 /** Normalize "8h30" or "08h30" or "8:30" to "08:30" */
 function normalizeTimeStr(raw: string): string {

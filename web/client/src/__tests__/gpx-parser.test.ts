@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for GPX parser and trace simplification
-// ---------------------------------------------------------------------------
+// --- Tests for GPX parser and trace simplification ---
 
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
@@ -182,7 +180,7 @@ describe("TraceIndex", () => {
     const point: TracePoint = { lat: 48.862, lon: 2.365 };
     const brute = distanceToTrace(point, trace);
     const indexed = index.distanceTo(point);
-    // Should be very close — both compute segment distance
+    // Should be very close: both compute segment distance
     expect(Math.abs(brute - indexed)).toBeLessThan(1);
   });
 
@@ -216,7 +214,7 @@ describe("TraceIndex", () => {
       { lat: 48.87, lon: 2.38 },
     ];
     const index = new TraceIndex(trace);
-    // Point far away — should fallback to brute force
+    // Point far away: should fallback to brute force
     const farPoint: TracePoint = { lat: 50.0, lon: 5.0 };
     const brute = distanceToTrace(farPoint, trace);
     const indexed = index.distanceTo(farPoint);
@@ -266,7 +264,7 @@ describe("TraceIndex", () => {
     const indexQueryMs = performance.now() - indexQueryStart;
     const indexTotalMs = indexBuildMs + indexQueryMs;
 
-    // Verify correctness — results should closely match (within 50m)
+    // Verify correctness: results should closely match (within 50m)
     // Small differences are acceptable: the index uses a spatial grid and may
     // miss the absolute closest segment when the POI falls near a grid boundary.
     for (let i = 0; i < pois.length; i++) {
@@ -285,7 +283,7 @@ describe("TraceIndex", () => {
   });
 });
 
-describe("computeElevationStats (AUDIT C2)", () => {
+describe("computeElevationStats", () => {
   const at = (ele: number | undefined): TracePoint => ({ lat: 45, lon: 5, ele });
 
   it("accumulates gain/loss over points that have elevation", () => {
@@ -312,7 +310,7 @@ describe("computeElevationStats (AUDIT C2)", () => {
   });
 });
 
-describe("distanceToTrace projection at high latitude (AUDIT C1)", () => {
+describe("distanceToTrace projection at high latitude", () => {
   it("scales longitude by cos(lat) instead of treating degrees as Cartesian", () => {
     // Diagonal segment at 60°N, where 1° lon is ~half of 1° lat in meters.
     const trace: TracePoint[] = [
@@ -328,12 +326,10 @@ describe("distanceToTrace projection at high latitude (AUDIT C1)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R21: alongTraceProjection must use the same cos(lat) longitude scaling as
-// distanceToSegment — raw degrees flip POI travel order at high latitude
-// ---------------------------------------------------------------------------
+// AlongTraceProjection must use the same cos(lat) longitude scaling as
+// distanceToSegment: raw degrees flip POI travel order at high latitude
 
-describe("alongTraceProjection cos(lat) scaling (R21)", () => {
+describe("alongTraceProjection cos(lat) scaling", () => {
   it("keeps travel order on a diagonal segment at 70°N", async () => {
     const { alongTraceProjection } = await import("../lib/gpx-parser");
     // Diagonal segment: 45° heading in real (locally-isometric) space
@@ -349,7 +345,7 @@ describe("alongTraceProjection cos(lat) scaling (R21)", () => {
     const alongQ = alongTraceProjection(q, trace);
     const alongP = alongTraceProjection(p, trace);
 
-    // P projects farther along the trace than Q — the bug reverses them
+    // P projects farther along the trace than Q: the bug reverses them
     expect(alongP).toBeGreaterThan(alongQ);
   });
 });

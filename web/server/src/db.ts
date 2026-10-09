@@ -1,5 +1,4 @@
-// ---------------------------------------------------------------------------
-// Postgres + PostGIS — POI enrichment cache
+// Postgres + PostGIS: POI enrichment cache
 //
 // Anonymous public read/write cache for POI enrichment results.
 // Keyed by OSM identifier (osm_type + osm_id). TTL enforced at query time.
@@ -7,7 +6,6 @@
 // The pool is lazily initialized; if DATABASE_URL is unset or the database is
 // unreachable, all helpers return null/empty so the rest of the server keeps
 // working as a strict proxy (graceful degradation).
-// ---------------------------------------------------------------------------
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -19,9 +17,7 @@ const log = pino({
   transport: process.env.NODE_ENV !== "production" ? { target: "pino-pretty" } : undefined,
 });
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// --- Types ---
 export type OsmType = "node" | "way" | "relation";
 
 export interface PoiEnrichmentRow {
@@ -41,9 +37,7 @@ export interface PoiKey {
   osm_id: string;
 }
 
-// ---------------------------------------------------------------------------
-// Pool
-// ---------------------------------------------------------------------------
+// --- Pool ---
 let pool: Pool | null = null;
 let initPromise: Promise<void> | null = null;
 let initialized = false;
@@ -68,7 +62,7 @@ function getPool(): Pool | null {
   const cfg = buildPoolConfig();
   if (!cfg) {
     disabled = true;
-    log.warn("DATABASE_URL unset — POI cache disabled, server will run as proxy only");
+    log.warn("DATABASE_URL unset: POI cache disabled, server will run as proxy only");
     return null;
   }
   pool = new Pool(cfg);
@@ -78,9 +72,7 @@ function getPool(): Pool | null {
   return pool;
 }
 
-// ---------------------------------------------------------------------------
-// Migrations — apply all SQL files in /migrations once at startup
-// ---------------------------------------------------------------------------
+// --- Migrations: apply all SQL files in /migrations once at startup ---
 async function runMigrations(p: Pool): Promise<void> {
   const dir = join(process.cwd(), "migrations");
   if (!existsSync(dir)) {
@@ -122,7 +114,7 @@ export async function initDb(): Promise<void> {
       log.info("Postgres POI cache ready");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.error({ err: msg }, "DB init failed — POI cache disabled");
+      log.error({ err: msg }, "DB init failed: POI cache disabled");
       disabled = true;
       pool = null;
       initialized = true;
@@ -135,9 +127,7 @@ export function isDbAvailable(): boolean {
   return initialized && !disabled && pool !== null;
 }
 
-// ---------------------------------------------------------------------------
-// Queries
-// ---------------------------------------------------------------------------
+// --- Queries ---
 
 /** Compute is_stale flag from enriched_at timestamp + max_age_days */
 function computeIsStale(enrichedAt: Date, maxAgeDays: number): boolean {

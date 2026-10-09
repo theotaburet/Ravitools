@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// DebugPanel – collapsible log viewer for pipeline diagnostics
-// ---------------------------------------------------------------------------
+// --- DebugPanel: collapsible log viewer for pipeline diagnostics ---
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -49,7 +47,7 @@ export function DebugPanel() {
   }, [enabled]);
 
   // Auto-scroll to bottom on new entries
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `entries` is the intentional trigger — the effect scrolls when the log grows
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `entries` is the intentional trigger: the effect scrolls when the log grows
   useEffect(() => {
     if (autoScrollRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

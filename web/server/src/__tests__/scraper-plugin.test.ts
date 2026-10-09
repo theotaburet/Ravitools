@@ -1,11 +1,9 @@
-// ---------------------------------------------------------------------------
 // Generic scraper plugin system: factory-level tests.
 //
 // Validates createScraperJobSystem() with a tiny mock plugin so we can
 // exercise retry / persist / load / failure-log logic without touching
 // Playwright or the network. Adding a new source should not require
 // editing these tests.
-// ---------------------------------------------------------------------------
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -79,7 +77,7 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("createScraperJobSystem — basic wiring", () => {
+describe("createScraperJobSystem: basic wiring", () => {
   it("derives jobsFile and failuresFile from plugin.name", () => {
     const plugin = makePlugin(async () => null);
     const sys = createScraperJobSystem(plugin, baseDeps);
@@ -94,7 +92,7 @@ describe("createScraperJobSystem — basic wiring", () => {
   });
 });
 
-describe("createScraperJobSystem — fetchSync", () => {
+describe("createScraperJobSystem: fetchSync", () => {
   it("returns the preview on first success", async () => {
     const url = "https://mock.test/place/1";
     const plugin = makePlugin(async () => makePreview(url));
@@ -142,7 +140,7 @@ describe("createScraperJobSystem — fetchSync", () => {
   });
 });
 
-describe("createScraperJobSystem — queueJob lifecycle", () => {
+describe("createScraperJobSystem: queueJob lifecycle", () => {
   it("queues a job, runs it, and marks it done with the preview", async () => {
     const url = "https://mock.test/queue/1";
     const plugin = makePlugin(async () => makePreview(url));
@@ -180,7 +178,7 @@ describe("createScraperJobSystem — queueJob lifecycle", () => {
   });
 });
 
-describe("createScraperJobSystem — persist/load roundtrip", () => {
+describe("createScraperJobSystem: persist/load roundtrip", () => {
   it("persists done jobs to disk and reloads them", async () => {
     const url = "https://mock.test/persist";
     const plugin = makePlugin(async () => makePreview(url));
@@ -253,7 +251,7 @@ describe("blocked detection (M2 scraper-blocked signal)", () => {
   });
 });
 
-describe("createScraperJobSystem — pruneStale", () => {
+describe("createScraperJobSystem: pruneStale", () => {
   it("removes terminal jobs older than plugin.jobsTtlMs", () => {
     const plugin = makePlugin(async () => null, { jobsTtlMs: 1000 });
     const sys = createScraperJobSystem(plugin, baseDeps);
@@ -278,11 +276,9 @@ describe("createScraperJobSystem — pruneStale", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R6: the job queue must reject floods with 429 once too many jobs are pending
-// ---------------------------------------------------------------------------
+// --- The job queue must reject floods with 429 once too many jobs are pending ---
 
-describe("mountScraperEndpoints — job queue cap (R6)", () => {
+describe("mountScraperEndpoints: job queue cap", () => {
   it("returns 429 on the (cap+1)-th queued job", async () => {
     const express = (await import("express")).default;
     const request = (await import("supertest")).default;
@@ -309,11 +305,9 @@ describe("mountScraperEndpoints — job queue cap (R6)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R10: a job cancelled/deleted mid-run must not be resurrected by the runner
-// ---------------------------------------------------------------------------
+// --- A job cancelled/deleted mid-run must not be resurrected by the runner ---
 
-describe("job cancellation during run (R10)", () => {
+describe("job cancellation during run", () => {
   it("DELETE during a run leaves the job cancelled after the runner resolves", async () => {
     const express = (await import("express")).default;
     const request = (await import("supertest")).default;
@@ -351,11 +345,9 @@ describe("job cancellation during run (R10)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R22: Number(null) === 0 must not pass coord validation (scrape at 0,0)
-// ---------------------------------------------------------------------------
+// --- Number(null) === 0 must not pass coord validation (scrape at 0,0) ---
 
-describe("coord validation (R22)", () => {
+describe("coord validation", () => {
   it("rejects null coords with 400", async () => {
     const express = (await import("express")).default;
     const request = (await import("supertest")).default;

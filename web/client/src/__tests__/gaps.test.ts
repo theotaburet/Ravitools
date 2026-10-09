@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// findGaps – intervalles > seuil sans POI le long d'une trace (bords inclus)
-// ---------------------------------------------------------------------------
+// --- findGaps: intervalles > seuil sans POI le long d'une trace (bords inclus) ---
 
 import { describe, expect, it } from "vitest";
 import { findGaps } from "../lib/gaps";

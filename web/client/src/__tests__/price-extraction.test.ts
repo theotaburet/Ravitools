@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// Tests for deterministic price level extraction from search snippets
-// ---------------------------------------------------------------------------
+// --- Tests for deterministic price level extraction from search snippets ---
 
 import { describe, expect, it } from "vitest";
 import { extractPriceLevel } from "../lib/enrichment/structured";
 import type { SearchSnippet } from "../types";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// --- Helpers ---
 
 function snippet(content: string, overrides?: Partial<SearchSnippet>): SearchSnippet {
   return {
@@ -19,11 +15,9 @@ function snippet(content: string, overrides?: Partial<SearchSnippet>): SearchSni
   };
 }
 
-// ---------------------------------------------------------------------------
-// Strategy 1: Repeated currency symbols
-// ---------------------------------------------------------------------------
+// --- Strategy 1: Repeated currency symbols ---
 
-describe("extractPriceLevel — repeated currency symbols", () => {
+describe("extractPriceLevel: repeated currency symbols", () => {
   it("returns null for a lone € without number (ambiguous signal)", () => {
     expect(extractPriceLevel([snippet("Price range: €")])).toBe(null);
   });
@@ -72,11 +66,9 @@ describe("extractPriceLevel — repeated currency symbols", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Strategy 2: Textual price labels
-// ---------------------------------------------------------------------------
+// --- Strategy 2: Textual price labels ---
 
-describe("extractPriceLevel — textual labels", () => {
+describe("extractPriceLevel: textual labels", () => {
   it("detects 'Inexpensive' as level 1", () => {
     expect(extractPriceLevel([snippet("Rated as Inexpensive on Google Maps")])).toBe(1);
   });
@@ -123,11 +115,9 @@ describe("extractPriceLevel — textual labels", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Strategy 3: Numeric prices
-// ---------------------------------------------------------------------------
+// --- Strategy 3: Numeric prices ---
 
-describe("extractPriceLevel — numeric prices (restaurants)", () => {
+describe("extractPriceLevel: numeric prices (restaurants)", () => {
   it("detects low prices as level 1 (street food bracket)", () => {
     expect(extractPriceLevel([snippet("Kebab: 5€, burger: 7€")])).toBe(1);
   });
@@ -161,7 +151,7 @@ describe("extractPriceLevel — numeric prices (restaurants)", () => {
   });
 });
 
-describe("extractPriceLevel — numeric prices (accommodation)", () => {
+describe("extractPriceLevel: numeric prices (accommodation)", () => {
   it("detects budget hostel (≤30€) as level 1", () => {
     expect(extractPriceLevel([snippet("Dorm beds from 18€")], "Sleeping place")).toBe(1);
   });
@@ -179,11 +169,9 @@ describe("extractPriceLevel — numeric prices (accommodation)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Priority: repeated symbols > textual > numeric
-// ---------------------------------------------------------------------------
+// --- Priority: repeated symbols > textual > numeric ---
 
-describe("extractPriceLevel — priority ordering", () => {
+describe("extractPriceLevel: priority ordering", () => {
   it("prefers repeated symbols over numeric prices", () => {
     // €€ = level 2, but numeric "95€" would suggest level 4
     // Repeated symbols should win because they're from review platforms
@@ -198,11 +186,9 @@ describe("extractPriceLevel — priority ordering", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Edge cases
-// ---------------------------------------------------------------------------
+// --- Edge cases ---
 
-describe("extractPriceLevel — edge cases", () => {
+describe("extractPriceLevel: edge cases", () => {
   it("returns null for empty snippets", () => {
     expect(extractPriceLevel([])).toBe(null);
   });
@@ -213,7 +199,7 @@ describe("extractPriceLevel — edge cases", () => {
 
   it("returns null for content with currency symbols in unrelated contexts", () => {
     // A lone $ or € in a URL or code snippet shouldn't trigger
-    // But our regex may match — this tests current behavior
+    // But our regex may match: this tests current behavior
     const result = extractPriceLevel([snippet("Visit www.example.com for details")]);
     expect(result).toBe(null);
   });
@@ -231,7 +217,7 @@ describe("extractPriceLevel — edge cases", () => {
   });
 
   it("ignores very large numeric values (probably not prices)", () => {
-    // 15000€ could be a property price, not a meal — but under 10000 limit
+    // 15000€ could be a property price, not a meal: but under 10000 limit
     const result = extractPriceLevel([snippet("Property valued at 15000€")]);
     // 15000 is filtered out by the < 10000 guard
     expect(result).toBe(null);

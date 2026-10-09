@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
 // GpxUpload component test (M3 key component tests)
 // Focus: the .gpx filtering / disabled guard in the drop + change handlers.
 // The processFiles action atom is mocked so the real pipeline never runs.
-// ---------------------------------------------------------------------------
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { atom, createStore, Provider } from "jotai";

@@ -15,9 +15,7 @@
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
 
-// ---------------------------------------------------------------------------
-// Hours entry — same across sources
-// ---------------------------------------------------------------------------
+// --- Hours entry: same across sources ---
 
 export type MapHoursEntry = {
   day: string;
@@ -25,13 +23,11 @@ export type MapHoursEntry = {
   close: string | null;
 };
 
-// ---------------------------------------------------------------------------
-// Base MapPreview — common shape that all sources expose.
+// Base MapPreview: common shape that all sources expose.
 //
 // Concrete plugins extend this via `MapPreview & { source: "google" | ... }`
 // (and may add source-specific optional fields). The client merger consumes
 // this base shape uniformly.
-// ---------------------------------------------------------------------------
 
 export type MapPreview = {
   /** Original URL we requested (input) */
@@ -53,9 +49,7 @@ export type MapPreview = {
   fetchedAt: string;
 };
 
-// ---------------------------------------------------------------------------
-// Job system types
-// ---------------------------------------------------------------------------
+// --- Job system types ---
 
 export type ScraperJobStatus = "queued" | "running" | "done" | "error";
 
@@ -98,11 +92,9 @@ export function isBlockedError(message: string | null | undefined): boolean {
   return typeof message === "string" && message.startsWith(BLOCKED_ERROR_PREFIX);
 }
 
-// ---------------------------------------------------------------------------
 // Shared dependencies injected into plugins (logger, sleep, randomDelay,
 // browser supplier). Plugins are kept dependency-free so tests can mock
 // trivially.
-// ---------------------------------------------------------------------------
 
 export interface ScraperDeps {
   log: Logger;
@@ -112,13 +104,11 @@ export interface ScraperDeps {
   getBrowser: () => Promise<Browser>;
 }
 
-// ---------------------------------------------------------------------------
-// MapScraperPlugin — the contract every source implements.
+// MapScraperPlugin: the contract every source implements.
 //
 // `T extends MapPreview` lets plugins extend the base shape with extra
 // fields if they want (e.g. Google's structured hours entries are typed
 // MapHoursEntry[] which is the same as the base, so no extension needed).
-// ---------------------------------------------------------------------------
 
 export interface MapScraperPlugin<T extends MapPreview = MapPreview> {
   /** Stable kebab-case identifier; used in URLs, cache keys, file paths */

@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// GPX Export – produces a GPX file with waypoints for each POI
+// GPX Export: produces a GPX file with waypoints for each POI
 // This is the most widely compatible format for GPS devices.
-// ---------------------------------------------------------------------------
 
 import type { EnrichedData, POI, TraceData } from "../../types";
 import { formatPoiDescriptionCompact } from "./description";

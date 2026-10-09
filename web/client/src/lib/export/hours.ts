@@ -1,12 +1,10 @@
-// ---------------------------------------------------------------------------
-// Hours formatting + Sunday / evening availability detection
-// ---------------------------------------------------------------------------
+// --- Hours formatting + Sunday / evening availability detection ---
 
 import { escapeXml } from "./shared";
 
 /**
- * Split a raw hours string into per-day entries (AUDIT R32: single flattener).
- * Splits on day-schedule separators (; \n and spaced /) — but not commas
+ * Split a raw hours string into per-day entries.
+ * Splits on day-schedule separators (; \n and spaced /): but not commas
  * within time ranges (e.g. "8:00-12:00, 14:00-18:00").
  */
 export function splitHoursLines(raw: string): string[] {
@@ -75,7 +73,7 @@ export function isOpenEvening(hours: string | null | undefined, osmHours?: strin
   const raw = hours ?? osmHours ?? "";
   if (!raw) return false;
 
-  // Look for time ranges like "8:00-21:00" or "08h00-22h00" — check the closing time
+  // Look for time ranges like "8:00-21:00" or "08h00-22h00": check the closing time
   const timeRanges = raw.match(/\d{1,2}[h:.]?\d{0,2}\s*[-–]\s*\d{1,2}[h:.]?\d{0,2}/g);
   if (!timeRanges) return false;
 

@@ -1,13 +1,11 @@
-// ---------------------------------------------------------------------------
-// POI description formatters — compact (GPS screens) and HTML (KML balloons)
-// ---------------------------------------------------------------------------
+// --- POI description formatters: compact (GPS screens) and HTML (KML balloons) ---
 
 import type { EnrichedData, POI } from "../../types";
 import { starString } from "../stars";
 import { formatHoursHtml, getAvailabilityTags, splitHoursLines } from "./hours";
 import { escapeXml } from "./shared";
 
-// Compact GPX <desc> formatter — optimized for small GPS screens
+// Compact GPX <desc> formatter: optimized for small GPS screens
 // (Garmin, Wahoo, COROS, OsmAnd compact view).
 // Target: <= 400 chars, prioritized info, one fact per line.
 const COMPACT_DESC_MAX_CHARS = 400;
@@ -59,7 +57,7 @@ function formatOpeningHoursCompact(
     .map((e) => {
       const day = shortenDay(e.day);
       if (e.open === "closed") return `${day} closed`;
-      // AUDIT R15: legacy free-text hours ("Open 24/7") have no close time —
+      // Legacy free-text hours ("Open 24/7") have no close time:
       // show the text rather than mislabeling the day as closed.
       if (!e.close) return `${day} ${shortenTime(e.open)}`;
       return `${day} ${shortenTime(e.open)}-${shortenTime(e.close)}`;
@@ -80,7 +78,7 @@ function compactRawHours(raw: string): string {
  * Build a compact, GPS-friendly description for a POI waypoint.
  *
  * Prioritized layout (one line each):
- *   L1 (header):  <Category> · ★4.3 (120) · $$ · km 12.5 — 80m
+ *   L1 (header):  <Category> · ★4.3 (120) · $$ · km 12.5, 80m
  *   L2 (text):    description (truncated to 150 chars)
  *   L3 (hours):   abbreviated week
  *   L4 (contact): phone | website
@@ -92,7 +90,7 @@ function compactRawHours(raw: string): string {
 export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData): string {
   const lines: string[] = [];
 
-  // L1 — header: category · rating · price · distance
+  // L1: header: category · rating · price · distance
   const headerBits: string[] = [poi.category];
   if (enrichment?.status === "done" && enrichment.rating != null) {
     const reviewBit = enrichment.reviewCount != null ? ` (${enrichment.reviewCount})` : "";
@@ -102,16 +100,16 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
     headerBits.push("$".repeat(Math.min(enrichment.priceLevel, 4)));
   }
   headerBits.push(
-    `km ${(poi.alongTraceDistance / 1000).toFixed(1)} — ${Math.round(poi.distanceToTrace)}m`,
+    `km ${(poi.alongTraceDistance / 1000).toFixed(1)}, ${Math.round(poi.distanceToTrace)}m`,
   );
   lines.push(headerBits.join(" · "));
 
-  // L2 — description (LLM-synthesized, single line)
+  // L2: description (LLM-synthesized, single line)
   if (enrichment?.status === "done" && enrichment.description) {
     lines.push(truncateWords(enrichment.description, COMPACT_DESC_TEXT_LINE_MAX));
   }
 
-  // L3 — hours: prefer structured table, then raw enrichment hours, then OSM
+  // L3: hours: prefer structured table, then raw enrichment hours, then OSM
   let hoursLine = "";
   if (enrichment?.status === "done" && enrichment.openingHours?.length) {
     hoursLine = formatOpeningHoursCompact(enrichment.openingHours);
@@ -124,7 +122,7 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
     lines.push(truncateWords(hoursLine, COMPACT_DESC_HOURS_LINE_MAX));
   }
 
-  // L4 — single best contact (phone wins over website on small screens)
+  // L4: single best contact (phone wins over website on small screens)
   const phone = poi.tags.phone ?? poi.tags["contact:phone"];
   const website = poi.tags.website ?? poi.tags["contact:website"];
   if (phone) {
@@ -133,7 +131,7 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
     lines.push(website);
   }
 
-  // L5 — first caution from enrichment (high-signal info for cyclist)
+  // L5: first caution from enrichment (high-signal info for cyclist)
   const firstCaution = enrichment?.structured?.cautions?.[0];
   if (firstCaution) {
     lines.push(`⚠ ${truncateWords(firstCaution, COMPACT_DESC_CAUTION_MAX)}`);
@@ -215,7 +213,7 @@ export function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): s
   }
 
   parts.push(
-    `<b>km ${(poi.alongTraceDistance / 1000).toFixed(1)}</b> — ${Math.round(poi.distanceToTrace)}m from route`,
+    `<b>km ${(poi.alongTraceDistance / 1000).toFixed(1)}</b>, ${Math.round(poi.distanceToTrace)}m from route`,
   );
   return parts.join("<br/>");
 }

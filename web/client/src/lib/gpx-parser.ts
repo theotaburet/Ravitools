@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// GPX parser – client-side parsing of GPX XML files
+// GPX parser: client-side parsing of GPX XML files
 // Port of gpx_smoother.py logic to TypeScript
-// ---------------------------------------------------------------------------
 
 import type { TraceData, TracePoint } from "../types";
 import { TRACE_COLORS } from "../types";
@@ -9,8 +7,8 @@ import { TRACE_COLORS } from "../types";
 /** Auto-incrementing counter for trace IDs */
 let traceIdCounter = 0;
 
-// ponytail: bound input to avoid memory blowups and Overpass chunk explosion on a
-// pathological GPX (AUDIT §5). Generous — a long multi-day route stays well under these.
+// Bound input to avoid memory blowups and Overpass chunk explosion on a
+// pathological GPX. Generous: a long multi-day route stays well under these.
 // Raise if a legit route is ever rejected.
 const MAX_GPX_CHARS = 25_000_000; // ~25 MB of XML
 const MAX_TRACE_POINTS = 300_000;
@@ -103,9 +101,7 @@ function parsePoint(el: Element): TracePoint | null {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Haversine distance
-// ---------------------------------------------------------------------------
+// --- Haversine distance ---
 const EARTH_RADIUS_M = 6_371_000;
 
 export function haversine(a: TracePoint, b: TracePoint): number {
@@ -136,8 +132,8 @@ export function computeElevationStats(points: TracePoint[]): { gain: number; los
   for (let i = 1; i < points.length; i++) {
     const prev = points[i - 1];
     const curr = points[i];
-    // ponytail: skip only segments touching a point without elevation, instead of
-    // discarding the whole stat on a single GPS dropout (AUDIT C2).
+    // Skip only segments touching a point without elevation, instead of
+    // discarding the whole stat on a single GPS dropout.
     if (prev.ele == null || curr.ele == null) continue;
     const diff = curr.ele - prev.ele;
     if (Math.abs(diff) >= 2) {
@@ -148,10 +144,8 @@ export function computeElevationStats(points: TracePoint[]): { gain: number; los
   return { gain: Math.round(gain), loss: Math.round(loss) };
 }
 
-// ---------------------------------------------------------------------------
 // Trace simplification / resampling
 // Port of GPXSmoother._smooth_and_resample_path
-// ---------------------------------------------------------------------------
 
 /**
  * Resample a trace to have evenly spaced points.
@@ -223,9 +217,7 @@ export function distanceToTrace(point: TracePoint, trace: TracePoint[]): number 
   return minDist;
 }
 
-// ---------------------------------------------------------------------------
-// Spatial index for fast distance-to-trace queries on long traces
-// ---------------------------------------------------------------------------
+// --- Spatial index for fast distance-to-trace queries on long traces ---
 
 /** Grid cell size in degrees (~2.2 km at 45°N latitude) */
 const GRID_CELL_DEG = 0.02;
@@ -325,8 +317,8 @@ export class TraceIndex {
  * haversine distance to the projected point.
  */
 function distanceToSegment(p: TracePoint, a: TracePoint, b: TracePoint): number {
-  // ponytail: work in a locally-isometric frame — scale longitude by cos(lat) so the
-  // projection isn't distorted away from the equator (AUDIT C1). 1° lon = cos(lat)·1° lat
+  // Work in a locally-isometric frame: scale longitude by cos(lat) so the
+  // projection isn't distorted away from the equator. 1° lon = cos(lat)·1° lat
   // in meters; the final distance stays haversine.
   const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
   const dLon = b.lon - a.lon;
@@ -347,9 +339,7 @@ function distanceToSegment(p: TracePoint, a: TracePoint, b: TracePoint): number 
   return haversine(p, proj);
 }
 
-// ---------------------------------------------------------------------------
-// Along-trace distance computation
-// ---------------------------------------------------------------------------
+// --- Along-trace distance computation ---
 
 /**
  * Compute the cumulative along-trace distance from the trace start to the
@@ -376,8 +366,8 @@ export function alongTraceProjection(point: TracePoint, trace: TracePoint[]): nu
     const b = trace[i + 1];
     const segLen = haversine(a, b);
 
-    // Project point onto segment — same cos(lat) longitude scaling as
-    // distanceToSegment (AUDIT R21), else travel order flips at high latitude.
+    // Project point onto segment: same cos(lat) longitude scaling as
+    // distanceToSegment, else travel order flips at high latitude.
     const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
     const dLon = b.lon - a.lon;
     const dx = dLon * k;

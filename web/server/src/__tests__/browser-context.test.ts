@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------
 // Browser context (shared session) tests
 //
 // Covers:
@@ -7,8 +6,7 @@
 // - storageState save: writes JSON to disk (with debounce respected)
 // - close: flushes state and resets the singleton
 //
-// Playwright is fully mocked — no real Chromium is launched.
-// ---------------------------------------------------------------------------
+// Playwright is fully mocked: no real Chromium is launched.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -215,12 +213,10 @@ describe("browser-context", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R12: a failed context creation must not poison later calls; a new browser
+// A failed context creation must not poison later calls; a new browser
 // instance must get a fresh context
-// ---------------------------------------------------------------------------
 
-describe("browser-context — failure recovery (R12)", () => {
+describe("browser-context: failure recovery", () => {
   it("retries after a first newContext rejection", async () => {
     const mod = await import("../browser-context");
     mod._resetBrowserContextForTests();

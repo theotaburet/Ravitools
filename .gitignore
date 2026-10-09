@@ -1,62 +1,36 @@
-# =============================================================================
-# Ravitools .gitignore
-# =============================================================================
-
-# Project tools & caches
-.tools/
-.mempalace/
-*.log
-
-# Node.js / Bun
+# Dependances / build
 node_modules/
 web/*/.cache/
-web/client/dist/
-web/server/dist/
+web/*/dist/
 *.tsbuildinfo
 
-# Preserve config files
-!package.json
-!bun.lock
-!tsconfig.json
+# Tests
+web/client/test-results/
+web/client/playwright-report/
+web/client/e2e-*-report.json
 
-# GPX / KMZ (binary outputs, not source)
+# Notes de travail locales (sessions, audits, plans) : restent sur disque, pas dans git
+/docs/
+tasks_archive/
+tmp/
+.claude/
+
+# Outils locaux
+.tools/
+.mempalace/
+__pycache__/
+.venv/
+
+# Sorties GPS (les exemples de web/examples/ sont suivis)
 *.gpx
 !web/examples/*.gpx
 *.kmz
 
-# Icon / font assets (stored elsewhere)
-*.svg
-*.otf
-
-# Python (MemPalace runtime only)
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-
-# Environment files
+# Env / OS / IDE
 .env
-
-# OS files
+*.log
 .DS_Store
 Thumbs.db
-
-# IDE
 .idea/
 .vscode/
 *.swp
-*.swo
-
-# Test / coverage
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-.pytest_cache/
-.hypothesis/
-
-# Playwright
-web/client/test-results/
-web/client/playwright-report/
-web/client/e2e-*-report.json

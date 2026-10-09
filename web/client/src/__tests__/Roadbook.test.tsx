@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Roadbook smoke test — renders one section per trace with the POI table.
+// Roadbook smoke test: renders one section per trace with the POI table.
 // The paper output is checked by eye (spec).
-// ---------------------------------------------------------------------------
 
 // @vitest-environment jsdom
 

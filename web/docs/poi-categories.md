@@ -10,7 +10,7 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 
 ### Water
 
-**Priority: critical** – most important for bikepacking.
+**Priority: critical**: most important for bikepacking.
 
 | OSM key | OSM value | Notes |
 |---|---|---|
@@ -21,7 +21,7 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 
 ### Sleeping place
 
-**Priority: critical** – second most important after water.
+**Priority: critical**: second most important after water.
 
 | OSM key | OSM value | Notes |
 |---|---|---|
@@ -236,4 +236,4 @@ Libraries often provide free wifi and power outlets.
 4. Specify OSM tag matchers, icon, and style colors
 5. Rebuild and test
 
-No server changes needed – all matching happens client-side.
+No server changes needed: all matching happens client-side.

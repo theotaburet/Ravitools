@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// FVM — source discovery, parsing, official website, queries, URL dedup
+// FVM: source discovery, parsing, official website, queries, URL dedup
 // (split from fvm.test.ts)
-// ---------------------------------------------------------------------------
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,9 +15,7 @@ import { buildStructuredContent } from "../lib/enrichment/structured";
 import type { PoiCategory, SearchSnippet } from "../types";
 import { makePoi } from "./fvm-helpers";
 
-// ===========================================================================
-// A. Source Discovery
-// ===========================================================================
+// --- A. Source Discovery ---
 
 describe("FVM-A: Source Discovery", () => {
   it("A1: Restaurant query includes review and hours context keywords", () => {
@@ -98,9 +94,7 @@ describe("FVM-A: Source Discovery", () => {
   });
 });
 
-// ===========================================================================
-// B. Source Parsing And Classification
-// ===========================================================================
+// --- B. Source Parsing And Classification ---
 
 describe("FVM-B: Source Parsing And Classification", () => {
   it("B1: classifies Google Maps URL", () => {
@@ -150,9 +144,7 @@ describe("FVM-B: Source Parsing And Classification", () => {
   });
 });
 
-// ===========================================================================
-// C. Official Website
-// ===========================================================================
+// --- C. Official Website ---
 
 describe("FVM-C: Official Website", () => {
   it("C1: detects website tag", () => {
@@ -254,7 +246,7 @@ describe("FVM-C: Official Website", () => {
       fetchedAt: "2026-04-13T00:00:00Z",
     };
     const structured = buildStructuredContent(poi, enrichment, snippets, websitePreview, "fr");
-    // Should have Google Maps, TripAdvisor, AND official_website — not replace them
+    // Should have Google Maps, TripAdvisor, AND official_website: not replace them
     const platforms = structured.sourceRollup.map((d) => d.platform);
     expect(platforms).toContain("google_maps");
     expect(platforms).toContain("tripadvisor");
@@ -262,9 +254,7 @@ describe("FVM-C: Official Website", () => {
   });
 });
 
-// ===========================================================================
-// WS5: Official Website Hardening
-// ===========================================================================
+// --- WS5: Official Website Hardening ---
 
 describe("FVM-WS5: Official Website Hardening", () => {
   it("WS5-1: rejects Facebook URL as official website", () => {
@@ -337,9 +327,7 @@ describe("FVM-WS5: Official Website Hardening", () => {
   });
 });
 
-// ===========================================================================
-// WS6: Per-Category Search Query Tuning
-// ===========================================================================
+// --- WS6: Per-Category Search Query Tuning ---
 
 describe("FVM-WS6: Per-Category Search Query Tuning", () => {
   it("WS6-1: Restaurant query has restaurant and horaires keywords", () => {
@@ -412,9 +400,7 @@ describe("FVM-WS6: Per-Category Search Query Tuning", () => {
   });
 });
 
-// ===========================================================================
-// WS7: URL Normalization & Dedup
-// ===========================================================================
+// --- WS7: URL Normalization & Dedup ---
 
 describe("FVM-WS7: URL Normalization & Dedup", () => {
   it("WS7-1: strips utm tracking params", () => {
@@ -470,9 +456,7 @@ describe("FVM-WS7: URL Normalization & Dedup", () => {
   });
 });
 
-// ===========================================================================
-// FVM-C: Website Preview (fetchWebsitePreview with mocked fetch)
-// ===========================================================================
+// --- FVM-C: Website Preview (fetchWebsitePreview with mocked fetch) ---
 
 import { fetchWebsitePreview } from "../lib/enrichment/search";
 

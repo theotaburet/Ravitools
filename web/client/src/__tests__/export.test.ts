@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for export (GPX, KML, GeoJSON)
-// ---------------------------------------------------------------------------
+// --- Tests for export (GPX, KML, GeoJSON) ---
 
 import { describe, expect, it } from "vitest";
 import {
@@ -166,9 +164,7 @@ describe("GeoJSON export", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// OsmAnd GPX export
-// ---------------------------------------------------------------------------
+// --- OsmAnd GPX export ---
 
 describe("OsmAnd GPX export", () => {
   it("should include osmand namespace in root element", () => {
@@ -239,9 +235,7 @@ describe("OsmAnd GPX export", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// KMZ export
-// ---------------------------------------------------------------------------
+// --- KMZ export ---
 
 describe("KMZ export", () => {
   it("should produce a Blob", () => {
@@ -256,9 +250,7 @@ describe("KMZ export", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// OsmAnd GPX with optional categories
-// ---------------------------------------------------------------------------
+// --- OsmAnd GPX with optional categories ---
 
 describe("OsmAnd GPX with optional categories", () => {
   const OPTIONAL_POI: POI = {
@@ -307,9 +299,7 @@ describe("OsmAnd GPX with optional categories", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// GPX symbol mapping coverage for all 18 categories
-// ---------------------------------------------------------------------------
+// --- GPX symbol mapping coverage for all 18 categories ---
 
 describe("GPX symbol mapping", () => {
   const CATEGORY_EXPECTED_SYMBOLS: [string, string][] = [
@@ -347,9 +337,7 @@ describe("GPX symbol mapping", () => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Minimal ZIP builder
-// ---------------------------------------------------------------------------
+// --- Minimal ZIP builder ---
 
 describe("buildZipSingleFile", () => {
   it("should produce valid ZIP magic bytes", () => {
@@ -398,11 +386,9 @@ describe("buildZipSingleFile", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R3: a poisoned rating (>5) already in session/cache must not crash export
-// ---------------------------------------------------------------------------
+// --- A poisoned rating (>5) already in session/cache must not crash export ---
 
-describe("export with out-of-range rating (R3)", () => {
+describe("export with out-of-range rating", () => {
   it("buildKmlString does not throw on rating 9.2 and clamps the stars", () => {
     const enrichments = new Map([
       ["poi_1", { status: "done", rating: 9.2 } as unknown as import("../types").EnrichedData],
@@ -415,11 +401,9 @@ describe("export with out-of-range rating (R3)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R15: legacy free-text hours with close == null must not render as "closed"
-// ---------------------------------------------------------------------------
+// --- Legacy free-text hours with close == null must not render as "closed" ---
 
-describe("formatPoiDescriptionCompact hours (R15)", () => {
+describe("formatPoiDescriptionCompact hours", () => {
   it("renders legacy free-text open hours instead of 'closed'", async () => {
     const { formatPoiDescriptionCompact } = await import("../lib/export");
     const enrichment = {

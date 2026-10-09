@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Ravito gaps – segments of a trace longer than a threshold without a POI
-// ---------------------------------------------------------------------------
+// --- Ravito gaps: segments of a trace longer than a threshold without a POI ---
 
 export interface Gap {
   startM: number;

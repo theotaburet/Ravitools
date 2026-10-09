@@ -1,8 +1,4 @@
-// ---------------------------------------------------------------------------
-// Shared rendering of a "done" enrichment result (AUDIT R27).
-// Used by both the PoiList rows and the RouteMap popup — the two used to
-// duplicate ~130 lines of rating/hours/description/badges markup each.
-// ---------------------------------------------------------------------------
+// Shared rendering of a "done" enrichment result, used by PoiList rows and the RouteMap popup.
 
 import { getSynthesisBadgeClass, getSynthesisLabel } from "../lib/enrichment/provenance";
 import { getAvailabilityTags, splitHoursLines } from "../lib/export";

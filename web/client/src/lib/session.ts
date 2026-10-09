@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Session persistence – save/restore app state to localStorage
-// ---------------------------------------------------------------------------
+// --- Session persistence: save/restore app state to localStorage ---
 
 import type {
   EnrichedData,
@@ -11,9 +9,7 @@ import type {
   TraceData,
 } from "../types";
 
-// ---------------------------------------------------------------------------
-// Schema versioning
-// ---------------------------------------------------------------------------
+// --- Schema versioning ---
 
 /** Bump this when the persisted shape changes in a breaking way.
  *  v2: trace → traces (multi-GPX support)
@@ -22,9 +18,7 @@ const SCHEMA_VERSION = 3;
 
 const STORAGE_KEY = "ravitools_session";
 
-// ---------------------------------------------------------------------------
-// Persisted shape (subset of app state, JSON-serializable)
-// ---------------------------------------------------------------------------
+// --- Persisted shape (subset of app state, JSON-serializable) ---
 
 interface PersistedSession {
   version: number;
@@ -43,9 +37,7 @@ interface PersistedSession {
   routeSettings: RouteProcessingSettings;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// --- Public API ---
 
 export interface SessionSnapshot {
   activeCategories: Set<PoiCategory>;
@@ -76,7 +68,7 @@ export function serializeSession(snapshot: Omit<SessionSnapshot, "savedAt">): st
 
 /**
  * Parse + validate the wire format. Returns null on version mismatch or
- * corrupt payload (same per-element validation as before — AUDIT C6).
+ * corrupt payload (per-element validation).
  */
 export function parseSession(json: string): SessionSnapshot | null {
   try {
@@ -94,8 +86,8 @@ export function parseSession(json: string): SessionSnapshot | null {
       return null;
     }
 
-    // Per-element validation — a partially-corrupt or older payload can pass the array
-    // checks above yet still crash downstream when fields are missing (AUDIT C6).
+    // Per-element validation: a partially-corrupt or older payload can pass the array
+    // checks above yet still crash downstream when fields are missing.
     const tracesOk = data.traces.every(
       (t) =>
         !!t &&
@@ -128,9 +120,8 @@ export function parseSession(json: string): SessionSnapshot | null {
 
 /**
  * Save current session state to localStorage.
- * Returns false (and warns) if the write fails — e.g. quota exceeded — so callers
- * can tell the user that "resume session" won't work, instead of failing silently
- * (AUDIT §5). A visible toast is deferred until a notification surface exists (M3).
+ * Returns false (and warns) if the write fails, e.g. quota exceeded, so callers
+ * can tell the user that "resume session" won't work, instead of failing silently.
  */
 export function saveSession(snapshot: Omit<SessionSnapshot, "savedAt">): boolean {
   try {

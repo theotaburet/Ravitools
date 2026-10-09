@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// POI list component (neobrutalist) – virtualized, with enrichment + selection
-// ---------------------------------------------------------------------------
+// --- POI list component (neobrutalist): virtualized, with enrichment + selection ---
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
@@ -73,7 +71,7 @@ function PoiListInner() {
   }, [selectedPoiId, sortedPois, virtualizer]);
 
   if (pois.length === 0) {
-    // AUDIT U5: don't render nothing — tell the user why the list is empty.
+    // Don't render nothing: tell the user why the list is empty.
     return (
       <div
         className="neo-box"
@@ -138,7 +136,7 @@ function PoiListInner() {
             const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
 
             return (
-              // biome-ignore lint/a11y/useSemanticElements: a real <button> cannot wrap the row — it contains nested buttons and links
+              // biome-ignore lint/a11y/useSemanticElements: a real <button> cannot wrap the row: it contains nested buttons and links
               <div
                 key={poi.id}
                 data-index={virtualRow.index}
@@ -283,7 +281,7 @@ function PoiListInner() {
                     </div>
                   )}
 
-                  {/* Google Maps link – always shown */}
+                  {/* Google Maps link: always shown */}
                   <a
                     href={gmapsUrl}
                     target="_blank"

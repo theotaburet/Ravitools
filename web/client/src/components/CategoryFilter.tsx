@@ -1,9 +1,7 @@
-// ---------------------------------------------------------------------------
 // Category filter panel (neobrutalist)
 // Shows essential (default-on) and optional (default-off) categories.
 // Visible both before upload (to choose what to query) and after (to filter).
 // Sticky header + collapsible body to stay accessible in long sidebars.
-// ---------------------------------------------------------------------------
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
@@ -34,7 +32,7 @@ export function CategoryFilter() {
   const showCounts = pois.length > 0;
   const [collapsed, setCollapsed] = useState(false);
 
-  // AUDIT U4: keep the slider snappy but only re-process POIs ~once per 150ms,
+  // Keep the slider snappy but only re-process POIs ~once per 150ms,
   // instead of on every pixel of drag.
   const [displayDist, setDisplayDist] = useState(maxDistanceM);
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,7 +55,6 @@ export function CategoryFilter() {
 
   return (
     <div className="neo-box overflow-hidden filter-panel">
-      {/* AUDIT R34/R43: the collapse toggle is a real <button> (was an onClick div) */}
       <div className="filter-header">
         <button
           type="button"

@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Google Maps fallback — queue a scraper job when search comes back thin
-// ---------------------------------------------------------------------------
+// --- Google Maps fallback: queue a scraper job when search comes back thin ---
 
 import type { GoogleMapsPreview, OpeningHoursEntry, POI, SearchSnippet } from "../../types";
 import { dlog } from "../debug-log";
@@ -13,8 +11,8 @@ import {
 
 /**
  * Max time (ms) to wait for a Google Maps fallback job before moving on.
- * AUDIT R16 (decision): 90s — the scraper sleeps 4-12s before each page and the
- * queue is serial, so the old 10s deadline burned quota without ever landing.
+ * 90s: the scraper sleeps 4-12s before each page and the
+ * queue is serial, so a shorter deadline burns quota without ever landing.
  */
 export const GOOGLE_FALLBACK_TIMEOUT_MS = 90_000;
 
@@ -44,7 +42,7 @@ export async function resolveGoogleMapsFallbackSnippets(
   const deadline = Date.now() + GOOGLE_FALLBACK_TIMEOUT_MS;
   while (!signal?.aborted && current.status !== "done" && current.status !== "error") {
     if (Date.now() >= deadline) {
-      onGoogleFallbackStatus?.(`Google Maps fallback timed out for ${poi.name} — moving on`);
+      onGoogleFallbackStatus?.(`Google Maps fallback timed out for ${poi.name}: moving on`);
       dlog("enricher").info(
         `Google Maps fallback timed out after ${GOOGLE_FALLBACK_TIMEOUT_MS}ms for ${poi.name}`,
       );

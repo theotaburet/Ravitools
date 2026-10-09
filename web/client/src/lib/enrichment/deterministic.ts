@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Deterministic extraction — no-LLM fallbacks built from snippets/JSON-LD
-// ---------------------------------------------------------------------------
+// --- Deterministic extraction: no-LLM fallbacks built from snippets/JSON-LD ---
 
 import type { EnrichedData, POI, SearchSnippet, TargetLanguage } from "../../types";
 
@@ -8,7 +6,7 @@ export function extractDeterministicRating(
   snippets: SearchSnippet[],
   website: EnrichedData["officialWebsite"],
 ): number | null {
-  // R3: a JSON-LD ratingValue outside [1,5] (e.g. 9.2 on a 10-scale) used to flow
+  // A JSON-LD ratingValue outside [1,5] (e.g. 9.2 on a 10-scale) used to flow
   // through untouched and crash the star renderers. Drop it, fall back to snippets.
   const structured = website?.structuredData?.rating;
   if (structured != null && Number.isFinite(structured) && structured >= 1 && structured <= 5) {

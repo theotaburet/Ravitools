@@ -9,10 +9,8 @@ import {
 } from "../db.js";
 import { enrichLimiter } from "../limiters.js";
 
-// ---------------------------------------------------------------------------
 // POI enrichment cache (Postgres + PostGIS)
 // Anonymous public read/write. Returns 503 if DB is not configured.
-// ---------------------------------------------------------------------------
 
 const VALID_OSM_TYPES = new Set<OsmType>(["node", "way", "relation"]);
 
@@ -52,7 +50,7 @@ function clampMaxAgeDays(raw: unknown): number {
 
 export const poiRouter = Router();
 
-/** GET /poi/:osm_type/:osm_id — single lookup */
+/** GET /poi/:osm_type/:osm_id: single lookup */
 poiRouter.get("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
   const osm_type = parseOsmType(req.params.osm_type);
   const osm_id = parseOsmId(req.params.osm_id);
@@ -73,7 +71,7 @@ poiRouter.get("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
   res.json(row);
 });
 
-/** POST /poi/search — batch lookup body: { keys: [{osm_type, osm_id}], max_age_days? } */
+/** POST /poi/search: batch lookup body: { keys: [{osm_type, osm_id}], max_age_days? } */
 poiRouter.post("/poi/search", enrichLimiter, async (req, res) => {
   const body = req.body as { keys?: unknown; max_age_days?: unknown };
   if (!Array.isArray(body?.keys)) {
@@ -105,8 +103,8 @@ poiRouter.post("/poi/search", enrichLimiter, async (req, res) => {
   });
 });
 
-/** PUT /poi/:osm_type/:osm_id — upsert enrichment */
-// ponytail: intentionally unauthenticated (AUDIT R9 decision). Trust model: the
+/** PUT /poi/:osm_type/:osm_id: upsert enrichment */
+// Intentionally unauthenticated. Trust model: the
 // shared POI cache is best-effort community data behind enrichLimiter's per-IP
 // rate cap; poisoning is bounded (one key per PUT, TTL'd rows, deterministic
 // re-enrichment overwrites). Gate behind a write token if this ever goes
@@ -142,7 +140,7 @@ poiRouter.put("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
     res.status(400).json({ error: "Invalid enrichment payload" });
     return;
   }
-  // Soft size guard — JSON.stringify is O(n) but bounded by express.json 1mb limit anyway
+  // Soft size guard: JSON.stringify is O(n) but bounded by express.json 1mb limit anyway
   const serialized = JSON.stringify(body.enrichment);
   if (serialized.length > 200_000) {
     res.status(413).json({ error: "Enrichment payload too large" });

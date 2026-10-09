@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for poi-cache (shared Postgres cache client)
-// ---------------------------------------------------------------------------
+// --- Tests for poi-cache (shared Postgres cache client) ---
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -175,11 +173,9 @@ describe("uploadPoiEnrichment", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R11: batches over the server's 200-key cap must be chunked and merged
-// ---------------------------------------------------------------------------
+// --- Batches over the server's 200-key cap must be chunked and merged ---
 
-describe("lookupPoiBatch chunking (R11)", () => {
+describe("lookupPoiBatch chunking", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });

@@ -5,9 +5,7 @@ import { OVERPASS_URLS, PORT } from "./config.js";
 import { closeDb, initDb } from "./db.js";
 import { log } from "./logger.js";
 
-// ---------------------------------------------------------------------------
-// Start (only when run directly, not when imported for testing)
-// ---------------------------------------------------------------------------
+// --- Start (only when run directly, not when imported for testing) ---
 if (process.env.NODE_ENV !== "test") {
   // Fire-and-forget DB init (graceful degradation if unavailable)
   initDb().catch((err) => log.error({ err: err?.message }, "DB init unexpected error"));
@@ -16,7 +14,7 @@ if (process.env.NODE_ENV !== "test") {
     log.info({ port: PORT, overpass: OVERPASS_URLS.join(", ") }, "Ravitools proxy started");
   });
 
-  // Graceful shutdown — close Playwright browser to avoid orphaned Chromium processes
+  // Graceful shutdown: close Playwright browser to avoid orphaned Chromium processes
   const shutdown = async () => {
     log.info("Shutting down...");
     try {
@@ -27,7 +25,7 @@ if (process.env.NODE_ENV !== "test") {
     }
     await closeBrowser();
     try {
-      await closeDb(); // drain the pg pool (AUDIT S4)
+      await closeDb(); // drain the pg pool
     } catch {
       /* ignore */
     }
@@ -41,5 +39,5 @@ export default app;
 
 // Test-only export: the live scraper system the app routes use, so tests can
 // reach its job cache / persistence. Pure helpers are imported directly from
-// their modules in tests (AUDIT R30).
+// their modules in tests.
 export const _testExports = { googleMapsSystem };

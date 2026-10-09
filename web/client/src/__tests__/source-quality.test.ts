@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for rankSnippetsByQuality and extractStructuredHoursFromSnippets
-// ---------------------------------------------------------------------------
+// --- Tests for rankSnippetsByQuality and extractStructuredHoursFromSnippets ---
 
 import { describe, expect, it } from "vitest";
 import { extractStructuredHoursFromSnippets, rankSnippetsByQuality } from "../lib/enrichment";
@@ -10,9 +8,7 @@ function snippet(url: string, content = "some content about the place"): SearchS
   return { url, title: "Title", content, engine: "test" };
 }
 
-// ---------------------------------------------------------------------------
-// rankSnippetsByQuality
-// ---------------------------------------------------------------------------
+// --- rankSnippetsByQuality ---
 
 describe("rankSnippetsByQuality", () => {
   it("returns empty array for empty input", () => {
@@ -80,9 +76,7 @@ describe("rankSnippetsByQuality", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// extractStructuredHoursFromSnippets
-// ---------------------------------------------------------------------------
+// --- extractStructuredHoursFromSnippets ---
 
 describe("extractStructuredHoursFromSnippets", () => {
   it("returns null for empty snippets", () => {

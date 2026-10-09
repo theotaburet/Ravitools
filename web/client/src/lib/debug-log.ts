@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Debug logger – client-side structured logging with circular buffer
-// ---------------------------------------------------------------------------
+// --- Debug logger: client-side structured logging with circular buffer ---
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -83,9 +81,7 @@ export function clearLog(): void {
   buffer.length = 0;
 }
 
-// ---------------------------------------------------------------------------
-// Scoped logger factory – call dlog("overpass") to get a logger for that module
-// ---------------------------------------------------------------------------
+// --- Scoped logger factory: call dlog("overpass") to get a logger for that module ---
 
 export interface ScopedLogger {
   debug(msg: string, data?: Record<string, unknown>): void;

@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// KML Export – for Google Earth and some GPS apps
-// ---------------------------------------------------------------------------
+// --- KML Export: for Google Earth and some GPS apps ---
 
 import type { EnrichedData, POI, TraceData } from "../../types";
 import { formatPoiDescriptionHtml } from "./description";
@@ -58,7 +56,7 @@ ${placemarks}
     </Folder>\n`;
   }
 
-  // Track lines – one Placemark per trace
+  // Track lines: one Placemark per trace
   const trackSections = traces
     .filter((t) => t.original.length > 0)
     .map((trace) => {

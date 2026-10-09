@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
-// Enricher – orchestrates POI enrichment pipeline
+// Enricher: orchestrates POI enrichment pipeline
 // For each POI: reverse geocode → search → LLM synthesis → EnrichedData
 // Uses staged pipeline: geocode+search with concurrency, LLM serial.
-// ---------------------------------------------------------------------------
 
 import type {
   EnrichabilityPolicy,
@@ -57,9 +55,7 @@ export function isRetryableEnrichmentResult(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// --- Types ---
 
 /** Callback fired after each POI is enriched */
 export type EnrichmentProgressCallback = (
@@ -110,17 +106,12 @@ export interface EnrichBatchOptions {
   onAllEnginesSuspended?: (captchaUrl: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Single POI enrichment (kept for isolated use; batch uses staged pipeline)
-// ---------------------------------------------------------------------------
+// --- Single POI enrichment ---
 
 /**
  * Enrich a single POI: geocode → search → synthesize.
  * Always returns an EnrichedData, even on partial failure.
  * Respects enrichability policy unless overridden.
- *
- * AUDIT R26: thin wrapper over enrichBatch — this used to copy-paste the
- * batch stage-2 (~240 lines) for its single caller (the ?sandbox dev panel).
  */
 export async function enrichPoi(
   poi: POI,
@@ -153,9 +144,7 @@ export async function enrichPoi(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Batch enrichment — staged pipeline with concurrency
-// ---------------------------------------------------------------------------
+// --- Batch enrichment: staged pipeline with concurrency ---
 
 /**
  * Enrich a batch of POIs using a two-stage pipeline:
@@ -267,9 +256,7 @@ export async function enrichBatch(
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Pre-filter: resolve skip/unnamed/generic POIs immediately (no network)
-  // -----------------------------------------------------------------------
+  // --- Pre-filter: resolve skip/unnamed/generic POIs immediately (no network) ---
   const searchQueue: { poi: POI; index: number; policy: EnrichabilityPolicy }[] = [];
 
   for (let i = 0; i < pois.length; i++) {
@@ -317,9 +304,7 @@ export async function enrichBatch(
 
   if (signal?.aborted || searchQueue.length === 0) return results;
 
-  // -----------------------------------------------------------------------
-  // Stage 1: Geocode + Search — concurrent with stagger
-  // -----------------------------------------------------------------------
+  // --- Stage 1: Geocode + Search: concurrent with stagger ---
   log.info(
     `Stage 1: geocode+search for ${searchQueue.length} POIs (concurrency=${searchConcurrency}, stagger=${searchStaggerMs}ms)`,
     {
@@ -407,7 +392,7 @@ export async function enrichBatch(
         googleMapsPreviewForBatch = googleResult.preview;
       }
 
-      // Rank snippets by domain quality — highest-signal sources first, noise removed.
+      // Rank snippets by domain quality: highest-signal sources first, noise removed.
       snippets = rankSnippetsByQuality(snippets);
 
       if (countSuspendedHealthyEngines() >= 3) {
@@ -509,9 +494,7 @@ export async function enrichBatch(
   if (signal?.aborted) return results;
   if (allEnginesSuspended) throw new Error("all-engines-suspended");
 
-  // -----------------------------------------------------------------------
-  // Stage 2: LLM Synthesis — serial (WebLLM is single-threaded)
-  // -----------------------------------------------------------------------
+  // --- Stage 2: LLM Synthesis: serial (WebLLM is single-threaded) ---
   const needSynthesis = searchResults.filter((r) => !r.earlyResult && r.snippets.length > 0);
 
   if (needSynthesis.length > 0) {
@@ -546,7 +529,7 @@ export async function enrichBatch(
           }
         }
 
-        // No LLM or synthesis failed — deterministic extraction from snippets
+        // No LLM or synthesis failed: deterministic extraction from snippets
         emitResult(poi, result ?? buildDeterministicResult(item, targetLanguage));
         onPhaseProgress?.("synthesize", computeEta());
       } catch (err) {

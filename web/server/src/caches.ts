@@ -8,14 +8,14 @@ export const cache = new NodeCache({
   maxKeys: 500,
 });
 
-/** Search cache – longer TTL, more keys (POI reviews don't change often) */
+/** Search cache: longer TTL, more keys (POI reviews don't change often) */
 export const searchCache = new NodeCache({
   stdTTL: SEARCH_CACHE_TTL,
   checkperiod: 3600,
   maxKeys: 5000,
 });
 
-/** Geocode cache – very long TTL (coordinates don't move) */
+/** Geocode cache: very long TTL (coordinates don't move) */
 export const geocodeCache = new NodeCache({
   stdTTL: GEOCODE_CACHE_TTL,
   checkperiod: 3600,

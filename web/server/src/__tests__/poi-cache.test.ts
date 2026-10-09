@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------
 // POI cache endpoint tests
 //
 // Covers input validation (400 paths) and the 503 fallback when no DB is
@@ -7,7 +6,6 @@
 //
 // Validation runs BEFORE the DB availability check, so we can exercise 400
 // responses without a DB.
-// ---------------------------------------------------------------------------
 
 import request from "supertest";
 import { describe, expect, it } from "vitest";
@@ -18,7 +16,7 @@ delete process.env.DATABASE_URL;
 
 const { default: app } = await import("../index");
 
-describe("POI cache — GET /poi/:osm_type/:osm_id", () => {
+describe("POI cache: GET /poi/:osm_type/:osm_id", () => {
   it("returns 400 for invalid osm_type", async () => {
     const res = await request(app).get("/poi/invalid/12345");
     expect(res.status).toBe(400);
@@ -49,7 +47,7 @@ describe("POI cache — GET /poi/:osm_type/:osm_id", () => {
   });
 });
 
-describe("POI cache — POST /poi/search", () => {
+describe("POI cache: POST /poi/search", () => {
   it("returns 400 when body has no keys array", async () => {
     const res = await request(app)
       .post("/poi/search")
@@ -89,7 +87,7 @@ describe("POI cache — POST /poi/search", () => {
   });
 });
 
-describe("POI cache — PUT /poi/:osm_type/:osm_id", () => {
+describe("POI cache: PUT /poi/:osm_type/:osm_id", () => {
   const validBody = {
     category: "food",
     lat: 43.5,

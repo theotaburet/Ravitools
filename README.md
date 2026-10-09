@@ -48,11 +48,10 @@ Ouvrir `http://localhost:5173`. `just` sans argument liste toutes les recettes
 - `web/server`: proxy Express pour Overpass, search et geocode
 - `web/examples`: GPX d'exemple
 - `tasks`: sessions de travail actives ou futures
-- `tasks_archive`: historique de sessions terminees
 
 ## Docs
 
-- `CONTRIBUT.md`: contribution, architecture, verification et conventions du repo
+- `CONTRIBUTING.md`: contribution, verification et conventions du repo
 - `web/docs/architecture.md`: details techniques web
 - `web/docs/deployment.md`: deploiement
 - `web/docs/poi-categories.md`: categories POI

@@ -14,7 +14,7 @@ export const limiter = rateLimit({
 /** Separate rate limiter for enrichment endpoints (more generous) */
 export const enrichLimiter = rateLimit({
   windowMs: 60_000,
-  max: Number(process.env.ENRICH_RATE_LIMIT ?? 300), // 5 req/s average — proxying to our own SearXNG
+  max: Number(process.env.ENRICH_RATE_LIMIT ?? 300), // 5 req/s average: proxying to our own SearXNG
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -22,7 +22,7 @@ export const enrichLimiter = rateLimit({
   },
 });
 
-/** Stricter limiter for the expensive Playwright scraper endpoints (AUDIT S8). */
+/** Stricter limiter for the expensive Playwright scraper endpoints. */
 export const scraperLimiter = rateLimit({
   windowMs: 60_000,
   max: Number(process.env.SCRAPER_RATE_LIMIT ?? 20),

@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
 // Route state atoms test (M2/T4): pipeline state machine + filtering.
 // Mocks the three pure pipeline stages (parse / query / process) so we can
 // drive transitions without GPX files, the network, or the DOM.
-// ---------------------------------------------------------------------------
 
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -105,12 +103,10 @@ describe("route state pipeline", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R19: the distance slider must keep working after a session restore
-// (no raw Overpass elements — refilter from the restored POI superset)
-// ---------------------------------------------------------------------------
+// The distance slider must keep working after a session restore
+// (no raw Overpass elements: refilter from the restored POI superset)
 
-describe("setMaxDistance after restore (R19)", () => {
+describe("setMaxDistance after restore", () => {
   it("re-filters restored POIs when the slider moves", () => {
     const near = { ...poi("near", "Water"), distanceToTrace: 100 } as POI;
     const far = { ...poi("far", "Water"), distanceToTrace: 900 } as POI;

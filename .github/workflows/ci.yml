@@ -24,7 +24,6 @@ jobs:
       - name: Test
         run: bun run test
         working-directory: ${{ matrix.package }}
-      # Blocking since the lint backlog was cleared (AUDIT R34).
       - name: Lint
         run: bun run lint
         working-directory: ${{ matrix.package }}

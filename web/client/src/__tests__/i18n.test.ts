@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// Tests for i18n – translateCategory and translatePoiName
-// ---------------------------------------------------------------------------
+// --- Tests for i18n: translateCategory and translatePoiName ---
 
 import { describe, expect, it } from "vitest";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import type { PoiCategory } from "../types";
 
-// ---------------------------------------------------------------------------
-// translateCategory
-// ---------------------------------------------------------------------------
+// --- translateCategory ---
 
 describe("translateCategory", () => {
   const ALL_CATEGORIES: PoiCategory[] = [
@@ -58,14 +54,12 @@ describe("translateCategory", () => {
   });
 
   it("falls back to category key for unknown language", () => {
-    // @ts-expect-error – testing runtime fallback
+    // @ts-expect-error: testing runtime fallback
     expect(translateCategory("Water", "de")).toBe("Water");
   });
 });
 
-// ---------------------------------------------------------------------------
-// translatePoiName
-// ---------------------------------------------------------------------------
+// --- translatePoiName ---
 
 describe("translatePoiName", () => {
   it("returns original name for lang=en", () => {
@@ -104,14 +98,12 @@ describe("translatePoiName", () => {
   });
 
   it("returns original name for unknown language", () => {
-    // @ts-expect-error – testing runtime fallback
+    // @ts-expect-error: testing runtime fallback
     expect(translatePoiName("bakery", "de")).toBe("bakery");
   });
 });
 
-// ---------------------------------------------------------------------------
-// t() — UI chrome strings (AUDIT U2)
-// ---------------------------------------------------------------------------
+// --- t(): UI chrome strings ---
 
 describe("t (UI strings)", () => {
   it("returns the French string for fr", () => {
@@ -124,13 +116,13 @@ describe("t (UI strings)", () => {
   });
 
   it("falls back to English for an unknown language, then to the key", () => {
-    // @ts-expect-error – testing runtime fallback
+    // @ts-expect-error: testing runtime fallback
     expect(t("session.resume", "de")).toBe("Resume");
     expect(t("does.not.exist", "fr")).toBe("does.not.exist");
   });
 
   it("has a translation for every dynamic skip-reason key", () => {
-    // PoiList builds these keys as `poi.skip.${reason}` — a missing one would
+    // PoiList builds these keys as `poi.skip.${reason}`: a missing one would
     // silently render the key string instead of a label.
     const reasons = [
       "unnamed",
@@ -148,7 +140,7 @@ describe("t (UI strings)", () => {
   });
 
   it("has a translation for every dynamic confidence-level key", () => {
-    // PoiList builds `poi.confidence.${confidenceLabel(c)}` — confidenceLabel returns these.
+    // PoiList builds `poi.confidence.${confidenceLabel(c)}`: confidenceLabel returns these.
     for (const level of ["high", "medium", "low", "none"]) {
       const key = `poi.confidence.${level}`;
       expect(t(key, "fr")).not.toBe(key);

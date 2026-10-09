@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Offline export – public API
+// Offline export: public API
 // One module per format; shared helpers in shared/hours/description/zip.
-// ---------------------------------------------------------------------------
 
 export { formatPoiDescriptionCompact } from "./description";
 export { buildGeoJsonObject, exportToGeoJson } from "./geojson";

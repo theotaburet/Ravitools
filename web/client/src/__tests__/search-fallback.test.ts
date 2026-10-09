@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// R13: searchPoi must try the next query variant when the first one keeps
+// SearchPoi must try the next query variant when the first one keeps
 // zero snippets (the fallback was dead code except on throw)
-// ---------------------------------------------------------------------------
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchPoi } from "../lib/enrichment/search";
@@ -32,7 +30,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("searchPoi query-variant fallback (R13)", () => {
+describe("searchPoi query-variant fallback", () => {
   it("fires the second variant when the first keeps 0 snippets", async () => {
     const emptyResponse = {
       ok: true,
@@ -45,7 +43,7 @@ describe("searchPoi query-variant fallback (R13)", () => {
       json: async () => ({
         results: [
           {
-            title: "Bistro du Port — Bayonne",
+            title: "Bistro du Port: Bayonne",
             url: "https://bistroduport.example.com",
             content: "Bistro du Port à Bayonne, cuisine locale, ouvert tous les jours 12:00-22:00.",
             engine: "google",
@@ -64,11 +62,9 @@ describe("searchPoi query-variant fallback (R13)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R20/R25: no manual abort listeners on the caller's signal — the native
+// No manual abort listeners on the caller's signal: the native
 // AbortSignal.any/timeout combination replaced the hand-rolled relay that
 // used to accumulate listeners by the thousands on a batch signal
-// ---------------------------------------------------------------------------
 
 describe("abort listener cleanup (R20/R25)", () => {
   it("adds no manual listeners to the caller's signal", async () => {

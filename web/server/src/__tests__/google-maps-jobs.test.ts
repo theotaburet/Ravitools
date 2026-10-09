@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Google Maps jobs: lifecycle, persistence, and extraction heuristic tests
-// ---------------------------------------------------------------------------
+// --- Google Maps jobs: lifecycle, persistence, and extraction heuristic tests ---
 
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -9,9 +7,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScraperFailureRecord } from "../scrapers/types";
 
-// ---------------------------------------------------------------------------
-// Environment setup before app import
-// ---------------------------------------------------------------------------
+// --- Environment setup before app import ---
 process.env.NODE_ENV = "test";
 process.env.RATE_LIMIT_MAX = "1000";
 
@@ -68,7 +64,7 @@ const {
   GOOGLE_MAPS_PROXY_URL,
 } = await import("../scrapers/google-maps.js");
 
-// Accessors into the live scraper system the app routes use (AUDIT R30)
+// Accessors into the live scraper system the app routes use
 const { googleMapsSystem } = _testExports;
 const googleMapsJobCache = googleMapsSystem.jobCache;
 const persistGoogleMapsJobs = googleMapsSystem.persist;
@@ -78,11 +74,9 @@ const GOOGLE_MAPS_FAILURES_FILE = googleMapsSystem.failuresFile;
 const appendGoogleMapsFailure = (record: Omit<ScraperFailureRecord, "source">) =>
   googleMapsSystem.appendFailure({ source: "google-maps", ...record });
 
-// ---------------------------------------------------------------------------
-// T5a: Job lifecycle tests
-// ---------------------------------------------------------------------------
+// --- T5a: Job lifecycle tests ---
 
-describe("Google Maps jobs — lifecycle", () => {
+describe("Google Maps jobs: lifecycle", () => {
   beforeEach(() => {
     googleMapsJobCache.flushAll();
     mockFetch.mockReset();
@@ -149,7 +143,7 @@ describe("Google Maps jobs — lifecycle", () => {
 
     // Queued jobs are removed from cache; running jobs are marked error
     const get = await request(app).get(`/google-maps-preview/jobs/${jobId}`);
-    // The job may have transitioned to running before cancel — check either gone or error+cancelled
+    // The job may have transitioned to running before cancel: check either gone or error+cancelled
     if (get.status === 200) {
       expect(get.body.status).toBe("error");
       expect(get.body.error).toMatch(/Cancelled/i);
@@ -173,11 +167,9 @@ describe("Google Maps jobs — lifecycle", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// T5b: Persistence / reload tests
-// ---------------------------------------------------------------------------
+// --- T5b: Persistence / reload tests ---
 
-describe("Google Maps jobs — persistence and reload", () => {
+describe("Google Maps jobs: persistence and reload", () => {
   const tmpDir = join(os.tmpdir(), `ravitools-test-${Date.now()}`);
 
   beforeEach(() => {
@@ -271,9 +263,7 @@ describe("Google Maps jobs — persistence and reload", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// T5c: Extraction heuristic tests (pure functions, no Playwright)
-// ---------------------------------------------------------------------------
+// --- T5c: Extraction heuristic tests (pure functions, no Playwright) ---
 
 describe("normalizeDay", () => {
   it("passes through canonical English short days", () => {
@@ -312,7 +302,7 @@ describe("normalizeTimeString", () => {
   });
 
   it("passes through unrecognized strings unchanged (e.g. 'Closed' text)", () => {
-    // normalizeTimeString only converts time formats — 'Closed' is detected by parseGoogleMapsHoursRow, not here
+    // normalizeTimeString only converts time formats: 'Closed' is detected by parseGoogleMapsHoursRow, not here
     expect(normalizeTimeString("Closed")).toBe("Closed");
     expect(normalizeTimeString("some text")).toBe("some text");
   });
@@ -398,9 +388,7 @@ describe("extractPriceLevelFromText", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Proxy / IP rotation hook tests
-// ---------------------------------------------------------------------------
+// --- Proxy / IP rotation hook tests ---
 
 describe("Google Maps proxy configuration", () => {
   it("GOOGLE_MAPS_PROXY_URL is null by default (no proxy set in test env)", () => {
@@ -414,9 +402,7 @@ describe("Google Maps proxy configuration", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Structured failure log tests
-// ---------------------------------------------------------------------------
+// --- Structured failure log tests ---
 
 describe("Google Maps failure log (appendGoogleMapsFailure)", () => {
   // Override the failure file path for isolation by monkey-patching the env

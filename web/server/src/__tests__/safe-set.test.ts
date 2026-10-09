@@ -6,7 +6,7 @@ import NodeCache from "node-cache";
 import { describe, expect, it } from "vitest";
 import { safeSet } from "../safe-set.js";
 
-describe("safeSet (R1: full cache must never throw)", () => {
+describe("safeSet", () => {
   it("documents the raw bug: node-cache set throws at maxKeys", () => {
     const cache = new NodeCache({ maxKeys: 2 });
     cache.set("a", 1);

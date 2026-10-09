@@ -1,14 +1,10 @@
-// ---------------------------------------------------------------------------
-// Enrichment data in exports – GPX/KML/GeoJSON, compact <desc> contract
+// Enrichment data in exports: GPX/KML/GeoJSON, compact <desc> contract
 // (split from enrichment.test.ts)
-// ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import { makePoi } from "./enrichment-helpers";
 
-// ---------------------------------------------------------------------------
-// Export with enrichment data
-// ---------------------------------------------------------------------------
+// --- Export with enrichment data ---
 
 describe("export with enrichments", () => {
   // We test that the export functions accept enrichments without error
@@ -171,7 +167,7 @@ describe("export with enrichments", () => {
     expect(props.enrichment_rating).toBeUndefined();
   });
 
-  it("GPX export works without enrichments (backward compat)", async () => {
+  it("GPX export works without enrichments", async () => {
     const { buildGpxString } = await import("../lib/export");
     const poi = makePoi();
     const gpx = buildGpxString([poi], []);
@@ -180,9 +176,7 @@ describe("export with enrichments", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Target language and translated summary
-// ---------------------------------------------------------------------------
+// --- Target language and translated summary ---
 
 describe("target language types", () => {
   it("TARGET_LANGUAGE_LABELS has entries for all supported languages", async () => {
@@ -289,9 +283,7 @@ describe("export with translated summary", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Source metadata in exports
-// ---------------------------------------------------------------------------
+// --- Source metadata in exports ---
 
 describe("export with source metadata", () => {
   it("GPX text description includes Sources and Confidence", async () => {
@@ -397,9 +389,7 @@ describe("export with source metadata", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Compact GPX <desc> format — offline GPS readability contract
-// ---------------------------------------------------------------------------
+// --- Compact GPX <desc> format: offline GPS readability contract ---
 
 describe("formatPoiDescriptionCompact", () => {
   it("produces a header with category, rating, price and distance", async () => {

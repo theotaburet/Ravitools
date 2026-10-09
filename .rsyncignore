@@ -24,8 +24,7 @@ Thumbs.db
 *.log
 *.kmz
 
-# Docs & support (not needed on VPS)
+# Docs (not needed on VPS)
 tasks/
-skills/
-shared/
-_config/
+tasks_archive/
+docs/

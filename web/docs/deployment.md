@@ -19,7 +19,7 @@ The rest of this page deploys the full app, server included, on a VPS.
 
 ## Prerequisites
 
-- A VPS with Node.js >= 18 and nginx
+- A VPS with [Bun](https://bun.sh) 1.x and nginx (or Docker: see `web/server/Dockerfile`)
 - A domain name (optional but recommended)
 
 ## 1. Build
@@ -27,25 +27,19 @@ The rest of this page deploys the full app, server included, on a VPS.
 On your local machine or CI:
 
 ```bash
-# Client
-cd web/client
-npm ci
-npm run build
+# From the repo root
+bun install --frozen-lockfile
+cd web/client && bun run build
 # Result: web/client/dist/
-
-# Server
-cd ../server
-npm ci
-npm run build
-# Result: web/server/dist/
 ```
+
+The server has no build step: Bun runs `src/index.ts` directly.
 
 ## 2. Upload to VPS
 
 ```bash
 rsync -avz web/client/dist/ user@vps:/var/www/ravitools/
-rsync -avz web/server/dist/ user@vps:/opt/ravitools-server/dist/
-rsync -avz web/server/package.json web/server/package-lock.json user@vps:/opt/ravitools-server/
+rsync -avz --exclude node_modules web/server/ user@vps:/opt/ravitools-server/
 ```
 
 ## 3. Install server dependencies on VPS
@@ -53,7 +47,7 @@ rsync -avz web/server/package.json web/server/package-lock.json user@vps:/opt/ra
 ```bash
 ssh user@vps
 cd /opt/ravitools-server
-npm ci --omit=dev
+bun install --production
 ```
 
 ## 4. Systemd service
@@ -69,7 +63,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/opt/ravitools-server
-ExecStart=/usr/bin/node dist/index.js
+ExecStart=/usr/local/bin/bun src/index.ts
 Restart=on-failure
 RestartSec=5
 
@@ -105,7 +99,7 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # Proxy API to Node server
+    # Proxy API to the Bun server
     location /api/ {
         proxy_pass http://127.0.0.1:3001/;
         proxy_http_version 1.1;

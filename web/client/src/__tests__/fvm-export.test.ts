@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// FVM — export validation (GPX/KML/GeoJSON)
+// FVM: export validation (GPX/KML/GeoJSON)
 // (split from fvm.test.ts)
-// ---------------------------------------------------------------------------
 // @vitest-environment jsdom
 
 import { describe, expect, it } from "vitest";
@@ -9,9 +7,7 @@ import { buildGeoJsonObject, buildGpxString, buildKmlString } from "../lib/expor
 import type { EnrichmentStructuredContent } from "../types";
 import { makeBaseEnrichment, makePoi } from "./fvm-helpers";
 
-// ===========================================================================
-// K. Export Validation
-// ===========================================================================
+// --- K. Export Validation ---
 
 describe("FVM-K: Export Validation", () => {
   const enrichedStructured: EnrichmentStructuredContent = {
@@ -88,7 +84,7 @@ describe("FVM-K: Export Validation", () => {
 
   it("K5b: GPX no longer includes unknowns (compact format)", () => {
     const gpx = buildGpxString([poi], [], enrichments);
-    // unknowns are no longer rendered in the compact export
+    // unknowns are not rendered in the compact export
     expect(gpx).not.toContain("Bike parking availability unclear.");
   });
 

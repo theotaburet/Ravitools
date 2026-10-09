@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Map component – Leaflet map displaying traces and POIs (neobrutalist)
+// Map component: Leaflet map displaying traces and POIs (neobrutalist)
 // Supports multiple traces with distinct colors, legend, and hover highlight
-// ---------------------------------------------------------------------------
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { LatLngBoundsExpression } from "leaflet";
@@ -133,7 +131,7 @@ const TraceLine = memo(function TraceLine({
     () => trace.original.map((p) => [p.lat, p.lon] as [number, number]),
     [trace],
   );
-  // Cumulative meters per point — same referential as the elevation profile
+  // Cumulative meters per point: same referential as the elevation profile
   const cumDist = useMemo(() => {
     const d = new Float64Array(trace.original.length);
     for (let i = 1; i < trace.original.length; i++) {
@@ -160,7 +158,7 @@ const TraceLine = memo(function TraceLine({
           opacity: isDimmed ? 0.3 : 0.9,
         }}
       />
-      {/* ponytail: antpath = dashed overlay + CSS keyframes, no leaflet-ant-path dep */}
+      {/* Antpath = dashed overlay + CSS keyframes, no leaflet-ant-path dep */}
       <Polyline
         positions={positions}
         interactive={false}
@@ -187,7 +185,7 @@ const TraceLine = memo(function TraceLine({
               setMapTraceHover(null);
             }, 600);
           },
-          // ponytail: argmin over all points per mousemove — O(n) is µs even at 20k pts
+          // Argmin over all points per mousemove: O(n) is µs even at 20k pts
           mousemove: (e) => {
             clearTimeout(clearTimer.current);
             const { lat, lng } = e.latlng;
@@ -256,7 +254,7 @@ const TraceDirection = memo(function TraceDirection({ trace }: { trace: TraceDat
   );
 });
 
-/** Count bubble for a dense cell — click zooms onto its members */
+/** Count bubble for a dense cell: click zooms onto its members */
 const ClusterMarker = memo(function ClusterMarker({ cluster }: { cluster: PoiCluster }) {
   const map = useMap();
   const icon = useMemo(() => {
@@ -329,7 +327,7 @@ const PoiMarker = memo(function PoiMarker({
     ]
       .filter(Boolean)
       .join(" ");
-    // AUDIT U1: accessible name, HTML-escaped (injected into divIcon markup).
+    // Accessible name, HTML-escaped (injected into divIcon markup).
     const markerLabel = (poi.name || poi.category).replace(
       /[&<>"]/g,
       (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string,
@@ -362,7 +360,7 @@ const PoiMarker = memo(function PoiMarker({
             {t("map.fromRoute", targetLanguage)}
           </div>
 
-          {/* Enrichment data (AUDIT R27: shared with PoiList) */}
+          {/* Enrichment data */}
           {enrichment && enrichment.status === "done" && (
             <div className="poi-popup-enrichment">
               <EnrichmentDetails
@@ -603,9 +601,7 @@ export function RouteMap() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Trace legend – shows trace names + colors in a corner overlay
-// ---------------------------------------------------------------------------
+// --- Trace legend: shows trace names + colors in a corner overlay ---
 
 function TraceLegend({
   traces,
@@ -623,7 +619,7 @@ function TraceLegend({
         const isHighlighted = highlightedTraceId === trace.id;
         const isDimmed = highlightedTraceId !== null && !isHighlighted;
         return (
-          // R43: button so keyboard focus and touch also drive the highlight
+          // Button so keyboard focus and touch also drive the highlight
           <button
             type="button"
             key={trace.id}

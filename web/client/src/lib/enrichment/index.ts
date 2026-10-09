@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Enrichment module – barrel export
-// ---------------------------------------------------------------------------
+// --- Enrichment module: barrel export ---
 
 export type {
   EnrichBatchOptions,

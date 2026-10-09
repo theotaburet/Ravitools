@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Roadbook – printable route sheet: per-trace header, elevation SVG, POI table.
+// Roadbook: printable route sheet: per-trace header, elevation SVG, POI table.
 // Fullscreen overlay rendered in a portal; @media print hides the rest of the app.
-// ---------------------------------------------------------------------------
 
 import { useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
@@ -97,7 +95,7 @@ export function Roadbook({ onClose }: { onClose: () => void }) {
                         {CATEGORY_EMOJI[poi.category] ?? "📍"}{" "}
                         {translateCategory(poi.category, lang)}
                       </td>
-                      <td>{poi.name ? translatePoiName(poi.name, lang) : "—"}</td>
+                      <td>{poi.name ? translatePoiName(poi.name, lang) : "-"}</td>
                       <td>{splitHoursLines(rawHours).join(" · ")}</td>
                     </tr>
                   );

@@ -1,15 +1,11 @@
-// ---------------------------------------------------------------------------
-// Enrichment policy & scoring – enrichability, retryability, confidence
+// Enrichment policy & scoring: enrichability, retryability, confidence
 // (split from enrichment.test.ts)
-// ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import { getEnrichabilityPolicy } from "../lib/poi-config";
 import type { PoiCategory } from "../types";
 
-// ---------------------------------------------------------------------------
-// Enrichability policy
-// ---------------------------------------------------------------------------
+// --- Enrichability policy ---
 
 describe("enrichability policy", () => {
   it("maps all 18 categories to a policy", () => {
@@ -61,9 +57,7 @@ describe("enrichability policy", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Enricher skip reason in EnrichedData
-// ---------------------------------------------------------------------------
+// --- Enricher skip reason in EnrichedData ---
 
 describe("EnrichedData skipReason field", () => {
   it("skipReason type accepts all defined reasons", () => {
@@ -147,9 +141,7 @@ describe("isRetryableEnrichmentResult", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Confidence scoring
-// ---------------------------------------------------------------------------
+// --- Confidence scoring ---
 
 describe("computeConfidence", () => {
   const baseEnrichment = {
@@ -235,11 +227,9 @@ describe("computeConfidence", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// R3: out-of-range JSON-LD rating must be dropped at deterministic ingest
-// ---------------------------------------------------------------------------
+// --- Out-of-range JSON-LD rating must be dropped at deterministic ingest ---
 
-describe("extractDeterministicRating (R3)", () => {
+describe("extractDeterministicRating", () => {
   it("drops an out-of-range structuredData rating (e.g. 9.2)", async () => {
     const { extractDeterministicRating } = await import("../lib/enrichment/enricher");
     const website = { structuredData: { rating: 9.2 } } as never;
@@ -253,12 +243,10 @@ describe("extractDeterministicRating (R3)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // R16 (decision): Google fallback poll deadline must cover realistic job
-// latency (serial queue + 4-12s pre-page sleep) — 90s, never back to 10s
-// ---------------------------------------------------------------------------
+// latency (serial queue + 4-12s pre-page sleep): 90s, never back to 10s
 
-describe("Google fallback deadline (R16)", () => {
+describe("Google fallback deadline", () => {
   it("poll deadline is at least 60s", async () => {
     const { GOOGLE_FALLBACK_TIMEOUT_MS } = await import("../lib/enrichment/enricher");
     expect(GOOGLE_FALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);

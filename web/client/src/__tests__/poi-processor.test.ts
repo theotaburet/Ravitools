@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Tests for POI processor – matching, dedup, distance filtering
-// ---------------------------------------------------------------------------
+// --- Tests for POI processor: matching, dedup, distance filtering ---
 
 import { describe, expect, it } from "vitest";
 import type { OverpassElement } from "../lib/overpass";

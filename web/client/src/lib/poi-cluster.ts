@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
-// Screen-grid POI clustering – pure logic, no Leaflet.
-// ponytail: fixed viewport grid instead of a markercluster dependency —
+// Screen-grid POI clustering: pure logic, no Leaflet.
+// Fixed viewport grid instead of a markercluster dependency:
 // zooming shrinks the cells, so clusters dissolve naturally.
-// ---------------------------------------------------------------------------
 
 import type { MapViewBounds } from "../state/ui";
 import type { POI } from "../types";
@@ -76,7 +74,7 @@ export interface ProfilePoiCluster {
 /**
  * 1D clustering along the elevation profile: POIs whose along-trace positions
  * fall within `minSharePct` of the visible window merge into one bubble.
- * ponytail: greedy left-to-right grouping — a chain of close POIs becomes one
+ * Greedy left-to-right grouping: a chain of close POIs becomes one
  * long cluster, which is exactly what an unreadable pile of emojis deserves.
  */
 export function clusterProfilePois(
@@ -116,7 +114,7 @@ export function clusterProfilePois(
   return { singles, clusters };
 }
 
-/** Bounding box of a POI list — used to zoom the map onto a profile cluster. */
+/** Bounding box of a POI list: used to zoom the map onto a profile cluster. */
 export function poiBounds(pois: POI[]): MapViewBounds {
   return {
     south: Math.min(...pois.map((p) => p.lat)),

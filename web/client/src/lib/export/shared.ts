@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Shared export helpers: XML escaping, downloads, colors, GPX symbols, tracks
-// ---------------------------------------------------------------------------
+// --- Shared export helpers: XML escaping, downloads, colors, GPX symbols, tracks ---
 
 import type { TraceData } from "../../types";
 

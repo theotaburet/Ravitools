@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// App – layout + session lifecycle (state lives in jotai atoms, src/state/)
-// ---------------------------------------------------------------------------
+// --- App: layout + session lifecycle (state lives in jotai atoms, src/state/) ---
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
@@ -194,10 +192,10 @@ export default function App() {
       </header>
 
       <div className="app-layout">
-        {/* Sidebar — carnet de route */}
+        {/* Sidebar: carnet de route */}
         <aside className="sidebar" aria-label={t("steps.label", targetLanguage)}>
           <div className="sidebar-scroll">
-            {/* 01 — Load a route: upload, resume, pipeline status, errors */}
+            {/* 01: Load a route: upload, resume, pipeline status, errors */}
             <Step
               num={1}
               title={t("steps.trace", targetLanguage)}
@@ -312,12 +310,12 @@ export default function App() {
               )}
             </Step>
 
-            {/* 02 — Refine: categories + max distance (usable before and after upload) */}
+            {/* 02: Refine: categories + max distance (usable before and after upload) */}
             <Step num={2} title={t("steps.filter", targetLanguage)} state={filterStep}>
               <CategoryFilter />
             </Step>
 
-            {/* 03 — Enrich (optional, needs POIs and the server: not in the static build) */}
+            {/* 03: Enrich (optional, needs POIs and the server: not in the static build) */}
             {!STANDALONE && (
               <Step
                 num={3}
@@ -334,7 +332,7 @@ export default function App() {
               </Step>
             )}
 
-            {/* 04 — Export offline */}
+            {/* 04: Export offline */}
             <Step
               num={STANDALONE ? 3 : 4}
               title={t("steps.export", targetLanguage)}
@@ -346,7 +344,7 @@ export default function App() {
             {/* Results */}
             {stage === "done" && <PoiList />}
 
-            {/* Debug panel – always available */}
+            {/* Debug panel: always available */}
             <DebugPanel />
           </div>
         </aside>

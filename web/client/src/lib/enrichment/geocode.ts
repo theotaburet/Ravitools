@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Nominatim reverse geocode adapter (via server proxy)
-// ---------------------------------------------------------------------------
+// --- Nominatim reverse geocode adapter (via server proxy) ---
 
 import type { GeoContext } from "../../types";
 import { fetchJson, REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";

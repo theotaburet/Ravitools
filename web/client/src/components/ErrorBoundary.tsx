@@ -9,7 +9,7 @@ interface State {
 
 /**
  * Catches render-time crashes anywhere in the tree and shows a recovery screen
- * instead of a white page (AUDIT §5). Does not catch async/event-handler errors —
+ * instead of a white page. Does not catch async/event-handler errors:
  * a global unhandledrejection listener in main.tsx logs those.
  */
 export class ErrorBoundary extends Component<Props, State> {
@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
       >
         <h1 style={{ fontWeight: 900, marginBottom: "0.5rem" }}>Something broke.</h1>
         <p>
-          Ravitools hit an unexpected error and stopped. Your GPX file was never uploaded anywhere —
+          Ravitools hit an unexpected error and stopped. Your GPX file was never uploaded anywhere:
           it stays in your browser.
         </p>
         <pre

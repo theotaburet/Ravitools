@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// ElevationProfile – collapsible strip under the map: elevation curve of one
+// ElevationProfile: collapsible strip under the map: elevation curve of one
 // trace with POIs positioned along it. Hover mirrors a marker on the map.
-// ---------------------------------------------------------------------------
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -359,7 +357,7 @@ export function ElevationProfile() {
     [trace, traces, pois],
   );
 
-  // Ravito gaps — computed from ALL POIs (unfiltered): unchecking a category
+  // Ravito gaps: computed from ALL POIs (unfiltered): unchecking a category
   // in the filter must not turn the trace into a fake desert.
   const { waterGaps, foodGaps } = useMemo(() => {
     if (!trace) return { waterGaps: [], foodGaps: [] };
@@ -386,7 +384,7 @@ export function ElevationProfile() {
     ];
   }, [profile, winStart, winEnd]);
 
-  // Cumulative D+ at each drawn point (full-res data, memoized — gainAt is O(n))
+  // Cumulative D+ at each drawn point (full-res data, memoized: gainAt is O(n))
   const gainCurve = useMemo(
     () => winProfile.map((p) => ({ dist: p.dist, gain: gainAt(fullProfile, p.dist) })),
     [winProfile, fullProfile],
@@ -406,7 +404,7 @@ export function ElevationProfile() {
     if (p.ele < minEle) minEle = p.ele;
     if (p.ele > maxEle) maxEle = p.ele;
   }
-  // y() duplicated from ProfileStatic — the hover overlays need it too
+  // y() duplicated from ProfileStatic: the hover overlays need it too
   const y = (ele: number) =>
     maxEle === minEle
       ? VIEW_H - PAD_Y
@@ -508,7 +506,7 @@ export function ElevationProfile() {
       </div>
 
       {!collapsed && (
-        // biome-ignore lint/a11y/noStaticElementInteractions: hover sync is a pointer-only enhancement — the POI buttons inside remain the keyboard-accessible controls
+        // biome-ignore lint/a11y/noStaticElementInteractions: hover sync is a pointer-only enhancement: the POI buttons inside remain the keyboard-accessible controls
         <div
           ref={bodyRef}
           className="elevation-body"

@@ -56,7 +56,7 @@ export interface ScraperJobSystem<T extends MapPreview> {
   /** Absolute path to the JSONL failure log */
   readonly failuresFile: string;
 
-  /** Synchronous (in-request) extraction with retry — blocks until done/null */
+  /** Synchronous (in-request) extraction with retry: blocks until done/null */
   fetchSync(
     url: string,
     onAttemptUpdate?: (
@@ -312,12 +312,12 @@ export function createScraperJobSystem<T extends MapPreview>(
 
       try {
         // Initial running-state write inside try so a persist() throw can't escape
-        // the IIFE unhandled (AUDIT S+1).
+        // the IIFE unhandled.
         safeSet(jobCache, jobId, runningJob);
         persist();
         const preview = await fetchSync(url, onAttemptUpdate);
-        // AUDIT R10: a DELETE mid-run tombstones the job (cancelled) or removes
-        // it — never resurrect it with a terminal status.
+        // A DELETE mid-run tombstones the job (cancelled) or removes
+        // it: never resurrect it with a terminal status.
         const current = jobCache.get<ScraperJob<T>>(jobId);
         if (current?.status !== "running") return;
         if (!preview) {
@@ -341,7 +341,7 @@ export function createScraperJobSystem<T extends MapPreview>(
         persist();
       } catch (err) {
         const current = jobCache.get<ScraperJob<T>>(jobId);
-        if (current?.status !== "running") return; // AUDIT R10: cancelled/deleted mid-run
+        if (current?.status !== "running") return; // cancelled/deleted mid-run
         const message = err instanceof Error ? err.message : `Unknown ${plugin.displayName} error`;
         appendFailure({
           source: plugin.name,

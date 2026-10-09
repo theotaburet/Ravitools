@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// Route/POI state — jotai atoms + action atoms
+// Route/POI state: jotai atoms + action atoms
 // Pipeline: upload → parse → simplify → query → process (multi-GPX)
-// ---------------------------------------------------------------------------
 
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
@@ -20,9 +18,7 @@ const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: 1500,
 };
 
-// ---------------------------------------------------------------------------
-// Base atoms
-// ---------------------------------------------------------------------------
+// --- Base atoms ---
 
 export const stageAtom = atom<AppState["stage"]>("idle");
 export const tracesAtom = atom<TraceData[]>([]);
@@ -36,9 +32,7 @@ export const progressAtom = atom("");
 export const progressRatioAtom = atom<number | null>(null);
 export const routeWarningAtom = atom<string | null>(null);
 
-// ---------------------------------------------------------------------------
-// Derived atoms
-// ---------------------------------------------------------------------------
+// --- Derived atoms ---
 
 /** POIs filtered by the active categories */
 export const filteredPoisAtom = atom((get) => {
@@ -50,20 +44,16 @@ export const isProcessingAtom = atom((get) =>
   ["parsing", "simplifying", "querying", "processing"].includes(get(stageAtom)),
 );
 
-// ---------------------------------------------------------------------------
-// Non-reactive pipeline context (module singletons, not render state)
-// ---------------------------------------------------------------------------
+// --- Non-reactive pipeline context (module singletons, not render state) ---
 
 let abortCtrl: AbortController | null = null;
 let rawElements: OverpassElement[] = [];
-// AUDIT R19: restored sessions have no raw Overpass elements — keep the
+// Restored sessions have no raw Overpass elements: keep the
 // restored POI superset so the distance slider can still re-filter.
-// ponytail: bounded by the radius used before restore; going wider needs a re-upload.
+// Bounded by the radius used before restore; going wider needs a re-upload.
 let restoredPois: POI[] = [];
 
-// ---------------------------------------------------------------------------
-// Action atoms
-// ---------------------------------------------------------------------------
+// --- Action atoms ---
 
 export const resetRouteAtom = atom(null, (_get, set) => {
   abortCtrl?.abort();
@@ -92,7 +82,7 @@ export const restoreRouteAtom = atom(
       routeSettings: RouteProcessingSettings;
     },
   ) => {
-    restoredPois = restored.pois; // AUDIT R19
+    restoredPois = restored.pois;
     set(stageAtom, "done");
     set(tracesAtom, restored.traces);
     set(poisAtom, restored.pois);
@@ -120,7 +110,7 @@ export const setMaxDistanceAtom = atom(null, (get, set, maxDistanceM: number) =>
   const stage = get(stageAtom);
   const traces = get(tracesAtom);
   if (stage !== "done" || traces.length === 0 || rawElements.length === 0) {
-    // AUDIT R19: after a session restore there are no raw elements, but we
+    // After a session restore there are no raw elements, but we
     // can still re-filter the restored superset by distance.
     if (stage === "done" && traces.length > 0 && restoredPois.length > 0) {
       const pois = restoredPois.filter((p) => p.distanceToTrace <= maxDistanceM);
@@ -147,10 +137,7 @@ export const setMaxDistanceAtom = atom(null, (get, set, maxDistanceM: number) =>
   );
 });
 
-// -----------------------------------------------------------------------
-// Shared query→process→done pipeline used by processFiles and retryQuery
-// (AUDIT R32 — the two used to duplicate ~60 lines of it)
-// -----------------------------------------------------------------------
+// --- Shared query→process→done pipeline used by processFiles and retryQuery ---
 async function runQuery(
   get: Getter,
   set: Setter,
@@ -182,7 +169,7 @@ async function runQuery(
 
   if (ctrl.signal.aborted) return;
 
-  // Process & filter POIs — distance is min over all traces
+  // Process & filter POIs: distance is min over all traces
   set(stageAtom, "processing");
   set(progressAtom, `Processing ${elements.length} raw elements...`);
 
@@ -209,7 +196,7 @@ async function runQuery(
   // Build warning if some chunks failed
   const chunkWarning =
     queryResult.failedChunks > 0
-      ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed — results may be incomplete for parts of the route.`
+      ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed: results may be incomplete for parts of the route.`
       : null;
 
   set(stageAtom, "done");

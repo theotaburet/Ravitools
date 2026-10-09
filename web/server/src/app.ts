@@ -29,11 +29,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.text({ limit: "1mb", type: "application/x-www-form-urlencoded" }));
 
-// ---------------------------------------------------------------------------
-// Google Maps scraper — one job system, mounted on the path the client calls.
-// AUDIT R28/R29: the registry + dual-mounted `/scrape/{name}` alias routes
-// served a single plugin with zero canonical-path callers; both are gone.
-// ---------------------------------------------------------------------------
+// --- Google Maps scraper: one job system, mounted on the path the client calls. ---
 export const googleMapsSystem = createScraperJobSystem(googleMapsPlugin, {
   log,
   sleep,
@@ -47,9 +43,7 @@ mountScraperEndpoints(app, googleMapsPlugin, googleMapsSystem, {
   log,
 });
 
-// ---------------------------------------------------------------------------
-// Health check
-// ---------------------------------------------------------------------------
+// --- Health check ---
 app.get("/health", async (_req, res) => {
   const services: Record<string, "ok" | "error"> = {};
 
@@ -68,17 +62,13 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// SearXNG UI redirect — lets the user solve a CAPTCHA in the same browser
+// SearXNG UI redirect: lets the user solve a CAPTCHA in the same browser
 // session/IP as the enrichment requests (opened via /api/searxng-ui)
-// ---------------------------------------------------------------------------
 app.get("/searxng-ui", (_req, res) => {
   res.redirect(302, `${SEARXNG_URL}/`);
 });
 
-// ---------------------------------------------------------------------------
-// Cache stats + admin flush
-// ---------------------------------------------------------------------------
+// --- Cache stats + admin flush ---
 app.get("/cache/stats", (_req, res) => {
   const overpassStats = cache.getStats();
   const searchStats = searchCache.getStats();
@@ -102,10 +92,10 @@ app.get("/cache/stats", (_req, res) => {
   });
 });
 
-/** Flush the search cache — useful after engine configuration changes */
+/** Flush the search cache: useful after engine configuration changes */
 app.delete("/cache/search", (req, res) => {
   const adminKey = process.env.ADMIN_API_KEY;
-  // AUDIT R7: fail closed — no configured key means no admin route, not open admin.
+  // Fail closed: no configured key means no admin route, not open admin.
   if (!adminKey) {
     res.status(503).json({ error: "Admin API not configured (set ADMIN_API_KEY)" });
     return;
@@ -121,9 +111,7 @@ app.delete("/cache/search", (req, res) => {
   res.json({ flushed: count });
 });
 
-// ---------------------------------------------------------------------------
-// Proxy routes
-// ---------------------------------------------------------------------------
+// --- Proxy routes ---
 app.use(overpassRouter);
 app.use(searchRouter);
 app.use(geocodeRouter);

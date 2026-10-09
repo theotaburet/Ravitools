@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Google Maps: link builder (no API key) + scraper job client + snippets
-// ---------------------------------------------------------------------------
+// --- Google Maps: link builder (no API key) + scraper job client + snippets ---
 
 import type {
   GoogleFallbackJobStats,

@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
-// Elevation profile helpers – pure functions, no DOM.
+// Elevation profile helpers: pure functions, no DOM.
 // Distances are cumulative meters from the trace start (same referential as
 // POI.alongTraceDistance, both computed over the original points).
-// ---------------------------------------------------------------------------
 
 import type { TracePoint } from "../types";
 import { haversine } from "./gpx-parser";
@@ -20,7 +18,7 @@ export interface ProfilePoint {
  * Build an elevation profile from trace points.
  * Distance accumulates over ALL points; only points carrying an elevation are
  * emitted. Returns null when there is nothing meaningful to plot
- * (< 2 elevation points, or a flat < 1m span — GPS noise, not a profile).
+ * (< 2 elevation points, or a flat < 1m span: GPS noise, not a profile).
  */
 export function buildProfile(points: TracePoint[]): ProfilePoint[] | null {
   const profile: ProfilePoint[] = [];
@@ -44,8 +42,8 @@ export function buildProfile(points: TracePoint[]): ProfilePoint[] | null {
 
 /**
  * Reduce a profile to at most maxPoints, always keeping first and last.
- * Per-bucket min AND max are kept (not a stride) so short steep spikes —
- * the ones that hurt legs — survive the reduction.
+ * Per-bucket min AND max are kept (not a stride) so short steep spikes
+ * (the ones that hurt legs) survive the reduction.
  */
 export function downsampleProfile(profile: ProfilePoint[], maxPoints = 300): ProfilePoint[] {
   if (profile.length <= maxPoints) return profile;
@@ -78,9 +76,9 @@ export interface SlopeBucket {
 
 /**
  * Worst slope per distance bucket over [startM, endM], computed on the
- * FULL-RESOLUTION profile — downsampling would smooth away exactly the short
+ * FULL-RESOLUTION profile: downsampling would smooth away exactly the short
  * steep ramps this is meant to expose.
- * ponytail: segments < 5m run are skipped and slopes clamped to ±35% — GPS
+ * Segments < 5m run are skipped and slopes clamped to ±35%: GPS
  * elevation noise on tiny runs produces absurd gradients.
  */
 export function slopeBuckets(
@@ -115,7 +113,7 @@ export function slopeBuckets(
 /**
  * Cumulative elevation gain (D+) from the trace start up to `dist`, with
  * linear interpolation inside the last segment.
- * ponytail: O(n) per call over a ≤300-point downsampled profile — fine for
+ * O(n) per call over a ≤300-point downsampled profile: fine for
  * mousemove; prefix sums if a profiler ever disagrees.
  */
 export function gainAt(profile: ProfilePoint[], dist: number): number {
@@ -142,7 +140,7 @@ export function profileAt(profile: ProfilePoint[], dist: number): ProfilePoint {
   const last = profile[profile.length - 1];
   if (dist <= first.dist) return first;
   if (dist >= last.dist) return last;
-  // ponytail: linear scan — profiles are downsampled to ≤300 points
+  // Linear scan: profiles are downsampled to ≤300 points
   let i = 1;
   while (profile[i].dist < dist) i++;
   const a = profile[i - 1];

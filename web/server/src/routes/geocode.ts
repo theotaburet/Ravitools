@@ -22,7 +22,7 @@ geocodeRouter.post("/geocode", enrichLimiter, async (req, res) => {
       return;
     }
 
-    // Cache key — round to ~111m precision for cache efficiency
+    // Cache key: round to ~111m precision for cache efficiency
     const roundedLat = Math.round(lat * 1000) / 1000;
     const roundedLon = Math.round(lon * 1000) / 1000;
     const cacheKey = `geo:${roundedLat},${roundedLon}`;

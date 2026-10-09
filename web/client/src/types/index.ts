@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Domain types for Ravitools
-// ---------------------------------------------------------------------------
+// --- Domain types for Ravitools ---
 
 /** A single point on a GPX trace */
 export interface TracePoint {
@@ -30,7 +28,7 @@ export interface TraceData {
   color: string;
 }
 
-/** V1 POI categories – matches config.yaml OSM_POI_configuration keys */
+/** POI categories */
 export type PoiCategory =
   | "Water"
   | "Sleeping place"
@@ -51,7 +49,7 @@ export type PoiCategory =
   | "Pharmacy"
   | "Wifi";
 
-/** An OSM tag matcher from config.yaml */
+/** An OSM tag matcher */
 export interface OsmTagMatcher {
   key: string; // e.g. "amenity"
   value: string; // e.g. "drinking_water"
@@ -117,9 +115,7 @@ export type PipelineStage =
   | "done"
   | "error";
 
-// ---------------------------------------------------------------------------
-// Enrichment types
-// ---------------------------------------------------------------------------
+// --- Enrichment types ---
 
 /** Enrichability policy: how much enrichment effort a category deserves */
 export type EnrichabilityPolicy = "full" | "minimal" | "skip";
@@ -193,9 +189,7 @@ export interface EnrichmentStructuredContent {
   sourceConfirmation: "official" | "reviews-only" | "both" | "none";
 }
 
-// ---------------------------------------------------------------------------
-// Category-level enrichment contracts
-// ---------------------------------------------------------------------------
+// --- Category-level enrichment contracts ---
 
 /**
  * Enrichment depth policy per enrichable category.
@@ -320,7 +314,7 @@ export interface OpeningHoursEntry {
 
 /** Enriched data attached to a POI after LLM synthesis */
 export interface EnrichedData {
-  /** Rating extracted from search snippets (1-5 scale, null if not found). Not an aggregation — reflects whatever rating sources mention. */
+  /** Rating extracted from search snippets (1-5 scale, null if not found). Not an aggregation: reflects whatever rating sources mention. */
   rating: number | null;
   /** Review count extracted from search snippets (null if not found). Reflects source-reported count, not our own aggregation. */
   reviewCount: number | null;
@@ -328,7 +322,7 @@ export interface EnrichedData {
   hours: string | null;
   /** Structured opening hours table (compact LLM output). Null when no LLM or no hours found. */
   openingHours: OpeningHoursEntry[] | null;
-  /** One-sentence description in target language (compact LLM output). Merges what was previously summary + specialty. */
+  /** One-sentence description in target language */
   description: string | null;
   /** One-sentence review synthesis in target language (compact LLM output). */
   review: string | null;

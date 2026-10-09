@@ -1,4 +1,4 @@
-# Ravitools — `just` pour lister les recettes
+# Ravitools: `just` pour lister les recettes
 
 client_dir := "web/client"
 server_dir := "web/server"

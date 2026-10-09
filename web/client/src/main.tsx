@@ -4,7 +4,7 @@ import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 
-// Don't let a stray rejected promise vanish silently (AUDIT §5).
+// Don't let a stray rejected promise vanish silently.
 window.addEventListener("unhandledrejection", (e) => {
   console.error("Ravitools: unhandled promise rejection", e.reason);
 });

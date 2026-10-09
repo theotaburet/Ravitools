@@ -1,8 +1,6 @@
-// ---------------------------------------------------------------------------
 // CategoryFilter component test (M3 key component tests)
 // Focus: checkbox toggle, select-all, and the 150ms distance-slider debounce.
 // State is injected/observed through a jotai store.
-// ---------------------------------------------------------------------------
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
@@ -39,7 +37,7 @@ describe("CategoryFilter", () => {
 
   it("selects every category when nothing is selected yet", () => {
     const { store } = renderFilter();
-    // R34/R43: the collapse toggle is now also a button — target the All/None one
+    // The collapse toggle is also a button: target the All/None one
     fireEvent.click(screen.getByRole("button", { name: /all/i }));
     expect(store.get(activeCategoriesAtom).size).toBe(POI_CATEGORIES.length);
   });

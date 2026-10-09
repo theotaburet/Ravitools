@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
-// E2E smoke test – upload GPX → POIs on map → export a valid GPX.
+// E2E smoke test: upload GPX → POIs on map → export a valid GPX.
 // Deterministic: /api/* is stubbed, no server or network needed.
-// ---------------------------------------------------------------------------
 
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";

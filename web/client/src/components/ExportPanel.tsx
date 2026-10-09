@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
 // Export panel (neobrutalist)
 // Two sections: GPS devices + Smartphone offline apps
-// ---------------------------------------------------------------------------
 
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useState } from "react";
@@ -105,7 +103,7 @@ export function ExportPanel() {
         </button>
       </div>
 
-      {/* Plan file — full session as .ravitools.json */}
+      {/* Plan file: full session as .ravitools.json */}
       <div className="export-divider" />
       <h3>{t("export.plan", targetLanguage)}</h3>
       <p className="text-xs text-muted font-mono mb-3">{t("export.planBody", targetLanguage)}</p>

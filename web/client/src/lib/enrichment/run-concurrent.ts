@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Concurrent queue with stagger
-// ---------------------------------------------------------------------------
+// --- Concurrent queue with stagger ---
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

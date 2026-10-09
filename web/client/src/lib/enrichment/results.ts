@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// EnrichedData assembly — pure builders for the pipeline's terminal states
-// ---------------------------------------------------------------------------
+// --- EnrichedData assembly: pure builders for the pipeline's terminal states ---
 
 import type {
   EnrichabilityPolicy,
