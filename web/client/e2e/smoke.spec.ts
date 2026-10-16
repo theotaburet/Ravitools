@@ -60,7 +60,7 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
   // GPX export downloads a file with waypoints and the track
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByText(".GPX (Garmin, Wahoo...)").click(),
+    page.getByRole("button", { name: /^GPX COROS/ }).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.gpx$/);
   const gpx = readFileSync((await download.path()) as string, "utf8");

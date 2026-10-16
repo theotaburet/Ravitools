@@ -1,9 +1,5 @@
-// Generic scraper plugin system: factory-level tests.
-//
-// Validates createScraperJobSystem() with a tiny mock plugin so we can
-// exercise retry / persist / load / failure-log logic without touching
-// Playwright or the network. Adding a new source should not require
-// editing these tests.
+// Scraper job system and endpoints, driven by a mock source so retry / persist /
+// load / failure-log logic runs without Playwright or the network.
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,20 +21,17 @@ const baseDeps: ScraperDeps = {
 };
 
 function makePlugin(
-  fetchImpl: MapScraperPlugin<MapPreview>["fetchOnce"],
-  overrides: Partial<MapScraperPlugin<MapPreview>> = {},
-): MapScraperPlugin<MapPreview> {
+  fetchImpl: MapScraperPlugin["fetchOnce"],
+  overrides: Partial<MapScraperPlugin> = {},
+): MapScraperPlugin {
   return {
     name: "mock-source",
     displayName: "Mock Source",
     validateUrl: (u) => (u.startsWith("https://mock.test/") ? u : null),
-    buildUrl: (name, lat, lon) =>
-      `https://mock.test/?q=${encodeURIComponent(name)}&ll=${lat},${lon}`,
     fetchOnce: fetchImpl,
     minDelayMs: 0,
     maxDelayMs: 0,
     retries: 3,
-    previewCacheTtlSec: 60,
     jobsTtlMs: 60_000,
     ...overrides,
   };
@@ -226,7 +219,7 @@ describe("createScraperJobSystem: persist/load roundtrip", () => {
   });
 });
 
-describe("blocked detection (M2 scraper-blocked signal)", () => {
+describe("blocked detection", () => {
   it("isBlockedError matches the sentinel prefix and nothing else", () => {
     expect(isBlockedError(`${BLOCKED_ERROR_PREFIX} Google CAPTCHA`)).toBe(true);
     expect(isBlockedError("no data returned")).toBe(false);
@@ -289,7 +282,7 @@ describe("mountScraperEndpoints: job queue cap", () => {
     const sys = createScraperJobSystem(plugin, baseDeps);
     const app = express();
     app.use(express.json());
-    mountScraperEndpoints(app, plugin, sys, { log });
+    mountScraperEndpoints(app, sys, { basePath: "/scrape/mock-source", log });
 
     for (let i = 0; i < 50; i++) {
       const res = await request(app)
@@ -305,63 +298,42 @@ describe("mountScraperEndpoints: job queue cap", () => {
   });
 });
 
-// --- A job cancelled/deleted mid-run must not be resurrected by the runner ---
+// --- The limiter guards Playwright launches, not the cheap status reads ---
+// The client polls each job and the stats every 3 s: limited like launches, the
+// polls drew 429s within a minute and the client gave up on jobs that succeeded.
 
-describe("job cancellation during run", () => {
-  it("DELETE during a run leaves the job cancelled after the runner resolves", async () => {
+describe("mountScraperEndpoints: rate limiter scope", () => {
+  it("limits job creation but never job polling or stats", async () => {
     const express = (await import("express")).default;
     const request = (await import("supertest")).default;
     const { mountScraperEndpoints } = await import("../scrapers/endpoints.js");
 
-    let release: (p: MapPreview | null) => void = () => {};
-    const plugin = makePlugin(
-      () =>
-        new Promise<MapPreview | null>((r) => {
-          release = r;
-        }),
-    );
+    const plugin = makePlugin(() => new Promise(() => {}));
     const sys = createScraperJobSystem(plugin, baseDeps);
     const app = express();
     app.use(express.json());
-    mountScraperEndpoints(app, plugin, sys, { log });
+    let launches = 0;
+    const limiter: import("express").RequestHandler = (_req, res, next) => {
+      launches++;
+      if (launches > 1) res.status(429).json({ error: "limited" });
+      else next();
+    };
+    mountScraperEndpoints(app, sys, { basePath: "/scrape/mock-source", log, limiter });
 
-    const posted = await request(app)
+    const job = await request(app)
       .post("/scrape/mock-source/jobs")
-      .send({ url: "https://mock.test/place/cancel-me" });
-    expect(posted.status).toBe(202);
-    const jobId = posted.body.jobId as string;
+      .send({ url: "https://mock.test/place/1" });
+    expect(job.status).toBe(202);
 
-    // cancel while the fetch is in flight
-    const del = await request(app).delete(`/scrape/mock-source/jobs/${jobId}`);
-    expect(del.status).toBe(204);
-
-    // now the runner's fetch resolves successfully
-    release(makePreview("https://mock.test/place/cancel-me"));
-    await new Promise((r) => setTimeout(r, 20));
-
-    const polled = await request(app).get(`/scrape/mock-source/jobs/${jobId}`);
-    expect(polled.body.status).not.toBe("done");
-    expect(polled.body.error).toMatch(/cancel/i);
-  });
-});
-
-// --- Number(null) === 0 must not pass coord validation (scrape at 0,0) ---
-
-describe("coord validation", () => {
-  it("rejects null coords with 400", async () => {
-    const express = (await import("express")).default;
-    const request = (await import("supertest")).default;
-    const { mountScraperEndpoints } = await import("../scrapers/endpoints.js");
-
-    const plugin = makePlugin(async () => null);
-    const sys = createScraperJobSystem(plugin, baseDeps);
-    const app = express();
-    app.use(express.json());
-    mountScraperEndpoints(app, plugin, sys, { log });
-
-    const res = await request(app)
+    for (let i = 0; i < 5; i++) {
+      expect((await request(app).get(`/scrape/mock-source/jobs/${job.body.jobId}`)).status).toBe(
+        200,
+      );
+      expect((await request(app).get("/scrape/mock-source/jobs")).status).toBe(200);
+    }
+    const second = await request(app)
       .post("/scrape/mock-source/jobs")
-      .send({ poiName: "Null Island Cafe", lat: null, lon: null });
-    expect(res.status).toBe(400);
+      .send({ url: "https://mock.test/place/2" });
+    expect(second.status).toBe(429);
   });
 });

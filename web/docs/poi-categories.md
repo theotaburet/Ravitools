@@ -46,7 +46,7 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 |---|---|
 | `amenity` | `shelter` |
 
-Includes bus shelters, picnic shelters, etc. Useful for rain/wind protection.
+Picnic, weather and rock shelters, lean-tos, huts. Bus shelters (`shelter_type=public_transport`), changing rooms and livestock field shelters are skipped: nobody plans to wait out a storm at a bus stop.
 
 ### Food shop
 
@@ -231,9 +231,8 @@ Libraries often provide free wifi and power outlets.
 ## Adding a new category
 
 1. Add the category name to `PoiCategory` type in `types/index.ts`
-2. Add the config entry to `POI_CATEGORIES` in `lib/poi-config.ts` (set `defaultEnabled: true` or `false`)
-3. Add OsmAnd mappings in `OSMAND_CATEGORY_ICONS`, `OSMAND_CATEGORY_COLORS`, `OSMAND_CATEGORY_BACKGROUNDS`
-4. Specify OSM tag matchers, icon, and style colors
-5. Rebuild and test
+2. Add one row to `POI_CATEGORIES` in `lib/poi-config.ts`: OSM tag matchers, `defaultEnabled`, color, emoji, enrichment policy, dedup merge, GPX symbol, FIT course point type, OsmAnd icon and background (the type requires every field)
+3. Add the fr label in `lib/i18n.ts`; an `ENRICHMENT_CONTRACTS` entry only for a `full` category
+4. `just check`, then test on an example GPX
 
 No server changes needed: all matching happens client-side.

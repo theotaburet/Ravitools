@@ -26,7 +26,23 @@ export function Step({
     >
       <div className="step-header">
         <span className="step-num" aria-hidden="true">
-          {state === "done" ? "✓" : String(num).padStart(2, "0")}
+          {state === "done" ? (
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12.5l4.5 4.5L19 7" />
+            </svg>
+          ) : (
+            String(num).padStart(2, "0")
+          )}
         </span>
         <h2 className="step-title">{title}</h2>
         {state === "done" && doneLabel && <span className="step-check">{doneLabel}</span>}

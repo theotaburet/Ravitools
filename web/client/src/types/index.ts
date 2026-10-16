@@ -55,21 +55,27 @@ export interface OsmTagMatcher {
   value: string; // e.g. "drinking_water"
   icon: string; // Font Awesome icon name
   group?: string;
-}
-
-/** Style for a POI category */
-export interface PoiStyle {
-  iconShape: string;
-  borderColor: string;
-  borderWidth: string;
-  textColor: string;
-  backgroundColor: string;
+  /** Skip elements carrying one of these tag values (a bus shelter is not a roof for the night) */
+  unless?: Record<string, string[]>;
 }
 
 /** Configuration for a single POI category */
 export interface PoiCategoryConfig {
   category: PoiCategory;
-  style: PoiStyle;
+  /** Marker, list dot, KML and OsmAnd color */
+  color: string;
+  /** Map marker emoji (a tag's own emoji wins, see poiEmoji) */
+  emoji: string;
+  /** "full": geocode + search + LLM; "minimal": geocode only; "skip": no network, Google Maps link only */
+  policy: EnrichabilityPolicy;
+  /** Same-category POIs closer than the dedup radius merge (two water taps yes, two restaurants no) */
+  mergeable: boolean;
+  /** GPX `<sym>` understood by Garmin-like devices */
+  gpxSymbol: string;
+  /** FIT `course_point` type (FIT Profile enum): the icon each device draws */
+  fitType: number;
+  /** OsmAnd GPX extensions: icon name ("key_value") and background shape */
+  osmand: { icon: string; background: "circle" | "octagon" | "square" };
   tags: OsmTagMatcher[];
   /** Whether this category is enabled by default (essential vs optional) */
   defaultEnabled?: boolean;
@@ -90,10 +96,10 @@ export interface POI {
   /** Distance along the trace from its start to the POI's nearest projection (meters).
    *  Used for ordering POIs in trace-travel order. */
   alongTraceDistance: number;
+  /** `TraceData.id` of the nearest trace (multi-GPX: the profile and roadbook it belongs to) */
+  traceId: string;
   /** Raw OSM tags */
   tags: Record<string, string>;
-  /** Style from category config */
-  style: PoiStyle;
   /** OSM element ID for dedup */
   osmId?: number;
   osmType?: "node" | "way" | "relation";
@@ -132,27 +138,18 @@ export type SkipReason =
 /** Supported output languages for enrichment synthesis */
 export type TargetLanguage = "fr" | "en";
 
-/** Canonical source platforms used in enrichment synthesis */
-export const ENRICHMENT_PLATFORMS = [
-  "google_maps",
-  "yelp",
-  "tripadvisor",
-  "facebook",
-  "instagram",
-  "booking",
-  "airbnb",
-  "hotels_com",
-  "official_website",
-  "other",
-] as const;
-
-export type EnrichmentPlatform = (typeof ENRICHMENT_PLATFORMS)[number];
-
-/** Human-readable labels for target languages */
-export const TARGET_LANGUAGE_LABELS: Record<TargetLanguage, string> = {
-  fr: "Français",
-  en: "English",
-};
+/** Source platforms of the enrichment (labels, order and matching: PLATFORMS in enrichment/websites.ts) */
+export type EnrichmentPlatform =
+  | "google_maps"
+  | "yelp"
+  | "tripadvisor"
+  | "facebook"
+  | "instagram"
+  | "booking"
+  | "airbnb"
+  | "hotels_com"
+  | "official_website"
+  | "other";
 
 /** A single search snippet from SearXNG */
 export interface SearchSnippet {
@@ -171,18 +168,10 @@ export interface EnrichmentSourceDigest {
 
 /** Hardened, stable structure for traveler-facing enrichment output */
 export interface EnrichmentStructuredContent {
-  /** One-paragraph synthesis that should stand on its own */
-  headline: string | null;
-  /** Operational verdict for quick scanning */
-  operationalSummary: string | null;
-  /** Reliable practical facts only */
-  practicalities: string[];
   /** What web/review platforms say, one line each */
   sourceRollup: EnrichmentSourceDigest[];
   /** Main caveats, disagreement, or missing info */
   cautions: string[];
-  /** Key unknowns that could matter to the traveler */
-  unknowns: string[];
   /** Explicit source divergences detected across platforms */
   divergences: string[];
   /** Which facts were confirmed by official website vs review platforms only */
@@ -191,26 +180,12 @@ export interface EnrichmentStructuredContent {
 
 // --- Category-level enrichment contracts ---
 
-/**
- * Enrichment depth policy per enrichable category.
- * Defines what each "full" category is expected to produce, what signals matter,
- * and what must NOT be said.
- */
+/** What a "full" category must never say (its weak-source caution: `caution.weakSource.*` in i18n.ts) */
 export interface EnrichmentCategoryContract {
   /** The POI category this contract applies to */
   category: PoiCategory;
-  /** What the enrichment output should prioritize, ordered */
-  priorities: string[];
-  /** Signals that matter for this category */
-  valuableSignals: string[];
   /** What must never appear in the output */
   bannedPatterns: string[];
-  /** Preferred wording patterns when sources are weak */
-  weakSourceFormulations: string[];
-  /** Preferred wording patterns when sources contradict */
-  contradictionFormulations: string[];
-  /** When to prefer silence over a bad synthesis */
-  silenceConditions: string[];
 }
 
 /** Minimal fetched preview of an official website */
@@ -229,6 +204,10 @@ export interface WebsitePreview {
     reviewCount: number | null;
   } | null;
   fetchedAt: string;
+  /** Readable page text, capped server-side: feeds the evidence windows, never stored */
+  text?: string | null;
+  /** Same-host links (text + absolute href): the menu says where prices and hours live */
+  links?: { text: string; href: string }[];
 }
 
 export interface GoogleMapsPreview {
@@ -247,6 +226,8 @@ export interface GoogleMapsPreview {
   website: string | null;
   snippet: string | null;
   fetchedAt: string;
+  /** Layout checks that failed on the source page (optional: older servers omit it) */
+  layoutWarnings?: string[];
 }
 
 export interface GoogleMapsPreviewJob {
@@ -275,6 +256,8 @@ export interface GoogleFallbackJobStats {
     error: number;
     /** Jobs blocked by CAPTCHA/anti-bot (subset of error/running). Optional: older servers omit it. */
     blocked?: number;
+    /** Done jobs whose page had a section we could not parse (source layout drift). Optional: older servers omit it. */
+    layoutIssues?: number;
   };
   jobs: GoogleMapsPreviewJob[];
 }
@@ -312,6 +295,9 @@ export interface OpeningHoursEntry {
   close: string | null;
 }
 
+/** Whether a reservation is needed, as stated by the sources */
+export type BookingStatus = "required" | "recommended" | "not_needed";
+
 /** Enriched data attached to a POI after LLM synthesis */
 export interface EnrichedData {
   /** Rating extracted from search snippets (1-5 scale, null if not found). Not an aggregation: reflects whatever rating sources mention. */
@@ -328,6 +314,12 @@ export interface EnrichedData {
   review: string | null;
   /** Price level (1-4 scale, null if unknown). Extracted from snippets, not verified. */
   priceLevel: number | null;
+  /** Opening period for places that run by season rather than weekly hours, as the sources state it */
+  season?: string | null;
+  /** Prices with units and currency, as the sources state them ("night 21 €, half board 55 €") */
+  priceNote?: string | null;
+  /** Whether a reservation is needed, as the sources state it */
+  booking?: BookingStatus | null;
   /** Direct Google Maps link */
   googleMapsUrl: string;
   /** Source URLs that contributed to this enrichment */
@@ -354,8 +346,6 @@ export interface EnrichedData {
   sourceEngines: string[];
   /** Confidence score 0-1 based on source count, agreement, and structured field presence */
   confidence: number;
-  /** Short per-platform digest when the sources are identifiable */
-  sourceDigests?: EnrichmentSourceDigest[];
   /** Working official website preview when a fetch succeeded */
   officialWebsite?: WebsitePreview | null;
   /** Hardened structured content consumed by UI/export/sandbox */
@@ -394,10 +384,8 @@ export interface EnrichmentJobState {
   total: number;
   /** POIs completed (done or error or skipped) */
   completed: number;
-  /** POIs that completed with errors */
-  errorCount: number;
-  /** POIs skipped (generic name, low-value category, etc.) */
-  skippedCount: number;
+  /** POIs past the web search (searched, skipped or cached), the count shown while searching */
+  searched: number;
   /** Current POI being processed (last started, for label display) */
   currentPoiName: string | null;
   /** ID of the POI currently being enriched (for label display) */
@@ -407,19 +395,15 @@ export interface EnrichmentJobState {
   /** LLM model loading progress (0-1) */
   modelLoadProgress: number;
   /** Whether WebGPU is available */
-  webGpuAvailable: boolean;
+  llmActive: boolean;
   /** Whether SearXNG search service is available */
   searxngAvailable: boolean;
-  /** Target language for synthesis output */
-  targetLanguage: TargetLanguage;
   /** Error message */
   error: string | null;
   /** Current enrichment phase within "running" stage */
   phase: EnrichmentPhase;
   /** Estimated time remaining in seconds (null if not enough data) */
   etaSeconds: number | null;
-  /** Non-fatal warning shown during enrichment (degraded search, cooldown advice, etc.) */
-  warning?: string | null;
   /** Status for slow Google Maps fallback queue/retries */
   googleFallbackStatus?: string | null;
   /** Server-side Google Maps queue stats */
@@ -441,18 +425,3 @@ export const TRACE_COLORS = [
   "#f72585", // magenta
   "#06d6a0", // mint
 ] as const;
-
-/** Application state */
-export interface AppState {
-  stage: PipelineStage;
-  traces: TraceData[];
-  pois: POI[];
-  activeCategories: Set<PoiCategory>;
-  routeSettings: RouteProcessingSettings;
-  error: string | null;
-  progress: string;
-  /** Numeric progress ratio 0-1 for progress bar (null = indeterminate) */
-  progressRatio: number | null;
-  /** Non-blocking warning (e.g. partial results due to failed chunks) */
-  warning: string | null;
-}

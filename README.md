@@ -12,7 +12,7 @@ Demo: <https://theotaburet.github.io/Ravitools/> (version statique, sans serveur
 - filtre par categorie et distance max a la trace via slider
 - fusion selective des POI uniquement quand ca garde du sens a l'usage
 - enrichissement optionnel des lieux qui meritent plus de contexte
-- export en `GPX`, `KML`, `GeoJSON`, `OsmAnd GPX` et `KMZ`
+- export en `FIT` (parcours Garmin, Wahoo, Karoo avec points typés), `GPX`, `KML`, `GeoJSON`, `OsmAnd GPX` et `KMZ`
 - reprise de session locale et cache pour eviter des recalculs/requetes inutiles
 
 ## Workflow

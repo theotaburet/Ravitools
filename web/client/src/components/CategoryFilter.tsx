@@ -1,7 +1,6 @@
-// Category filter panel (neobrutalist)
-// Shows essential (default-on) and optional (default-off) categories.
+// Category filter: max distance slider + a grid of category chips.
 // Visible both before upload (to choose what to query) and after (to filter).
-// Sticky header + collapsible body to stay accessible in long sidebars.
+// Each chip wraps a real checkbox (screen readers, tests); the chip is the control.
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
@@ -30,7 +29,6 @@ export function CategoryFilter() {
   const onSelectAll = useSetAtom(setAllCategoriesAtom);
   const onMaxDistanceChange = useSetAtom(setMaxDistanceAtom);
   const showCounts = pois.length > 0;
-  const [collapsed, setCollapsed] = useState(false);
 
   // Keep the slider snappy but only re-process POIs ~once per 150ms,
   // instead of on every pixel of drag.
@@ -51,89 +49,55 @@ export function CategoryFilter() {
   }
 
   const allOn = activeCategories.size === POI_CATEGORIES.length;
-  const activeCount = activeCategories.size;
+  const chip = (cat: (typeof POI_CATEGORIES)[number]) => (
+    <CategoryChip
+      key={cat.category}
+      cat={cat}
+      active={activeCategories.has(cat.category)}
+      count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
+      onToggle={onToggle}
+      targetLanguage={targetLanguage}
+    />
+  );
 
   return (
-    <div className="neo-box overflow-hidden filter-panel">
-      <div className="filter-header">
+    <div className="filter-panel">
+      <div className="filter-distance">
+        <div className="filter-distance-row">
+          <span>{t("filter.maxDistance", targetLanguage)}</span>
+          <span className="filter-distance-value">{displayDist} m</span>
+        </div>
+        <input
+          type="range"
+          min={300}
+          max={3000}
+          step={100}
+          value={displayDist}
+          onChange={(e) => handleDistChange(Number(e.target.value))}
+          aria-label={t("filter.maxDistance", targetLanguage)}
+        />
+        <p className="hint">{t("filter.distanceHint", targetLanguage)}</p>
+      </div>
+
+      <div className="filter-toolbar">
+        <span className="filter-section-label">{t("filter.essential", targetLanguage)}</span>
         <button
           type="button"
-          className="filter-header-toggle flex items-center gap-2"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-expanded={!collapsed}
-        >
-          <span className="filter-collapse-icon" aria-hidden="true">
-            {collapsed ? "+" : "\u2212"}
-          </span>
-          {showCounts
-            ? t("filter.titleFilter", targetLanguage)
-            : t("filter.titleSearch", targetLanguage)}
-          {collapsed && (
-            <span className="filter-collapsed-count">
-              {activeCount}/{POI_CATEGORIES.length}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          className="neo-btn-sm neo-btn-secondary"
+          className="neo-btn-ghost neo-btn-sm"
           onClick={() => onSelectAll(!allOn)}
         >
           {allOn ? t("filter.none", targetLanguage) : t("filter.all", targetLanguage)}
         </button>
       </div>
-      {!collapsed && (
-        <div className="filter-body">
-          <div className="px-4 py-3 border-b-2 border-border bg-surface">
-            <div className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-tight">
-              <span>{t("filter.maxDistance", targetLanguage)}</span>
-              <span>{displayDist}m</span>
-            </div>
-            <input
-              type="range"
-              min={300}
-              max={3000}
-              step={100}
-              value={displayDist}
-              onChange={(e) => handleDistChange(Number(e.target.value))}
-              aria-label={t("filter.maxDistance", targetLanguage)}
-              className="mt-3 w-full"
-            />
-            <p className="mt-2 text-xs text-muted">{t("filter.distanceHint", targetLanguage)}</p>
-          </div>
+      <div className="filter-grid">{essentialCats.map(chip)}</div>
 
-          {/* Essential categories */}
-          <div className="filter-section-label">{t("filter.essential", targetLanguage)}</div>
-          {essentialCats.map((cat) => (
-            <CategoryRow
-              key={cat.category}
-              cat={cat}
-              active={activeCategories.has(cat.category)}
-              count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
-              onToggle={onToggle}
-              targetLanguage={targetLanguage}
-            />
-          ))}
-
-          {/* Optional categories */}
-          <div className="filter-section-label">{t("filter.optional", targetLanguage)}</div>
-          {optionalCats.map((cat) => (
-            <CategoryRow
-              key={cat.category}
-              cat={cat}
-              active={activeCategories.has(cat.category)}
-              count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
-              onToggle={onToggle}
-              targetLanguage={targetLanguage}
-            />
-          ))}
-        </div>
-      )}
+      <span className="filter-section-label">{t("filter.optional", targetLanguage)}</span>
+      <div className="filter-grid">{optionalCats.map(chip)}</div>
     </div>
   );
 }
 
-function CategoryRow({
+function CategoryChip({
   cat,
   active,
   count,
@@ -146,13 +110,12 @@ function CategoryRow({
   onToggle: (cat: PoiCategory) => void;
   targetLanguage?: TargetLanguage;
 }) {
+  const name = translateCategory(cat.category, targetLanguage);
   return (
-    <label className="filter-item">
+    <label className="filter-chip" title={name}>
       <input type="checkbox" checked={active} onChange={() => onToggle(cat.category)} />
-      <span className="filter-dot" style={{ backgroundColor: cat.style.backgroundColor }} />
-      <span className={`flex-1 ${active ? "font-bold" : ""}`}>
-        {translateCategory(cat.category, targetLanguage)}
-      </span>
+      <span className="filter-dot" style={{ backgroundColor: cat.color }} />
+      <span className="filter-chip-name">{name}</span>
       {count !== undefined && <span className="filter-count">{count}</span>}
     </label>
   );

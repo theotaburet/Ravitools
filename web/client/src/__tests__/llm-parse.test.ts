@@ -10,7 +10,7 @@ describe("parseLlmOutput", () => {
     const input = JSON.stringify({
       rating: 4.2,
       reviewCount: 87,
-      hours: "Mon-Fri 12:00-14:00",
+      hours: [{ day: "Mon-Fri", open: "12:00", close: "14:00" }],
       description: "Excellent French bistro.",
       review: "Great food and cozy atmosphere.",
       priceLevel: 2,
@@ -19,11 +19,37 @@ describe("parseLlmOutput", () => {
     expect(result).not.toBeNull();
     expect(result?.rating).toBe(4.2);
     expect(result?.reviewCount).toBe(87);
-    expect(result?.hours).toEqual([{ day: "All", open: "Mon-Fri 12:00-14:00", close: null }]);
-    expect(result?.hoursFlat).toBe("All: Mon-Fri 12:00-14:00");
+    expect(result?.hours).toEqual([{ day: "Mon-Fri", open: "12:00", close: "14:00" }]);
+    expect(result?.hoursFlat).toBe("Mon-Fri: 12:00-14:00");
     expect(result?.description).toBe("Excellent French bistro.");
     expect(result?.review).toBe("Great food and cozy atmosphere.");
     expect(result?.priceLevel).toBe(2);
+  });
+
+  it("maps season, priceNote and booking, and rejects unknown booking values", () => {
+    const result = parseLlmOutput(
+      JSON.stringify({
+        rating: null,
+        reviewCount: null,
+        hours: null,
+        description: null,
+        review: null,
+        priceLevel: null,
+        season: "6 June to 28 September 2026",
+        priceNote: "night 21 €, half board 55 €",
+        booking: "required",
+      }),
+    );
+    expect(result?.season).toBe("6 June to 28 September 2026");
+    expect(result?.priceNote).toBe("night 21 €, half board 55 €");
+    expect(result?.booking).toBe("required");
+
+    const loose = parseLlmOutput(
+      JSON.stringify({ booking: "maybe", season: "x".repeat(200), priceNote: 12 }),
+    );
+    expect(loose?.booking).toBeNull();
+    expect(loose?.season).toHaveLength(80);
+    expect(loose?.priceNote).toBeNull();
   });
 
   it("returns all nulls when all fields are null", () => {
@@ -44,52 +70,6 @@ describe("parseLlmOutput", () => {
     expect(result?.description).toBeNull();
     expect(result?.review).toBeNull();
     expect(result?.priceLevel).toBeNull();
-  });
-
-  // --- Markdown code block stripping ---
-
-  it("strips ```json wrapper", () => {
-    const json = JSON.stringify({
-      rating: 3.5,
-      reviewCount: 10,
-      hours: null,
-      description: "Nice.",
-      review: null,
-      priceLevel: 1,
-    });
-    const input = `\`\`\`json\n${json}\n\`\`\``;
-    const result = parseLlmOutput(input);
-    expect(result).not.toBeNull();
-    expect(result?.rating).toBe(3.5);
-    expect(result?.priceLevel).toBe(1);
-  });
-
-  it("strips ``` wrapper without language tag", () => {
-    const json = JSON.stringify({
-      rating: 5,
-      reviewCount: null,
-      hours: null,
-      description: "Perfect.",
-      review: null,
-      priceLevel: null,
-    });
-    const input = `\`\`\`\n${json}\n\`\`\``;
-    const result = parseLlmOutput(input);
-    expect(result).not.toBeNull();
-    expect(result?.rating).toBe(5);
-    expect(result?.description).toBe("Perfect.");
-  });
-
-  // --- JSON extraction from mixed text ---
-
-  it("extracts JSON from surrounding text", () => {
-    const input = `Here is the information:
-{"rating": 4.0, "reviewCount": 50, "hours": "9-17", "description": "Good café.", "review": null, "priceLevel": 2}
-I hope this helps!`;
-    const result = parseLlmOutput(input);
-    expect(result).not.toBeNull();
-    expect(result?.rating).toBe(4);
-    expect(result?.description).toBe("Good café.");
   });
 
   // --- Type validation and coercion ---
@@ -290,23 +270,6 @@ I hope this helps!`;
     expect(result?.priceLevel).toBeNull();
   });
 
-  it("handles JSON wrapped in verbose LLM preamble text", () => {
-    // Simulates verbose LLM: "Here is the JSON: {...} Hope this helps!"
-    const json = JSON.stringify({
-      rating: 4.1,
-      reviewCount: 120,
-      hours: null,
-      description: "Cozy mountain refuge.",
-      review: "Very welcoming.",
-      priceLevel: null,
-    });
-    const input = `Sure, here is the extracted information:\n${json}\nHope this helps!`;
-    const result = parseLlmOutput(input);
-    expect(result).not.toBeNull();
-    expect(result?.rating).toBe(4.1);
-    expect(result?.description).toBe("Cozy mountain refuge.");
-  });
-
   it("returns null for clearly garbled/gibberish text", () => {
     // No JSON object at all: pure LLM hallucination noise
     expect(parseLlmOutput("aaaaaaaaaaaa bbbbbbbbbbb!!!!")).toBeNull();
@@ -319,15 +282,5 @@ I hope this helps!`;
     expect(result).not.toBeNull();
     expect(result?.rating).toBe(3.8);
     expect(result?.description).toBe("Bon refuge en montagne.");
-  });
-
-  it("handles JSON with trailing text after closing brace", () => {
-    // Some LLMs emit: {...} followed by explanation
-    const inner = `{"rating":4.0,"reviewCount":50,"hours":null,"description":"Nice place.","review":null,"priceLevel":2}`;
-    const input = `${inner}\n\nNote: data may be incomplete.`;
-    const result = parseLlmOutput(input);
-    expect(result).not.toBeNull();
-    expect(result?.rating).toBe(4.0);
-    expect(result?.priceLevel).toBe(2);
   });
 });

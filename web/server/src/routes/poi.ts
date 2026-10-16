@@ -1,12 +1,5 @@
 import { Router } from "express";
-import {
-  getPoi,
-  getPoisBatch,
-  isDbAvailable,
-  type OsmType,
-  type PoiKey,
-  upsertPoi,
-} from "../db.js";
+import { getPoisBatch, isDbAvailable, type OsmType, type PoiKey, upsertPoi } from "../db.js";
 import { enrichLimiter } from "../limiters.js";
 
 // POI enrichment cache (Postgres + PostGIS)
@@ -38,42 +31,11 @@ function parseLatLon(lat: unknown, lon: unknown): { lat: number; lon: number } |
 }
 
 const MAX_BATCH_KEYS = 200;
-const MAX_AGE_DAYS_DEFAULT = 90;
-const MAX_AGE_DAYS_MAX = 365;
-
-function clampMaxAgeDays(raw: unknown): number {
-  const parsed = Number(raw ?? MAX_AGE_DAYS_DEFAULT);
-  return Number.isFinite(parsed)
-    ? Math.min(Math.max(1, parsed), MAX_AGE_DAYS_MAX)
-    : MAX_AGE_DAYS_DEFAULT;
-}
-
 export const poiRouter = Router();
 
-/** GET /poi/:osm_type/:osm_id: single lookup */
-poiRouter.get("/poi/:osm_type/:osm_id", enrichLimiter, async (req, res) => {
-  const osm_type = parseOsmType(req.params.osm_type);
-  const osm_id = parseOsmId(req.params.osm_id);
-  if (!osm_type || !osm_id) {
-    res.status(400).json({ error: "Invalid osm_type or osm_id" });
-    return;
-  }
-  if (!isDbAvailable()) {
-    res.status(503).json({ error: "POI cache disabled" });
-    return;
-  }
-  const maxAgeDays = clampMaxAgeDays(req.query.max_age_days);
-  const row = await getPoi(osm_type, osm_id, maxAgeDays);
-  if (!row) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  res.json(row);
-});
-
-/** POST /poi/search: batch lookup body: { keys: [{osm_type, osm_id}], max_age_days? } */
+/** POST /poi/search: batch lookup body: { keys: [{osm_type, osm_id}] } */
 poiRouter.post("/poi/search", enrichLimiter, async (req, res) => {
-  const body = req.body as { keys?: unknown; max_age_days?: unknown };
+  const body = req.body as { keys?: unknown };
   if (!Array.isArray(body?.keys)) {
     res.status(400).json({ error: "Body must include `keys` array" });
     return;
@@ -93,8 +55,7 @@ poiRouter.post("/poi/search", enrichLimiter, async (req, res) => {
     const id = parseOsmId((k as { osm_id?: unknown }).osm_id);
     if (t && id) parsed.push({ osm_type: t, osm_id: id });
   }
-  const maxAgeDays = clampMaxAgeDays(body.max_age_days);
-  const found = await getPoisBatch(parsed, maxAgeDays);
+  const found = await getPoisBatch(parsed);
   res.json({
     requested: parsed.length,
     hits: found.size,

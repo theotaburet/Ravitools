@@ -1,4 +1,7 @@
-// --- Server-proxy fetch helpers shared by the enrichment adapters ---
+// --- Server-proxy fetch helpers ---
+
+/** The server, same origin: Vite proxies it in dev, nginx in production */
+export const API_BASE = "/api";
 
 /** Timeout for search/geocode requests (ms) */
 export const REQUEST_TIMEOUT = 15_000;

@@ -17,6 +17,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      # vite and vitest run on Node (their bin shebang); Vite 8 needs Node 20.19+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: bun install --frozen-lockfile
       - name: Typecheck
         run: bun run typecheck
@@ -49,6 +53,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      # vite and vitest run on Node (their bin shebang); Vite 8 needs Node 20.19+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: bun install --frozen-lockfile
       - run: bunx vite build --base=/Ravitools/
         working-directory: web/client

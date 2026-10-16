@@ -15,6 +15,8 @@ export const OVERPASS_URLS = (
   .map((s) => s.trim())
   .filter(Boolean);
 export const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
+/** Sent to every upstream: Overpass mirrors answer 429 to anonymous clients, Nominatim requires it. */
+export const USER_AGENT = "Ravitools/1.0 (cycling POI enrichment)";
 export const NOMINATIM_URL = process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
 
 // Fail fast on a malformed upstream URL from env (config typo) rather than

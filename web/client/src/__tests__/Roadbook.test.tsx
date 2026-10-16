@@ -35,14 +35,8 @@ const poi: POI = {
   icon: "faucet-drip",
   distanceToTrace: 10,
   alongTraceDistance: 500,
+  traceId: "trace_1",
   tags: { opening_hours: "Mo-Su 08:00-19:00" },
-  style: {
-    iconShape: "circle",
-    borderColor: "#FFFFFF",
-    borderWidth: "2",
-    textColor: "#FFFFFF",
-    backgroundColor: "#3B82F6",
-  },
 };
 
 describe("Roadbook", () => {

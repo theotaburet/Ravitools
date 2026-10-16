@@ -2,7 +2,9 @@
 // Uses @mlc-ai/web-llm with Qwen2.5-3B-Instruct (q4f16_1-MLC)
 // Fallback: if no WebGPU, returns null (raw snippets shown without synthesis)
 
+import type { ChatCompletion, MLCEngine } from "@mlc-ai/web-llm";
 import type {
+  BookingStatus,
   OpeningHoursEntry,
   PoiCategory,
   SearchSnippet,
@@ -10,7 +12,7 @@ import type {
   WebsitePreview,
 } from "../../types";
 import { dlog } from "../debug-log";
-import { getEnrichmentContract } from "../poi-config";
+import { getEnrichabilityPolicy, getEnrichmentContract } from "../poi-config";
 
 // --- Types ---
 
@@ -27,8 +29,27 @@ export interface LlmSynthesis {
   /** One-sentence review/verdict in target language */
   review: string | null;
   priceLevel: number | null;
+  /** Opening period for seasonal places, as stated ("6 June to 28 September") */
+  season?: string | null;
+  /** Prices with unit and currency, as stated */
+  priceNote?: string | null;
+  /** Reservation needed, only when a snippet says so */
+  booking?: BookingStatus | null;
   repaired?: boolean;
   repairReason?: string | null;
+}
+
+const MAX_SEASON_CHARS = 80;
+const MAX_PRICE_NOTE_CHARS = 160;
+
+function shortText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact ? compact.slice(0, max) : null;
+}
+
+function parseBooking(value: unknown): BookingStatus | null {
+  return value === "required" || value === "recommended" || value === "not_needed" ? value : null;
 }
 
 function getSynthesisRejectionReason(
@@ -57,6 +78,9 @@ function getSynthesisRejectionReason(
 /** Progress callback for model loading */
 export type ModelLoadProgressCallback = (progress: number) => void;
 
+/** Prompt wording of each output language */
+const LANGUAGE_NAMES: Record<TargetLanguage, string> = { fr: "French", en: "English" };
+
 // --- WebGPU detection ---
 
 export function isWebGpuAvailable(): boolean {
@@ -67,9 +91,8 @@ export function isWebGpuAvailable(): boolean {
 // We lazy-load @mlc-ai/web-llm to keep the main bundle small.
 // The engine is a singleton: one model loaded at a time.
 
-// biome-ignore lint/suspicious/noExplicitAny: dynamic import: web-llm types not available at module level
-let engineInstance: any = null;
-let engineReady = false;
+// A type-only import: the library itself loads on demand in initEngine
+let engineInstance: MLCEngine | null = null;
 /** In-flight load: concurrent initEngine() calls share one download. */
 let initPromise: Promise<boolean> | null = null;
 
@@ -78,6 +101,8 @@ let initPromise: Promise<boolean> | null = null;
 // Bigger/newer option if your GPU has headroom: "Qwen3-4B-q4f16_1-MLC" (~3.4GB): but then you
 // MUST disable thinking mode or it emits <think> blocks that break JSON parsing.
 const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+/** Weights + KV cache budget of MODEL_ID; shown to the user by the capability check */
+export const MODEL_VRAM_MB = 2500;
 
 /**
  * Initialize the WebLLM engine and download/cache the model.
@@ -85,7 +110,7 @@ const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
  * Subsequent loads use the browser cache (~2s).
  */
 export async function initEngine(onProgress?: ModelLoadProgressCallback): Promise<boolean> {
-  if (engineReady && engineInstance) return true;
+  if (engineInstance) return true;
 
   if (!isWebGpuAvailable()) {
     return false;
@@ -106,13 +131,11 @@ export async function initEngine(onProgress?: ModelLoadProgressCallback): Promis
         },
       });
 
-      engineReady = true;
       return true;
     } catch (err) {
       dlog("llm").error("[WebLLM] Engine init failed", {
         err: err instanceof Error ? err.message : String(err),
       });
-      engineReady = false;
       engineInstance = null;
       return false;
     } finally {
@@ -126,7 +149,7 @@ export async function initEngine(onProgress?: ModelLoadProgressCallback): Promis
  * Check if the engine is ready for inference.
  */
 export function isEngineReady(): boolean {
-  return engineReady && engineInstance != null;
+  return engineInstance != null;
 }
 
 /**
@@ -140,15 +163,7 @@ export async function unloadEngine(): Promise<void> {
       // Ignore unload errors
     }
     engineInstance = null;
-    engineReady = false;
   }
-}
-
-/** Reset all module-level LLM state. Call at the start of a fresh enrichment run. */
-export function resetLlmState(): void {
-  engineInstance = null;
-  engineReady = false;
-  initPromise = null;
 }
 
 // --- Contract-aware prompt sections ---
@@ -175,29 +190,23 @@ ${bannedList}`;
 /**
  * Build the system prompt for POI synthesis.
  * The LLM extracts structured info from raw search snippets.
- * WS8: category-specific prompt hardening using contracts.
+ * Category-specific prompt hardening using contracts.
  * @param targetLanguage - language for the translatedSummary field
  * @param category - POI category for contract-aware prompt sections
  * Exported for testing.
  */
 export function buildSystemPrompt(targetLanguage: TargetLanguage, category?: string): string {
-  const langName = targetLanguage === "fr" ? "French" : "English";
+  const langName = LANGUAGE_NAMES[targetLanguage];
 
-  // WS8: inject contract-specific instructions if available
+  // Inject contract-specific instructions if available
   const contract = category ? getEnrichmentContract(category as PoiCategory) : null;
   const contractBlock = contract
     ? buildContractBlock(contract.category, contract.bannedPatterns)
     : "";
 
-  // Price emphasis for commercial categories
-  const commercialCategories = new Set([
-    "Restaurant or Bar",
-    "Food shop",
-    "Sleeping place",
-    "Gears",
-  ]);
+  // Price emphasis for the categories worth a full enrichment (all commercial)
   const priceBlock =
-    category && commercialCategories.has(category)
+    category && getEnrichabilityPolicy(category as PoiCategory) === "full"
       ? `\n- "priceLevel": IMPORTANT for this category. Look for price indicators: €€/$$$ symbols, "inexpensive"/"moderate"/"expensive", explicit prices (15€, $20), Booking/Airbnb tariffs. 1=budget, 2=moderate, 3=upscale, 4=luxury.`
       : "";
 
@@ -210,7 +219,10 @@ Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
   "hours": <array of {"day": "<Mon..Sun or a range like Mon-Fri>", "open": "<HH:MM or closed>", "close": "<HH:MM or null>"}, or null>,
   "description": <one sentence in ${langName}: what kind of place it is plus one practical detail stated in the snippets, or null>,
   "review": <one sentence in ${langName}, synthesis of reviews/reputation, or null>,
-  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>
+  "priceLevel": <number 1-4 or null, 1=cheap 4=expensive>,
+  "season": <string or null: the opening period of a seasonal place (dates or months as the snippets state them), in ${langName}, max 80 characters>,
+  "priceNote": <string or null: the concrete prices the snippets state, with unit and currency (per night, per meal, per person), max 160 characters>,
+  "booking": <"required" | "recommended" | "not_needed" | null>
 }
 
 Rules:
@@ -223,6 +235,9 @@ Rules:
 - "hours": structured table. Each entry has "day" (e.g. "Mon", "Mon-Fri", "Sat-Sun"), "open" (time or "closed"), "close" (time or null if closed). Use null for the whole field if no hours found.
 - "description": ONE short sentence in ${langName}, max 160 characters: what kind of place it is (type, specialty) plus one practical detail a snippet states. Never mention cyclists unless a snippet does.
 - "review": ONE short sentence in ${langName}, max 160 characters. Summarize reputation only: rating, review sentiment, key strengths or caveats. If sources disagree, say so.${priceBlock}
+- "season": only when a snippet gives opening dates or months (a mountain hut, a campsite, a seasonal shop). Never derive it from weekly hours; null for places with weekly hours.
+- "priceNote": copy amounts with their unit and currency as written. Never convert, never estimate; null when no amount is stated.
+- "booking": only from an explicit statement that a reservation is required, recommended or not needed; otherwise null.
 - Be maximally concise. No filler. Prefer null over uncertain data.
 - Ignore snippets clearly unrelated to the POI (banking, novels, generic portals, wrong business).
 ${contractBlock}`;
@@ -236,6 +251,7 @@ function buildUserPrompt(
   category: string,
   snippets: SearchSnippet[],
   websitePreview?: WebsitePreview | null,
+  facts: string[] = [],
 ): string {
   const snippetText = snippets
     .map((s, i) => `[${i + 1}] ${s.title}\n${s.content}\n(source: ${s.engine})`)
@@ -245,12 +261,16 @@ function buildUserPrompt(
     ? `\n\nOfficial website preview:\nTitle: ${websitePreview.title ?? "n/a"}\nDescription: ${websitePreview.description ?? "n/a"}\nExcerpt: ${websitePreview.excerpt ?? "n/a"}\nSource URL: ${websitePreview.finalUrl}`
     : "";
 
+  const factsText =
+    facts.length > 0
+      ? `\n\nOpenStreetMap facts (map data, reliable):\n${facts.map((fact) => `- ${fact}`).join("\n")}`
+      : "";
+
   return `Place: "${poiName}" (${category})
 
 Web search results:
 ${snippetText}
-
-${websiteText}
+${websiteText}${factsText}
 
 Extract the JSON:`;
 }
@@ -281,8 +301,21 @@ const SYNTHESIS_SCHEMA = JSON.stringify({
     description: { type: ["string", "null"] },
     review: { type: ["string", "null"] },
     priceLevel: { type: ["integer", "null"] },
+    season: { type: ["string", "null"] },
+    priceNote: { type: ["string", "null"] },
+    booking: { type: ["string", "null"], enum: ["required", "recommended", "not_needed", null] },
   },
-  required: ["rating", "reviewCount", "hours", "description", "review", "priceLevel"],
+  required: [
+    "rating",
+    "reviewCount",
+    "hours",
+    "description",
+    "review",
+    "priceLevel",
+    "season",
+    "priceNote",
+    "booking",
+  ],
 });
 
 /** Temperature for synthesis (low = more factual) */
@@ -307,13 +340,6 @@ function looksLikeTargetLanguage(text: string | null, targetLanguage: TargetLang
   );
 }
 
-function isSynthesisAcceptable(
-  parsed: LlmSynthesis | null,
-  targetLanguage: TargetLanguage,
-): boolean {
-  return getSynthesisRejectionReason(parsed, targetLanguage) == null;
-}
-
 function isUnreadableText(text: string | null): boolean {
   if (!text) return false;
   const compact = text.replace(/\s+/g, " ").trim();
@@ -326,8 +352,8 @@ function isUnreadableText(text: string | null): boolean {
 }
 
 function buildRepairPrompt(targetLanguage: TargetLanguage, invalidJson: string): string {
-  const langName = targetLanguage === "fr" ? "French" : "English";
-  return `Rewrite this JSON so that description and review are strictly in ${langName}, each in one short sentence under 160 characters. Keep rating/reviewCount/hours/priceLevel unchanged when present. Reply with JSON only.\n\n${invalidJson}`;
+  const langName = LANGUAGE_NAMES[targetLanguage];
+  return `Rewrite this JSON so that description and review are strictly in ${langName}, each in one short sentence under 160 characters. Keep rating/reviewCount/hours/priceLevel/season/priceNote/booking unchanged when present. Reply with JSON only.\n\n${invalidJson}`;
 }
 
 function compactSentence(value: string | null): string | null {
@@ -350,61 +376,54 @@ export async function synthesize(
   snippets: SearchSnippet[],
   targetLanguage: TargetLanguage = "en",
   websitePreview?: WebsitePreview | null,
+  facts: string[] = [],
 ): Promise<LlmSynthesis | null> {
-  if (!engineReady || !engineInstance) return null;
-  if (snippets.length === 0) return null;
+  const engine = engineInstance;
+  if (!engine || snippets.length === 0) return null;
 
   try {
     const log = dlog("llm");
+    const systemPrompt = buildSystemPrompt(targetLanguage, category);
     let text: string | null = null;
     let parsed: LlmSynthesis | null = null;
+    let rejectionReason: string | null = null;
 
     for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
-      const response: { choices?: Array<{ message?: { content?: string | null } }> } =
-        await engineInstance.chat.completions.create({
-          messages:
-            attempt === 0
-              ? [
-                  { role: "system", content: buildSystemPrompt(targetLanguage, category) },
-                  {
-                    role: "user",
-                    content: buildUserPrompt(poiName, category, snippets, websitePreview),
-                  },
-                ]
-              : [
-                  { role: "system", content: buildSystemPrompt(targetLanguage, category) },
-                  {
-                    role: "user",
-                    content: buildRepairPrompt(targetLanguage, text || ""),
-                  },
-                ],
-          max_tokens: MAX_TOKENS,
-          temperature: TEMPERATURE,
-          response_format: { type: "json_object", schema: SYNTHESIS_SCHEMA },
-        });
+      const response: ChatCompletion = await engine.chat.completions.create({
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content:
+              attempt === 0
+                ? buildUserPrompt(poiName, category, snippets, websitePreview, facts)
+                : buildRepairPrompt(targetLanguage, text ?? ""),
+          },
+        ],
+        max_tokens: MAX_TOKENS,
+        temperature: TEMPERATURE,
+        response_format: { type: "json_object", schema: SYNTHESIS_SCHEMA },
+      });
 
-      text = response.choices?.[0]?.message?.content?.trim() ?? null;
+      text = response.choices[0]?.message?.content?.trim() ?? null;
       if (!text) return null;
       parsed = parseLlmOutput(text);
-      const rejectionReason = getSynthesisRejectionReason(parsed, targetLanguage);
+      rejectionReason = getSynthesisRejectionReason(parsed, targetLanguage);
       if (parsed) {
         parsed.repaired = attempt > 0;
         parsed.repairReason = rejectionReason;
       }
-      if (rejectionReason) {
-        log.warn(`LLM output rejected for "${poiName}"`, {
-          attempt,
-          reason: rejectionReason,
-          rawOutput: text.slice(0, 240),
-        });
-      }
-      if (isSynthesisAcceptable(parsed, targetLanguage)) break;
+      if (!rejectionReason) break;
+      log.warn(`LLM output rejected for "${poiName}"`, {
+        attempt,
+        reason: rejectionReason,
+        rawOutput: text.slice(0, 240),
+      });
     }
 
-    if (!parsed) return null;
     // Repairs exhausted and still rejected → let the deterministic
     // builder take over instead of shipping a bad synthesis.
-    if (!isSynthesisAcceptable(parsed, targetLanguage)) return null;
+    if (!parsed || rejectionReason) return null;
     const rawOutput = text ?? "";
 
     // Debug: log LLM synthesis result
@@ -426,26 +445,12 @@ export async function synthesize(
 }
 
 /**
- * Parse the LLM JSON output (compact format), tolerating minor formatting issues.
- * Exported for testing.
+ * Parse and bound the LLM output. Decoding is constrained by SYNTHESIS_SCHEMA,
+ * so the text is plain JSON; a truncated one (max_tokens) does not parse: null.
  */
 export function parseLlmOutput(text: string): LlmSynthesis | null {
   try {
-    // Strip markdown code block wrapper if present
-    let cleaned = text;
-    if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-    }
-
-    // Try to find JSON object in the text: use first { to last } to handle
-    // verbose LLM output that wraps the object in surrounding text.
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    const jsonMatch =
-      firstBrace >= 0 && lastBrace > firstBrace ? [cleaned.slice(firstBrace, lastBrace + 1)] : null;
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(text);
 
     // Parse structured hours
     const hours = parseHoursField(parsed.hours);
@@ -471,6 +476,9 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
         typeof parsed.priceLevel === "number" && parsed.priceLevel >= 1 && parsed.priceLevel <= 4
           ? Math.round(parsed.priceLevel)
           : null,
+      season: shortText(parsed.season, MAX_SEASON_CHARS),
+      priceNote: shortText(parsed.priceNote, MAX_PRICE_NOTE_CHARS),
+      booking: parseBooking(parsed.booking),
     };
   } catch {
     dlog("llm").warn("[WebLLM] Failed to parse LLM output", { text: text.slice(0, 200) });
@@ -480,17 +488,8 @@ export function parseLlmOutput(text: string): LlmSynthesis | null {
 
 // --- Hours parsing helpers ---
 
-/**
- * Parse the hours field from LLM output.
- * Accepts either:
- * - An array of OpeningHoursEntry objects (new format)
- * - A string (legacy format): converted to a single entry
- * Returns null if invalid.
- */
+/** The hours array of the LLM output, entries without a day or an opening dropped; null if none. */
 function parseHoursField(raw: unknown): OpeningHoursEntry[] | null {
-  if (raw == null) return null;
-
-  // New format: array of {day, open, close}
   if (Array.isArray(raw)) {
     const entries: OpeningHoursEntry[] = [];
     for (const item of raw) {
@@ -507,12 +506,6 @@ function parseHoursField(raw: unknown): OpeningHoursEntry[] | null {
     }
     return entries.length > 0 ? entries : null;
   }
-
-  // Legacy fallback: string → single entry with full text
-  if (typeof raw === "string" && raw.trim().length > 0) {
-    return [{ day: "All", open: raw.trim(), close: null }];
-  }
-
   return null;
 }
 

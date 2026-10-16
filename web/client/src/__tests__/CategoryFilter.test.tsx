@@ -1,4 +1,4 @@
-// CategoryFilter component test (M3 key component tests)
+// CategoryFilter component test
 // Focus: checkbox toggle, select-all, and the 150ms distance-slider debounce.
 // State is injected/observed through a jotai store.
 
@@ -50,7 +50,7 @@ describe("CategoryFilter", () => {
 
       fireEvent.change(slider, { target: { value: "1200" } });
 
-      expect(screen.getByText("1200m")).toBeTruthy(); // immediate display
+      expect(screen.getByText("1200 m")).toBeTruthy(); // immediate display
       expect(store.get(routeSettingsAtom).maxDistanceM).toBe(500); // not yet committed
 
       vi.advanceTimersByTime(150);

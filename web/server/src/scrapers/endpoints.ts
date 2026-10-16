@@ -1,127 +1,51 @@
 /**
- * Generic Express endpoint mounter for map scraper plugins.
+ * Express endpoints of a scraper job system, under `basePath`:
  *
- * Given a `MapScraperPlugin<T>` and its `ScraperJobSystem<T>`, this mounts
- * the 5 standard endpoints under a base path (default `/scrape/{plugin.name}`):
- *
- *   POST   {base}                 synchronous extract (returns full preview)
- *   POST   {base}/jobs            queue background job (202 + job)
+ *   POST   {base}/jobs            queue background job (202 + job), body { url, poiName? }
  *   GET    {base}/jobs/:jobId     poll job status
- *   DELETE {base}/jobs/:jobId     cancel/delete job (best-effort)
  *   GET    {base}/jobs            list recent jobs + counts
- *
- * Request body for POST endpoints:
- *   { url: string }                                  : direct URL
- *   { poiName: string, lat: number, lon: number, ...}: server builds URL via plugin.buildUrl
- *
- * Backward-compat aliases (e.g. `/google-maps-preview`) are mounted by
- * passing a custom `basePath` in addition to the canonical `/scrape/{name}`.
  */
 
 import type { Express, RequestHandler } from "express";
 import type { Logger } from "pino";
-import { safeSet } from "../safe-set.js";
 import type { ScraperJobSystem } from "./job-system.js";
-import type { MapPreview, MapScraperPlugin, ScraperJob } from "./types.js";
+import type { MapScraperPlugin } from "./types.js";
 import { isBlockedError } from "./types.js";
 
 export interface MountOptions {
-  /** Path prefix; defaults to `/scrape/${plugin.name}` */
-  basePath?: string;
-  /** Express middleware (e.g. rate limiter) applied to every route */
+  basePath: string;
+  /** Express middleware (e.g. rate limiter) on the routes that launch a scrape; status reads stay free (polled every few seconds) */
   limiter?: RequestHandler;
   log: Logger;
 }
 
 type ParsedInput = { url: string; poiName: string | null } | { error: string };
 
-function parseInput<T extends MapPreview>(body: unknown, plugin: MapScraperPlugin<T>): ParsedInput {
+function parseInput(body: unknown, plugin: MapScraperPlugin): ParsedInput {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
-  const rawUrl = typeof b.url === "string" ? b.url : null;
-  const poiName = typeof b.poiName === "string" ? b.poiName : null;
-
-  if (rawUrl) {
-    // Reject malformed URL syntax first
-    try {
-      // eslint-disable-next-line no-new
-      new URL(rawUrl);
-    } catch {
-      return { error: "Invalid URL" };
-    }
-    const validated = plugin.validateUrl(rawUrl);
-    if (!validated) {
-      return { error: `Only ${plugin.displayName} URLs are supported` };
-    }
-    return { url: validated, poiName };
+  if (typeof b.url !== "string" || !b.url) return { error: "Missing 'url' in request body" };
+  try {
+    new URL(b.url);
+  } catch {
+    return { error: "Invalid URL" };
   }
-
-  // Fallback: build from name + coords if plugin supports it
-  if (!plugin.buildUrl) {
-    return { error: "Missing 'url' in request body" };
-  }
-  // Only accept real numbers: Number(null) === 0 silently scraped 0,0.
-  const lat = typeof b.lat === "number" ? b.lat : Number.NaN;
-  const lon = typeof b.lon === "number" ? b.lon : Number.NaN;
-  if (!poiName || !Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return { error: "Provide either 'url' or { poiName, lat, lon }" };
-  }
-  // Pass any extra fields through (e.g. category hints for future plugins)
-  const extra: Record<string, unknown> = { ...b };
-  delete extra.url;
-  delete extra.poiName;
-  delete extra.lat;
-  delete extra.lon;
-  const built = plugin.buildUrl(poiName, lat, lon, extra);
-  if (!built) {
-    return { error: `Failed to build ${plugin.displayName} URL (check name/coords)` };
-  }
-  return { url: built, poiName };
+  const validated = plugin.validateUrl(b.url);
+  if (!validated) return { error: `Only ${plugin.displayName} URLs are supported` };
+  return { url: validated, poiName: typeof b.poiName === "string" ? b.poiName : null };
 }
 
 /** Max queued+running jobs per source before POST /jobs returns 429. */
 const MAX_PENDING_JOBS = 50;
 
-export function mountScraperEndpoints<T extends MapPreview>(
+export function mountScraperEndpoints(
   app: Express,
-  plugin: MapScraperPlugin<T>,
-  system: ScraperJobSystem<T>,
+  system: ScraperJobSystem,
   options: MountOptions,
 ): void {
-  const base = options.basePath ?? `/scrape/${plugin.name}`;
+  const { plugin } = system;
+  const base = options.basePath;
   const middlewares: RequestHandler[] = options.limiter ? [options.limiter] : [];
   const log = options.log;
-
-  // POST {base}: synchronous fetch
-  app.post(base, ...middlewares, async (req, res) => {
-    try {
-      const parsed = parseInput(req.body, plugin);
-      if ("error" in parsed) {
-        res.status(400).json({ error: parsed.error });
-        return;
-      }
-
-      const cacheKey = `${plugin.name}:${parsed.url}`;
-      const cached = system.previewCache.get<T>(cacheKey);
-      if (cached) {
-        res.setHeader("X-Cache", "HIT");
-        res.json(cached);
-        return;
-      }
-
-      const preview = await system.fetchSync(parsed.url);
-      if (!preview) {
-        res.status(502).json({ error: `Failed to extract ${plugin.displayName} preview` });
-        return;
-      }
-
-      safeSet(system.previewCache, cacheKey, preview);
-      res.setHeader("X-Cache", "MISS");
-      res.json(preview);
-    } catch (err: unknown) {
-      log.error({ err, source: plugin.name }, `${plugin.displayName} preview error`);
-      res.status(502).json({ error: `Failed to fetch ${plugin.displayName} preview` });
-    }
-  });
 
   // POST {base}/jobs: queue background job
   app.post(`${base}/jobs`, ...middlewares, async (req, res) => {
@@ -134,10 +58,9 @@ export function mountScraperEndpoints<T extends MapPreview>(
 
       // The queue is floodable: refuse new jobs once too many are
       // pending for this source. O(n) scan over ≤5000 keys per POST.
-      const pending = system.jobCache.keys().filter((k) => {
-        const j = system.jobCache.get<ScraperJob<T>>(k);
-        return j?.status === "queued" || j?.status === "running";
-      }).length;
+      const pending = system.jobCache
+        .values()
+        .filter((j) => j.status === "queued" || j.status === "running").length;
       if (pending >= MAX_PENDING_JOBS) {
         res.status(429).json({
           error: `Too many pending ${plugin.displayName} jobs: retry later`,
@@ -152,39 +75,10 @@ export function mountScraperEndpoints<T extends MapPreview>(
     }
   });
 
-  // DELETE {base}/jobs/:jobId
-  app.delete(`${base}/jobs/:jobId`, ...middlewares, (req, res) => {
+  // GET {base}/jobs/:jobId
+  app.get(`${base}/jobs/:jobId`, (req, res) => {
     const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-    const job = system.jobCache.get<ScraperJob<T>>(jobId);
-    if (!job) {
-      res.status(404).json({ error: `${plugin.displayName} preview job not found` });
-      return;
-    }
-    if (job.status === "running") {
-      // Cannot abort in-flight Playwright; mark as cancelled
-      safeSet(system.jobCache, jobId, {
-        ...job,
-        status: "error",
-        error: "Cancelled by user",
-        lastError: "Cancelled by user",
-        nextRetryAt: null,
-        updatedAt: new Date().toISOString(),
-      });
-    } else {
-      system.jobCache.del(jobId);
-    }
-    system.persist();
-    log.info(
-      { jobId, previousStatus: job.status, source: plugin.name },
-      `${plugin.displayName} preview job cancelled`,
-    );
-    res.status(204).send();
-  });
-
-  // GET {base}/jobs/:jobId: must come BEFORE GET {base}/jobs in Express? No, distinct paths.
-  app.get(`${base}/jobs/:jobId`, ...middlewares, (req, res) => {
-    const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
-    const job = system.jobCache.get<ScraperJob<T>>(jobId);
+    const job = system.jobCache.get(jobId);
     if (!job) {
       res.status(404).json({ error: `${plugin.displayName} preview job not found` });
       return;
@@ -193,11 +87,8 @@ export function mountScraperEndpoints<T extends MapPreview>(
   });
 
   // GET {base}/jobs: list recent + counts
-  app.get(`${base}/jobs`, ...middlewares, (_req, res) => {
-    const jobs = system.jobCache
-      .keys()
-      .map((key) => system.jobCache.get<ScraperJob<T>>(key))
-      .filter((job): job is ScraperJob<T> => Boolean(job));
+  app.get(`${base}/jobs`, (_req, res) => {
+    const jobs = system.jobCache.values();
     const counts = {
       queued: jobs.filter((j) => j.status === "queued").length,
       running: jobs.filter((j) => j.status === "running").length,
@@ -206,6 +97,8 @@ export function mountScraperEndpoints<T extends MapPreview>(
       // Blocked is a subset signal (CAPTCHA/anti-bot), counted across any status
       // whose lastError carries the BLOCKED_ sentinel: surfaced as a UI hint.
       blocked: jobs.filter((j) => isBlockedError(j.lastError)).length,
+      // Source layout drift (a section on the page did not parse): surfaced as a UI hint.
+      layoutIssues: jobs.filter((j) => (j.preview?.layoutWarnings?.length ?? 0) > 0).length,
     };
     res.json({ counts, jobs: jobs.slice(-20).reverse() });
   });

@@ -23,10 +23,10 @@
 
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pino } from "pino";
 import type { Browser, BrowserContext, BrowserContextOptions } from "playwright";
+import { log as rootLog } from "./logger.js";
 
-const log = pino({ name: "browser-context" });
+const log = rootLog.child({ name: "browser-context" });
 
 const STATE_DIR = join(process.cwd(), ".cache");
 const STATE_FILE = join(STATE_DIR, "browser-state.json");

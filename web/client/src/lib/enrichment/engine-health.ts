@@ -1,6 +1,7 @@
 // --- SearXNG engine health: failure tracking, cooldown suspension, CAPTCHA URL ---
 
 import type { SearchSnippet } from "../../types";
+import { API_BASE } from "./proxy-api";
 
 /**
  * Known-good SearXNG engines for POI enrichment.
@@ -64,11 +65,6 @@ export function resetEngineFailureState(): void {
   engineFailureState.clear();
 }
 
-export function countSuspendedHealthyEngines(): number {
-  const now = Date.now();
-  return [...engineFailureState.values()].filter((item) => item.suspendedUntil > now).length;
-}
-
 /**
  * Returns true when every configured engine is currently suspended
  * (CAPTCHA, access denied, rate-limited) and the batch should pause
@@ -87,16 +83,10 @@ export function areAllEnginesSuspended(): boolean {
 }
 
 /**
- * Build the URL to open in a browser tab for manual CAPTCHA resolution.
- * Uses the SearXNG proxy endpoint so the user clears the block on the
- * same IP/session as the enrichment requests.
- * Falls back to the raw SearXNG instance URL if the apiBase is a relative path.
+ * The URL to open in a browser tab for manual CAPTCHA resolution: SearXNG's
+ * own search UI through the server, so the user clears the block on the same
+ * IP/session as the enrichment requests.
  */
-export function buildCaptchaResolveUrl(apiBase: string = "/api"): string {
-  // Point the user at SearXNG's own search UI via the proxy base.
-  if (apiBase.startsWith("http")) {
-    return `${apiBase}/searxng-ui`;
-  }
-  // Relative path: build an absolute URL using the current origin
-  return `${window.location.origin}${apiBase}/searxng-ui`;
+export function buildCaptchaResolveUrl(): string {
+  return `${window.location.origin}${API_BASE}/searxng-ui`;
 }

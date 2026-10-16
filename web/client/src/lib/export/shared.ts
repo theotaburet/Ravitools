@@ -37,30 +37,6 @@ export function hexToKmlColor(hex: string): string {
   return `${b}${g}${r}`;
 }
 
-export function mapCategoryToGpxSymbol(category: string): string {
-  const symbols: Record<string, string> = {
-    Water: "Drinking Water",
-    "Sleeping place": "Campground",
-    Restroom: "Restroom",
-    Shelter: "Shelter",
-    "Food shop": "Shopping Center",
-    "Restaurant or Bar": "Restaurant",
-    Gears: "Bike Trail",
-    DIY: "Wrecker",
-    Laundry: "Building",
-    Medical: "Medical Facility",
-    Pharmacy: "Pharmacy",
-    "Bank & ATM": "Bank",
-    "Post office": "Post Office",
-    Viewpoint: "Scenic Area",
-    "Tourist info": "Information",
-    Charging: "Charging Station",
-    Picnic: "Picnic Area",
-    Wifi: "Library",
-  };
-  return symbols[category] ?? "Flag, Blue";
-}
-
 /** Build the GPX `<trk>` sections for all non-empty traces (shared by GPX and OsmAnd GPX). */
 export function buildTrackSections(traces: TraceData[]): string {
   return traces

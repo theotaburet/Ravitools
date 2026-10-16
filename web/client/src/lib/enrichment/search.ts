@@ -1,43 +1,17 @@
-// SearXNG search adapter: searchPoi + re-exports of the search submodules
-// (engine-health, query-builder, snippet-filters, websites, google-maps, geocode)
+// SearXNG search adapter: searchPoi
 
 import type { GeoContext, POI, SearchSnippet } from "../../types";
 import { dlog } from "../debug-log";
 import { getHealthyEngineList, noteEngineFailures, noteSuccessfulEngines } from "./engine-health";
-import { REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
+import { API_BASE, REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
 import { buildQueryVariants, buildSearchQuery } from "./query-builder";
 import {
   isObviousNoiseSnippet,
   isSnippetGeographicallyCoherent,
   mentionsPoiName,
 } from "./snippet-filters";
+import { languageForCountry } from "./vocabulary";
 import { normalizeUrlForDedup } from "./websites";
-
-// Re-exports kept on this module for existing import sites (tests, hooks, barrel).
-export {
-  areAllEnginesSuspended,
-  buildCaptchaResolveUrl,
-  countSuspendedHealthyEngines,
-  resetEngineFailureState,
-} from "./engine-health";
-export { reverseGeocode } from "./geocode";
-export {
-  buildGoogleMapsSnippets,
-  buildGoogleMapsUrl,
-  enqueueGoogleMapsPreview,
-  fetchGoogleMapsJobStats,
-  pollGoogleMapsPreviewJob,
-} from "./google-maps";
-export { buildSearchQuery, cleanPoiNameForSearch } from "./query-builder";
-export { isSnippetGeographicallyCoherent } from "./snippet-filters";
-export {
-  buildOfficialWebsiteSnippets,
-  classifySourcePlatform,
-  fetchWebsitePreview,
-  getOfficialWebsiteUrl,
-  isRejectedOfficialDomain,
-  normalizeUrlForDedup,
-} from "./websites";
 
 /** Max snippets to keep per POI search */
 const MAX_SNIPPETS = 8;
@@ -69,14 +43,14 @@ interface SearXNGResponse {
 export async function searchPoi(
   poi: POI,
   locality: string | null,
-  apiBase: string = "/api",
   signal?: AbortSignal,
   maxRetries: number = 3,
   geoContext?: GeoContext | null,
 ): Promise<{ snippets: SearchSnippet[]; query: string; unresponsiveEngines: [string, string][] }> {
   let lastError: Error | null = null;
   let lastUnresponsiveEngines: [string, string][] = [];
-  const queries = buildQueryVariants(poi, locality);
+  const language = languageForCountry(geoContext?.countryCode);
+  const queries = buildQueryVariants(poi, locality, language);
   const requestedEngines = getHealthyEngineList();
   const log = dlog("search");
 
@@ -93,12 +67,12 @@ export async function searchPoi(
       const fetchSignal = timeoutSignal(REQUEST_TIMEOUT, signal);
 
       try {
-        const res = await fetch(`${apiBase}/search`, {
+        const res = await fetch(`${API_BASE}/search`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             query,
-            language: "fr",
+            language,
             engines: requestedEngines,
           }),
           signal: fetchSignal,

@@ -1,33 +1,19 @@
 /**
- * Shared types for the map-source scraper plugin system.
+ * Types of the Google Maps scraper and its job queue.
  *
- * A "scraper" is anything that, given a POI name + coordinates (or a direct
- * URL), returns a structured `MapPreview` extracted from a third-party map
- * platform (Google Maps, Bing Maps, Apple Maps, OSM, etc.).
- *
- * Concrete plugins live in sibling files (google-maps.ts).
- * The job system / endpoint mounting is shared via job-system.ts and
- * endpoints.ts so adding a new source is a focused exercise in writing
- * the platform-specific Playwright extraction, not in re-implementing
- * queueing / persistence / retries / failure logging.
+ * The job system (job-system.ts) and the endpoints (endpoints.ts) take the
+ * source as a `MapScraperPlugin` object: the only reason is that tests drive
+ * them with a mock source instead of Playwright.
  */
 
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
-
-// --- Hours entry: same across sources ---
 
 export type MapHoursEntry = {
   day: string;
   open: string;
   close: string | null;
 };
-
-// Base MapPreview: common shape that all sources expose.
-//
-// Concrete plugins extend this via `MapPreview & { source: "google" | ... }`
-// (and may add source-specific optional fields). The client merger consumes
-// this base shape uniformly.
 
 export type MapPreview = {
   /** Original URL we requested (input) */
@@ -38,7 +24,7 @@ export type MapPreview = {
   category: string | null;
   rating: number | null;
   reviewCount: number | null;
-  /** Some sources expose $/$$/$$$/$$$$ price tier; null when not surfaced */
+  /** $/$$/$$$/$$$$ price tier; null when not surfaced */
   priceLevel: number | null;
   hoursText: string | null;
   structuredHours: MapHoursEntry[] | null;
@@ -47,13 +33,15 @@ export type MapPreview = {
   website: string | null;
   snippet: string | null;
   fetchedAt: string;
+  /** Source layout checks that failed (a section is on the page but did not parse) */
+  layoutWarnings?: string[];
 };
 
 // --- Job system types ---
 
 export type ScraperJobStatus = "queued" | "running" | "done" | "error";
 
-export type ScraperJob<T extends MapPreview> = {
+export type ScraperJob = {
   jobId: string;
   status: ScraperJobStatus;
   /** Source name (denormalized for easy filtering on the wire) */
@@ -61,7 +49,7 @@ export type ScraperJob<T extends MapPreview> = {
   url: string;
   /** Human-readable POI name for UI display */
   poiName: string | null;
-  preview: T | null;
+  preview: MapPreview | null;
   error: string | null;
   createdAt: string;
   updatedAt: string;
@@ -82,9 +70,9 @@ export type ScraperFailureRecord = {
 
 /**
  * Sentinel prefix for "scraper was blocked" errors (CAPTCHA / anti-bot / 429).
- * A plugin's `fetchOnce` throws `new Error(\`${BLOCKED_ERROR_PREFIX} ...\`)` so
- * the block reaches the job's `lastError` (instead of an opaque null) and the
- * `/jobs` endpoint can report a `blocked` count to the client.
+ * `fetchOnce` throws `new Error(\`${BLOCKED_ERROR_PREFIX} ...\`)` so the block
+ * reaches the job's `lastError` (instead of an opaque null) and the `/jobs`
+ * endpoint can report a `blocked` count to the client.
  */
 export const BLOCKED_ERROR_PREFIX = "BLOCKED:";
 
@@ -92,10 +80,7 @@ export function isBlockedError(message: string | null | undefined): boolean {
   return typeof message === "string" && message.startsWith(BLOCKED_ERROR_PREFIX);
 }
 
-// Shared dependencies injected into plugins (logger, sleep, randomDelay,
-// browser supplier). Plugins are kept dependency-free so tests can mock
-// trivially.
-
+/** Injected so tests run without real delays or a browser. */
 export interface ScraperDeps {
   log: Logger;
   sleep: (ms: number) => Promise<void>;
@@ -104,37 +89,15 @@ export interface ScraperDeps {
   getBrowser: () => Promise<Browser>;
 }
 
-// MapScraperPlugin: the contract every source implements.
-//
-// `T extends MapPreview` lets plugins extend the base shape with extra
-// fields if they want (e.g. Google's structured hours entries are typed
-// MapHoursEntry[] which is the same as the base, so no extension needed).
-
-export interface MapScraperPlugin<T extends MapPreview = MapPreview> {
-  /** Stable kebab-case identifier; used in URLs, cache keys, file paths */
+export interface MapScraperPlugin {
+  /** Stable kebab-case identifier; used in cache file paths */
   readonly name: string;
 
-  /** Human-readable label for logs and the UI */
+  /** Human-readable label for logs and errors */
   readonly displayName: string;
 
-  /**
-   * Validate (and normalize) a user-supplied URL. Return null if the URL is
-   * not a valid URL for this source. Returning a URL string means the URL
-   * passed validation and may be canonicalized (e.g. trim params).
-   */
+  /** Validate (and normalize) a user-supplied URL; null if it is not one of this source */
   validateUrl(url: string): string | null;
-
-  /**
-   * Optionally build a search/canonical URL from POI name + coordinates.
-   * Sources that only accept direct URLs return null; sources that support
-   * search-by-name (Google, Bing) build a search URL here.
-   */
-  buildUrl?(
-    poiName: string,
-    lat: number,
-    lon: number,
-    extra?: Record<string, unknown>,
-  ): string | null;
 
   /**
    * Run the actual extraction once. Throws on hard failures (network, page
@@ -142,15 +105,12 @@ export interface MapScraperPlugin<T extends MapPreview = MapPreview> {
    * blocked (CAPTCHA / anti-bot); returns null on plain "no results found".
    * The job system handles retries; this method should not.
    */
-  fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<T | null>;
+  fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<MapPreview | null>;
 
-  /** Per-source tunables (env-overridable in concrete plugins) */
+  /** Tunables (env-overridable) */
   readonly minDelayMs: number;
   readonly maxDelayMs: number;
   readonly retries: number;
-
-  /** TTL for the preview cache, in seconds */
-  readonly previewCacheTtlSec: number;
 
   /** TTL for the jobs map (terminal jobs auto-prune after this), in milliseconds */
   readonly jobsTtlMs: number;

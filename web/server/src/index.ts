@@ -10,7 +10,11 @@ if (process.env.NODE_ENV !== "test") {
   // Fire-and-forget DB init (graceful degradation if unavailable)
   initDb().catch((err) => log.error({ err: err?.message }, "DB init unexpected error"));
 
-  app.listen(PORT, () => {
+  app.listen(PORT, (err) => {
+    if (err) {
+      log.fatal({ err }, "Ravitools proxy failed to start");
+      process.exit(1);
+    }
     log.info({ port: PORT, overpass: OVERPASS_URLS.join(", ") }, "Ravitools proxy started");
   });
 

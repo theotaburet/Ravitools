@@ -21,14 +21,8 @@ const MOCK_POIS: POI[] = [
     icon: "droplet",
     distanceToTrace: 120,
     alongTraceDistance: 3000,
+    traceId: "trace_1",
     tags: { amenity: "drinking_water", fee: "no" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#0066CC",
-    },
     osmId: 1001,
     osmType: "node",
   },
@@ -41,14 +35,8 @@ const MOCK_POIS: POI[] = [
     icon: "tent",
     distanceToTrace: 350,
     alongTraceDistance: 8000,
+    traceId: "trace_1",
     tags: { tourism: "camp_site", name: "Camping Municipal" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#1A1A2E",
-    },
     osmId: 2001,
     osmType: "node",
   },
@@ -262,14 +250,8 @@ describe("OsmAnd GPX with optional categories", () => {
     icon: "hospital",
     distanceToTrace: 200,
     alongTraceDistance: 6000,
+    traceId: "trace_1",
     tags: { amenity: "hospital", name: "Hôpital Saint-Louis" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#DC2626",
-    },
     osmId: 3001,
     osmType: "node",
   };
@@ -414,6 +396,36 @@ describe("formatPoiDescriptionCompact hours", () => {
     const desc = formatPoiDescriptionCompact(MOCK_POIS[0], enrichment);
     expect(desc).not.toMatch(/closed/i);
     expect(desc).toContain("24/7");
+  });
+
+  it("carries season, prices, booking and OSM facts into the compact and HTML descriptions", async () => {
+    const { formatPoiDescriptionCompact, formatPoiDescriptionHtml } = await import(
+      "../lib/export/description"
+    );
+    const poi = {
+      ...MOCK_POIS[0],
+      tags: { ...MOCK_POIS[0].tags, beds: "52", reservation: "required" },
+    };
+    const enrichment = {
+      status: "done",
+      season: "6 June to 28 September 2026",
+      priceNote: "night 21 €, half board 55 €",
+      booking: "required",
+      sourceCount: 0,
+      confidence: 0,
+    } as unknown as import("../types").EnrichedData;
+
+    const compact = formatPoiDescriptionCompact(poi, enrichment);
+    expect(compact).toContain("Season: 6 June to 28 September 2026");
+    expect(compact).toContain("night 21 €, half board 55 €");
+    expect(compact).toContain("Booking required");
+    expect(compact).toContain("52 beds");
+
+    const html = formatPoiDescriptionHtml(poi, enrichment);
+    expect(html).toContain("<b>Season:</b> 6 June to 28 September 2026");
+    expect(html).toContain("<b>Prices:</b> night 21 €, half board 55 €");
+    expect(html).toContain("Booking required");
+    expect(html).toContain("52 beds");
   });
 
   it("still renders explicit closed days as closed", async () => {

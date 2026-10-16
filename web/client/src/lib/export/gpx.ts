@@ -2,18 +2,9 @@
 // This is the most widely compatible format for GPS devices.
 
 import type { EnrichedData, POI, TraceData } from "../../types";
+import { GPX_SYMBOLS } from "../poi-config";
 import { formatPoiDescriptionCompact } from "./description";
-import { buildTrackSections, downloadFile, escapeXml, mapCategoryToGpxSymbol } from "./shared";
-
-export function exportToGpx(
-  pois: POI[],
-  traces: TraceData[],
-  filename: string = "ravitools-pois",
-  enrichments?: Map<string, EnrichedData>,
-): void {
-  const gpxContent = buildGpxString(pois, traces, enrichments);
-  downloadFile(gpxContent, `${filename}.gpx`, "application/gpx+xml");
-}
+import { buildTrackSections, escapeXml } from "./shared";
 
 export function buildGpxString(
   pois: POI[],
@@ -23,7 +14,7 @@ export function buildGpxString(
   const wpts = pois
     .map((poi) => {
       const desc = formatPoiDescriptionCompact(poi, enrichments?.get(poi.id));
-      const sym = mapCategoryToGpxSymbol(poi.category);
+      const sym = GPX_SYMBOLS[poi.category] ?? "Flag, Blue";
       return `  <wpt lat="${poi.lat}" lon="${poi.lon}">
     <name>${escapeXml(poi.name)}</name>
     <desc>${escapeXml(desc)}</desc>

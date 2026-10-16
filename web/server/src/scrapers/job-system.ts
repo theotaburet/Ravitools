@@ -1,12 +1,8 @@
 /**
- * Generic job system factory for map scraper plugins.
+ * Job queue for the Google Maps scraper: `createScraperJobSystem(plugin, deps)`
+ * gives the source a private:
  *
- * Replaces ~430 lines of duplicated job/queue/persistence/retry logic per
- * source (originally copy-pasted between map scrapers in
- * web/server/src/index.ts). Each scraper plugin (see `types.ts`) is wrapped
- * via `createScraperJobSystem(plugin, deps)` and gets a private:
- *
- * - in-memory NodeCache for previews and jobs
+ * - in-memory job cache
  * - serialized in-flight queue (`with(...)`)
  * - retry loop with exponential-ish backoff
  * - background job runner (`queueJob`)
@@ -15,9 +11,7 @@
  * - JSONL failure log (append-only, useful for debugging)
  * - stale-job pruning by TTL
  *
- * The factory is engine-agnostic. All source-specific behaviour lives in
- * `plugin.fetchOnce()`. Browser sharing / proxy concerns live in the plugin
- * via the injected `ScraperDeps.getBrowser`.
+ * Page-level extraction lives in `plugin.fetchOnce()` (google-maps.ts).
  */
 
 import {
@@ -30,8 +24,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import NodeCache from "node-cache";
-import { safeSet } from "../safe-set.js";
+import { TtlCache } from "../caches.js";
 import type {
   MapPreview,
   MapScraperPlugin,
@@ -40,15 +33,12 @@ import type {
   ScraperJob,
 } from "./types.js";
 
-export interface ScraperJobSystem<T extends MapPreview> {
+export interface ScraperJobSystem {
   /** Plugin associated with this system (mostly for introspection / tests) */
-  readonly plugin: MapScraperPlugin<T>;
-
-  /** Preview-by-URL cache (keyed by `${plugin.name}:${url}`) */
-  readonly previewCache: NodeCache;
+  readonly plugin: MapScraperPlugin;
 
   /** Job-by-id cache */
-  readonly jobCache: NodeCache;
+  readonly jobCache: TtlCache<ScraperJob>;
 
   /** Absolute path to the persisted jobs JSON file */
   readonly jobsFile: string;
@@ -64,10 +54,10 @@ export interface ScraperJobSystem<T extends MapPreview> {
       nextRetryAt: string | null,
       lastError: string | null,
     ) => void,
-  ): Promise<T | null>;
+  ): Promise<MapPreview | null>;
 
   /** Background extraction; returns immediately with a queued job */
-  queueJob(url: string, poiName?: string | null): Promise<ScraperJob<T>>;
+  queueJob(url: string, poiName?: string | null): Promise<ScraperJob>;
 
   /** Persist current jobs map atomically to disk (called automatically) */
   persist(): void;
@@ -82,20 +72,11 @@ export interface ScraperJobSystem<T extends MapPreview> {
   appendFailure(record: ScraperFailureRecord): void;
 }
 
-export function createScraperJobSystem<T extends MapPreview>(
-  plugin: MapScraperPlugin<T>,
+export function createScraperJobSystem(
+  plugin: MapScraperPlugin,
   deps: ScraperDeps,
-): ScraperJobSystem<T> {
-  const previewCache = new NodeCache({
-    stdTTL: plugin.previewCacheTtlSec,
-    checkperiod: 3600,
-    maxKeys: 2000,
-  });
-  const jobCache = new NodeCache({
-    stdTTL: 60 * 60 * 24,
-    checkperiod: 3600,
-    maxKeys: 5000,
-  });
+): ScraperJobSystem {
+  const jobCache = new TtlCache<ScraperJob>(60 * 60 * 24, 5000);
 
   const jobsFile = join(process.cwd(), ".cache", `${plugin.name}-jobs.json`);
   const failuresFile = join(process.cwd(), ".cache", `${plugin.name}-failures.jsonl`);
@@ -113,12 +94,10 @@ export function createScraperJobSystem<T extends MapPreview>(
 
   function pruneStale(): void {
     const cutoff = Date.now() - plugin.jobsTtlMs;
-    for (const key of jobCache.keys()) {
-      const job = jobCache.get<ScraperJob<T>>(key);
-      if (!job) continue;
+    for (const job of jobCache.values()) {
       const age = new Date(job.updatedAt).getTime();
       if ((job.status === "done" || job.status === "error") && age < cutoff) {
-        jobCache.del(key);
+        jobCache.delete(job.jobId);
         deps.log.debug(
           { jobId: job.jobId, age: Date.now() - age, source: plugin.name },
           `${plugin.displayName}: pruned stale job`,
@@ -130,10 +109,7 @@ export function createScraperJobSystem<T extends MapPreview>(
   function persist(): void {
     pruneStale();
     mkdirSync(dirname(jobsFile), { recursive: true });
-    const entries = jobCache
-      .keys()
-      .map((key) => jobCache.get<ScraperJob<T>>(key))
-      .filter((job): job is ScraperJob<T> => Boolean(job));
+    const entries = jobCache.values();
     const tmpFile = `${jobsFile}.tmp`;
     try {
       writeFileSync(tmpFile, JSON.stringify(entries, null, 2), {
@@ -158,7 +134,7 @@ export function createScraperJobSystem<T extends MapPreview>(
     if (!existsSync(jobsFile)) return;
     try {
       const raw = readFileSync(jobsFile, "utf8");
-      const jobs = JSON.parse(raw) as ScraperJob<T>[];
+      const jobs = JSON.parse(raw) as ScraperJob[];
       const cutoff = Date.now() - plugin.jobsTtlMs;
       let recovered = 0;
       let skipped = 0;
@@ -173,7 +149,7 @@ export function createScraperJobSystem<T extends MapPreview>(
         const recoveredStatus = job.status === "running" ? "error" : job.status;
         const recoveredError =
           job.status === "running" ? "Job interrupted by server restart" : job.error;
-        safeSet(jobCache, job.jobId, {
+        jobCache.set(job.jobId, {
           ...job,
           source: plugin.name, // re-stamp in case file is from older schema
           status: recoveredStatus,
@@ -223,7 +199,7 @@ export function createScraperJobSystem<T extends MapPreview>(
       nextRetryAt: string | null,
       lastError: string | null,
     ) => void,
-  ): Promise<T | null> {
+  ): Promise<MapPreview | null> {
     return withQueue(async () => {
       for (let attempt = 1; attempt <= plugin.retries; attempt++) {
         const initialDelay = deps.randomDelay(plugin.minDelayMs, plugin.maxDelayMs);
@@ -263,10 +239,10 @@ export function createScraperJobSystem<T extends MapPreview>(
     });
   }
 
-  async function queueJob(url: string, poiName?: string | null): Promise<ScraperJob<T>> {
+  async function queueJob(url: string, poiName?: string | null): Promise<ScraperJob> {
     const jobId = crypto.randomUUID(); // global webcrypto (Node 19+)
     const createdAt = new Date().toISOString();
-    const job: ScraperJob<T> = {
+    const job: ScraperJob = {
       jobId,
       status: "queued",
       source: plugin.name,
@@ -281,12 +257,12 @@ export function createScraperJobSystem<T extends MapPreview>(
       nextRetryAt: null,
       lastError: null,
     };
-    safeSet(jobCache, jobId, job);
+    jobCache.set(jobId, job);
     persist();
 
     void (async () => {
       const startedAt = new Date().toISOString();
-      const runningJob: ScraperJob<T> = {
+      const runningJob: ScraperJob = {
         ...job,
         status: "running",
         startedAt,
@@ -298,9 +274,9 @@ export function createScraperJobSystem<T extends MapPreview>(
         nextRetryAt: string | null,
         lastError: string | null,
       ) => {
-        const current = jobCache.get<ScraperJob<T>>(jobId);
+        const current = jobCache.get(jobId);
         if (!current) return;
-        safeSet(jobCache, jobId, {
+        jobCache.set(jobId, {
           ...current,
           attempt,
           nextRetryAt,
@@ -313,12 +289,12 @@ export function createScraperJobSystem<T extends MapPreview>(
       try {
         // Initial running-state write inside try so a persist() throw can't escape
         // the IIFE unhandled.
-        safeSet(jobCache, jobId, runningJob);
+        jobCache.set(jobId, runningJob);
         persist();
         const preview = await fetchSync(url, onAttemptUpdate);
-        // A DELETE mid-run tombstones the job (cancelled) or removes
-        // it: never resurrect it with a terminal status.
-        const current = jobCache.get<ScraperJob<T>>(jobId);
+        // A job evicted mid-run (full cache) stays gone:
+        // never resurrect it with a terminal status.
+        const current = jobCache.get(jobId);
         if (current?.status !== "running") return;
         if (!preview) {
           appendFailure({
@@ -330,7 +306,7 @@ export function createScraperJobSystem<T extends MapPreview>(
             failedAt: new Date().toISOString(),
           });
         }
-        safeSet(jobCache, jobId, {
+        jobCache.set(jobId, {
           ...current,
           status: preview ? "done" : "error",
           preview,
@@ -340,8 +316,8 @@ export function createScraperJobSystem<T extends MapPreview>(
         });
         persist();
       } catch (err) {
-        const current = jobCache.get<ScraperJob<T>>(jobId);
-        if (current?.status !== "running") return; // cancelled/deleted mid-run
+        const current = jobCache.get(jobId);
+        if (current?.status !== "running") return; // evicted mid-run
         const message = err instanceof Error ? err.message : `Unknown ${plugin.displayName} error`;
         appendFailure({
           source: plugin.name,
@@ -351,7 +327,7 @@ export function createScraperJobSystem<T extends MapPreview>(
           lastError: message,
           failedAt: new Date().toISOString(),
         });
-        safeSet(jobCache, jobId, {
+        jobCache.set(jobId, {
           ...current,
           status: "error",
           preview: null,
@@ -369,7 +345,6 @@ export function createScraperJobSystem<T extends MapPreview>(
 
   return {
     plugin,
-    previewCache,
     jobCache,
     jobsFile,
     failuresFile,

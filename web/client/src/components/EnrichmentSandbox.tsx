@@ -7,15 +7,14 @@ import {
   isEngineReady,
   isWebGpuAvailable,
 } from "../lib/enrichment";
+import { priceTier } from "../lib/format";
+import { getEnrichabilityPolicy } from "../lib/poi-config";
 import { filteredPoisAtom } from "../state/route";
 import { targetLanguageAtom } from "../state/ui";
 import type { EnrichedData, POI } from "../types";
 
 function isSandboxCandidate(poi: POI): boolean {
-  return (
-    ["Restaurant or Bar", "Food shop", "Sleeping place", "Gears"].includes(poi.category) &&
-    poi.name.trim().length > 0
-  );
+  return getEnrichabilityPolicy(poi.category) === "full" && poi.name.trim().length > 0;
 }
 
 export function EnrichmentSandbox() {
@@ -44,7 +43,6 @@ export function EnrichmentSandbox() {
       // run falls back to the deterministic builder.
       if (isWebGpuAvailable() && !isEngineReady()) await initEngine();
       const enriched = await enrichPoi(selectedPoi, {
-        apiBase: "/api",
         targetLanguage,
         policyOverride: "full",
       });
@@ -70,7 +68,7 @@ export function EnrichmentSandbox() {
         </div>
         <button
           type="button"
-          className="neo-btn-sm neo-btn-pink"
+          className="neo-btn-sm neo-btn-secondary"
           onClick={runSandbox}
           disabled={!selectedPoi || loading}
         >
@@ -122,9 +120,7 @@ export function EnrichmentSandbox() {
             <div className="sandbox-facts">
               <span>Rating: {result.rating != null ? `${result.rating.toFixed(1)}/5` : "n/a"}</span>
               <span>Reviews: {result.reviewCount ?? "n/a"}</span>
-              <span>
-                Price: {result.priceLevel != null ? "$".repeat(result.priceLevel) : "n/a"}
-              </span>
+              <span>Price: {result.priceLevel != null ? priceTier(result.priceLevel) : "n/a"}</span>
               <span>Confidence: {(result.confidence * 100).toFixed(0)}%</span>
               <span>Source: {result.synthesisSource ?? "unknown"}</span>
               <span>Reason: {result.synthesisReason ?? "none"}</span>

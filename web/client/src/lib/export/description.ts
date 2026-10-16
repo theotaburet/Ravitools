@@ -1,6 +1,9 @@
 // --- POI description formatters: compact (GPS screens) and HTML (KML balloons) ---
 
 import type { EnrichedData, POI } from "../../types";
+import { BOOKING_KEY, osmFacts } from "../enrichment/osm-facts";
+import { km, priceTier } from "../format";
+import { t, tLabel } from "../i18n";
 import { starString } from "../stars";
 import { formatHoursHtml, getAvailabilityTags, splitHoursLines } from "./hours";
 import { escapeXml } from "./shared";
@@ -24,7 +27,7 @@ function truncateWords(text: string | null | undefined, maxLen: number): string 
   const slice = collapsed.slice(0, maxLen - 1);
   const lastSpace = slice.lastIndexOf(" ");
   const cut = lastSpace > maxLen * 0.6 ? slice.slice(0, lastSpace) : slice;
-  return `${cut.replace(/[,.;:!?\-—\s]+$/, "")}…`;
+  return `${cut.replace(/[,.;:!?\-\u2014\s]+$/, "")}…`;
 }
 
 /**
@@ -80,8 +83,9 @@ function compactRawHours(raw: string): string {
  * Prioritized layout (one line each):
  *   L1 (header):  <Category> · ★4.3 (120) · $$ · km 12.5, 80m
  *   L2 (text):    description (truncated to 150 chars)
- *   L3 (hours):   abbreviated week
+ *   L3 (hours):   abbreviated week, then season, prices, booking when known
  *   L4 (contact): phone | website
+ *   L4b (facts):  OSM facts (beds, fee, operator...)
  *   L5 (caution): first caution from enrichment, if any
  *
  * Falls back gracefully when enrichment is missing or partial.
@@ -97,11 +101,9 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
     headerBits.push(`★${enrichment.rating.toFixed(1)}${reviewBit}`);
   }
   if (enrichment?.status === "done" && enrichment.priceLevel != null && enrichment.priceLevel > 0) {
-    headerBits.push("$".repeat(Math.min(enrichment.priceLevel, 4)));
+    headerBits.push(priceTier(enrichment.priceLevel));
   }
-  headerBits.push(
-    `km ${(poi.alongTraceDistance / 1000).toFixed(1)}, ${Math.round(poi.distanceToTrace)}m`,
-  );
+  headerBits.push(`km ${km(poi.alongTraceDistance)}, ${Math.round(poi.distanceToTrace)}m`);
   lines.push(headerBits.join(" · "));
 
   // L2: description (LLM-synthesized, single line)
@@ -121,6 +123,17 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
   if (hoursLine) {
     lines.push(truncateWords(hoursLine, COMPACT_DESC_HOURS_LINE_MAX));
   }
+  if (enrichment?.status === "done") {
+    if (enrichment.season) {
+      lines.push(
+        truncateWords(tLabel("poi.season", enrichment.season, "en"), COMPACT_DESC_HOURS_LINE_MAX),
+      );
+    }
+    if (enrichment.priceNote) {
+      lines.push(truncateWords(enrichment.priceNote, COMPACT_DESC_HOURS_LINE_MAX));
+    }
+    if (enrichment.booking) lines.push(t(BOOKING_KEY[enrichment.booking], "en"));
+  }
 
   // L4: single best contact (phone wins over website on small screens)
   const phone = poi.tags.phone ?? poi.tags["contact:phone"];
@@ -131,17 +144,23 @@ export function formatPoiDescriptionCompact(poi: POI, enrichment?: EnrichedData)
     lines.push(website);
   }
 
+  // L4b: what the map data already says
+  const facts = osmFacts(poi.tags, "en");
+  if (facts.length > 0) lines.push(truncateWords(facts.join(" · "), COMPACT_DESC_HOURS_LINE_MAX));
+
   // L5: first caution from enrichment (high-signal info for cyclist)
   const firstCaution = enrichment?.structured?.cautions?.[0];
   if (firstCaution) {
     lines.push(`⚠ ${truncateWords(firstCaution, COMPACT_DESC_CAUTION_MAX)}`);
   }
 
-  // Hard cap: drop trailing lines until under budget, then truncate as last resort
-  let result = lines.join("\n");
-  while (result.length > COMPACT_DESC_MAX_CHARS && lines.length > 1) {
-    lines.pop();
-    result = lines.join("\n");
+  // Hard cap: drop trailing lines until under budget, then truncate as last resort.
+  // A booking fact from OSM and a booking line from the sources read the same: keep one.
+  const unique = [...new Set(lines)];
+  let result = unique.join("\n");
+  while (result.length > COMPACT_DESC_MAX_CHARS && unique.length > 1) {
+    unique.pop();
+    result = unique.join("\n");
   }
   if (result.length > COMPACT_DESC_MAX_CHARS) {
     result = truncateWords(result, COMPACT_DESC_MAX_CHARS);
@@ -161,8 +180,11 @@ export function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): s
       );
     }
     if (enrichment.priceLevel != null)
-      parts.push(`<b>Price:</b> ${"$".repeat(enrichment.priceLevel)}`);
+      parts.push(`<b>Price:</b> ${priceTier(enrichment.priceLevel)}`);
     if (enrichment.hours) parts.push(`<b>Hours:</b><br/>${formatHoursHtml(enrichment.hours)}`);
+    if (enrichment.season) parts.push(`<b>Season:</b> ${escapeXml(enrichment.season)}`);
+    if (enrichment.priceNote) parts.push(`<b>Prices:</b> ${escapeXml(enrichment.priceNote)}`);
+    if (enrichment.booking) parts.push(escapeXml(t(BOOKING_KEY[enrichment.booking], "en")));
     // New compact fields
     if (enrichment.description) parts.push(`<i>${escapeXml(enrichment.description)}</i>`);
     if (enrichment.review) parts.push(`${escapeXml(enrichment.review)}`);
@@ -201,7 +223,8 @@ export function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): s
     const safeUrl = /^https?:\/\//i.test(poi.tags.website) ? escapeXml(poi.tags.website) : "#";
     parts.push(`<b>Web:</b> <a href="${safeUrl}">${escapeXml(poi.tags.website)}</a>`);
   }
-  if (poi.tags.fee) parts.push(`<b>Fee:</b> ${escapeXml(poi.tags.fee)}`);
+  const facts = osmFacts(poi.tags, "en");
+  if (facts.length > 0) parts.push(escapeXml(facts.join(" · ")));
 
   // Availability highlights
   const availabilityHtml = getAvailabilityTags(
@@ -213,7 +236,7 @@ export function formatPoiDescriptionHtml(poi: POI, enrichment?: EnrichedData): s
   }
 
   parts.push(
-    `<b>km ${(poi.alongTraceDistance / 1000).toFixed(1)}</b>, ${Math.round(poi.distanceToTrace)}m from route`,
+    `<b>km ${km(poi.alongTraceDistance)}</b>, ${Math.round(poi.distanceToTrace)}m from route`,
   );
   return parts.join("<br/>");
 }

@@ -20,7 +20,7 @@ search:
   # Reduce ban time so transient errors don't kill engines for long
   ban_time_on_fail: 2
   max_ban_time_on_fail: 30
-  # Override suspension penalties — defaults are brutal
+  # Override suspension penalties: the defaults are brutal
   # (e.g. CAPTCHA = 24h, AccessDenied = 24h, TooManyRequests = 1h)
   # For a local single-user instance, short suspensions are fine:
   # the engine will be retried quickly after a transient error.

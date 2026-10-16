@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Router } from "express";
 import { cache } from "../caches.js";
-import { MAX_QUERY_LENGTH, OVERPASS_URLS } from "../config.js";
-import { isTimeoutError, sendProxyJson } from "../http.js";
+import { MAX_QUERY_LENGTH, OVERPASS_URLS, USER_AGENT } from "../config.js";
+import { cachedProxy, isTimeoutError } from "../http.js";
 import { limiter } from "../limiters.js";
 import { log } from "../logger.js";
-import { safeSet } from "../safe-set.js";
 
 export const overpassRouter = Router();
 
@@ -17,8 +17,6 @@ function enqueueOverpass<T>(fn: () => Promise<T>): Promise<T> {
   overpassQueue = run.catch(() => undefined);
   return run;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * POST the query to each mirror in turn. A 429 gets ONE same-mirror retry after
@@ -38,7 +36,10 @@ async function fetchFromMirrors(
       try {
         overpassRes = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": USER_AGENT,
+          },
           body: `data=${encodeURIComponent(query)}`,
           signal,
         });
@@ -64,80 +65,43 @@ async function fetchFromMirrors(
 }
 
 overpassRouter.post("/overpass", limiter, async (req, res) => {
-  try {
-    // Accept query from JSON body or form-encoded body
-    const query: string =
-      typeof req.body === "string" ? req.body : (req.body?.data ?? req.body?.query);
+  // Accept query from JSON body or form-encoded body
+  const query: string =
+    typeof req.body === "string" ? req.body : (req.body?.data ?? req.body?.query);
 
-    if (!query || typeof query !== "string") {
-      res.status(400).json({ error: "Missing 'query' or 'data' in request body" });
-      return;
-    }
-
-    // Guard: reject overly large queries
-    if (query.length > MAX_QUERY_LENGTH) {
-      res.status(413).json({
-        error: `Query too large (${query.length} chars, max ${MAX_QUERY_LENGTH})`,
-      });
-      return;
-    }
-
-    // Cache key from query hash
-    const cacheKey = createHash("md5").update(query).digest("hex");
-
-    // Check cache
-    const cached = cache.get<string>(cacheKey);
-    if (cached) {
-      log.info({ cacheKey }, "Cache hit");
-      sendProxyJson(res, cached, "HIT");
-      return;
-    }
-
-    // Forward to Overpass
-    log.info({ queryLength: query.length }, "Forwarding to Overpass");
-
-    // One shared 180s deadline across all Overpass instances.
-    const timeoutSignal = AbortSignal.timeout(180_000);
-    const deadline = Date.now() + 180_000;
-
-    const hit = await enqueueOverpass(() => fetchFromMirrors(query, timeoutSignal, deadline));
-
-    if (!hit?.res.ok) {
-      const body = hit ? await hit.res.text() : "All Overpass instances failed";
-      log.warn({ status: hit?.res.status, usedUrl: hit?.url }, "Overpass returned non-OK status");
-      res.status(hit?.res.status || 502).json({
-        error: "Overpass API error",
-        status: hit?.res.status,
-        detail: body.slice(0, 500),
-      });
-      return;
-    }
-
-    const usedUrl = hit.url;
-    const data = await hit.res.text();
-
-    // Don't cache/serve a non-JSON body (e.g. an HTML error page returned with 200)
-    // as application/json.
-    try {
-      JSON.parse(data);
-    } catch {
-      log.warn({ usedUrl, bytes: data.length }, "Overpass returned a non-JSON body");
-      res.status(502).json({ error: "Overpass returned a non-JSON response" });
-      return;
-    }
-
-    // Cache the response
-    safeSet(cache, cacheKey, data);
-    log.info({ cacheKey, bytes: data.length }, "Cached Overpass response");
-
-    sendProxyJson(res, data, "MISS");
-  } catch (err: unknown) {
-    if (isTimeoutError(err)) {
-      log.error("Overpass request timed out");
-      res.status(504).json({ error: "Overpass request timed out" });
-      return;
-    }
-    log.error({ err }, "Overpass proxy error");
-    res.status(502).json({ error: "Failed to reach Overpass API" });
+  if (!query || typeof query !== "string") {
+    res.status(400).json({ error: "Missing 'query' or 'data' in request body" });
+    return;
   }
+
+  if (query.length > MAX_QUERY_LENGTH) {
+    res.status(413).json({
+      error: `Query too large (${query.length} chars, max ${MAX_QUERY_LENGTH})`,
+    });
+    return;
+  }
+
+  const cacheKey = createHash("md5").update(query).digest("hex");
+
+  // One shared 180s deadline across all Overpass instances.
+  const timeoutSignal = AbortSignal.timeout(180_000);
+  const deadline = Date.now() + 180_000;
+
+  await cachedProxy(
+    res,
+    "Overpass API",
+    cache,
+    cacheKey,
+    async () =>
+      (await enqueueOverpass(() => fetchFromMirrors(query, timeoutSignal, deadline)))?.res,
+    // An HTML error page served with 200 must not be cached as JSON
+    (body) => {
+      try {
+        JSON.parse(body);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  );
 });

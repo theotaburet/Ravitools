@@ -11,13 +11,6 @@ import { makeBaseEnrichment, makePoi } from "./fvm-helpers";
 
 describe("FVM-K: Export Validation", () => {
   const enrichedStructured: EnrichmentStructuredContent = {
-    headline: "Excellent bistro with cyclist-friendly terrace.",
-    operationalSummary: "Best read as French bistro. Hours available. Reputation signals present.",
-    practicalities: [
-      "Type: French bistro",
-      "Reported rating: 4.3/5 (120 reviews)",
-      "Hours: Mon-Sat 12-14, 19-22",
-    ],
     sourceRollup: [
       {
         platform: "google_maps",
@@ -31,7 +24,6 @@ describe("FVM-K: Export Validation", () => {
       },
     ],
     cautions: ["Price information could not be confirmed."],
-    unknowns: ["Bike parking availability unclear."],
     divergences: [],
     sourceConfirmation: "both",
   };
@@ -82,39 +74,12 @@ describe("FVM-K: Export Validation", () => {
     expect(gpx).not.toContain("google_maps");
   });
 
-  it("K5b: GPX no longer includes unknowns (compact format)", () => {
-    const gpx = buildGpxString([poi], [], enrichments);
-    // unknowns are not rendered in the compact export
-    expect(gpx).not.toContain("Bike parking availability unclear.");
-  });
-
   it("K6: KML includes compact structured fields", () => {
     const kml = buildKmlString([poi], [], enrichments);
     expect(kml).toContain("Excellent bistro with cyclist-friendly terrace");
     expect(kml).toContain("Well-reviewed bistro with great terrace");
     expect(kml).toContain("Price information could not be confirmed.");
     expect(kml).toContain("4.3/5");
-  });
-
-  it("K8: GeoJSON exposes enrichment_structured_headline", () => {
-    const geojson = buildGeoJsonObject([poi], enrichments);
-    const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_headline).toBe(
-      "Excellent bistro with cyclist-friendly terrace.",
-    );
-  });
-
-  it("K9: GeoJSON exposes enrichment_structured_operationalSummary", () => {
-    const geojson = buildGeoJsonObject([poi], enrichments);
-    const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_operationalSummary).toContain("Best read as French bistro");
-  });
-
-  it("K10: GeoJSON exposes enrichment_structured_practicalities", () => {
-    const geojson = buildGeoJsonObject([poi], enrichments);
-    const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_practicalities).toContain("French bistro");
-    expect(props.enrichment_structured_practicalities).toContain("4.3");
   });
 
   it("K11: GeoJSON exposes enrichment_structured_cautions", () => {
@@ -130,11 +95,5 @@ describe("FVM-K: Export Validation", () => {
     const props = geojson.features[0].properties!;
     expect(props.enrichment_structured_sourceRollup).toContain("google_maps");
     expect(props.enrichment_structured_sourceRollup).toContain("Well-reviewed bistro");
-  });
-
-  it("K13: GeoJSON exposes enrichment_structured_unknowns", () => {
-    const geojson = buildGeoJsonObject([poi], enrichments);
-    const props = geojson.features[0].properties!;
-    expect(props.enrichment_structured_unknowns).toContain("Bike parking availability unclear.");
   });
 });

@@ -1,13 +1,23 @@
-// Enrichment state atoms test (M2/T4): model-load state machine, cache-hit
+// Enrichment state atoms test: model-load state machine, cache-hit
 // short-circuit, and CAPTCHA pause/resume. The enrichment lib + shared cache
 // are mocked so we drive transitions without WebGPU, SearXNG, or the network.
 
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { LlmCapability } from "../lib/enrichment/capability";
 import type { EnrichedData, POI } from "../types";
 
+const CAP_NONE: LlmCapability = { level: "unsupported", reasons: ["no-webgpu"], modelSizeMb: 2500 };
+const CAP_READY: LlmCapability = { level: "ready", reasons: [], modelSizeMb: 2500 };
+
 const mocks = vi.hoisted(() => ({
-  isWebGpuAvailable: vi.fn(() => false),
+  probeLlmCapability: vi.fn(
+    async (): Promise<LlmCapability> => ({
+      level: "unsupported",
+      reasons: ["no-webgpu"],
+      modelSizeMb: 2500,
+    }),
+  ),
   initEngine: vi.fn(async () => true),
   unloadEngine: vi.fn(async () => undefined),
   enrichBatch: vi.fn(async () => undefined),
@@ -18,11 +28,11 @@ const mocks = vi.hoisted(() => ({
   resetEngineFailureState: vi.fn(),
   lookupPoiBatch: vi.fn(async () => new Map()),
   uploadPoiEnrichment: vi.fn(async () => undefined),
-  getPoiCacheKey: vi.fn((poi: { id: string }) => poi.id),
+  poiCacheKey: vi.fn((poi: { id: string }) => poi.id),
 }));
 
 vi.mock("../lib/enrichment", () => ({
-  isWebGpuAvailable: mocks.isWebGpuAvailable,
+  probeLlmCapability: mocks.probeLlmCapability,
   initEngine: mocks.initEngine,
   unloadEngine: mocks.unloadEngine,
   enrichBatch: mocks.enrichBatch,
@@ -35,7 +45,7 @@ vi.mock("../lib/enrichment", () => ({
 vi.mock("../lib/poi-cache", () => ({
   lookupPoiBatch: mocks.lookupPoiBatch,
   uploadPoiEnrichment: mocks.uploadPoiEnrichment,
-  getPoiCacheKey: mocks.getPoiCacheKey,
+  poiCacheKey: mocks.poiCacheKey,
 }));
 vi.mock("../lib/debug-log", () => ({
   dlog: () => ({
@@ -50,6 +60,7 @@ vi.mock("../lib/debug-log", () => ({
 import {
   cancelEnrichmentAtom,
   enrichmentJobAtom,
+  enrichmentSettledAtom,
   enrichmentsAtom,
   resumeAfterCaptchaAtom,
   startEnrichmentAtom,
@@ -63,7 +74,7 @@ let store: ReturnType<typeof createStore>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.isWebGpuAvailable.mockReturnValue(false);
+  mocks.probeLlmCapability.mockResolvedValue(CAP_NONE);
   mocks.initEngine.mockResolvedValue(true);
   mocks.enrichBatch.mockResolvedValue(undefined);
   mocks.isRetryableEnrichmentResult.mockReturnValue(false);
@@ -71,7 +82,7 @@ beforeEach(() => {
   mocks.buildCaptchaResolveUrl.mockReturnValue("http://searxng/captcha");
   mocks.areAllEnginesSuspended.mockReturnValue(false);
   mocks.lookupPoiBatch.mockResolvedValue(new Map());
-  mocks.getPoiCacheKey.mockImplementation((p: { id: string }) => p.id);
+  mocks.poiCacheKey.mockImplementation((p: { id: string }) => p.id);
   store = createStore();
   // Clear module-level context (abort controller + paused CAPTCHA params)
   store.set(cancelEnrichmentAtom);
@@ -94,7 +105,7 @@ describe("enrichment state", () => {
   });
 
   it("re-enriches a cached deterministic result when WebGPU is available", async () => {
-    mocks.isWebGpuAvailable.mockReturnValue(true);
+    mocks.probeLlmCapability.mockResolvedValue(CAP_READY);
     mocks.lookupPoiBatch.mockResolvedValue(
       new Map([
         [
@@ -112,7 +123,7 @@ describe("enrichment state", () => {
   });
 
   it("loads the model then completes when WebGPU is available", async () => {
-    mocks.isWebGpuAvailable.mockReturnValue(true);
+    mocks.probeLlmCapability.mockResolvedValue(CAP_READY);
     await store.set(startEnrichmentAtom, [poi("a")]);
     expect(mocks.initEngine).toHaveBeenCalledTimes(1);
     expect(mocks.enrichBatch).toHaveBeenCalledTimes(1);
@@ -136,6 +147,37 @@ describe("enrichment state", () => {
 });
 
 // --- A retry pass must never push completed past total ("12/10", bar >100%) ---
+
+describe("search progress", () => {
+  it("counts searched POIs and releases them from the in-flight set until synthesis", async () => {
+    let midRun: { searched: number; active: string[]; settled: boolean } | null = null;
+    type Opts = {
+      onPoiStart: (id: string, name: string) => void;
+      onSearchProgress: (searched: number, poiId?: string) => void;
+    };
+    (
+      mocks.enrichBatch as unknown as {
+        mockImplementationOnce: (impl: (pois: POI[], opts: Opts) => Promise<void>) => void;
+      }
+    ).mockImplementationOnce(async (_pois, opts) => {
+      opts.onSearchProgress(0);
+      opts.onPoiStart("a", "a");
+      opts.onPoiStart("b", "b");
+      opts.onSearchProgress(1, "a");
+      const job = store.get(enrichmentJobAtom);
+      midRun = {
+        searched: job.searched,
+        active: [...job.activePoiIds],
+        settled: store.get(enrichmentSettledAtom),
+      };
+    });
+
+    await store.set(startEnrichmentAtom, [poi("a"), poi("b")]);
+
+    expect(midRun).toEqual({ searched: 1, active: ["b"], settled: false });
+    expect(store.get(enrichmentSettledAtom)).toBe(true);
+  });
+});
 
 describe("retry progress clamp", () => {
   it("never reports completed > total after a retry pass", async () => {

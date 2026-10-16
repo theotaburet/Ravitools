@@ -1,4 +1,4 @@
-// Route state atoms test (M2/T4): pipeline state machine + filtering.
+// Route state atoms test: pipeline state machine + filtering.
 // Mocks the three pure pipeline stages (parse / query / process) so we can
 // drive transitions without GPX files, the network, or the DOM.
 
@@ -31,6 +31,7 @@ import {
   processFilesAtom,
   resetRouteAtom,
   restoreRouteAtom,
+  retryQueryAtom,
   routeErrorAtom,
   routeWarningAtom,
   setMaxDistanceAtom,
@@ -87,6 +88,16 @@ describe("route state pipeline", () => {
     expect(store.get(stageAtom)).toBe("error");
     expect(store.get(routeErrorAtom)).toBe("overpass down");
     expect(store.get(tracesAtom)).toHaveLength(1); // not re-uploaded to retry
+  });
+
+  it("a retry aborts the query in flight", async () => {
+    queryAllPois.mockImplementationOnce(() => new Promise(() => {}));
+    void store.set(processFilesAtom, [gpxFile()]);
+    await vi.waitFor(() => expect(queryAllPois).toHaveBeenCalledTimes(1));
+
+    await store.set(retryQueryAtom);
+    expect((queryAllPois.mock.calls[0][4] as AbortSignal).aborted).toBe(true);
+    expect(store.get(stageAtom)).toBe("done");
   });
 
   it("re-filters POIs when a category is toggled off", () => {

@@ -1,35 +1,29 @@
 // --- Search query construction: per-category tuning + name cleanup ---
 
 import type { POI } from "../../types";
+import { isGenericPoiName } from "./deterministic";
+import { type SearchLanguage, WORDS } from "./vocabulary";
 
 /**
- * Category-specific search biases.
- * Each category has lightweight context keywords that improve
- * the quality of search results from SearXNG.
- * No site: dorks: SearXNG handles multi-engine discovery;
- * Google Maps, Booking, Yelp, etc. surface naturally when relevant.
- * Geographic filtering post-search handles false positives.
- *
+ * Per-category context words in the country's language. Lightweight, no site:
+ * dorks: SearXNG handles multi-engine discovery and geographic filtering
+ * handles false positives afterwards. The category word doubles as a type hint.
  */
-const CATEGORY_SEARCH_BIAS: Record<string, { contextKeywords: string }> = {
-  "Restaurant or Bar": {
-    contextKeywords: "avis restaurant horaires",
-  },
-  "Food shop": {
-    contextKeywords: "horaires magasin avis",
-  },
-  "Sleeping place": {
-    contextKeywords: "avis hébergement tarif",
-  },
-  Gears: {
-    contextKeywords: "avis atelier vélo réparation",
-  },
-};
-
-/** Default bias for categories without specific tuning */
-const DEFAULT_SEARCH_BIAS = {
-  contextKeywords: "avis",
-};
+function contextKeywords(category: string, language: SearchLanguage): string {
+  const w = WORDS[language];
+  switch (category) {
+    case "Restaurant or Bar":
+      return `${w.reviews} ${w.restaurant} ${w.hours}`;
+    case "Food shop":
+      return `${w.hours} ${w.shop} ${w.reviews}`;
+    case "Sleeping place":
+      return `${w.reviews} ${w.lodging} ${w.prices}`;
+    case "Gears":
+      return `${w.reviews} ${w.bikeShop}`;
+    default:
+      return w.reviews;
+  }
+}
 
 /**
  * Clean a POI name before using it in a search query.
@@ -51,13 +45,16 @@ export function cleanPoiNameForSearch(name: string): string {
  * Cleans the POI name and adds locality for disambiguation.
  *
  */
-export function buildSearchQuery(poi: POI, locality: string | null): string {
+export function buildSearchQuery(
+  poi: POI,
+  locality: string | null,
+  language: SearchLanguage = "en",
+): string {
   const parts: string[] = [];
 
   // POI name: cleaned and quoted
-  const rawName = poi.name.trim();
-  const cleanedName = cleanPoiNameForSearch(rawName);
-  const isGeneric = !cleanedName || ["Unknown", "unnamed", ""].includes(cleanedName);
+  const cleanedName = cleanPoiNameForSearch(poi.name);
+  const isGeneric = isGenericPoiName(cleanedName);
 
   if (!isGeneric) {
     parts.push(`"${cleanedName}"`);
@@ -66,7 +63,7 @@ export function buildSearchQuery(poi: POI, locality: string | null): string {
   // Locality only: adding county and region made Bing drift to regional portals.
   if (locality) parts.push(locality);
 
-  // Category hint for generic names or unnamed POIs
+  // Generic or no name (single-POI enrichment does not skip those): the OSM tags hint the type
   if (isGeneric) {
     const tagHint = Object.entries(poi.tags)
       .filter(([k]) => ["amenity", "shop", "tourism", "leisure"].includes(k))
@@ -75,15 +72,17 @@ export function buildSearchQuery(poi: POI, locality: string | null): string {
     if (tagHint) parts.push(tagHint);
   }
 
-  // Per-category context keywords (lightweight, no site: dorks)
-  const bias = CATEGORY_SEARCH_BIAS[poi.category] ?? DEFAULT_SEARCH_BIAS;
-  parts.push(bias.contextKeywords);
+  parts.push(contextKeywords(poi.category, language));
 
   return parts.join(" ");
 }
 
-export function buildQueryVariants(poi: POI, locality: string | null): string[] {
-  const base = buildSearchQuery(poi, locality);
+export function buildQueryVariants(
+  poi: POI,
+  locality: string | null,
+  language: SearchLanguage = "en",
+): string[] {
+  const base = buildSearchQuery(poi, locality, language);
   const cleanName = cleanPoiNameForSearch(poi.name);
 
   // Keep only 2 variants to reduce noise and request count:

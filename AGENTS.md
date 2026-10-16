@@ -27,6 +27,8 @@ This file is the single source of agent instructions. Do not add a `CLAUDE.md`.
 | **Committing**                    | User manages git, not you. If asked: one-line message, no body |
 | **Bun only**                      | Runtime, package manager, scripts. Never `npm`, never `node`  |
 | **just**                          | Task runner; `just check` is the definition of done           |
+| **Zero warning**                  | Every warning is an error, enforced by the tools (see below)  |
+| **Dependencies up to date**       | `just update` every session; majors one at a time             |
 | **Jotai**                         | All app state lives in atoms under `web/client/src/state/`    |
 | **No new dependency**             | Without explicit approval; a few lines beat a package         |
 | **GPX stays in the browser**      | Privacy by design; the server only proxies OSM/search/geocode |
@@ -97,10 +99,10 @@ const { maxDistanceM } = useAtomValue(routeSettingsAtom); // state/route.ts, def
 
 ```
 Runtime: Bun 1.x
-Framework: React 18 + TypeScript strict + Vite 5
+Framework: React 19 + TypeScript 7 strict + Vite 8 (Rolldown)
 UI: Tailwind v4 + plain CSS tokens (neobrutalist "carnet de route", dark theme via tokens)
 State: Jotai (atoms + action atoms in src/state/)
-Map: Leaflet 1.9 via react-leaflet 4
+Map: Leaflet 1.9 via react-leaflet 5
 Enrichment: @mlc-ai/web-llm (WebGPU, Qwen2.5-3B), SearXNG + Nominatim through the server proxy
 Tests: vitest (+ jsdom per file), Playwright e2e
 ```
@@ -109,7 +111,7 @@ Tests: vitest (+ jsdom per file), Playwright e2e
 
 ```
 Runtime: Bun (bun src/index.ts, no build step)
-Framework: Express 4 (helmet, compression, express-rate-limit, node-cache)
+Framework: Express 5 (helmet, compression, express-rate-limit), in-memory TTL caches
 DB: Postgres + PostGIS, optional shared enrichment cache (proxy-only mode without DATABASE_URL)
 Scraping: Playwright (Google Maps fallback), SSRF-guarded fetch-page
 Tests: vitest + supertest
@@ -218,18 +220,18 @@ Status: in-progress | done | blocked | abandoned
 ```
 GPX upload (browser)
     ↓ parse + resample to ~500 m
-Overpass query by chunks (25 pts, 3 pts overlap, around:1000)
+Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1000; a failed chunk is retried up to 3 rounds, split in two)
     ↓ via server proxy, or directly in the static build (VITE_STANDALONE)
 Tag matching → 18 categories
     ↓ perpendicular distance to trace (< maxDistanceM), dedup 50 m same category, sort along trace
 Map + list + elevation profile (gaps without water/food)
-    ↓ optional enrichment: geocode → SearXNG → WebLLM synthesis, deterministic fallback
+    ↓ optional enrichment: geocode → official site (+1 hop, evidence windows) → SearXNG in the country's language → WebLLM synthesis, deterministic fallback
 Export: GPX, KML, GeoJSON, OsmAnd GPX, KMZ, plan file (.ravitools.json)
 ```
 
 ### Multi-GPX
 
-Several traces at once; each POI is attributed to its nearest trace (`lib/trace-attribution.ts`). Distance filtering is the minimum over all traces.
+Several traces at once; each POI carries the id of its nearest trace (`POI.traceId`, set by `lib/poi-processor.ts`). Distance filtering is the minimum over all traces.
 
 ### Session restore
 
@@ -265,6 +267,17 @@ Every enriched POI carries confidence, provenance and `synthesisSource` (AI / AI
 
 **You MUST run the linter after every code modification and fix errors BEFORE moving on.**
 
+### Warnings are errors, in the tools
+
+A warning that does not fail `just check` is a warning nobody reads. The tools enforce it:
+
+- biome: `biome check --error-on-warnings .` over the whole package (`src`, tests, e2e, config files), not just `src`
+- TypeScript: `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch` in both packages
+- vitest: `expect.requireAssertions` in both packages (a test without an assertion fails)
+- Any other tool that prints warnings (vite build, vitest, playwright, bun install): fix the cause, or ask
+
+Never lower a rule's severity, never add `biome-ignore`, `@ts-expect-error` or an exclude to get green without explicit approval. When you add a tool, configure it so its warnings fail.
+
 ### Commands
 
 ```bash
@@ -274,7 +287,17 @@ just test         # or just test-client / just test-server
 just lint
 just format
 just test-e2e     # Playwright (client)
+just test-live    # live contract checks against the real sources (network, not part of check)
+just outdated     # outdated dependencies, all workspaces
+just update       # in-range updates (semver ranges of package.json), then just check
 ```
+
+### Dependency updates
+
+1. Start of every session: `just outdated`, then `just update`. A broken update is fixed before any feature work.
+2. Major versions: one package per change, never bundled with a feature. Read the changelog/migration guide, apply it, `just check` plus `CI=1 just test-e2e` (Playwright starts a fresh dev server; a running one still serves the old pre-bundled deps), then report what changed.
+3. Keep the tooling in step: bump `biome.json`'s `$schema` with biome (`biome migrate`), and the stack versions listed in this file.
+4. A dependency the stdlib or the platform now covers gets removed rather than updated.
 
 ### Workflow
 
@@ -304,6 +327,7 @@ just test-e2e     # Playwright (client)
 - Example GPX files live in `web/examples/`
 - The WebLLM chunk is ~6 MB (WASM runtime); dynamic import is code-split but Vite still bundles it. Cosmetic
 - Firefox has no WebGPU by default: LLM enrichment needs Chrome/Edge/Safari
+- TypeScript 7 (native compiler) ships no JS API until 7.1: a tool that imports `typescript` needs the `@typescript/typescript6` alias
 - MemPalace must run with the repo's Python 3.12 venv, not Python 3.14
 
 ## MemPalace

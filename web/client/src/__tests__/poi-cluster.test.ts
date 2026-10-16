@@ -16,14 +16,8 @@ function poi(id: string, lat: number, lon: number): POI {
     icon: "faucet-drip",
     distanceToTrace: 10,
     alongTraceDistance: 0,
+    traceId: "trace_1",
     tags: {},
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFF",
-      borderWidth: "2",
-      textColor: "#FFF",
-      backgroundColor: "#3B82F6",
-    },
   };
 }
 

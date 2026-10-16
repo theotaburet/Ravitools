@@ -3,14 +3,16 @@
 import { describe, expect, it } from "vitest";
 import type { OverpassElement } from "../lib/overpass";
 import { processElements } from "../lib/poi-processor";
-import type { TracePoint } from "../types";
 
-const TRACE: TracePoint[] = [
-  { lat: 48.8566, lon: 2.3522 },
-  { lat: 48.86, lon: 2.36 },
-  { lat: 48.865, lon: 2.37 },
-  { lat: 48.87, lon: 2.38 },
-];
+const TRACE = {
+  id: "trace_1",
+  original: [
+    { lat: 48.8566, lon: 2.3522 },
+    { lat: 48.86, lon: 2.36 },
+    { lat: 48.865, lon: 2.37 },
+    { lat: 48.87, lon: 2.38 },
+  ],
+};
 
 describe("processElements", () => {
   it("should match a water POI from Overpass data", () => {
@@ -48,6 +50,36 @@ describe("processElements", () => {
     expect(pois[0].name).toBe("Camping du Bois");
   });
 
+  it("drops bus shelters and keeps weather shelters", () => {
+    const elements: OverpassElement[] = [
+      {
+        type: "node",
+        id: 2101,
+        lat: 48.862,
+        lon: 2.365,
+        tags: { amenity: "shelter", shelter_type: "public_transport", name: "Arrêt Mairie" },
+      },
+      {
+        type: "node",
+        id: 2102,
+        lat: 48.863,
+        lon: 2.366,
+        tags: { amenity: "shelter", shelter_type: "weather_shelter" },
+      },
+      {
+        type: "node",
+        id: 2103,
+        lat: 48.864,
+        lon: 2.367,
+        tags: { amenity: "shelter" },
+      },
+    ];
+
+    const pois = processElements(elements, [TRACE]);
+    expect(pois.map((p) => p.osmId)).toEqual([2102, 2103]);
+    expect(pois.every((p) => p.category === "Shelter")).toBe(true);
+  });
+
   it("should filter out POIs too far from trace", () => {
     const elements: OverpassElement[] = [
       {
@@ -81,7 +113,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, [TRACE], 1500, 50);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(1);
     // Should keep the one with more tags (the named one)
     expect(pois[0].name).toBe("Fontaine du Parc");
@@ -105,7 +137,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, [TRACE], 1500, 50);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(2);
   });
 
@@ -135,7 +167,7 @@ describe("processElements", () => {
       },
     );
 
-    const pois = processElements(elements, [TRACE], 20000, 50);
+    const pois = processElements(elements, [TRACE], 20000);
     expect(pois.some((poi) => poi.name === "Dense A")).toBe(true);
     expect(pois.some((poi) => poi.name === "Dense B")).toBe(false);
   });
@@ -158,7 +190,7 @@ describe("processElements", () => {
       },
     ];
 
-    const pois = processElements(elements, [TRACE], 1500, 50);
+    const pois = processElements(elements, [TRACE], 1500);
     expect(pois.length).toBe(2);
   });
 

@@ -2,8 +2,9 @@
 // (split from enrichment.test.ts)
 
 import { describe, expect, it } from "vitest";
+import { buildGoogleMapsUrl } from "../lib/enrichment/google-maps";
 import { isWebGpuAvailable } from "../lib/enrichment/llm";
-import { buildGoogleMapsUrl, buildSearchQuery } from "../lib/enrichment/search";
+import { buildSearchQuery } from "../lib/enrichment/query-builder";
 import { makePoi } from "./enrichment-helpers";
 
 // --- Google Maps link builder ---
@@ -54,9 +55,9 @@ describe("buildSearchQuery", () => {
     expect(query).not.toContain("null");
   });
 
-  it("adds review/hours bias keywords", () => {
+  it("adds review/hours bias keywords in the country's language", () => {
     const poi = makePoi();
-    const query = buildSearchQuery(poi, null);
+    const query = buildSearchQuery(poi, null, "fr");
     expect(query).toContain("avis restaurant horaires");
   });
 

@@ -1,22 +1,10 @@
 // POI processor: converts raw Overpass elements into typed POIs
-// Port of data_processor.py logic with deduplication and trace-distance filtering
+// Tag matching, deduplication and trace-distance filtering
 
-import type { POI, PoiCategory, TracePoint } from "../types";
+import type { POI, TraceData } from "../types";
 import { alongTraceProjection, distanceToTrace, haversine, TraceIndex } from "./gpx-parser";
 import type { OverpassElement } from "./overpass";
-import { findCategoryForTag } from "./poi-config";
-
-const NON_MERGEABLE_CATEGORIES = new Set<PoiCategory>([
-  "Restaurant or Bar",
-  "Food shop",
-  "Sleeping place",
-  "Gears",
-  "Medical",
-  "Pharmacy",
-  "Bank & ATM",
-  "Post office",
-  "Tourist info",
-]);
+import { DEFAULT_MAX_DISTANCE_M, findCategoryForTag, MERGEABLE_CATEGORIES } from "./poi-config";
 
 let nextId = 1;
 function generateId(): string {
@@ -25,30 +13,23 @@ function generateId(): string {
 
 // --- Main processing function ---
 
+/** Same-category POIs closer than this merge (grows with POI density, see computeAdaptiveDedupRadius) */
+const DEDUP_RADIUS_M = 50;
+
 /**
  * Process raw Overpass elements into POI objects.
  *
  * Steps:
  * 1. Match each element to a category via OSM tags
- * 2. Compute distance to nearest trace (corridor filtering)
+ * 2. Distance to the nearest trace, on its full-resolution points (the 500 m
+ *    resampling cuts tight curves); keep it if within `maxDistanceM`
  * 3. Deduplicate nearby POIs of the same category
- * 4. Sort by distance to trace
- *
- * @param elements - Raw Overpass API elements
- * @param traces - Array of simplified traces for distance calculation
- * @param maxDistanceM - Maximum distance from any trace to keep (default 1500m)
- * @param deduplicationRadiusM - Merge POIs within this radius (default 50m)
- * @param originalTraces - If provided, use these (full-resolution) traces
- *   for distance calculation instead of the simplified ones. This avoids
- *   missing POIs near tight curves that the 500m resampling may cut.
- *   A spatial index is built automatically so performance stays O(k) per POI.
+ * 4. Sort in travel order
  */
 export function processElements(
   elements: OverpassElement[],
-  traces: TracePoint[][],
-  maxDistanceM: number = 1500,
-  deduplicationRadiusM: number = 50,
-  originalTraces?: TracePoint[][],
+  traces: Pick<TraceData, "id" | "original">[],
+  maxDistanceM: number = DEFAULT_MAX_DISTANCE_M,
 ): POI[] {
   // Step 1: Convert elements to POIs
   const rawPois: POI[] = [];
@@ -58,19 +39,16 @@ export function processElements(
     if (poi) rawPois.push(poi);
   }
 
-  // Step 2: Compute distance to nearest trace and filter.
-  // When original traces are available, build spatial indices for fast lookup
-  // on potentially very long polylines (10k+ points for 600km routes).
-  const distTraces = originalTraces ?? traces;
-  const indices = distTraces.map((t) => (t.length > 200 ? new TraceIndex(t) : null));
+  // Step 2: spatial indices keep long polylines (10k+ points for 600 km) fast
+  const indices = traces.map((t) => (t.original.length > 200 ? new TraceIndex(t.original) : null));
 
   const withDistance: POI[] = [];
   for (const poi of rawPois) {
     let minDist = Infinity;
     let bestTraceIdx = 0;
-    for (let ti = 0; ti < distTraces.length; ti++) {
+    for (let ti = 0; ti < traces.length; ti++) {
       const idx = indices[ti];
-      const dist = idx ? idx.distanceTo(poi) : distanceToTrace(poi, distTraces[ti]);
+      const dist = idx ? idx.distanceTo(poi) : distanceToTrace(poi, traces[ti].original);
       if (dist < minDist) {
         minDist = dist;
         bestTraceIdx = ti;
@@ -78,14 +56,15 @@ export function processElements(
     }
     poi.distanceToTrace = minDist;
     if (minDist <= maxDistanceM) {
-      // Compute along-trace distance for ordering POIs in travel order
-      poi.alongTraceDistance = alongTraceProjection(poi, distTraces[bestTraceIdx]);
+      poi.traceId = traces[bestTraceIdx].id;
+      // Along-trace distance orders POIs in travel order
+      poi.alongTraceDistance = alongTraceProjection(poi, traces[bestTraceIdx].original);
       withDistance.push(poi);
     }
   }
 
   // Step 3: Deduplicate
-  const deduped = deduplicatePois(withDistance, deduplicationRadiusM);
+  const deduped = deduplicatePois(withDistance, DEDUP_RADIUS_M);
 
   // Step 4: Sort by along-trace distance (travel order from GPX start)
   deduped.sort((a, b) => a.alongTraceDistance - b.alongTraceDistance);
@@ -114,19 +93,19 @@ function elementToPoi(el: OverpassElement): POI | null {
 
   // Match tags to a category
   for (const [key, value] of Object.entries(tags)) {
-    const match = findCategoryForTag(key, value);
+    const match = findCategoryForTag(key, value, tags);
     if (match) {
       return {
         id: generateId(),
         lat,
         lon,
         category: match.category.category,
-        name: tags.name || formatFallbackName(match.category.category, key, value),
+        name: tags.name || formatFallbackName(value),
         icon: match.tag.icon,
         distanceToTrace: 0, // computed later
         alongTraceDistance: 0, // computed later
+        traceId: "", // computed later
         tags,
-        style: match.category.style,
         osmId: el.id,
         osmType: el.type,
       };
@@ -136,7 +115,7 @@ function elementToPoi(el: OverpassElement): POI | null {
   return null;
 }
 
-function formatFallbackName(_category: string, _key: string, value: string): string {
+function formatFallbackName(value: string): string {
   // Produce a readable name like "Drinking water" from "drinking_water"
   const readable = value.replace(/_/g, " ");
   return readable.charAt(0).toUpperCase() + readable.slice(1);
@@ -158,7 +137,7 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
 
     let best = pois[i];
 
-    if (!isMergeableCategory(best.category) || effectiveRadius <= 0) {
+    if (!MERGEABLE_CATEGORIES[best.category] || effectiveRadius <= 0) {
       kept.push(best);
       continue;
     }
@@ -166,7 +145,6 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
     for (let j = i + 1; j < pois.length; j++) {
       if (removed.has(j)) continue;
       if (pois[i].category !== pois[j].category) continue;
-      if (!isMergeableCategory(pois[j].category)) continue;
 
       const dist = haversine(pois[i], pois[j]);
       if (dist <= effectiveRadius) {
@@ -182,10 +160,6 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
   }
 
   return kept;
-}
-
-function isMergeableCategory(category: PoiCategory): boolean {
-  return !NON_MERGEABLE_CATEGORIES.has(category);
 }
 
 function computeAdaptiveDedupRadius(count: number, baseRadiusM: number): number {

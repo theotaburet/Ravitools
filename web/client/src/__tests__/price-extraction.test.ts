@@ -23,7 +23,7 @@ describe("extractPriceLevel: repeated currency symbols", () => {
   });
 
   it("detects €€ as level 2", () => {
-    expect(extractPriceLevel([snippet("Price: €€ — moderate pricing")])).toBe(2);
+    expect(extractPriceLevel([snippet("Price: €€ \u2014 moderate pricing")])).toBe(2);
   });
 
   it("detects $$$ as level 3", () => {
@@ -31,7 +31,7 @@ describe("extractPriceLevel: repeated currency symbols", () => {
   });
 
   it("detects €€€€ as level 4", () => {
-    expect(extractPriceLevel([snippet("€€€€ — fine dining experience")])).toBe(4);
+    expect(extractPriceLevel([snippet("€€€€ \u2014 fine dining experience")])).toBe(4);
   });
 
   it("detects £££ as level 3", () => {
@@ -46,7 +46,7 @@ describe("extractPriceLevel: repeated currency symbols", () => {
     // Two signals: €€ (2) and €€€€ (4) → sorted [2, 4], median index 1 = 4
     const result = extractPriceLevel([
       snippet("Google Maps says: €€"),
-      snippet("Tripadvisor: €€€€ — expensive"),
+      snippet("Tripadvisor: €€€€ \u2014 expensive"),
     ]);
     expect(result).toBe(4);
   });
@@ -175,13 +175,13 @@ describe("extractPriceLevel: priority ordering", () => {
   it("prefers repeated symbols over numeric prices", () => {
     // €€ = level 2, but numeric "95€" would suggest level 4
     // Repeated symbols should win because they're from review platforms
-    const result = extractPriceLevel([snippet("€€ — Menu dégustation: 95€")]);
+    const result = extractPriceLevel([snippet("€€ \u2014 Menu dégustation: 95€")]);
     expect(result).toBe(2);
   });
 
   it("prefers repeated symbols over textual labels", () => {
     // $$$ = level 3, but "cheap" would suggest level 1
-    const result = extractPriceLevel([snippet("$$$ — surprisingly cheap for the area")]);
+    const result = extractPriceLevel([snippet("$$$ \u2014 surprisingly cheap for the area")]);
     expect(result).toBe(3);
   });
 });

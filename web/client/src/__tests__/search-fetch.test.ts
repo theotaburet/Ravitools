@@ -16,14 +16,8 @@ function makePoi(overrides: Partial<POI> = {}): POI {
     icon: "utensils",
     distanceToTrace: 120,
     alongTraceDistance: 5000,
+    traceId: "trace_1",
     tags: { amenity: "restaurant" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#FF6B35",
-    },
     ...overrides,
   };
 }
@@ -66,7 +60,7 @@ describe("searchPoi", () => {
         ]),
     });
 
-    const result = await searchPoi(makePoi(), "Tours", "/api");
+    const result = await searchPoi(makePoi(), "Tours");
     expect(result.snippets).toHaveLength(2);
     expect(result.snippets[0].title).toBe("Le Petit Zinc: Review 1");
     expect(result.snippets[0].content).toBe("Great place");
@@ -87,7 +81,7 @@ describe("searchPoi", () => {
         ]),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     expect(result.snippets).toHaveLength(2);
     expect(result.snippets[0].url).toBe("https://same.com");
     expect(result.snippets[1].url).toBe("https://other.com");
@@ -105,7 +99,7 @@ describe("searchPoi", () => {
         ]),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     expect(result.snippets).toHaveLength(1);
     expect(result.snippets[0].title).toBe("Le Petit Zinc: Has content");
   });
@@ -124,7 +118,7 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse(many),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     expect(result.snippets).toHaveLength(8);
   });
 
@@ -141,7 +135,7 @@ describe("searchPoi", () => {
           ]),
       });
 
-    const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
+    const result = await searchPoi(makePoi(), null, undefined, 1);
     expect(result.snippets).toHaveLength(1);
     expect(result.snippets[0].title).toBe("Le Petit Zinc: After retry");
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -159,7 +153,7 @@ describe("searchPoi", () => {
           ]),
       });
 
-    const result = await searchPoi(makePoi(), null, "/api", undefined, 1);
+    const result = await searchPoi(makePoi(), null, undefined, 1);
     expect(result.snippets).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 10_000);
@@ -171,18 +165,14 @@ describe("searchPoi", () => {
       statusText: "Bad Request",
     });
 
-    await expect(searchPoi(makePoi(), null, "/api", undefined, 0)).rejects.toThrow(
-      "Search failed: 400",
-    );
+    await expect(searchPoi(makePoi(), null, undefined, 0)).rejects.toThrow("Search failed: 400");
   });
 
   it("throws when signal is already aborted", async () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(searchPoi(makePoi(), null, "/api", controller.signal)).rejects.toThrow(
-      "Cancelled",
-    );
+    await expect(searchPoi(makePoi(), null, controller.signal)).rejects.toThrow("Cancelled");
   });
 
   it("returns empty array when SearXNG returns no results", async () => {
@@ -194,7 +184,7 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse([]),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     expect(result.snippets).toHaveLength(0);
   });
 
@@ -205,7 +195,7 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse([]),
     });
 
-    await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon", "/api");
+    await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon");
 
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/search");
@@ -213,7 +203,8 @@ describe("searchPoi", () => {
     const body = JSON.parse(opts.body);
     expect(body.query).toContain('"Chez Marie"');
     expect(body.query).toContain("Lyon");
-    expect(body.language).toBe("fr");
+    // No geocoded country here: the search falls back to English
+    expect(body.language).toBe("en");
     expect(body.engines).toBe("bing,yandex");
   });
 
@@ -224,7 +215,7 @@ describe("searchPoi", () => {
       json: async () => makeSearxResponse([]),
     });
 
-    await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon", "/api", undefined, 3, {
+    await searchPoi(makePoi({ name: "Chez Marie" }), "Lyon", undefined, 3, {
       locality: "Lyon",
       county: "Rhône",
       state: "Auvergne-Rhône-Alpes",
@@ -246,7 +237,7 @@ describe("searchPoi", () => {
         ]),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     expect(result.snippets[0].content).toBe("padded content");
   });
 
@@ -260,7 +251,7 @@ describe("searchPoi", () => {
       }),
     });
 
-    const result = await searchPoi(makePoi(), null, "/api");
+    const result = await searchPoi(makePoi(), null);
     // engine is "" which is falsy → should fallback to "unknown"
     expect(result.snippets[0].engine).toBe("unknown");
   });

@@ -73,11 +73,13 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "session.resume": { en: "Resume", fr: "Reprendre" },
   "theme.toggle": { en: "Toggle dark mode", fr: "Basculer le mode sombre" },
   "steps.label": { en: "Route preparation steps", fr: "Étapes de préparation" },
+  "sheet.toggle": { en: "Show or hide the panel", fr: "Afficher ou masquer le panneau" },
   "steps.trace": { en: "Load a route", fr: "Charger une trace" },
   "steps.filter": { en: "Refine the POIs", fr: "Affiner les POI" },
   "steps.enrich": { en: "Enrich", fr: "Enrichir" },
   "steps.export": { en: "Export offline", fr: "Exporter hors ligne" },
   "steps.done": { en: "done", fr: "fait" },
+  "summary.pois": { en: "POIs", fr: "POI" },
   "map.emptyTitle": { en: "Your route will appear here", fr: "Votre route s'affichera ici" },
   "map.fromRoute": { en: "m from route", fr: "m de la route" },
   "map.hours": { en: "Hours:", fr: "Horaires :" },
@@ -106,12 +108,11 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
   "upload.drop": { en: "Drop your .GPX files here", fr: "Déposez vos fichiers .GPX ici" },
+  "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
   "upload.browse": {
     en: "or click to browse (multiple files OK)",
     fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)",
   },
-  "filter.titleFilter": { en: "Filter POIs", fr: "Filtrer les POI" },
-  "filter.titleSearch": { en: "Categories to search", fr: "Catégories à rechercher" },
   "filter.all": { en: "All", fr: "Tout" },
   "filter.none": { en: "None", fr: "Aucun" },
   "filter.maxDistance": { en: "Max distance to route", fr: "Distance max. à l'itinéraire" },
@@ -134,6 +135,23 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   // POI list enrichment details
   "poi.reviews": { en: "reviews", fr: "avis" },
   "poi.closed": { en: "Closed", fr: "Fermé" },
+  "poi.season": { en: "Season", fr: "Saison" },
+  "poi.prices": { en: "Prices", fr: "Tarifs" },
+  "poi.bookingRequired": { en: "Booking required", fr: "Réservation obligatoire" },
+  "poi.bookingRecommended": { en: "Booking recommended", fr: "Réservation conseillée" },
+  "poi.bookingNotNeeded": { en: "No booking needed", fr: "Sans réservation" },
+  "fact.beds": { en: "beds", fr: "lits" },
+  "fact.places": { en: "places", fr: "places" },
+  "fact.rooms": { en: "rooms", fr: "chambres" },
+  "fact.stars": { en: "stars", fr: "étoiles" },
+  "fact.winterRoom": { en: "Winter room", fr: "Salle d'hiver" },
+  "fact.operator": { en: "Operator", fr: "Gestionnaire" },
+  "fact.fee": { en: "Fee", fr: "Payant" },
+  "fact.free": { en: "Free", fr: "Gratuit" },
+  "fact.wifi": { en: "Wi-Fi", fr: "Wi-Fi" },
+  "fact.wheelchair": { en: "Wheelchair access", fr: "Accès fauteuil" },
+  "fact.drinkingWater": { en: "Drinking water", fr: "Eau potable" },
+  "fact.noDrinkingWater": { en: "No drinking water", fr: "Pas d'eau potable" },
   "poi.sourceWord": { en: "source", fr: "source" },
   "poi.confidence.high": { en: "high", fr: "élevée" },
   "poi.confidence.medium": { en: "medium", fr: "moyenne" },
@@ -158,9 +176,9 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "export.poisReady": { en: "POIs ready", fr: "POI prêts" },
   "export.enriched": { en: "enriched", fr: "enrichis" },
   "export.smartphone": { en: "Export for Smartphone", fr: "Export smartphone" },
-  "export.offlineApps": {
-    en: "Offline maps apps (OsmAnd, Organic Maps, Guru Maps)",
-    fr: "Apps de cartes hors-ligne (OsmAnd, Organic Maps, Guru Maps)",
+  "export.fitBody": {
+    en: "course with typed points (water, food, camp…): Garmin Up Ahead, Wahoo and Karoo alerts. Copy to Garmin/NewFiles over USB or import in the app; older Edge units stop alerting after 200 points.",
+    fr: "parcours avec points typés (eau, nourriture, camping…) : Up Ahead Garmin, alertes Wahoo et Karoo. Copie USB dans Garmin/NewFiles ou import dans l'app ; les anciens Edge n'alertent plus au-delà de 200 points.",
   },
   "export.osmandBody": {
     en: "includes custom icons and colors per category. Other apps import it as standard GPX.",
@@ -176,10 +194,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "(notes, horaires, avis) sont incluses dans les descriptions d'export.",
   },
   "export.plan": { en: "Plan file", fr: "Fichier de plan" },
-  "export.savePlan": {
-    en: "Save plan (.ravitools.json)",
-    fr: "Sauvegarder le plan (.ravitools.json)",
-  },
   "export.planBody": {
     en: "Reload it later or share it: traces, POIs and enrichments included.",
     fr: "Rechargez-le plus tard ou partagez-le : traces, POI et enrichissements inclus.",
@@ -193,7 +207,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Fichier de plan invalide ou incompatible (.ravitools.json)",
   },
   "roadbook.title": { en: "Roadbook", fr: "Roadbook" },
-  "roadbook.open": { en: "Open the roadbook", fr: "Ouvrir le roadbook" },
   "roadbook.body": {
     en: "Printable route sheet: profile + POI table per trace.",
     fr: "Feuille de route imprimable : profil + tableau des POI par trace.",
@@ -204,24 +217,86 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "roadbook.category": { en: "Category", fr: "Catégorie" },
   "roadbook.name": { en: "Name", fr: "Nom" },
   "roadbook.hours": { en: "Hours", fr: "Horaires" },
+  // Upload extras
+  "upload.example": {
+    en: "Try an example route (Col du Galibier)",
+    fr: "Essayer un parcours exemple (col du Galibier)",
+  },
+  "upload.exampleFailed": {
+    en: "The example route could not be loaded.",
+    fr: "Le parcours exemple n'a pas pu être chargé.",
+  },
+  // Export cards
+  "export.which": { en: "Which format?", fr: "Quel format ?" },
+  "export.fitTarget": {
+    en: "Garmin, Wahoo, Karoo: typed alerts",
+    fr: "Garmin, Wahoo, Karoo : alertes typées",
+  },
+  "export.gpxTarget": { en: "COROS and any GPS, standard", fr: "COROS et tout GPS, standard" },
+  "export.kmlTarget": { en: "Google Earth", fr: "Google Earth" },
+  "export.geojsonTarget": { en: "Web maps, QGIS", fr: "Cartes web, QGIS" },
+  "export.osmandTarget": {
+    en: "OsmAnd: icons and colors per category",
+    fr: "OsmAnd : icônes et couleurs par catégorie",
+  },
+  "export.kmzTarget": { en: "Organic Maps, Guru Maps", fr: "Organic Maps, Guru Maps" },
+  "export.files": { en: "Plan and roadbook", fr: "Plan et roadbook" },
+  // Elevation strip
+  "profile.gapPrefix": { en: "Alert above", fr: "Alerte au-delà de" },
+  // Local model capability check
+  "llm.title": { en: "Local AI synthesis", fr: "Synthèse IA locale" },
+  "llm.more": { en: "See more", fr: "Voir plus" },
+  "llm.checking": { en: "checking this machine…", fr: "vérification de la machine…" },
+  "llm.ready": { en: "ready", fr: "prête" },
+  "llm.limited": { en: "limited", fr: "limitée" },
+  "llm.unsupported": { en: "unavailable", fr: "indisponible" },
+  "llm.modelNote": {
+    en: "downloaded once, then kept in the browser cache",
+    fr: "téléchargé une fois, puis gardé en cache par le navigateur",
+  },
+  "llm.fallback": {
+    en: "Search snippets are still collected and summarised without AI.",
+    fr: "Les extraits de recherche sont quand même collectés et résumés sans IA.",
+  },
+  "llm.tryAnyway": {
+    en: "Try anyway (the tab may run out of memory)",
+    fr: "Essayer quand même (l'onglet peut manquer de mémoire)",
+  },
+  "llm.reason.no-webgpu": {
+    en: "no WebGPU in this browser (Chrome, Edge or Safari 26 have it)",
+    fr: "pas de WebGPU dans ce navigateur (Chrome, Edge ou Safari 26 l'ont)",
+  },
+  "llm.reason.no-adapter": {
+    en: "the browser found no usable GPU",
+    fr: "le navigateur n'a trouvé aucun GPU utilisable",
+  },
+  "llm.reason.software-adapter": {
+    en: "software rendering only",
+    fr: "rendu logiciel uniquement",
+  },
+  "llm.reason.small-buffers": {
+    en: "GPU buffers too small for the model",
+    fr: "tampons GPU trop petits pour le modèle",
+  },
+  "llm.reason.low-memory": { en: "less than 8 GB of memory", fr: "moins de 8 Go de mémoire" },
+  "llm.reason.mobile": { en: "mobile device", fr: "appareil mobile" },
   // Enrichment panel
   "enrich.title": { en: "Enrich POIs", fr: "Enrichir les POI" },
   "enrich.subtitle": {
     en: "Add ratings, hours, reviews via web search",
     fr: "Ajoute notes, horaires, avis via recherche web",
   },
-  "enrich.aiSynthesis": { en: " + AI synthesis", fr: " + synthèse IA" },
-  "enrich.noWebgpu": {
-    en: "No WebGPU: raw search snippets only (no AI synthesis). Use Chrome/Edge for full experience.",
-    fr: "Pas de WebGPU : extraits de recherche bruts uniquement (pas de synthèse IA). Utilisez Chrome/Edge pour l'expérience complète.",
-  },
   "enrich.searxngUnavailable": {
-    en: "SearXNG unavailable: search enrichment disabled. Start SearXNG:",
-    fr: "SearXNG indisponible : enrichissement par recherche désactivé. Démarrez SearXNG :",
+    en: "Web search is unavailable right now, so enrichment is paused. POIs, map and exports still work.",
+    fr: "La recherche web est indisponible pour le moment, l'enrichissement est donc en pause. POI, carte et exports restent utilisables.",
   },
   "enrich.scraperBlocked": {
     en: "Map scraper blocked (CAPTCHA / anti-bot). Some POIs may stay un-enriched: wait a few minutes or change your IP, then retry.",
     fr: "Scraper de cartes bloqué (CAPTCHA / anti-bot). Certains POI peuvent rester non enrichis : attendez quelques minutes ou changez d'IP, puis réessayez.",
+  },
+  "enrich.sourceLayout": {
+    en: "Google Maps changed its page layout: some opening hours could not be read. Check the server logs.",
+    fr: "Google Maps a changé la mise en page de ses fiches : certains horaires n'ont pas pu être lus. Voir les logs du serveur.",
   },
   "enrich.googleQueue": { en: "Google queue:", fr: "File Google :" },
   "enrich.queued": { en: "queued", fr: "en file" },
@@ -236,11 +311,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.all": { en: "all", fr: "tous les" },
   "enrich.poisWord": { en: "POIs", fr: "POI" },
   "enrich.startSearxngTitle": {
-    en: "Start SearXNG to enable enrichment",
-    fr: "Démarrez SearXNG pour activer l'enrichissement",
+    en: "Web search is unavailable",
+    fr: "Recherche web indisponible",
   },
   "enrich.poisEnriched": { en: "POIs enriched", fr: "POI enrichis" },
-  "enrich.retryableRemaining": { en: "retryable remaining", fr: "réessayables restants" },
   "enrich.continue": { en: "Continue enrichment", fr: "Continuer l'enrichissement" },
   "enrich.continueShort": { en: "Continue", fr: "Continuer" },
   "enrich.retryable": { en: "retryable", fr: "réessayables" },
@@ -248,11 +322,14 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "enrich.loadingModel": { en: "Loading AI model...", fr: "Chargement du modèle IA..." },
   "enrich.preparing": { en: "Preparing enrichment...", fr: "Préparation de l'enrichissement..." },
   "enrich.cancel": { en: "Cancel", fr: "Annuler" },
-  "enrich.phaseSearching": { en: "Searching...", fr: "Recherche..." },
-  "enrich.phaseGoogle": { en: "Google fallback queue...", fr: "File de secours Google..." },
-  "enrich.phaseSynth": { en: "AI synthesis...", fr: "Synthèse IA..." },
-  "enrich.phaseRetry": { en: "Retrying failed...", fr: "Réessai des échecs..." },
-  "enrich.phaseEnriching": { en: "Enriching...", fr: "Enrichissement..." },
+  "enrich.phase.geocode-search": { en: "Searching...", fr: "Recherche..." },
+  "enrich.phase.google-fallback": {
+    en: "Google fallback queue...",
+    fr: "File de secours Google...",
+  },
+  "enrich.phase.synthesize": { en: "AI synthesis...", fr: "Synthèse IA..." },
+  "enrich.phase.retry": { en: "Retrying failed...", fr: "Réessai des échecs..." },
+  "enrich.phase.idle": { en: "Enriching...", fr: "Enrichissement..." },
   "enrich.googleWait": {
     en: "Google Maps can take 30-90s per place. Still running: please wait.",
     fr: "Google Maps peut prendre 30-90s par lieu. Toujours en cours : patientez.",
@@ -290,13 +367,134 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Les résumés générés par IA peuvent être faux : vérifiez horaires/prix avant de vous y fier.",
   },
   "enrich.error": { en: "Error:", fr: "Erreur :" },
-  "enrich.enrichedBeforeError": { en: "enriched before error", fr: "enrichis avant l'erreur" },
+  "caution.noPlatform": {
+    en: "No identifiable review or discovery platform found.",
+    fr: "Aucune plateforme d'avis ou de découverte identifiée.",
+  },
+  "caution.weakSource.Restaurant or Bar": {
+    en: "Limited online presence; verify hours on arrival.",
+    fr: "Peu présent en ligne : vérifiez les horaires sur place.",
+  },
+  "caution.weakSource.Food shop": {
+    en: "Listed on maps but no online reviews; verify hours and stock on-site.",
+    fr: "Sur les cartes mais sans avis en ligne : vérifiez horaires et stock sur place.",
+  },
+  "caution.weakSource.Sleeping place": {
+    en: "Limited info online: contact directly to confirm availability and price.",
+    fr: "Peu d'informations en ligne : contactez directement pour confirmer disponibilité et prix.",
+  },
+  "caution.weakSource.Gears": {
+    en: "Listed as a bike/sports shop but limited online info: call ahead for repair availability.",
+    fr: "Magasin de vélo ou de sport peu présent en ligne : appelez avant pour une réparation.",
+  },
+  "caution.noRating": {
+    en: "No explicit rating found in the collected sources.",
+    fr: "Aucune note explicite dans les sources collectées.",
+  },
+  "caution.noHours": {
+    en: "Opening hours were not confirmed from the collected sources.",
+    fr: "Horaires non confirmés par les sources collectées.",
+  },
+  "caution.noReviewCount": {
+    en: "Rating found, but review volume was not confirmed.",
+    fr: "Note trouvée, mais nombre d'avis non confirmé.",
+  },
+  "caution.socialOnly": {
+    en: "Sources are limited to social profiles or generic directories: reliability uncertain.",
+    fr: "Sources limitées aux réseaux sociaux ou à des annuaires génériques : fiabilité incertaine.",
+  },
+  "divergence.hours": {
+    en: "Sources report different opening hours: verify locally.",
+    fr: "Les sources donnent des horaires différents : vérifiez sur place.",
+  },
+  "divergence.rating": {
+    en: "Rating varies across sources ({min} to {max}/5).",
+    fr: "La note varie selon les sources ({min} à {max}/5).",
+  },
+  "divergence.closedMixed": {
+    en: "Some sources suggest this place may be closed: verify before counting on it.",
+    fr: "Certaines sources disent ce lieu peut-être fermé : vérifiez avant de compter dessus.",
+  },
+  "divergence.closed": {
+    en: "Closure signals detected in sources: may be permanently or temporarily closed.",
+    fr: "Signes de fermeture dans les sources : peut-être fermé définitivement ou temporairement.",
+  },
+  "deterministic.description": {
+    en: "{name}, {type}, useful stop near the route.",
+    fr: "{name}, {type}, arrêt utile près de l'itinéraire.",
+  },
+  "deterministic.ratingCount": {
+    en: "Web reviews: {rating}/5 from {count} reviews.",
+    fr: "Avis web : {rating}/5 sur {count} avis.",
+  },
+  "deterministic.rating": { en: "Web reviews: {rating}/5.", fr: "Avis web : {rating}/5." },
+  "deterministic.count": {
+    en: "Review volume confirmed: {count}.",
+    fr: "Volume d'avis confirmé : {count}.",
+  },
+  "avail.sunday": { en: "Open Sunday", fr: "Ouvert le dimanche" },
+  "avail.evening": { en: "Open evenings", fr: "Ouvert le soir" },
+  "google.queueFailed": {
+    en: "Google Maps fallback failed to queue for {name}",
+    fr: "Impossible de lancer la recherche Google Maps pour {name}",
+  },
+  "google.timedOut": {
+    en: "Google Maps fallback timed out for {name}: moving on",
+    fr: "Recherche Google Maps trop longue pour {name} : on passe à la suite",
+  },
+  "google.failed": {
+    en: "Google Maps fallback failed for {name}",
+    fr: "La recherche Google Maps a échoué pour {name}",
+  },
+  "route.reading": { en: "Reading {n} GPX file(s)…", fr: "Lecture de {n} fichier(s) GPX…" },
+  "route.parsed": {
+    en: "{points} points read, simplified to {simplified} ({km} km)",
+    fr: "{points} points lus, simplifiés en {simplified} ({km} km)",
+  },
+  "route.querying": {
+    en: "Querying OpenStreetMap for {n} categories…",
+    fr: "Interrogation d'OpenStreetMap pour {n} catégories…",
+  },
+  "route.chunks": {
+    en: "Querying OpenStreetMap… ({done}/{total} chunks)",
+    fr: "Interrogation d'OpenStreetMap… ({done}/{total} tronçons)",
+  },
+  "route.chunksRetry": {
+    en: "Querying OpenStreetMap… ({done}/{total} chunks, retry {round})",
+    fr: "Interrogation d'OpenStreetMap… ({done}/{total} tronçons, nouvel essai {round})",
+  },
+  "route.processing": {
+    en: "Processing {n} OpenStreetMap elements…",
+    fr: "Traitement de {n} éléments OpenStreetMap…",
+  },
+  "route.found": {
+    en: "{n} POIs within {m} m of the route",
+    fr: "{n} POI à moins de {m} m de l'itinéraire",
+  },
+  "route.restored": {
+    en: "{n} POIs restored from the previous session",
+    fr: "{n} POI repris de la session précédente",
+  },
+  "route.chunksFailed": {
+    en: "{failed}/{total} OpenStreetMap chunks failed: results may be incomplete for parts of the route.",
+    fr: "{failed}/{total} tronçons OpenStreetMap en échec : résultats peut-être incomplets sur une partie de l'itinéraire.",
+  },
   "enrich.retry": { en: "Retry", fr: "Réessayer" },
 };
 
-/** Translate a UI chrome string; falls back to English, then the key itself. */
-export function t(key: string, lang: TargetLanguage): string {
-  return UI[key]?.[lang] ?? UI[key]?.en ?? key;
+/** Translate a UI chrome string; falls back to English, then the key itself. `{name}` takes `vars.name`. */
+export function t(
+  key: string,
+  lang: TargetLanguage,
+  vars?: Record<string, string | number>,
+): string {
+  const text = UI[key]?.[lang] ?? UI[key]?.en ?? key;
+  return vars ? text.replace(/\{(\w+)\}/g, (m, name: string) => String(vars[name] ?? m)) : text;
+}
+
+/** "Label: value", with the French space before the colon. */
+export function tLabel(key: string, value: string, lang: TargetLanguage): string {
+  return `${t(key, lang)}${lang === "fr" ? " : " : ": "}${value}`;
 }
 
 // Generic POI name translations

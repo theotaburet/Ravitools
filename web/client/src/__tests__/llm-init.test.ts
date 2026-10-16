@@ -28,9 +28,9 @@ afterEach(() => {
 describe("initEngine in-flight guard", () => {
   it("two concurrent calls invoke the engine factory once", async () => {
     vi.stubGlobal("navigator", { gpu: {} });
-    const { initEngine, resetLlmState, isWebGpuAvailable } = await import("../lib/enrichment/llm");
+    vi.resetModules(); // fresh module state: no engine loaded yet
+    const { initEngine, isWebGpuAvailable } = await import("../lib/enrichment/llm");
     expect(isWebGpuAvailable()).toBe(true);
-    resetLlmState();
 
     const [a, b] = await Promise.all([initEngine(), initEngine()]);
     expect(a).toBe(true);
@@ -45,8 +45,8 @@ describe("initEngine in-flight guard", () => {
 describe("synthesize repair exhaustion", () => {
   it("returns null when every repair attempt is still rejected", async () => {
     vi.stubGlobal("navigator", { gpu: {} });
-    const { initEngine, resetLlmState, synthesize } = await import("../lib/enrichment/llm");
-    resetLlmState();
+    vi.resetModules(); // fresh module state: no engine loaded yet
+    const { initEngine, synthesize } = await import("../lib/enrichment/llm");
     // English output while targetLanguage is fr → rejected on every attempt
     chatCreate.mockResolvedValue({
       choices: [

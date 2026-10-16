@@ -71,7 +71,6 @@ Environment=PORT=3001
 Environment=NODE_ENV=production
 Environment=CACHE_TTL=86400
 Environment=RATE_LIMIT_MAX=10
-Environment=CORS_ORIGIN=https://yourdomain.com
 Environment=SEARXNG_URL=http://localhost:8080
 Environment=NOMINATIM_URL=https://nominatim.openstreetmap.org
 
@@ -129,9 +128,6 @@ sudo certbot --nginx -d yourdomain.com
 # Health check
 curl http://localhost:3001/health
 
-# Cache stats
-curl http://localhost:3001/cache/stats
-
 # Frontend
 curl -I https://yourdomain.com/
 ```
@@ -144,7 +140,6 @@ curl -I https://yourdomain.com/
 | `NODE_ENV` | `production` | Disables pretty logging |
 | `CACHE_TTL` | `86400` | 24h, Overpass cache |
 | `RATE_LIMIT_MAX` | `10` | Per minute per IP (Overpass) |
-| `CORS_ORIGIN` | `https://yourdomain.com` | Lock down in prod |
 | `OVERPASS_URL` | default | Or a private Overpass instance |
 | `SEARXNG_URL` | `http://localhost:8080` | SearXNG instance for POI enrichment |
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Reverse geocoding for enrichment |
@@ -187,6 +182,6 @@ For alerting, check `/health` endpoint periodically.
 
 ## Scaling notes
 
-- **Cache**: current in-memory cache is lost on restart. For persistence, swap `node-cache` for Redis.
+- **Cache**: the in-memory caches (`src/caches.ts`) are lost on restart. For persistence, swap them for Redis.
 - **Multiple instances**: the server is stateless (except cache). Run multiple behind a load balancer if needed.
 - **Overpass alternatives**: if the public Overpass instance is too slow, consider a private Overpass instance or switching to a different endpoint.

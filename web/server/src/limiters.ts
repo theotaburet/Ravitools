@@ -1,34 +1,33 @@
 import rateLimit from "express-rate-limit";
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS } from "./config.js";
 
-export const limiter = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW_MS,
-  max: RATE_LIMIT_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many requests. Please wait before querying again.",
-  },
-});
+/** Per-IP limit over a window, answering 429 with a JSON `error` */
+function perIp(windowMs: number, limit: number, error: string) {
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error },
+  });
+}
 
-/** Separate rate limiter for enrichment endpoints (more generous) */
-export const enrichLimiter = rateLimit({
-  windowMs: 60_000,
-  max: Number(process.env.ENRICH_RATE_LIMIT ?? 300), // 5 req/s average: proxying to our own SearXNG
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many enrichment requests. Please wait.",
-  },
-});
+export const limiter = perIp(
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX,
+  "Too many requests. Please wait before querying again.",
+);
 
-/** Stricter limiter for the expensive Playwright scraper endpoints. */
-export const scraperLimiter = rateLimit({
-  windowMs: 60_000,
-  max: Number(process.env.SCRAPER_RATE_LIMIT ?? 20),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many scraper requests. Please wait.",
-  },
-});
+/** Enrichment endpoints, more generous: 5 req/s average, proxying to our own SearXNG */
+export const enrichLimiter = perIp(
+  60_000,
+  Number(process.env.ENRICH_RATE_LIMIT ?? 300),
+  "Too many enrichment requests. Please wait.",
+);
+
+/** Stricter, for the expensive Playwright scraper endpoints */
+export const scraperLimiter = perIp(
+  60_000,
+  Number(process.env.SCRAPER_RATE_LIMIT ?? 20),
+  "Too many scraper requests. Please wait.",
+);

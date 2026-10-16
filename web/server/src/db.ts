@@ -10,12 +10,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool, type PoolConfig } from "pg";
-import pino from "pino";
+import { log as rootLog } from "./logger.js";
 
-const log = pino({
-  name: "db",
-  transport: process.env.NODE_ENV !== "production" ? { target: "pino-pretty" } : undefined,
-});
+const log = rootLog.child({ name: "db" });
 
 // --- Types ---
 export type OsmType = "node" | "way" | "relation";
@@ -43,7 +40,8 @@ let initPromise: Promise<void> | null = null;
 let initialized = false;
 let disabled = false;
 
-const DEFAULT_MAX_AGE_DAYS = 90;
+/** Older cached enrichments come back flagged `is_stale` */
+const MAX_AGE_DAYS = 90;
 
 function buildPoolConfig(): PoolConfig | null {
   const url = process.env.DATABASE_URL;
@@ -129,65 +127,8 @@ export function isDbAvailable(): boolean {
 
 // --- Queries ---
 
-/** Compute is_stale flag from enriched_at timestamp + max_age_days */
-function computeIsStale(enrichedAt: Date, maxAgeDays: number): boolean {
-  const ageMs = Date.now() - enrichedAt.getTime();
-  return ageMs > maxAgeDays * 24 * 3600 * 1000;
-}
-
-/** Single lookup. Returns null if not found OR if DB unavailable. */
-export async function getPoi(
-  osm_type: OsmType,
-  osm_id: string,
-  maxAgeDays: number = DEFAULT_MAX_AGE_DAYS,
-): Promise<PoiEnrichmentRow | null> {
-  const p = getPool();
-  if (!p || disabled) return null;
-  try {
-    const { rows } = await p.query<{
-      osm_type: OsmType;
-      osm_id: string;
-      category: string;
-      lat: number;
-      lon: number;
-      name: string | null;
-      enrichment: unknown;
-      enriched_at: Date;
-    }>(
-      `SELECT osm_type, osm_id::text AS osm_id, category,
-              ST_Y(location::geometry) AS lat,
-              ST_X(location::geometry) AS lon,
-              name, enrichment, enriched_at
-         FROM poi_enrichment
-        WHERE osm_type = $1 AND osm_id = $2
-        LIMIT 1`,
-      [osm_type, osm_id],
-    );
-    if (rows.length === 0) return null;
-    const r = rows[0];
-    return {
-      osm_type: r.osm_type,
-      osm_id: r.osm_id,
-      category: r.category,
-      lat: Number(r.lat),
-      lon: Number(r.lon),
-      name: r.name,
-      enrichment: r.enrichment,
-      enriched_at: r.enriched_at.toISOString(),
-      is_stale: computeIsStale(r.enriched_at, maxAgeDays),
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error({ err: msg, osm_type, osm_id }, "getPoi failed");
-    return null;
-  }
-}
-
 /** Batch lookup. Returns map keyed by `osm_type/osm_id`. Missing entries omitted. */
-export async function getPoisBatch(
-  keys: PoiKey[],
-  maxAgeDays: number = DEFAULT_MAX_AGE_DAYS,
-): Promise<Map<string, PoiEnrichmentRow>> {
+export async function getPoisBatch(keys: PoiKey[]): Promise<Map<string, PoiEnrichmentRow>> {
   const result = new Map<string, PoiEnrichmentRow>();
   const p = getPool();
   if (!p || disabled || keys.length === 0) return result;
@@ -224,7 +165,7 @@ export async function getPoisBatch(
         name: r.name,
         enrichment: r.enrichment,
         enriched_at: r.enriched_at.toISOString(),
-        is_stale: computeIsStale(r.enriched_at, maxAgeDays),
+        is_stale: Date.now() - r.enriched_at.getTime() > MAX_AGE_DAYS * 24 * 3600 * 1000,
       });
     }
     return result;

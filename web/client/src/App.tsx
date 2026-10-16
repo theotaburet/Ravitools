@@ -1,7 +1,7 @@
 // --- App: layout + session lifecycle (state lives in jotai atoms, src/state/) ---
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { DebugPanel } from "./components/DebugPanel";
 import { ElevationProfile } from "./components/ElevationProfile";
@@ -11,28 +11,25 @@ import { GpxUpload } from "./components/GpxUpload";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
 import { Step, type StepState } from "./components/Step";
+import { TraceSummary } from "./components/TraceSummary";
 import { t } from "./lib/i18n";
 import { clearSession, hasSession, loadSession, saveSession } from "./lib/session";
-import { enrichmentsAtom, resetEnrichmentAtom, restoreEnrichmentsAtom } from "./state/enrichment";
+import { enrichmentSettledAtom, enrichmentsAtom } from "./state/enrichment";
 import {
-  activeCategoriesAtom,
   filteredPoisAtom,
   isProcessingAtom,
-  poisAtom,
   progressAtom,
   progressRatioAtom,
-  resetRouteAtom,
-  restoreRouteAtom,
   retryQueryAtom,
   routeErrorAtom,
-  routeSettingsAtom,
   routeWarningAtom,
   stageAtom,
   tracesAtom,
 } from "./state/route";
+import { resetAllAtom, restoreSessionAtom, sessionSnapshotAtom } from "./state/session";
 import {
-  enrichAllAtom,
   selectedPoiIdAtom,
+  sheetOpenAtom,
   showResumePromptAtom,
   targetLanguageAtom,
   themeAtom,
@@ -47,6 +44,31 @@ const EnrichmentSandbox = lazy(() =>
 // Static build (GitHub Pages): no server, so no enrichment.
 const STANDALONE = import.meta.env.VITE_STANDALONE === "true";
 
+function ThemeIcon({ dark }: { dark: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {dark ? (
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </>
+      ) : (
+        <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+      )}
+    </svg>
+  );
+}
+
 export default function App() {
   const sandboxMode = useMemo(
     () =>
@@ -56,9 +78,6 @@ export default function App() {
 
   const stage = useAtomValue(stageAtom);
   const traces = useAtomValue(tracesAtom);
-  const pois = useAtomValue(poisAtom);
-  const activeCategories = useAtomValue(activeCategoriesAtom);
-  const routeSettings = useAtomValue(routeSettingsAtom);
   const filteredPois = useAtomValue(filteredPoisAtom);
   const isProcessing = useAtomValue(isProcessingAtom);
   const progress = useAtomValue(progressAtom);
@@ -66,48 +85,33 @@ export default function App() {
   const warning = useAtomValue(routeWarningAtom);
   const error = useAtomValue(routeErrorAtom);
   const enrichments = useAtomValue(enrichmentsAtom);
+  const enrichmentSettled = useAtomValue(enrichmentSettledAtom);
 
   const [targetLanguage, setTargetLanguage] = useAtom(targetLanguageAtom);
   const [theme, setTheme] = useAtom(themeAtom);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-  }, [theme]);
-  const [enrichAll, setEnrichAll] = useAtom(enrichAllAtom);
+    document.documentElement.lang = targetLanguage;
+  }, [theme, targetLanguage]);
   const [selectedPoiId, setSelectedPoiId] = useAtom(selectedPoiIdAtom);
   const [showResumePrompt, setShowResumePrompt] = useAtom(showResumePromptAtom);
+  const [sheetOpen, setSheetOpen] = useAtom(sheetOpenAtom);
 
   const retryQuery = useSetAtom(retryQueryAtom);
-  const reset = useSetAtom(resetRouteAtom);
-  const restoreRoute = useSetAtom(restoreRouteAtom);
-  const resetEnrichment = useSetAtom(resetEnrichmentAtom);
-  const restoreEnrichments = useSetAtom(restoreEnrichmentsAtom);
+  const handleReset = useSetAtom(resetAllAtom);
+  const restoreSession = useSetAtom(restoreSessionAtom);
+  const snapshot = useAtomValue(sessionSnapshotAtom);
 
-  const restoredRef = useRef(false);
-
-  // On mount: check for saved session
+  // On mount: offer to resume a saved session
   useEffect(() => {
-    if (restoredRef.current) return;
-    restoredRef.current = true;
-    if (hasSession()) {
-      setShowResumePrompt(true);
-    }
+    if (hasSession()) setShowResumePrompt(true);
   }, [setShowResumePrompt]);
 
   const handleResume = useCallback(() => {
     const session = loadSession();
-    if (session) {
-      restoreRoute({
-        traces: session.traces,
-        pois: session.pois,
-        activeCategories: session.activeCategories,
-        routeSettings: session.routeSettings,
-      });
-      restoreEnrichments(session.enrichments);
-      setTargetLanguage(session.targetLanguage);
-      setEnrichAll(session.enrichAll);
-    }
+    if (session) restoreSession(session);
     setShowResumePrompt(false);
-  }, [restoreRoute, restoreEnrichments, setTargetLanguage, setEnrichAll, setShowResumePrompt]);
+  }, [restoreSession, setShowResumePrompt]);
 
   const handleDismissResume = useCallback(() => {
     clearSession();
@@ -121,80 +125,67 @@ export default function App() {
     }
   }, [filteredPois, selectedPoiId, setSelectedPoiId]);
 
-  // Auto-save session when pipeline is done and we have POIs
+  // Auto-save once the pipeline is done with POIs
   useEffect(() => {
-    if (stage !== "done" || pois.length === 0) return;
-    saveSession({
-      activeCategories,
-      traces,
-      pois,
-      enrichments,
-      targetLanguage,
-      enrichAll,
-      routeSettings,
-    });
-  }, [
-    stage,
-    pois,
-    activeCategories,
-    traces,
-    routeSettings,
-    enrichments,
-    targetLanguage,
-    enrichAll,
-  ]);
-
-  const handleReset = useCallback(() => {
-    reset();
-    resetEnrichment();
-    setSelectedPoiId(null);
-    clearSession();
-  }, [reset, resetEnrichment, setSelectedPoiId]);
+    if (snapshot && snapshot.pois.length > 0) saveSession(snapshot);
+  }, [snapshot]);
 
   // Carnet de route: the sidebar is a numbered checklist of the real sequence.
   const traceStep: StepState = stage === "done" ? "done" : "active";
   const filterStep: StepState = stage === "done" ? "active" : "open";
-  const enrichStep: StepState = stage !== "done" ? "todo" : enrichments.size > 0 ? "done" : "open";
+  const enrichStep: StepState =
+    stage !== "done" ? "todo" : enrichments.size > 0 && enrichmentSettled ? "done" : "open";
   const exportStep: StepState = stage === "done" ? "open" : "todo";
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex items-center gap-4 px-5 py-3 border-b-3 border-border bg-surface shrink-0">
-        <h1 className="text-2xl font-black uppercase tracking-tight">Ravitools</h1>
-        <span className="neo-tag bg-lime">beta</span>
-        <p className="text-sm text-muted hidden sm:block flex-1">
-          {t("app.subtitle", targetLanguage)}
-        </p>
-        <div className="flex gap-1">
+      <header className="app-header">
+        <h1 className="app-brand">Ravitools</h1>
+        <span className="neo-tag">beta</span>
+        <p className="app-tagline">{t("app.subtitle", targetLanguage)}</p>
+        <div className="app-controls">
+          <div className="lang-switch">
+            {(["fr", "en"] as const).map((lang) => (
+              <button
+                type="button"
+                key={lang}
+                aria-pressed={lang === targetLanguage}
+                onClick={() => setTargetLanguage(lang)}
+              >
+                {lang.toUpperCase()}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            className="neo-btn-sm neo-btn-secondary"
+            className="neo-btn-secondary neo-btn-icon"
             aria-pressed={theme === "dark"}
             title={t("theme.toggle", targetLanguage)}
             aria-label={t("theme.toggle", targetLanguage)}
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            {theme === "dark" ? "☀️" : "🌙"}
+            <ThemeIcon dark={theme === "dark"} />
           </button>
-          {(["fr", "en"] as const).map((lang) => (
-            <button
-              type="button"
-              key={lang}
-              className={`neo-btn-sm ${lang === targetLanguage ? "neo-btn-primary" : "neo-btn-secondary"}`}
-              aria-pressed={lang === targetLanguage}
-              onClick={() => setTargetLanguage(lang)}
-            >
-              {lang.toUpperCase()}
-            </button>
-          ))}
         </div>
       </header>
 
       <div className="app-layout">
-        {/* Sidebar: carnet de route */}
-        <aside className="sidebar" aria-label={t("steps.label", targetLanguage)}>
-          <div className="sidebar-scroll">
+        {/* Sidebar: carnet de route (a bottom sheet over the map on small screens) */}
+        <aside
+          className={`sidebar ${sheetOpen ? "is-open" : ""}`}
+          aria-label={t("steps.label", targetLanguage)}
+        >
+          <button
+            type="button"
+            className="sheet-handle"
+            aria-expanded={sheetOpen}
+            aria-controls="sidebar-panel"
+            aria-label={t("sheet.toggle", targetLanguage)}
+            onClick={() => setSheetOpen((open) => !open)}
+          >
+            <span className="sheet-grip" aria-hidden="true" />
+          </button>
+          <div className="sidebar-scroll" id="sidebar-panel">
             {/* 01: Load a route: upload, resume, pipeline status, errors */}
             <Step
               num={1}
@@ -208,7 +199,7 @@ export default function App() {
                   <div className="session-prompt-actions">
                     <button
                       type="button"
-                      className="neo-btn-sm neo-btn-lime"
+                      className="neo-btn-sm neo-btn-primary"
                       onClick={handleResume}
                     >
                       {t("session.resume", targetLanguage)}
@@ -234,12 +225,11 @@ export default function App() {
                   aria-live="polite"
                 >
                   {isProcessing && <span className="spinner" />}
-                  <div style={{ flex: 1 }}>
+                  <div className="status-bar-body">
                     <span>{progress}</span>
                     {progressRatio != null && (
                       <div
                         className="progress-bar-track"
-                        style={{ marginTop: "0.5rem" }}
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}
@@ -247,10 +237,7 @@ export default function App() {
                       >
                         <div
                           className="progress-bar-fill"
-                          style={{
-                            width: `${Math.round(progressRatio * 100)}%`,
-                            backgroundColor: "var(--color-lime)",
-                          }}
+                          style={{ width: `${Math.round(progressRatio * 100)}%` }}
                         />
                       </div>
                     )}
@@ -261,30 +248,30 @@ export default function App() {
               {warning && (
                 <div className="warning-box">
                   <p>
-                    <span className="font-black uppercase">
-                      {t("status.warning", targetLanguage)}
-                    </span>{" "}
-                    {warning}
+                    <strong>{t("status.warning", targetLanguage)}</strong> {warning}
                   </p>
-                  <button type="button" className="neo-btn-sm neo-btn-lime" onClick={retryQuery}>
-                    {t("action.retryChunks", targetLanguage)}
-                  </button>
+                  <div className="box-actions">
+                    <button
+                      type="button"
+                      className="neo-btn-sm neo-btn-primary"
+                      onClick={retryQuery}
+                    >
+                      {t("action.retryChunks", targetLanguage)}
+                    </button>
+                  </div>
                 </div>
               )}
 
               {error && (
                 <div className="error-box" role="alert">
                   <p>
-                    <span className="font-black uppercase">
-                      {t("status.error", targetLanguage)}
-                    </span>{" "}
-                    {error}
+                    <strong>{t("status.error", targetLanguage)}</strong> {error}
                   </p>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <div className="box-actions">
                     {traces.length > 0 && (
                       <button
                         type="button"
-                        className="neo-btn-sm neo-btn-lime"
+                        className="neo-btn-sm neo-btn-primary"
                         onClick={retryQuery}
                       >
                         {t("action.retryQuery", targetLanguage)}
@@ -304,9 +291,12 @@ export default function App() {
               )}
 
               {stage === "done" && (
-                <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
-                  {t("action.loadNew", targetLanguage)}
-                </button>
+                <>
+                  <TraceSummary />
+                  <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
+                    {t("action.loadNew", targetLanguage)}
+                  </button>
+                </>
               )}
             </Step>
 
@@ -314,6 +304,9 @@ export default function App() {
             <Step num={2} title={t("steps.filter", targetLanguage)} state={filterStep}>
               <CategoryFilter />
             </Step>
+
+            {/* The result of 01 + 02: the POIs along the route */}
+            {stage === "done" && <PoiList />}
 
             {/* 03: Enrich (optional, needs POIs and the server: not in the static build) */}
             {!STANDALONE && (
@@ -341,10 +334,7 @@ export default function App() {
               <ExportPanel />
             </Step>
 
-            {/* Results */}
-            {stage === "done" && <PoiList />}
-
-            {/* Debug panel: always available */}
+            {/* Debug log: always available, quiet */}
             <DebugPanel />
           </div>
         </aside>

@@ -16,37 +16,6 @@ delete process.env.DATABASE_URL;
 
 const { default: app } = await import("../index");
 
-describe("POI cache: GET /poi/:osm_type/:osm_id", () => {
-  it("returns 400 for invalid osm_type", async () => {
-    const res = await request(app).get("/poi/invalid/12345");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/osm_type/i);
-  });
-
-  it("returns 400 for non-numeric osm_id", async () => {
-    const res = await request(app).get("/poi/node/notanumber");
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 400 for negative osm_id", async () => {
-    const res = await request(app).get("/poi/node/-1");
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 503 when validation passes but DB is disabled", async () => {
-    const res = await request(app).get("/poi/node/12345");
-    expect(res.status).toBe(503);
-    expect(res.body.error).toMatch(/disabled/i);
-  });
-
-  it("accepts way and relation osm_types", async () => {
-    const res1 = await request(app).get("/poi/way/100");
-    const res2 = await request(app).get("/poi/relation/200");
-    expect(res1.status).toBe(503);
-    expect(res2.status).toBe(503);
-  });
-});
-
 describe("POI cache: POST /poi/search", () => {
   it("returns 400 when body has no keys array", async () => {
     const res = await request(app)
@@ -102,6 +71,20 @@ describe("POI cache: PUT /poi/:osm_type/:osm_id", () => {
       .send(validBody)
       .set("Content-Type", "application/json");
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for a non-numeric or negative osm_id", async () => {
+    for (const id of ["notanumber", "-1"]) {
+      const res = await request(app).put(`/poi/node/${id}`).send(validBody);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("accepts way and relation osm_types", async () => {
+    for (const type of ["way", "relation"]) {
+      const res = await request(app).put(`/poi/${type}/100`).send(validBody);
+      expect(res.status).toBe(503);
+    }
   });
 
   it("returns 400 for missing category", async () => {

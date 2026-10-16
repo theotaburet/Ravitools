@@ -1,24 +1,39 @@
 // --- Google Maps fallback: queue a scraper job when search comes back thin ---
 
-import type { GoogleMapsPreview, OpeningHoursEntry, POI, SearchSnippet } from "../../types";
+import type {
+  GoogleMapsPreview,
+  OpeningHoursEntry,
+  POI,
+  SearchSnippet,
+  TargetLanguage,
+} from "../../types";
 import { dlog } from "../debug-log";
+import { t } from "../i18n";
 import {
   buildGoogleMapsSnippets,
   buildGoogleMapsUrl,
   enqueueGoogleMapsPreview,
   pollGoogleMapsPreviewJob,
-} from "./search";
+} from "./google-maps";
 
 /**
- * Max time (ms) to wait for a Google Maps fallback job before moving on.
- * 90s: the scraper sleeps 4-12s before each page and the
- * queue is serial, so a shorter deadline burns quota without ever landing.
+ * Max time (ms) a running Google Maps fallback job may take before moving on.
+ * 90s: the scraper sleeps 4-12s before each page, so a shorter deadline burns
+ * quota without ever landing.
  */
 export const GOOGLE_FALLBACK_TIMEOUT_MS = 90_000;
 
+/**
+ * Max time (ms) a job may sit in the server queue. The queue is serial (one
+ * page every ~35 s) and search runs 3 POIs at a time: counted from enqueue,
+ * the 90 s deadline expired for every third POI, so it only starts once the
+ * job runs and this cap bounds the wait in the queue.
+ */
+export const GOOGLE_FALLBACK_QUEUE_TIMEOUT_MS = 10 * 60_000;
+
 export async function resolveGoogleMapsFallbackSnippets(
   poi: POI,
-  apiBase: string,
+  lang: TargetLanguage,
   onGoogleFallbackStatus?: (status: string | null) => void,
   signal?: AbortSignal,
 ): Promise<{
@@ -26,39 +41,35 @@ export async function resolveGoogleMapsFallbackSnippets(
   structuredHours: OpeningHoursEntry[] | null;
   preview: GoogleMapsPreview | null;
 }> {
-  onGoogleFallbackStatus?.(`Queued Google Maps fallback for ${poi.name}`);
-  const job = await enqueueGoogleMapsPreview(
-    buildGoogleMapsUrl(poi),
-    apiBase,
-    signal,
-    poi.name ?? null,
-  );
+  // Queued and running lookups show in the queue notice: this status only reports failures
+  const job = await enqueueGoogleMapsPreview(buildGoogleMapsUrl(poi), signal, poi.name ?? null);
   if (!job) {
-    onGoogleFallbackStatus?.(`Google Maps fallback failed to queue for ${poi.name}`);
+    onGoogleFallbackStatus?.(t("google.queueFailed", lang, { name: poi.name }));
     return { snippets: [], structuredHours: null, preview: null };
   }
 
   let current = job;
-  const deadline = Date.now() + GOOGLE_FALLBACK_TIMEOUT_MS;
+  const queueDeadline = Date.now() + GOOGLE_FALLBACK_QUEUE_TIMEOUT_MS;
+  let runDeadline: number | null = null;
   while (!signal?.aborted && current.status !== "done" && current.status !== "error") {
-    if (Date.now() >= deadline) {
-      onGoogleFallbackStatus?.(`Google Maps fallback timed out for ${poi.name}: moving on`);
+    if (current.status === "running" && runDeadline === null) {
+      runDeadline = Date.now() + GOOGLE_FALLBACK_TIMEOUT_MS;
+    }
+    if (Date.now() >= (runDeadline ?? queueDeadline)) {
+      onGoogleFallbackStatus?.(t("google.timedOut", lang, { name: poi.name }));
       dlog("enricher").info(
-        `Google Maps fallback timed out after ${GOOGLE_FALLBACK_TIMEOUT_MS}ms for ${poi.name}`,
+        `Google Maps fallback timed out while ${current.status} for ${poi.name}`,
       );
       return { snippets: [], structuredHours: null, preview: null };
     }
-    onGoogleFallbackStatus?.(`Waiting in Google queue for ${poi.name} (${current.status})`);
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    const polled = await pollGoogleMapsPreviewJob(job.jobId, apiBase, signal);
+    const polled = await pollGoogleMapsPreviewJob(job.jobId, signal);
     if (!polled) break;
     current = polled;
   }
 
   onGoogleFallbackStatus?.(
-    current.status === "done"
-      ? `Google Maps fallback completed for ${poi.name}`
-      : `Google Maps fallback failed for ${poi.name}`,
+    current.status === "done" ? null : t("google.failed", lang, { name: poi.name }),
   );
   const preview = current.preview;
   return {

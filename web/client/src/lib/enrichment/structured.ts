@@ -9,54 +9,13 @@ import type {
   TargetLanguage,
   WebsitePreview,
 } from "../../types";
+import { t } from "../i18n";
 import { getEnrichabilityPolicy, getEnrichmentContract } from "../poi-config";
-import { classifySourcePlatform } from "./search";
+import { snippetRatings } from "./deterministic";
+import { classifySourcePlatform, PLATFORMS } from "./websites";
 
-// --- Platform labels and priority ---
-
-const PLATFORM_LABELS: Record<EnrichmentPlatform, string> = {
-  google_maps: "Google Maps",
-  yelp: "Yelp",
-  tripadvisor: "Tripadvisor",
-  facebook: "Facebook",
-  instagram: "Instagram",
-  booking: "Booking",
-  airbnb: "Airbnb",
-  hotels_com: "Hotels.com",
-  official_website: "Official site",
-  other: "Web",
-};
-
-/**
- * Platform priority order for source rollup display.
- * Official site first, then review platforms by reliability, social last.
- *
- */
-const PLATFORM_PRIORITY: Record<EnrichmentPlatform, number> = {
-  official_website: 0,
-  google_maps: 1,
-  tripadvisor: 2,
-  yelp: 3,
-  booking: 4,
-  airbnb: 5,
-  hotels_com: 6,
-  facebook: 7,
-  instagram: 8,
-  other: 9,
-};
-
-/**
- * Platforms that provide reputation signals (ratings, reviews).
- * Social platforms (Facebook, Instagram) provide presence, not reliable reputation.
- */
-const REPUTATION_PLATFORMS: Set<EnrichmentPlatform> = new Set([
-  "google_maps",
-  "tripadvisor",
-  "yelp",
-  "booking",
-  "airbnb",
-  "hotels_com",
-]);
+/** Source-rollup order: the key order of PLATFORMS */
+const PLATFORM_ORDER = Object.keys(PLATFORMS);
 
 // --- Helpers ---
 
@@ -67,14 +26,6 @@ function compact(text: string): string {
 function shorten(text: string, max: number): string {
   const value = compact(text);
   return value.length <= max ? value : `${value.slice(0, max - 1).trim()}…`;
-}
-
-function uniqueStrings(values: Array<string | null | undefined>): string[] {
-  return [
-    ...new Set(
-      values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)),
-    ),
-  ];
 }
 
 function representativeSnippet(snippets: SearchSnippet[]): SearchSnippet | null {
@@ -220,68 +171,6 @@ export function extractPriceLevel(
   return null;
 }
 
-// --- Category-aware lead inference ---
-
-function inferCategoryLead(poi: POI): string {
-  // Use OSM tags for richer fallback when no LLM summary
-  const tagType = poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? null;
-  const typePart = tagType ? ` (${tagType.replace(/_/g, " ")})` : "";
-
-  switch (poi.category) {
-    case "Restaurant or Bar":
-      return `${poi.name}${typePart}: food stop near the route.`;
-    case "Food shop":
-      return `${poi.name}${typePart}: food resupply option near the route.`;
-    case "Sleeping place":
-      return `${poi.name}${typePart}: sleep option near the route.`;
-    case "Gears":
-      return `${poi.name}${typePart}: bike gear or repair stop near the route.`;
-    default:
-      return `${poi.name}: ${poi.category.toLowerCase()} near the route.`;
-  }
-}
-
-// --- Practicalities builder ---
-
-function buildPracticalities(
-  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours" | "priceLevel" | "locality">,
-  targetLanguage: TargetLanguage,
-  poi: POI,
-): string[] {
-  const facts: string[] = [];
-
-  // Type hint from the OSM tag
-  const osmType = poi.tags.cuisine ?? poi.tags.amenity ?? poi.tags.shop ?? poi.tags.tourism ?? null;
-  if (osmType && osmType !== poi.name.toLowerCase()) {
-    facts.push(`Type (OSM): ${osmType.replace(/_/g, " ")}`);
-  }
-
-  if (enrichment.rating != null) {
-    facts.push(
-      enrichment.reviewCount != null
-        ? `Reported rating: ${enrichment.rating.toFixed(1)}/5 (${enrichment.reviewCount} reviews)`
-        : `Reported rating: ${enrichment.rating.toFixed(1)}/5`,
-    );
-  }
-  if (enrichment.hours) facts.push(`Hours: ${enrichment.hours}`);
-  if (enrichment.priceLevel != null)
-    facts.push(`Price level: ${"$".repeat(enrichment.priceLevel)}`);
-
-  // OSM-sourced extras useful for cyclists
-  if (poi.tags.phone || poi.tags["contact:phone"]) {
-    facts.push(`Phone: ${poi.tags.phone ?? poi.tags["contact:phone"]}`);
-  }
-
-  if (enrichment.locality) {
-    facts.push(
-      targetLanguage === "fr"
-        ? `Localité: ${enrichment.locality}`
-        : `Locality: ${enrichment.locality}`,
-    );
-  }
-  return uniqueStrings(facts).slice(0, 6);
-}
-
 // --- Source rollup builder ---
 
 function buildSourceRollup(
@@ -300,7 +189,7 @@ function buildSourceRollup(
     if (!rep) continue;
     digests.push({
       platform,
-      brief: `${PLATFORM_LABELS[platform]}: ${shorten(rep.content, 180)}`,
+      brief: `${PLATFORMS[platform].label}: ${shorten(rep.content, 180)}`,
       url: rep.url,
     });
   }
@@ -320,9 +209,7 @@ function buildSourceRollup(
   }
 
   // Sort by platform priority
-  digests.sort(
-    (a, b) => (PLATFORM_PRIORITY[a.platform] ?? 99) - (PLATFORM_PRIORITY[b.platform] ?? 99),
-  );
+  digests.sort((a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform));
 
   return digests;
 }
@@ -333,49 +220,30 @@ function buildCautions(
   enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount">,
   sourceRollup: EnrichmentSourceDigest[],
   category: PoiCategory,
+  lang: TargetLanguage,
 ): string[] {
   const cautions: string[] = [];
-  const contract = getEnrichmentContract(category);
-  const policy = getEnrichabilityPolicy(category);
-  const isFullEnrichment = policy === "full";
+  const isFullEnrichment = getEnrichabilityPolicy(category) === "full";
 
   if (sourceRollup.length === 0) {
-    // Use contract-specific weak source formulation if available
-    if (contract && contract.weakSourceFormulations.length > 0) {
-      cautions.push(contract.weakSourceFormulations[0]);
-    } else {
-      cautions.push("No identifiable review or discovery platform found.");
-    }
-  }
-  if (isFullEnrichment && enrichment.rating == null)
-    cautions.push("No explicit rating found in the collected sources.");
-  if (isFullEnrichment && enrichment.hours == null)
-    cautions.push("Opening hours were not confirmed from the collected sources.");
-  if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null)
-    cautions.push("Rating found, but review volume was not confirmed.");
-
-  // Check source quality: only social platforms, no reputation sources
-  const hasReputation = sourceRollup.some((d) => REPUTATION_PLATFORMS.has(d.platform));
-  if (sourceRollup.length > 0 && !hasReputation) {
+    // A full category has its own wording (ENRICHMENT_CONTRACTS lists them)
     cautions.push(
-      "Sources are limited to social profiles or generic directories: reliability uncertain.",
+      t(
+        getEnrichmentContract(category) ? `caution.weakSource.${category}` : "caution.noPlatform",
+        lang,
+      ),
     );
   }
+  if (isFullEnrichment && enrichment.rating == null) cautions.push(t("caution.noRating", lang));
+  if (isFullEnrichment && enrichment.hours == null) cautions.push(t("caution.noHours", lang));
+  if (isFullEnrichment && enrichment.reviewCount == null && enrichment.rating != null)
+    cautions.push(t("caution.noReviewCount", lang));
+
+  // Check source quality: only social platforms, no reputation sources
+  const hasReputation = sourceRollup.some((d) => PLATFORMS[d.platform].reputation);
+  if (sourceRollup.length > 0 && !hasReputation) cautions.push(t("caution.socialOnly", lang));
 
   return cautions.slice(0, 4);
-}
-
-// --- Unknowns builder ---
-
-function buildUnknowns(
-  _enrichment: Pick<EnrichedData, "hours" | "rating" | "reviewCount">,
-  sourceRollup: EnrichmentSourceDigest[],
-): string[] {
-  const unknowns: string[] = [];
-  if (sourceRollup.length > 0) {
-    unknowns.push("Exact type or specialty could not be determined from sources.");
-  }
-  return unknowns.slice(0, 2);
 }
 
 // --- Divergence detection ---
@@ -385,10 +253,7 @@ function buildUnknowns(
  * Currently pattern-based heuristics: can be extended with LLM-assisted detection.
  * Exported for direct testing.
  */
-export function buildDivergences(
-  snippets: SearchSnippet[],
-  _enrichment: Pick<EnrichedData, "hours" | "rating">,
-): string[] {
+export function buildDivergences(snippets: SearchSnippet[], lang: TargetLanguage): string[] {
   const divergences: string[] = [];
 
   // Detect hours contradictions: look for different hour patterns across snippets
@@ -407,27 +272,19 @@ export function buildDivergences(
   if (hourPatterns.length >= 2) {
     const uniqueHours = new Set(hourPatterns.map((h) => h.hours.toLowerCase()));
     if (uniqueHours.size > 1) {
-      divergences.push("Sources report different opening hours: verify locally.");
+      divergences.push(t("divergence.hours", lang));
     }
   }
 
   // Detect rating contradictions: look for different explicit ratings
-  const ratingRegex = /(\d(?:\.\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi;
-  const foundRatings: number[] = [];
-  for (const snippet of snippets) {
-    const matches = [...snippet.content.matchAll(ratingRegex)];
-    for (const match of matches) {
-      const r = parseFloat(match[1]);
-      if (r >= 1 && r <= 5) foundRatings.push(r);
-    }
-  }
+  const foundRatings = snippetRatings(snippets);
 
   if (foundRatings.length >= 2) {
     const minRating = Math.min(...foundRatings);
     const maxRating = Math.max(...foundRatings);
     if (maxRating - minRating >= 1.0) {
       divergences.push(
-        `Rating varies across sources (${minRating.toFixed(1)} to ${maxRating.toFixed(1)}/5).`,
+        t("divergence.rating", lang, { min: minRating.toFixed(1), max: maxRating.toFixed(1) }),
       );
     }
   }
@@ -441,13 +298,9 @@ export function buildDivergences(
   );
 
   if (hasClosureSignal && hasPositiveSignal) {
-    divergences.push(
-      "Some sources suggest this place may be closed: verify before counting on it.",
-    );
+    divergences.push(t("divergence.closedMixed", lang));
   } else if (hasClosureSignal) {
-    divergences.push(
-      "Closure signals detected in sources: may be permanently or temporarily closed.",
-    );
+    divergences.push(t("divergence.closed", lang));
   }
 
   return divergences.slice(0, 3);
@@ -460,7 +313,7 @@ export function determineSourceConfirmation(
   sourceRollup: EnrichmentSourceDigest[],
 ): EnrichmentStructuredContent["sourceConfirmation"] {
   const hasOfficial = sourceRollup.some((d) => d.platform === "official_website");
-  const hasReviews = sourceRollup.some((d) => REPUTATION_PLATFORMS.has(d.platform));
+  const hasReviews = sourceRollup.some((d) => PLATFORMS[d.platform].reputation);
 
   if (hasOfficial && hasReviews) return "both";
   if (hasOfficial) return "official";
@@ -472,72 +325,29 @@ export function determineSourceConfirmation(
 
 export function buildStructuredContent(
   poi: POI,
-  enrichment: Pick<
-    EnrichedData,
-    "rating" | "reviewCount" | "hours" | "description" | "priceLevel" | "locality"
-  >,
+  enrichment: Pick<EnrichedData, "rating" | "reviewCount" | "hours">,
   snippets: SearchSnippet[],
   websitePreview: WebsitePreview | null | undefined,
-  targetLanguage: TargetLanguage,
+  lang: TargetLanguage,
 ): EnrichmentStructuredContent {
   const sourceRollup = buildSourceRollup(snippets, websitePreview);
-  const lead = enrichment.description ?? inferCategoryLead(poi);
-  const practicalities = buildPracticalities(enrichment, targetLanguage, poi);
-  const cautions = buildCautions(enrichment, sourceRollup, poi.category);
-  const unknowns = buildUnknowns(enrichment, sourceRollup);
-  const divergences = buildDivergences(snippets, enrichment);
-  const sourceConfirmation = determineSourceConfirmation(sourceRollup);
-
-  const operationalSummaryParts = [
-    enrichment.hours ? `Hours available.` : `Hours unclear.`,
-    enrichment.rating != null ? `Reputation signals present.` : `Reputation signals limited.`,
-    sourceRollup.length > 0
-      ? `Coverage: ${sourceRollup.map((item) => PLATFORM_LABELS[item.platform]).join(", ")}.`
-      : null,
-  ];
-
-  // Add divergence warning to operational summary if present
-  if (divergences.length > 0) {
-    operationalSummaryParts.push("Some source disagreements detected.");
-  }
-
   return {
-    headline: shorten(lead, 320) || null,
-    operationalSummary: shorten(uniqueStrings(operationalSummaryParts).join(" "), 240) || null,
-    practicalities,
     sourceRollup,
-    cautions,
-    unknowns,
-    divergences,
-    sourceConfirmation,
+    cautions: buildCautions(enrichment, sourceRollup, poi.category, lang),
+    divergences: buildDivergences(snippets, lang),
+    sourceConfirmation: determineSourceConfirmation(sourceRollup),
   };
-}
-
-export function buildSourceDigests(
-  snippets: SearchSnippet[],
-  websitePreview?: WebsitePreview | null,
-): EnrichmentSourceDigest[] {
-  return buildSourceRollup(snippets, websitePreview);
 }
 
 // --- Source-quality scoring: rank snippets by domain reliability before LLM ---
 
 /**
- * Domain-level quality scores (0–3).
- * 3 = primary review/booking platform (high signal density)
+ * Domain quality below the reputation platforms (those score 3):
  * 2 = secondary directory, local tourism site, regional press
- * 1 = generic directory, social profile, unknown domain
  * 0 = noise (banking, login, spam patterns)
+ * Anything else, social profiles included, scores 1.
  */
 const DOMAIN_QUALITY_SCORES: Array<{ pattern: RegExp; score: number }> = [
-  // Top-tier review/booking platforms
-  { pattern: /tripadvisor\.(com|fr|es|de|co\.uk)/, score: 3 },
-  { pattern: /yelp\.(com|fr|es|de|co\.uk)/, score: 3 },
-  { pattern: /booking\.com/, score: 3 },
-  { pattern: /google\.(com|fr|es|de)\/maps/, score: 3 },
-  { pattern: /maps\.google/, score: 3 },
-  { pattern: /airbnb\.(com|fr|es)/, score: 3 },
-  { pattern: /hotels\.com/, score: 3 },
   // Good secondary sources
   { pattern: /campingfrance\.com/, score: 2 },
   { pattern: /campingsauvage\.net/, score: 2 },
@@ -551,9 +361,7 @@ const DOMAIN_QUALITY_SCORES: Array<{ pattern: RegExp; score: number }> = [
   { pattern: /cylex\.(fr|com)/, score: 2 },
   { pattern: /restaurantguru\.com/, score: 2 },
   { pattern: /foursquare\.com/, score: 2 },
-  // Noise / low signal
-  { pattern: /facebook\.com/, score: 1 },
-  { pattern: /instagram\.com/, score: 1 },
+  // Noise
   { pattern: /twitter\.com|x\.com/, score: 0 },
   { pattern: /linkedin\.com/, score: 0 },
   { pattern: /banking|unicredit|bpce|bnpparibas/, score: 0 },
@@ -564,18 +372,9 @@ const DOMAIN_QUALITY_SCORES: Array<{ pattern: RegExp; score: number }> = [
  * Used to rank snippets before passing them to the LLM.
  */
 function scoreSnippetDomain(url: string): number {
+  if (PLATFORMS[classifySourcePlatform(url)].reputation) return 3;
   const lower = url.toLowerCase();
-  for (const { pattern, score } of DOMAIN_QUALITY_SCORES) {
-    if (pattern.test(lower)) return score;
-  }
-  // Heuristic: URLs with path depth ≥ 2 are likely specific pages (better signal)
-  try {
-    const path = new URL(url).pathname;
-    const depth = path.split("/").filter(Boolean).length;
-    return depth >= 2 ? 1 : 1;
-  } catch {
-    return 1;
-  }
+  return DOMAIN_QUALITY_SCORES.find(({ pattern }) => pattern.test(lower))?.score ?? 1;
 }
 
 /**

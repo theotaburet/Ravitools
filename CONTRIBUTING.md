@@ -25,15 +25,22 @@ Pour l'enrichissement : `just searxng` lance SearXNG en Docker. Le cache PostGIS
 ```bash
 just check      # typecheck + tests + lint, client et serveur, zéro warning
 just test-e2e   # Playwright (client)
+just test-live  # contrat des sources (réseau) : Overpass, Nominatim, SearXNG, Google Maps
+just outdated   # dépendances en retard, toutes workspaces
+just update     # mises à jour dans les plages semver, puis just check
 ```
 
-Un changement n'est terminé que si `just check` passe. Les warnings sont des erreurs.
+Un changement n'est terminé que si `just check` passe. Les warnings sont des erreurs : biome tourne avec `--error-on-warnings` sur tout le package, TypeScript en `strict` avec `noUnusedLocals` et `noUnusedParameters`.
+
+Dépendances : `just update` à chaque session ; une version majeure se monte seule, dans son propre changement, après lecture du changelog.
+
+`just test-live` interroge les vraies sources et vérifie qu'elles répondent encore au format que le code lit (champs Overpass et Nominatim, résultats SearXNG, horaires et note d'une fiche Google Maps). À lancer quand l'enrichissement se dégrade sans raison, ou après une longue pause : Google change sa page sans prévenir. Côté serveur, le scraper journalise une erreur et l'UI affiche un avertissement quand une fiche montre des horaires qu'il n'arrive plus à lire.
 
 Si la modification touche la logique POI (requête Overpass, matching, filtrage, dédup, export) :
 
 1. charger un GPX de `web/examples/` dans l'app ;
 2. vérifier que les POI restent proches de la trace et que le bruit reste acceptable ;
-3. ouvrir un export (GPX, KML, GeoJSON, OsmAnd, KMZ) dans un vrai viewer si possible.
+3. ouvrir un export (FIT, GPX, KML, GeoJSON, OsmAnd, KMZ) dans un vrai viewer si possible ; pour le FIT, `fitparse` (Python) ou un vrai compteur.
 
 ## Où est quoi
 
@@ -57,7 +64,7 @@ Si la modification touche la logique POI (requête Overpass, matching, filtrage,
 
 1. Vérifier si des tags OSM peuvent être ajoutés à une catégorie existante.
 2. Choisir les tags les plus pertinents pour l'usage vélo et estimer le risque de faux positifs.
-3. Modifier `POI_CATEGORIES` et les mappings OsmAnd dans `poi-config.ts`, le type `PoiCategory` dans `types/index.ts`, les libellés dans `lib/i18n.ts` (fr + en).
+3. Ajouter une ligne à `POI_CATEGORIES` dans `poi-config.ts` : tags, couleur, emoji, politique d'enrichissement, fusion des doublons, symbole GPX, type FIT, icône et fond OsmAnd (le type impose chaque champ). Puis le type `PoiCategory` dans `types/index.ts` et les libellés dans `lib/i18n.ts` (fr + en). Un contrat d'enrichissement dans `ENRICHMENT_CONTRACTS` seulement pour une catégorie `full`.
 4. Documenter le choix et ses limites dans `web/docs/poi-categories.md`.
 5. `just check`, puis test sur un GPX d'exemple.
 

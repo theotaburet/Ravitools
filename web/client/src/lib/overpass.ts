@@ -1,18 +1,12 @@
 // Overpass query builder & client
-// Port of overpass_client.py logic, adapted for client-heavy architecture
 
 import type { PoiCategory, TracePoint } from "../types";
 import { dlog } from "./debug-log";
+import { API_BASE } from "./enrichment/proxy-api";
 import { POI_CATEGORIES } from "./poi-config";
 
-/** Proxy base URL: in dev, Vite proxies /api to the server */
-const PROXY_BASE =
-  (typeof window !== "undefined" &&
-    ((window as unknown as Record<string, unknown>).__RAVITOOLS_API_URL__ as string)) ||
-  "/api";
-
 // Static build (VITE_STANDALONE=true, e.g. GitHub Pages): no proxy, the browser
-// asks Overpass itself. Both mirrors send CORS headers; each retry moves on to the next.
+// asks Overpass itself. Both mirrors send CORS headers; each retry round moves on to the next.
 const DIRECT_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
@@ -94,17 +88,16 @@ export function buildOverpassQuery(
   return `[out:json][timeout:120];\n(\n${clauses.join("\n")}\n);\nout center;`;
 }
 
-/**
- * Split a long trace into chunks and build separate queries for each.
- * This prevents Overpass queries from becoming too large.
- *
- * @param points - Simplified trace points
- * @param radiusM - Search corridor radius
- * @param maxPointsPerQuery - Maximum points per query chunk
- * @param categories - Categories to query
- */
+/** Simplified points per Overpass query: bounds the query size */
+const MAX_POINTS_PER_QUERY = 50;
+/** Retry rounds for failed chunks, each one splitting them in two */
+const MAX_RETRY_ROUNDS = 3;
+
 /** Split trace points into overlapping chunks (overlap avoids boundary gaps). */
-export function chunkPoints(points: TracePoint[], maxPointsPerQuery: number = 25): TracePoint[][] {
+export function chunkPoints(
+  points: TracePoint[],
+  maxPointsPerQuery: number = MAX_POINTS_PER_QUERY,
+): TracePoint[][] {
   if (points.length <= maxPointsPerQuery) return [points];
   const chunks: TracePoint[][] = [];
   const overlap = 3;
@@ -125,17 +118,6 @@ export function splitChunk(points: TracePoint[]): TracePoint[][] {
   return [points.slice(0, mid + 1), points.slice(mid)];
 }
 
-export function buildChunkedQueries(
-  points: TracePoint[],
-  radiusM: number = 1000,
-  maxPointsPerQuery: number = 25,
-  categories?: PoiCategory[],
-): string[] {
-  return chunkPoints(points, maxPointsPerQuery).map((chunk) =>
-    buildOverpassQuery(chunk, radiusM, categories),
-  );
-}
-
 // --- Overpass API communication (via proxy) ---
 
 export interface OverpassElement {
@@ -152,10 +134,15 @@ export interface OverpassResponse {
 }
 
 /**
- * Send a query to the Overpass API through the proxy server.
- * Includes retry logic with exponential backoff.
+ * One Overpass request: through the server proxy, which tries every mirror, or
+ * straight to a mirror in the static build (`attempt` picks it, so a retry
+ * round moves on to the next). Throws on any failure: queryAllPois retries.
  */
-export async function queryOverpass(query: string, retries: number = 3): Promise<OverpassResponse> {
+export async function queryOverpass(
+  query: string,
+  attempt = 0,
+  signal?: AbortSignal,
+): Promise<OverpassResponse> {
   const log = dlog("overpass");
   const cached = cacheGet(query);
   if (cached) {
@@ -163,64 +150,37 @@ export async function queryOverpass(query: string, retries: number = 3): Promise
     return cached;
   }
 
-  let lastError: Error | null = null;
+  const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
+  const res =
+    import.meta.env.VITE_STANDALONE === "true"
+      ? await fetch(DIRECT_URLS[attempt % DIRECT_URLS.length], {
+          method: "POST",
+          body: new URLSearchParams({ data: query }),
+          signal,
+        })
+      : await fetch(`${API_BASE}/overpass`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+          signal,
+        });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) {
-      const delayMs = 5000 * attempt;
-      log.warn(`Retry ${attempt}/${retries} after ${delayMs}ms backoff`, { attempt });
-      // Exponential backoff: 5s, 10s, 15s
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-
-    try {
-      const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
-      const res =
-        import.meta.env.VITE_STANDALONE === "true"
-          ? await fetch(DIRECT_URLS[attempt % DIRECT_URLS.length], {
-              method: "POST",
-              body: new URLSearchParams({ data: query }),
-            })
-          : await fetch(`${PROXY_BASE}/overpass`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ query }),
-            });
-
-      if (res.status === 429 || res.status === 504) {
-        const reason = res.status === 429 ? "Rate limited by proxy" : "Overpass server timeout";
-        endTimer();
-        log.warn(`${reason} (HTTP ${res.status})`, { status: res.status, attempt });
-        // Rate limited or timeout: wait and retry
-        lastError = new Error(reason);
-        continue;
-      }
-
-      if (!res.ok) {
-        endTimer();
-        const body = await res.text();
-        throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
-      }
-
-      const data: OverpassResponse = await res.json();
-      const elapsedMs = endTimer();
-      const cacheHeader = res.headers.get("X-Cache") || "UNKNOWN";
-      log.info(`Got ${data.elements.length} elements`, {
-        elements: data.elements.length,
-        elapsedMs: Math.round(elapsedMs),
-        serverCache: cacheHeader,
-        queryChars: query.length,
-      });
-      cacheSet(query, data);
-      return data;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      log.error(`Fetch error: ${lastError.message}`, { attempt, error: lastError.message });
-      if (attempt < retries) continue;
-    }
+  if (!res.ok) {
+    endTimer();
+    const body = await res.text();
+    throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
   }
 
-  throw lastError ?? new Error("Overpass query failed");
+  const data: OverpassResponse = await res.json();
+  const elapsedMs = endTimer();
+  log.info(`Got ${data.elements.length} elements`, {
+    elements: data.elements.length,
+    elapsedMs: Math.round(elapsedMs),
+    serverCache: res.headers.get("X-Cache") || "UNKNOWN",
+    queryChars: query.length,
+  });
+  cacheSet(query, data);
+  return data;
 }
 
 /** Result of queryAllPois: includes chunk failure info for user feedback */
@@ -243,47 +203,38 @@ export interface QueryProgress {
 }
 
 /**
- * Query Overpass for all categories along a trace, chunking if necessary.
- * Returns raw elements from all chunks, deduplicated by OSM ID,
- * plus chunk failure counts so the caller can warn the user.
+ * Query Overpass for all categories along a trace, one chunk at a time
+ * (Overpass-friendly). Returns raw elements from all chunks, deduplicated by
+ * OSM ID, plus chunk failure counts so the caller can warn the user.
  *
- * Failed chunks are automatically retried up to `maxRetryRounds` times
- * with increasing backoff between rounds. This handles transient 504
- * timeouts from the Overpass public API.
+ * The only retry level: failed chunks go again in up to MAX_RETRY_ROUNDS
+ * rounds with a growing backoff, split in two each time (a POI-dense city
+ * corridor times Overpass out; a smaller one is much cheaper). An aborted
+ * `signal` stops between chunks and cancels the request in flight.
  *
- * Sends up to `concurrency` requests in parallel to reduce total latency
- * while staying friendly to the Overpass public API.
+ * One point list per trace: chunks never span two traces, since `around:`
+ * over several points is a polyline and would scan the gap between them.
  */
 export async function queryAllPois(
-  simplifiedPoints: TracePoint[],
+  traces: TracePoint[][],
   radiusM: number = 1000,
   categories?: PoiCategory[],
   onProgress?: (progress: QueryProgress) => void,
-  maxPointsPerQuery: number = 50,
-  concurrency: number = 1,
-  maxRetryRounds: number = 3,
+  signal?: AbortSignal,
 ): Promise<QueryAllPoisResult> {
   const log = dlog("overpass");
-  const initialChunks = chunkPoints(simplifiedPoints, maxPointsPerQuery);
+  const initialChunks = traces.flatMap((points) => chunkPoints(points));
 
-  log.info(
-    `Built ${initialChunks.length} chunks from ${simplifiedPoints.length} simplified points`,
-    {
-      chunks: initialChunks.length,
-      simplifiedPoints: simplifiedPoints.length,
-      radiusM,
-      maxPointsPerQuery,
-      concurrency,
-    },
-  );
+  log.info(`Built ${initialChunks.length} chunks from ${traces.length} traces`, {
+    chunks: initialChunks.length,
+    traces: traces.length,
+    radiusM,
+  });
 
   const seenIds = new Set<string>();
   const allElements: OverpassElement[] = [];
   let dedupedCount = 0; // running count of cross-chunk duplicates dropped
 
-  // Chunks are point arrays, not query strings: a chunk that keeps failing
-  // (POI-dense city area → Overpass timeout) is split in two for the next
-  // round: smaller corridors are much cheaper server-side.
   let pending: TracePoint[][] = initialChunks;
   let totalChunks = initialChunks.length;
   let completed = 0;
@@ -291,12 +242,12 @@ export async function queryAllPois(
 
   const endTotal = log.time(`All ${initialChunks.length} chunks`);
 
-  while (pending.length > 0 && retryRound <= maxRetryRounds) {
+  while (pending.length > 0 && retryRound <= MAX_RETRY_ROUNDS) {
     if (retryRound > 0) {
       // Backoff before retry round: 10s, 20s, 30s
       const backoffMs = 10_000 * retryRound;
       log.warn(
-        `Retry round ${retryRound}/${maxRetryRounds}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
+        `Retry round ${retryRound}/${MAX_RETRY_ROUNDS}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
         { retryRound, pendingCount: pending.length, backoffMs },
       );
       await new Promise((r) => setTimeout(r, backoffMs));
@@ -304,52 +255,44 @@ export async function queryAllPois(
 
     const failedThisRound: TracePoint[][] = [];
 
-    // Process pending chunks with limited concurrency
-    let i = 0;
-    while (i < pending.length) {
-      const batch = pending.slice(i, i + concurrency);
-
-      const results = await Promise.allSettled(
-        batch.map((chunk) =>
-          queryOverpass(buildOverpassQuery(chunk, radiusM, categories)).then((result) => result),
-        ),
-      );
-
-      for (const [j, r] of results.entries()) {
-        if (r.status === "fulfilled") {
-          completed++;
-          let newCount = 0;
-          for (const el of r.value.elements) {
-            const uid = `${el.type}_${el.id}`;
-            if (!seenIds.has(uid)) {
-              seenIds.add(uid);
-              allElements.push(el);
-              newCount++;
-            }
-          }
-          dedupedCount += r.value.elements.length - newCount;
-          log.debug(`Chunk ok: ${r.value.elements.length} elements, ${newCount} new`);
-        } else {
-          const chunk = batch[j];
-          if (retryRound < maxRetryRounds && chunk.length >= 4) {
-            const halves = splitChunk(chunk);
-            failedThisRound.push(...halves);
-            totalChunks += halves.length - 1;
-            log.warn(`Chunk of ${chunk.length} pts failed: split for next round: ${r.reason}`);
-          } else {
-            failedThisRound.push(chunk);
-            log.error(`Chunk failed: ${r.reason}`);
+    for (const chunk of pending) {
+      signal?.throwIfAborted();
+      try {
+        const result = await queryOverpass(
+          buildOverpassQuery(chunk, radiusM, categories),
+          retryRound,
+          signal,
+        );
+        completed++;
+        let newCount = 0;
+        for (const el of result.elements) {
+          const uid = `${el.type}_${el.id}`;
+          if (!seenIds.has(uid)) {
+            seenIds.add(uid);
+            allElements.push(el);
+            newCount++;
           }
         }
-        onProgress?.({
-          completedChunks: completed,
-          totalChunks,
-          retryRound,
-          retryingCount: retryRound > 0 ? pending.length : 0,
-        });
+        dedupedCount += result.elements.length - newCount;
+        log.debug(`Chunk ok: ${result.elements.length} elements, ${newCount} new`);
+      } catch (err) {
+        signal?.throwIfAborted();
+        if (retryRound < MAX_RETRY_ROUNDS && chunk.length >= 4) {
+          const halves = splitChunk(chunk);
+          failedThisRound.push(...halves);
+          totalChunks += halves.length - 1;
+          log.warn(`Chunk of ${chunk.length} pts failed: split for next round: ${err}`);
+        } else {
+          failedThisRound.push(chunk);
+          log.error(`Chunk failed: ${err}`);
+        }
       }
-
-      i += concurrency;
+      onProgress?.({
+        completedChunks: completed,
+        totalChunks,
+        retryRound,
+        retryingCount: retryRound > 0 ? pending.length : 0,
+      });
     }
 
     pending = failedThisRound;

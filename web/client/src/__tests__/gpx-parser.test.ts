@@ -231,9 +231,10 @@ describe("TraceIndex", () => {
       trace.push({ lat, lon });
     }
 
-    // Generate 2000 test POIs scattered near the trace
+    // 200 POIs: the speedup ratio does not depend on the count, and 2000 brute-force
+    // queries (24M haversines) timed out under the parallel test run
     const pois: TracePoint[] = [];
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 200; i++) {
       const traceIdx = Math.floor(Math.random() * trace.length);
       const offsetLat = (Math.random() - 0.5) * 0.03; // ±1.5km
       const offsetLon = (Math.random() - 0.5) * 0.04;

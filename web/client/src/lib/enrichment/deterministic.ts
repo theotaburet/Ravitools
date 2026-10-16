@@ -1,6 +1,10 @@
 // --- Deterministic extraction: no-LLM fallbacks built from snippets/JSON-LD ---
 
-import type { EnrichedData, POI, SearchSnippet, TargetLanguage } from "../../types";
+import type { BookingStatus, EnrichedData, POI, SearchSnippet, TargetLanguage } from "../../types";
+import { t } from "../i18n";
+import { findDateRange, MONEY_RE } from "./evidence";
+import { osmFacts } from "./osm-facts";
+import { BOOKING_PATTERNS } from "./vocabulary";
 
 export function extractDeterministicRating(
   snippets: SearchSnippet[],
@@ -12,13 +16,18 @@ export function extractDeterministicRating(
   if (structured != null && Number.isFinite(structured) && structured >= 1 && structured <= 5) {
     return Math.round(structured * 10) / 10;
   }
-  const matches = snippets.flatMap((snippet) => [
-    ...snippet.content.matchAll(/(\d(?:[.,]\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi),
-  ]);
-  const values = matches
+  const values = snippetRatings(snippets);
+  return values.length > 0 ? Math.round(values[0] * 10) / 10 : null;
+}
+
+/** Every 1–5 rating the snippets state ("4.5/5", "4,2 étoiles", "3 stars"), in order */
+export function snippetRatings(snippets: SearchSnippet[]): number[] {
+  return snippets
+    .flatMap((snippet) => [
+      ...snippet.content.matchAll(/(\d(?:[.,]\d)?)\s*(?:\/\s*5|stars?|étoiles?)/gi),
+    ])
     .map((match) => Number.parseFloat(match[1].replace(",", ".")))
     .filter((value) => value >= 1 && value <= 5);
-  return values.length > 0 ? Math.round(values[0] * 10) / 10 : null;
 }
 
 export function extractDeterministicReviewCount(
@@ -60,9 +69,12 @@ export function buildDeterministicShortDescription(
     /_/g,
     " ",
   );
-  return targetLanguage === "fr"
-    ? `${poi.name}, ${type}, arrêt utile près de l'itinéraire.`.slice(0, 180)
-    : `${poi.name}, ${type}, useful stop near the route.`.slice(0, 180);
+  // The map data already says a lot: state it rather than a filler sentence.
+  const facts = osmFacts(poi.tags, targetLanguage)
+    .slice(0, 3)
+    .map((fact) => fact.charAt(0).toLowerCase() + fact.slice(1));
+  if (facts.length > 0) return `${poi.name}, ${type}, ${facts.join(", ")}.`.slice(0, 180);
+  return t("deterministic.description", targetLanguage, { name: poi.name, type }).slice(0, 180);
 }
 
 export function buildDeterministicShortReview(
@@ -71,16 +83,46 @@ export function buildDeterministicShortReview(
   targetLanguage: TargetLanguage,
 ): string | null {
   if (rating == null && reviewCount == null) return null;
-  if (targetLanguage === "fr") {
-    if (rating != null && reviewCount != null)
-      return `Avis web: ${rating.toFixed(1)}/5 sur ${reviewCount} avis.`;
-    if (rating != null) return `Avis web: ${rating.toFixed(1)}/5.`;
-    return `Volume d'avis confirmé: ${reviewCount}.`;
+  const vars = { rating: rating?.toFixed(1) ?? "", count: reviewCount ?? "" };
+  const key = rating == null ? "count" : reviewCount == null ? "rating" : "ratingCount";
+  return t(`deterministic.${key}`, targetLanguage, vars);
+}
+
+/** Opening period stated as a date range in any snippet ("6 juin au 28 septembre"). */
+export function extractDeterministicSeason(snippets: SearchSnippet[]): string | null {
+  for (const snippet of snippets) {
+    const range = findDateRange(snippet.content);
+    if (range) return range;
   }
-  if (rating != null && reviewCount != null)
-    return `Web reviews: ${rating.toFixed(1)}/5 from ${reviewCount} reviews.`;
-  if (rating != null) return `Web reviews: ${rating.toFixed(1)}/5.`;
-  return `Review volume confirmed: ${reviewCount}.`;
+  return null;
+}
+
+/** Up to three amounts with the few words naming them: "nuitée 21,00 €, demi-pension 55 €". */
+export function extractDeterministicPriceNote(snippets: SearchSnippet[]): string | null {
+  const notes: string[] = [];
+  const seen = new Set<string>();
+  for (const snippet of snippets) {
+    for (const match of snippet.content.matchAll(MONEY_RE)) {
+      const amount = match[0].trim();
+      if (seen.has(amount)) continue;
+      const before =
+        snippet.content
+          .slice(0, match.index)
+          .split(/[(),:;.!?]/)
+          .pop() ?? "";
+      const context = before.trim().split(/\s+/).filter(Boolean).slice(-3).join(" ");
+      seen.add(amount);
+      notes.push(context ? `${context} ${amount}` : amount);
+      if (notes.length === 3) return notes.join(", ").slice(0, 160);
+    }
+  }
+  return notes.length > 0 ? notes.join(", ").slice(0, 160) : null;
+}
+
+/** Explicit booking statement in any snippet, in the seven query languages. */
+export function extractDeterministicBooking(snippets: SearchSnippet[]): BookingStatus | null {
+  const text = snippets.map((snippet) => snippet.content).join(" ");
+  return BOOKING_PATTERNS.find(({ pattern }) => pattern.test(text))?.status ?? null;
 }
 
 /**

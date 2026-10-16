@@ -1,7 +1,7 @@
 // --- Server endpoint tests ---
 
 import request from "supertest";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Set test environment before importing app (prevents app.listen)
 process.env.NODE_ENV = "test";
@@ -49,6 +49,27 @@ function uniqueQuery(_prefix = "test"): string {
 
 // --- /health ---
 
+// A request without a JSON body leaves req.body undefined (Express 5): a 400, not a crash
+describe("requests without a JSON body", () => {
+  it.each(["/search", "/geocode", "/fetch-page", "/overpass", "/poi/search"])(
+    "POST %s answers 400",
+    async (path) => {
+      const res = await request(app).post(path).set("Content-Type", "text/plain").send("x");
+      expect(res.status).toBe(400);
+    },
+  );
+});
+
+// Behind nginx (deployment.md) the client IP is in X-Forwarded-For: the rate
+// limits must key on it, but only when the request comes from the local proxy
+describe("trust proxy", () => {
+  it("trusts the forwarded client IP from a local reverse proxy only", () => {
+    const trust = app.get("trust proxy fn") as (addr: string, hop: number) => boolean;
+    expect(trust("127.0.0.1", 0)).toBe(true);
+    expect(trust("203.0.113.9", 0)).toBe(false);
+  });
+});
+
 describe("/health", () => {
   it("returns status ok", async () => {
     const res = await request(app).get("/health");
@@ -56,21 +77,6 @@ describe("/health", () => {
     expect(res.body.status).toBe("ok");
     expect(res.body).toHaveProperty("cache_keys");
     expect(res.body).toHaveProperty("uptime");
-  });
-});
-
-// --- /cache/stats ---
-
-describe("/cache/stats", () => {
-  it("returns stats for all three caches", async () => {
-    const res = await request(app).get("/cache/stats");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("overpass");
-    expect(res.body).toHaveProperty("search");
-    expect(res.body).toHaveProperty("geocode");
-    expect(res.body.overpass).toHaveProperty("keys");
-    expect(res.body.overpass).toHaveProperty("hits");
-    expect(res.body.overpass).toHaveProperty("misses");
   });
 });
 
@@ -111,6 +117,21 @@ describe("/overpass", () => {
     expect(res.headers["x-cache"]).toBe("MISS");
     expect(JSON.parse(res.text)).toEqual({ elements: [{ id: 1 }] });
     expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  it("identifies itself to the mirrors: two of them answer 429 without a User-Agent", async () => {
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ elements: [] })));
+
+    await request(app)
+      .post("/overpass")
+      .send({ data: uniqueQuery("ua") });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "User-Agent": expect.stringMatching(/Ravitools/) }),
+      }),
+    );
   });
 
   it("returns cached response on second request", async () => {
@@ -510,6 +531,32 @@ describe("/fetch-page", () => {
     expect(res.body.excerpt).toMatch(/Open daily/);
   });
 
+  it("returns the page text and its internal links, resolved against the final URL", async () => {
+    const html = `<!doctype html><html><head><title>Refuge Test</title></head><body>
+      <nav><a href="/home.html">Accueil</a> <a href="/tarifs.html">Tarifs</a>
+      <a href="https://other.example/prices">Prices elsewhere</a>
+      <a href="mailto:x@example.com">Mail</a> <a href="#top">Top</a>
+      <a href="/p.php?a=1&amp;b=2">Query</a></nav>
+      <main>Open daily from 08:30. Nuitée 21,00 €. Ligne 23 Tende &lt;-&gt; Castérino &amp; retour.</main></body></html>`;
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      url: "https://example.com/fr/index.html",
+      headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
+      text: async () => html,
+    } as unknown as Response);
+
+    const res = await request(app).post("/fetch-page").send({ url: "https://example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.text).toMatch(/Nuitée 21,00 €/);
+    expect(res.body.text).toMatch(/Tende <-> Castérino & retour/);
+    expect(res.body.links).toEqual([
+      { text: "Accueil", href: "https://example.com/home.html" },
+      { text: "Tarifs", href: "https://example.com/tarifs.html" },
+      { text: "Query", href: "https://example.com/p.php?a=1&b=2" },
+    ]);
+  });
+
   it("rejects non-html content", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -531,7 +578,7 @@ describe("/fetch-page", () => {
     expect(res.status).toBe(504);
   });
 
-  // Regression tests for audit R2: SSRF via redirects (validate every hop)
+  // SSRF via redirects (validate every hop)
   it("does not follow a redirect to a private address (SSRF)", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -587,33 +634,7 @@ describe("/fetch-page", () => {
   });
 });
 
-// --- Admin route must fail closed when ADMIN_API_KEY is not configured ---
-
-describe("DELETE /cache/search", () => {
-  afterAll(() => {
-    delete process.env.ADMIN_API_KEY;
-  });
-
-  it("fails closed when ADMIN_API_KEY is not configured", async () => {
-    delete process.env.ADMIN_API_KEY;
-    const res = await request(app).delete("/cache/search");
-    expect(res.status).toBe(503);
-  });
-
-  it("rejects a wrong key", async () => {
-    process.env.ADMIN_API_KEY = "sekret";
-    const res = await request(app).delete("/cache/search").set("x-admin-key", "wrong");
-    expect(res.status).toBe(403);
-  });
-
-  it("flushes with the correct key", async () => {
-    process.env.ADMIN_API_KEY = "sekret";
-    const res = await request(app).delete("/cache/search").set("x-admin-key", "sekret");
-    expect(res.status).toBe(200);
-  });
-});
-
-// --- R14: /search cache key must include language ---
+// --- /search cache key must include language ---
 
 describe("/search cache key includes language", () => {
   it("fr and en of the same query are cached separately", async () => {

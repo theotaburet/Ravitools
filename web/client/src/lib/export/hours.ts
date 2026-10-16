@@ -1,5 +1,6 @@
 // --- Hours formatting + Sunday / evening availability detection ---
 
+import { t } from "../i18n";
 import { escapeXml } from "./shared";
 
 /**
@@ -102,10 +103,10 @@ export function getAvailabilityTags(
 ): string[] {
   const tags: string[] = [];
   if (isOpenSunday(enrichmentHours, osmHours)) {
-    tags.push(lang === "fr" ? "Ouvert le dimanche" : "Open Sunday");
+    tags.push(t("avail.sunday", lang));
   }
   if (isOpenEvening(enrichmentHours, osmHours)) {
-    tags.push(lang === "fr" ? "Ouvert le soir" : "Open evenings");
+    tags.push(t("avail.evening", lang));
   }
   return tags;
 }

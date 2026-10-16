@@ -41,6 +41,10 @@ test-server:
 test-e2e:
     cd {{client_dir}} && bun run test:e2e
 
+# Contrat des sources (réseau) : Overpass, Nominatim, SearXNG, Google Maps répondent-ils encore au format attendu ?
+test-live:
+    cd {{server_dir}} && LIVE_SOURCES=1 bun run vitest run src/__tests__/sources.live.test.ts
+
 # Typecheck
 typecheck:
     cd {{client_dir}} && bun run typecheck
@@ -57,6 +61,15 @@ format:
 
 # Vérification complète (politique zéro warning)
 check: typecheck test lint
+
+# Dépendances en retard, toutes workspaces (à lancer en début de session)
+outdated:
+    bun outdated -r
+
+# Mises à jour dans les plages semver de package.json, puis vérification complète
+update:
+    bun update -r
+    just check
 
 # SearXNG (Docker, pour l'enrichissement)
 searxng:

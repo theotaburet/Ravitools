@@ -38,3 +38,4 @@ This file tracks remaining quality/UX improvements.
 - [ ] Endpoint de recherche spatiale par rayon (index GIST déjà en place)
 - [ ] Migration des dépendances majeures (React 19, Vite 7, Express 5)
 - [ ] Durcissement multi-utilisateurs (CORS, rate limits) seulement si l'instance est partagée
+- [ ] Export FIT : test sur un vrai Garmin ou Wahoo (Up Ahead, alertes), puis variante GPX Karoo (`sym`/`type` de la liste Hammerhead) et éventuellement TCX pour les anciens Wahoo

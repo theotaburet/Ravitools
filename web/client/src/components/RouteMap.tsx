@@ -16,12 +16,14 @@ import {
   useMap,
 } from "react-leaflet";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
+import { osmFacts } from "../lib/enrichment/osm-facts";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
+import { km } from "../lib/format";
 import { haversine } from "../lib/gpx-parser";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { clusterPois, type PoiCluster } from "../lib/poi-cluster";
-import { CATEGORY_EMOJI } from "../lib/poi-config";
+import { CATEGORY_COLORS, poiEmoji } from "../lib/poi-config";
 import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
 import {
@@ -141,7 +143,7 @@ const TraceLine = memo(function TraceLine({
   }, [trace]);
   if (positions.length === 0) return null;
 
-  const distanceKm = (trace.totalDistanceM / 1000).toFixed(1);
+  const distanceKm = km(trace.totalDistanceM);
   const elevationLabel =
     trace.elevationGainM > 0 || trace.elevationLossM > 0
       ? `↑${trace.elevationGainM}m ↓${trace.elevationLossM}m`
@@ -316,9 +318,10 @@ const PoiMarker = memo(function PoiMarker({
   setMarkerRef: (poiId: string, el: L.Marker | null) => void;
 }) {
   const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
+  const facts = osmFacts(poi.tags, targetLanguage);
 
   const icon = useMemo(() => {
-    const emoji = CATEGORY_EMOJI[poi.category] ?? "📍";
+    const emoji = poiEmoji(poi);
     const size = isSelected ? 32 : 24;
     const markerClasses = [
       "poi-marker",
@@ -334,7 +337,7 @@ const PoiMarker = memo(function PoiMarker({
     );
     return L.divIcon({
       className: "poi-marker-icon",
-      html: `<div class="${markerClasses}" style="border-color:${poi.style.backgroundColor};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
+      html: `<div class="${markerClasses}" style="border-color:${CATEGORY_COLORS[poi.category]};width:${size}px;height:${size}px" role="img" aria-label="${markerLabel}" title="${markerLabel}">${emoji}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
       popupAnchor: [0, -size / 2],
@@ -355,10 +358,10 @@ const PoiMarker = memo(function PoiMarker({
           <strong>{translatePoiName(poi.name, targetLanguage)}</strong>
           <div className="poi-popup-cat">{translateCategory(poi.category, targetLanguage)}</div>
           <div className="poi-popup-dist">
-            km {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
-            {Math.round(poi.distanceToTrace)}
+            km {km(poi.alongTraceDistance)} &middot; {Math.round(poi.distanceToTrace)}
             {t("map.fromRoute", targetLanguage)}
           </div>
+          {facts.length > 0 && <div className="poi-popup-dist">{facts.join(" · ")}</div>}
 
           {/* Enrichment data */}
           {enrichment && enrichment.status === "done" && (

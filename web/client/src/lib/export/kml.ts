@@ -1,18 +1,9 @@
 // --- KML Export: for Google Earth and some GPS apps ---
 
 import type { EnrichedData, POI, TraceData } from "../../types";
+import { CATEGORY_COLORS } from "../poi-config";
 import { formatPoiDescriptionHtml } from "./description";
-import { downloadFile, escapeXml, hexToKmlColor } from "./shared";
-
-export function exportToKml(
-  pois: POI[],
-  traces: TraceData[],
-  filename: string = "ravitools-pois",
-  enrichments?: Map<string, EnrichedData>,
-): void {
-  const kmlContent = buildKmlString(pois, traces, enrichments);
-  downloadFile(kmlContent, `${filename}.kml`, "application/vnd.google-earth.kml+xml");
-}
+import { escapeXml, hexToKmlColor } from "./shared";
 
 export function buildKmlString(
   pois: POI[],
@@ -39,7 +30,7 @@ export function buildKmlString(
         <description><![CDATA[${formatPoiDescriptionHtml(poi, enrichments?.get(poi.id))}]]></description>
         <Style>
           <IconStyle>
-            <color>ff${hexToKmlColor(poi.style.backgroundColor)}</color>
+            <color>ff${hexToKmlColor(CATEGORY_COLORS[poi.category])}</color>
             <scale>1.0</scale>
           </IconStyle>
         </Style>

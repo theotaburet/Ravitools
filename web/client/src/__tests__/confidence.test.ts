@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeConfidence } from "../lib/enrichment/enricher";
+import { computeConfidence } from "../lib/enrichment/confidence";
 
 // An authoritative (official-website) result should beat a pile of
 // mediocre snippets, instead of raw snippet count dominating the score.

@@ -3,18 +3,7 @@
 
 import type { EnrichedData, POI, TraceData } from "../../types";
 import { buildKmlString } from "./kml";
-import { downloadBlob } from "./shared";
 import { buildZipSingleFile } from "./zip";
-
-export function exportToKmz(
-  pois: POI[],
-  traces: TraceData[],
-  filename: string = "ravitools-pois",
-  enrichments?: Map<string, EnrichedData>,
-): void {
-  const blob = buildKmzBlob(pois, traces, enrichments);
-  downloadBlob(blob, `${filename}.kmz`);
-}
 
 export function buildKmzBlob(
   pois: POI[],

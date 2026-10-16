@@ -2,7 +2,7 @@
 
 /**
  * Compute a confidence score (0-1) for an enrichment result.
- * WS10: richer formula with official website bonus, snippet quality,
+ * Richer formula with official website bonus, snippet quality,
  * review volume weight, and platform diversity.
  *
  * Components (sum, capped at 1.0):

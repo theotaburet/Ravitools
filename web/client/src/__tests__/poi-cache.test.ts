@@ -1,12 +1,7 @@
 // --- Tests for poi-cache (shared Postgres cache client) ---
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  getPoiCacheKey,
-  isCacheablePoi,
-  lookupPoiBatch,
-  uploadPoiEnrichment,
-} from "../lib/poi-cache";
+import { isCacheablePoi, lookupPoiBatch, poiCacheKey, uploadPoiEnrichment } from "../lib/poi-cache";
 import type { EnrichedData, POI } from "../types";
 
 const BASE_POI: POI = {
@@ -18,14 +13,8 @@ const BASE_POI: POI = {
   icon: "food",
   distanceToTrace: 100,
   alongTraceDistance: 12000,
+  traceId: "trace_1",
   tags: { name: "Bistro", amenity: "restaurant" },
-  style: {
-    iconShape: "circle",
-    borderColor: "#000",
-    borderWidth: "2",
-    textColor: "#fff",
-    backgroundColor: "#f00",
-  },
   osmId: 12345,
   osmType: "node",
 };
@@ -49,16 +38,16 @@ const BASE_ENRICHMENT: EnrichedData = {
   confidence: 0.85,
 };
 
-describe("isCacheablePoi / getPoiCacheKey", () => {
+describe("isCacheablePoi / poiCacheKey", () => {
   it("returns true for POI with osmId+osmType", () => {
     expect(isCacheablePoi(BASE_POI)).toBe(true);
-    expect(getPoiCacheKey(BASE_POI)).toBe("node/12345");
+    expect(poiCacheKey(BASE_POI)).toBe("node/12345");
   });
 
   it("returns false when osmId missing", () => {
     const poi = { ...BASE_POI, osmId: undefined };
     expect(isCacheablePoi(poi)).toBe(false);
-    expect(getPoiCacheKey(poi)).toBeNull();
+    expect(poiCacheKey(poi)).toBeNull();
   });
 
   it("returns false when osmType missing", () => {

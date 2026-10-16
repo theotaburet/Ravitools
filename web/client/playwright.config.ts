@@ -17,7 +17,7 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  // API calls are stubbed in the specs — only the Vite dev server is needed.
+  // API calls are stubbed in the specs: only the Vite dev server is needed.
   webServer: {
     command: "bun run dev",
     port: 5173,

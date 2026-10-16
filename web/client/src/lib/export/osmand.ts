@@ -2,19 +2,14 @@
 // Best experience on OsmAnd; other apps simply ignore the extensions.
 
 import type { EnrichedData, POI, PoiCategory, TraceData } from "../../types";
-import { getOsmAndIcon, OSMAND_CATEGORY_BACKGROUNDS, OSMAND_CATEGORY_COLORS } from "../poi-config";
+import {
+  CATEGORY_COLORS,
+  GPX_SYMBOLS,
+  getOsmAndIcon,
+  OSMAND_CATEGORY_BACKGROUNDS,
+} from "../poi-config";
 import { formatPoiDescriptionCompact } from "./description";
-import { buildTrackSections, downloadFile, escapeXml, mapCategoryToGpxSymbol } from "./shared";
-
-export function exportToOsmAndGpx(
-  pois: POI[],
-  traces: TraceData[],
-  filename: string = "ravitools-pois-osmand",
-  enrichments?: Map<string, EnrichedData>,
-): void {
-  const gpxContent = buildOsmAndGpxString(pois, traces, enrichments);
-  downloadFile(gpxContent, `${filename}.gpx`, "application/gpx+xml");
-}
+import { buildTrackSections, escapeXml } from "./shared";
 
 export function buildOsmAndGpxString(
   pois: POI[],
@@ -29,7 +24,7 @@ export function buildOsmAndGpxString(
 
   const pointsGroups = Array.from(categoriesUsed)
     .map((cat) => {
-      const color = OSMAND_CATEGORY_COLORS[cat] ?? "#3b82f6";
+      const color = CATEGORY_COLORS[cat] ?? "#3b82f6";
       const bg = OSMAND_CATEGORY_BACKGROUNDS[cat] ?? "circle";
       const icon = getOsmAndIcon({ category: cat, tags: {} });
       return `      <group name="${escapeXml(cat)}" color="${color}" icon="${icon}" background="${bg}" />`;
@@ -46,9 +41,9 @@ ${pointsGroups}
   const wpts = pois
     .map((poi) => {
       const desc = formatPoiDescriptionCompact(poi, enrichments?.get(poi.id));
-      const sym = mapCategoryToGpxSymbol(poi.category);
+      const sym = GPX_SYMBOLS[poi.category] ?? "Flag, Blue";
       const osmandIcon = getOsmAndIcon(poi);
-      const osmandColor = OSMAND_CATEGORY_COLORS[poi.category] ?? "#3b82f6";
+      const osmandColor = CATEGORY_COLORS[poi.category] ?? "#3b82f6";
       const osmandBg = OSMAND_CATEGORY_BACKGROUNDS[poi.category] ?? "circle";
 
       return `  <wpt lat="${poi.lat}" lon="${poi.lon}">

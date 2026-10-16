@@ -1,5 +1,4 @@
 // GPX parser: client-side parsing of GPX XML files
-// Port of gpx_smoother.py logic to TypeScript
 
 import type { TraceData, TracePoint } from "../types";
 import { TRACE_COLORS } from "../types";
@@ -145,7 +144,6 @@ export function computeElevationStats(points: TracePoint[]): { gain: number; los
 }
 
 // Trace simplification / resampling
-// Port of GPXSmoother._smooth_and_resample_path
 
 /**
  * Resample a trace to have evenly spaced points.
@@ -204,15 +202,10 @@ export function simplifyTrace(points: TracePoint[], spacingM: number = 500): Tra
  * proximity to sampled points.
  */
 export function distanceToTrace(point: TracePoint, trace: TracePoint[]): number {
+  if (trace.length === 1) return haversine(point, trace[0]);
   let minDist = Infinity;
   for (let i = 0; i < trace.length - 1; i++) {
-    const d = distanceToSegment(point, trace[i], trace[i + 1]);
-    if (d < minDist) minDist = d;
-  }
-  // Also check distance to last point
-  if (trace.length > 0) {
-    const d = haversine(point, trace[trace.length - 1]);
-    if (d < minDist) minDist = d;
+    minDist = Math.min(minDist, projectOnSegment(point, trace[i], trace[i + 1]).dist);
   }
   return minDist;
 }
@@ -221,12 +214,6 @@ export function distanceToTrace(point: TracePoint, trace: TracePoint[]): number 
 
 /** Grid cell size in degrees (~2.2 km at 45°N latitude) */
 const GRID_CELL_DEG = 0.02;
-
-/** A segment index entry: start index in the trace points array */
-interface SegmentRef {
-  /** Index of the first point of this segment in the trace */
-  idx: number;
-}
 
 /**
  * Spatial index for a trace polyline.
@@ -239,7 +226,8 @@ interface SegmentRef {
  * and each distance query is O(k) where k ≪ n (typically 20-60 segments).
  */
 export class TraceIndex {
-  private grid = new Map<string, SegmentRef[]>();
+  /** Cell key → index of each segment's first point */
+  private grid = new Map<string, number[]>();
   private points: TracePoint[];
 
   constructor(trace: TracePoint[]) {
@@ -257,7 +245,6 @@ export class TraceIndex {
       const cMaxLat = Math.floor(maxLat / GRID_CELL_DEG);
       const cMinLon = Math.floor(minLon / GRID_CELL_DEG);
       const cMaxLon = Math.floor(maxLon / GRID_CELL_DEG);
-      const ref: SegmentRef = { idx: i };
       for (let cy = cMinLat; cy <= cMaxLat; cy++) {
         for (let cx = cMinLon; cx <= cMaxLon; cx++) {
           const key = `${cy},${cx}`;
@@ -266,7 +253,7 @@ export class TraceIndex {
             bucket = [];
             this.grid.set(key, bucket);
           }
-          bucket.push(ref);
+          bucket.push(i);
         }
       }
     }
@@ -293,10 +280,10 @@ export class TraceIndex {
         const key = `${cy + dy},${cx + dx}`;
         const bucket = this.grid.get(key);
         if (!bucket) continue;
-        for (const ref of bucket) {
-          if (tested.has(ref.idx)) continue;
-          tested.add(ref.idx);
-          const d = distanceToSegment(point, this.points[ref.idx], this.points[ref.idx + 1]);
+        for (const idx of bucket) {
+          if (tested.has(idx)) continue;
+          tested.add(idx);
+          const d = projectOnSegment(point, this.points[idx], this.points[idx + 1]).dist;
           if (d < minDist) minDist = d;
         }
       }
@@ -312,31 +299,26 @@ export class TraceIndex {
 }
 
 /**
- * Approximate distance from a point to a line segment.
- * Projects the point onto the segment in lat/lon space then computes
- * haversine distance to the projected point.
+ * Project a point onto segment [a, b]: `t` is the fraction along it (0–1),
+ * `dist` the haversine distance to the projection. Longitude is scaled by
+ * cos(lat) (1° lon = cos(lat)·1° lat in meters) so the projection is not
+ * distorted away from the equator, where travel order would flip.
  */
-function distanceToSegment(p: TracePoint, a: TracePoint, b: TracePoint): number {
-  // Work in a locally-isometric frame: scale longitude by cos(lat) so the
-  // projection isn't distorted away from the equator. 1° lon = cos(lat)·1° lat
-  // in meters; the final distance stays haversine.
+function projectOnSegment(
+  p: TracePoint,
+  a: TracePoint,
+  b: TracePoint,
+): { t: number; dist: number } {
   const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
   const dLon = b.lon - a.lon;
   const dx = dLon * k;
   const dy = b.lat - a.lat;
   const lenSq = dx * dx + dy * dy;
-
-  if (lenSq === 0) return haversine(p, a);
-
-  let t = ((p.lon - a.lon) * k * dx + (p.lat - a.lat) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-
-  const proj: TracePoint = {
-    lat: a.lat + t * dy,
-    lon: a.lon + t * dLon,
-  };
-
-  return haversine(p, proj);
+  const t =
+    lenSq === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((p.lon - a.lon) * k * dx + (p.lat - a.lat) * dy) / lenSq));
+  return { t, dist: haversine(p, { lat: a.lat + t * dy, lon: a.lon + t * dLon }) };
 }
 
 // --- Along-trace distance computation ---
@@ -354,43 +336,19 @@ function distanceToSegment(p: TracePoint, a: TracePoint, b: TracePoint): number 
  * @returns Distance along the trace (meters) from the start to the POI's projection
  */
 export function alongTraceProjection(point: TracePoint, trace: TracePoint[]): number {
-  if (trace.length === 0) return 0;
-  if (trace.length === 1) return 0;
+  if (trace.length < 2) return 0;
 
   let minDist = Infinity;
   let bestAlongDist = 0;
   let cumDist = 0;
 
   for (let i = 0; i < trace.length - 1; i++) {
-    const a = trace[i];
-    const b = trace[i + 1];
-    const segLen = haversine(a, b);
-
-    // Project point onto segment: same cos(lat) longitude scaling as
-    // distanceToSegment, else travel order flips at high latitude.
-    const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
-    const dLon = b.lon - a.lon;
-    const dx = dLon * k;
-    const dy = b.lat - a.lat;
-    const lenSq = dx * dx + dy * dy;
-
-    let t = 0;
-    if (lenSq > 0) {
-      t = ((point.lon - a.lon) * k * dx + (point.lat - a.lat) * dy) / lenSq;
-      t = Math.max(0, Math.min(1, t));
-    }
-
-    const proj: TracePoint = {
-      lat: a.lat + t * dy,
-      lon: a.lon + t * dLon,
-    };
-
-    const d = haversine(point, proj);
-    if (d < minDist) {
-      minDist = d;
+    const segLen = haversine(trace[i], trace[i + 1]);
+    const { t, dist } = projectOnSegment(point, trace[i], trace[i + 1]);
+    if (dist < minDist) {
+      minDist = dist;
       bestAlongDist = cumDist + t * segLen;
     }
-
     cumDist += segLen;
   }
 

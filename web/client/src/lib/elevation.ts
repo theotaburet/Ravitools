@@ -153,3 +153,32 @@ export function profileAt(profile: ProfilePoint[], dist: number): ProfilePoint {
     lon: a.lon + (b.lon - a.lon) * f,
   };
 }
+
+/**
+ * Vertical scale of a profile chart `height` tall with `pad` above and below:
+ * elevation → SVG y. A flat profile sits on the bottom line.
+ */
+export function elevationScale(
+  profile: ProfilePoint[],
+  height: number,
+  pad: number,
+): { minEle: number; maxEle: number; y: (ele: number) => number } {
+  let minEle = Infinity;
+  let maxEle = -Infinity;
+  for (const p of profile) {
+    if (p.ele < minEle) minEle = p.ele;
+    if (p.ele > maxEle) maxEle = p.ele;
+  }
+  const y = (ele: number) =>
+    maxEle === minEle
+      ? height - pad
+      : height - pad - ((ele - minEle) / (maxEle - minEle)) * (height - 2 * pad);
+  return { minEle, maxEle, y };
+}
+
+/** SVG path data through the points: "M x,y L x,y …" */
+export function svgPath(points: [x: number, y: number][]): string {
+  return points
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(" ");
+}

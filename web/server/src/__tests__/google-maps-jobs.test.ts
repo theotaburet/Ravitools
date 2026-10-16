@@ -5,7 +5,7 @@ import os from "node:os";
 import { join } from "node:path";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ScraperFailureRecord } from "../scrapers/types";
+import type { MapPreview, ScraperFailureRecord } from "../scrapers/types";
 
 // --- Environment setup before app import ---
 process.env.NODE_ENV = "test";
@@ -55,11 +55,13 @@ vi.stubGlobal("fetch", mockFetch);
 const { default: app, _testExports } = await import("../index");
 const {
   parseGoogleMapsHoursRow,
+  parseHoursFromBodyText,
   normalizeDay,
   normalizeTimeString,
   extractGoogleMapsRating,
   extractGoogleMapsReviewCount,
-  cleanGoogleMapsHours,
+  parseGoogleMapsHoursLabel,
+  stripLiveOpenStatus,
   extractPriceLevelFromText,
   GOOGLE_MAPS_PROXY_URL,
 } = await import("../scrapers/google-maps.js");
@@ -74,11 +76,11 @@ const GOOGLE_MAPS_FAILURES_FILE = googleMapsSystem.failuresFile;
 const appendGoogleMapsFailure = (record: Omit<ScraperFailureRecord, "source">) =>
   googleMapsSystem.appendFailure({ source: "google-maps", ...record });
 
-// --- T5a: Job lifecycle tests ---
+// --- Job lifecycle tests ---
 
 describe("Google Maps jobs: lifecycle", () => {
   beforeEach(() => {
-    googleMapsJobCache.flushAll();
+    googleMapsJobCache.clear();
     mockFetch.mockReset();
   });
 
@@ -132,49 +134,57 @@ describe("Google Maps jobs: lifecycle", () => {
     expect(get.body.poiName).toBe("Camping Test");
   });
 
-  it("DELETE /google-maps-preview/jobs/:jobId cancels a queued job and returns 204", async () => {
-    const post = await request(app)
-      .post("/google-maps-preview/jobs")
-      .send({ url: "https://www.google.com/maps/search/restaurant+test" });
-    const jobId = post.body.jobId as string;
-
-    const del = await request(app).delete(`/google-maps-preview/jobs/${jobId}`);
-    expect(del.status).toBe(204);
-
-    // Queued jobs are removed from cache; running jobs are marked error
-    const get = await request(app).get(`/google-maps-preview/jobs/${jobId}`);
-    // The job may have transitioned to running before cancel: check either gone or error+cancelled
-    if (get.status === 200) {
-      expect(get.body.status).toBe("error");
-      expect(get.body.error).toMatch(/Cancelled/i);
-    } else {
-      expect(get.status).toBe(404);
-    }
-  });
-
-  it("DELETE /google-maps-preview/jobs/:jobId returns 404 for unknown job", async () => {
-    const res = await request(app).delete("/google-maps-preview/jobs/no-such-job");
-    expect(res.status).toBe(404);
-  });
-
   it("GET /google-maps-preview/jobs returns counts and jobs list", async () => {
-    googleMapsJobCache.flushAll();
+    googleMapsJobCache.clear();
     const res = await request(app).get("/google-maps-preview/jobs");
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("counts");
     expect(res.body.counts).toMatchObject({ queued: 0, running: 0, done: 0, error: 0 });
     expect(Array.isArray(res.body.jobs)).toBe(true);
   });
+
+  it("GET /google-maps-preview/jobs counts done jobs whose page layout did not parse", async () => {
+    googleMapsJobCache.clear();
+    const now = new Date().toISOString();
+    const base = {
+      status: "done" as const,
+      source: "google-maps",
+      url: "https://www.google.com/maps/search/x",
+      poiName: "X",
+      error: null,
+      createdAt: now,
+      updatedAt: now,
+      startedAt: now,
+      attempt: 1,
+      nextRetryAt: null,
+      lastError: null,
+    };
+    googleMapsJobCache.set("layout-ok", {
+      ...base,
+      jobId: "layout-ok",
+      preview: { layoutWarnings: [] } as unknown as MapPreview,
+    });
+    googleMapsJobCache.set("layout-ko", {
+      ...base,
+      jobId: "layout-ko",
+      preview: {
+        layoutWarnings: ["hours shown on the page but no day button parsed"],
+      } as unknown as MapPreview,
+    });
+
+    const res = await request(app).get("/google-maps-preview/jobs");
+    expect(res.body.counts).toMatchObject({ done: 2, layoutIssues: 1 });
+  });
 });
 
-// --- T5b: Persistence / reload tests ---
+// --- Persistence / reload tests ---
 
 describe("Google Maps jobs: persistence and reload", () => {
   const tmpDir = join(os.tmpdir(), `ravitools-test-${Date.now()}`);
 
   beforeEach(() => {
     mkdirSync(tmpDir, { recursive: true });
-    googleMapsJobCache.flushAll();
+    googleMapsJobCache.clear();
   });
 
   afterEach(() => {
@@ -191,6 +201,7 @@ describe("Google Maps jobs: persistence and reload", () => {
     const fakeJob = {
       jobId: "test-id-1",
       status: "done" as const,
+      source: "google-maps",
       url: "https://www.google.com/maps/search/test",
       poiName: "Test POI",
       preview: null,
@@ -216,6 +227,7 @@ describe("Google Maps jobs: persistence and reload", () => {
     const fakeJob = {
       jobId: "test-reload-1",
       status: "done" as const,
+      source: "google-maps",
       url: "https://www.google.com/maps/search/test",
       poiName: "Reload Test",
       preview: null,
@@ -229,9 +241,9 @@ describe("Google Maps jobs: persistence and reload", () => {
     };
     googleMapsJobCache.set(fakeJob.jobId, fakeJob);
     persistGoogleMapsJobs();
-    googleMapsJobCache.flushAll();
+    googleMapsJobCache.clear();
     loadPersistedGoogleMapsJobs();
-    const reloaded = googleMapsJobCache.get<typeof fakeJob>("test-reload-1");
+    const reloaded = googleMapsJobCache.get("test-reload-1");
     expect(reloaded).toBeTruthy();
     expect(reloaded?.status).toBe("done");
     expect(reloaded?.poiName).toBe("Reload Test");
@@ -241,6 +253,7 @@ describe("Google Maps jobs: persistence and reload", () => {
     const runningJob = {
       jobId: "test-running-interrupted",
       status: "running" as const,
+      source: "google-maps",
       url: "https://www.google.com/maps/search/interrupted",
       poiName: "Interrupted POI",
       preview: null,
@@ -254,16 +267,16 @@ describe("Google Maps jobs: persistence and reload", () => {
     };
     googleMapsJobCache.set(runningJob.jobId, runningJob);
     persistGoogleMapsJobs();
-    googleMapsJobCache.flushAll();
+    googleMapsJobCache.clear();
     loadPersistedGoogleMapsJobs();
-    const reloaded = googleMapsJobCache.get<typeof runningJob>("test-running-interrupted");
+    const reloaded = googleMapsJobCache.get("test-running-interrupted");
     expect(reloaded).toBeTruthy();
     expect(reloaded?.status).toBe("error");
     expect(reloaded?.error).toMatch(/interrupted/i);
   });
 });
 
-// --- T5c: Extraction heuristic tests (pure functions, no Playwright) ---
+// --- Extraction heuristic tests (pure functions, no Playwright) ---
 
 describe("normalizeDay", () => {
   it("passes through canonical English short days", () => {
@@ -289,6 +302,11 @@ describe("normalizeTimeString", () => {
     expect(normalizeTimeString("12:00 PM")).toBe("12:00");
     expect(normalizeTimeString("11:30 PM")).toBe("23:30");
     expect(normalizeTimeString("12:00 AM")).toBe("00:00");
+  });
+
+  it("accepts 12h times without minutes", () => {
+    expect(normalizeTimeString("9 AM")).toBe("09:00");
+    expect(normalizeTimeString("7 PM")).toBe("19:00");
   });
 
   it("passes through 24h time strings", () => {
@@ -338,6 +356,22 @@ describe("parseGoogleMapsHoursRow", () => {
   });
 });
 
+describe("parseHoursFromBodyText", () => {
+  it("reads the day-labelled lines of the page text", () => {
+    const text =
+      "Boulangerie\n4.6 stars\nMonday 7:00 – 19:00\nTuesday Closed\n\nWednesday 7:00 – 19:00\nDirections";
+    expect(parseHoursFromBodyText(text)).toEqual([
+      { day: "Mon", open: "07:00", close: "19:00" },
+      { day: "Tue", open: "closed", close: null },
+      { day: "Wed", open: "07:00", close: "19:00" },
+    ]);
+  });
+
+  it("returns null when fewer than two days parse", () => {
+    expect(parseHoursFromBodyText("Monday 7:00 – 19:00\nDirections")).toBeNull();
+  });
+});
+
 describe("extractGoogleMapsRating", () => {
   it("extracts a decimal rating", () => {
     expect(extractGoogleMapsRating("This place has a rating of 4.3 / 5")).toBe(4.3);
@@ -366,14 +400,72 @@ describe("extractGoogleMapsReviewCount", () => {
   });
 });
 
-describe("cleanGoogleMapsHours", () => {
-  it("passes through clean hours text", () => {
-    const text = "Open until 10 PM";
-    expect(cleanGoogleMapsHours(text)).toBeTruthy();
+describe("parseGoogleMapsHoursLabel", () => {
+  // Google Maps (2026) exposes the week as one button per day, no table: the
+  // aria-label carries the day, the ranges and a trailing action verb.
+  it("parses an English label with 12h times, with and without minutes", () => {
+    expect(parseGoogleMapsHoursLabel("Monday, 9 AM to 6:30 PM, Copy open hours")).toEqual({
+      day: "Mon",
+      open: "09:00",
+      close: "18:30",
+    });
   });
 
-  it("returns null for null input", () => {
-    expect(cleanGoogleMapsHours(null)).toBeNull();
+  it("collapses several ranges to first open and last close", () => {
+    expect(
+      parseGoogleMapsHoursLabel("Tuesday, 8:30 AM to 12 PM, 2 to 7 PM, Copy open hours"),
+    ).toEqual({ day: "Tue", open: "08:30", close: "19:00" });
+  });
+
+  it("parses closed and all-day labels", () => {
+    expect(parseGoogleMapsHoursLabel("Sunday, Closed, Copy open hours")).toEqual({
+      day: "Sun",
+      open: "closed",
+      close: null,
+    });
+    expect(parseGoogleMapsHoursLabel("Wednesday, Open 24 hours, Copy open hours")).toEqual({
+      day: "Wed",
+      open: "00:00",
+      close: "23:59",
+    });
+  });
+
+  it("parses other UI languages when the day name is known", () => {
+    expect(
+      parseGoogleMapsHoursLabel(
+        "lundi, de 08:30 à 12:00, de 14:00 à 19:00, Copier les horaires d'ouverture",
+      ),
+    ).toEqual({ day: "Mon", open: "08:30", close: "19:00" });
+    expect(parseGoogleMapsHoursLabel("domingo, Cerrado, Copiar el horario")).toEqual({
+      day: "Sun",
+      open: "closed",
+      close: null,
+    });
+  });
+
+  it("ignores labels that do not start with a day name", () => {
+    expect(parseGoogleMapsHoursLabel("Suggest new hours")).toBeNull();
+    expect(parseGoogleMapsHoursLabel("Close")).toBeNull();
+  });
+});
+
+describe("stripLiveOpenStatus", () => {
+  // "Closed ⋅ Opens 9 AM Mon" is the state at scrape time, not the schedule:
+  // left in the snippet, the LLM reports the place as closed.
+  it("removes the live status, with or without the day", () => {
+    expect(stripLiveOpenStatus("Shop 4.4 (14) Closed ⋅ Opens 9 AM Mon 123 Main St")).toBe(
+      "Shop 4.4 (14) 123 Main St",
+    );
+    expect(stripLiveOpenStatus("Shop Open ⋅ Closes 6:30 PM shop.example")).toBe(
+      "Shop shop.example",
+    );
+  });
+
+  it("also handles a French UI and keeps null", () => {
+    expect(stripLiveOpenStatus("Skimium Fermé · Ouvre à 10:00 dim. Mis à jour")).toBe(
+      "Skimium Mis à jour",
+    );
+    expect(stripLiveOpenStatus(null)).toBeNull();
   });
 });
 

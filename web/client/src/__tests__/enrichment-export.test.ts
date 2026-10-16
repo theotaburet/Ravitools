@@ -35,12 +35,8 @@ describe("export with enrichments", () => {
           sourceEngines: [],
           confidence: 0,
           structured: {
-            headline: "Excellent French bistro, cyclist-friendly terrace.",
-            operationalSummary: "Reputation signals present.",
-            practicalities: ["Type: French bistro"],
             sourceRollup: [],
             cautions: [],
-            unknowns: [],
             divergences: [],
             sourceConfirmation: "none" as const,
           },
@@ -80,12 +76,8 @@ describe("export with enrichments", () => {
           sourceEngines: [],
           confidence: 0,
           structured: {
-            headline: "Good place to eat.",
-            operationalSummary: "Reputation signals present.",
-            practicalities: ["Type: Italian"],
             sourceRollup: [],
             cautions: [],
-            unknowns: [],
             divergences: [],
             sourceConfirmation: "none" as const,
           },
@@ -123,9 +115,6 @@ describe("export with enrichments", () => {
           sourceEngines: ["google", "bing"],
           confidence: 0.55,
           structured: {
-            headline: "Toujours ouvert.",
-            operationalSummary: "Coverage: Google Maps, Yelp.",
-            practicalities: ["Type: Cafe"],
             sourceRollup: [
               {
                 platform: "google_maps" as const,
@@ -134,7 +123,6 @@ describe("export with enrichments", () => {
               },
             ],
             cautions: [],
-            unknowns: [],
             divergences: [],
             sourceConfirmation: "none" as const,
           },
@@ -153,8 +141,6 @@ describe("export with enrichments", () => {
     expect(props.enrichment_sourceCount).toBe(3);
     expect(props.enrichment_sourceEngines).toBe("google,bing");
     expect(props.enrichment_confidence).toBe(0.55);
-    expect(props.enrichment_structured_headline).toBe("Toujours ouvert.");
-    expect(props.enrichment_structured_practicalities).toContain("Type: Cafe");
   });
 
   it("GeoJSON export works without enrichments", async () => {
@@ -173,16 +159,6 @@ describe("export with enrichments", () => {
     const gpx = buildGpxString([poi], []);
     expect(gpx).toContain("Le Petit Zinc");
     expect(gpx).toContain("Restaurant or Bar");
-  });
-});
-
-// --- Target language and translated summary ---
-
-describe("target language types", () => {
-  it("TARGET_LANGUAGE_LABELS has entries for all supported languages", async () => {
-    const { TARGET_LANGUAGE_LABELS } = await import("../types");
-    expect(TARGET_LANGUAGE_LABELS.fr).toBe("Français");
-    expect(TARGET_LANGUAGE_LABELS.en).toBe("English");
   });
 });
 
@@ -443,12 +419,8 @@ describe("formatPoiDescriptionCompact", () => {
       sourceEngines: [],
       confidence: 0,
       structured: {
-        headline: null,
-        operationalSummary: null,
-        practicalities: [],
         sourceRollup: [],
         cautions: [longText, longText],
-        unknowns: [],
         divergences: [],
         sourceConfirmation: "none",
       },
@@ -547,12 +519,8 @@ describe("formatPoiDescriptionCompact", () => {
       sourceEngines: [],
       confidence: 0,
       structured: {
-        headline: null,
-        operationalSummary: null,
-        practicalities: [],
         sourceRollup: [],
         cautions: ["First warning", "Second warning", "Third warning"],
-        unknowns: [],
         divergences: [],
         sourceConfirmation: "none",
       },

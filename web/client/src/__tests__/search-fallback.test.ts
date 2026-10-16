@@ -14,14 +14,8 @@ const POI_FIXTURE: POI = {
   icon: "food",
   distanceToTrace: 100,
   alongTraceDistance: 1000,
+  traceId: "trace_1",
   tags: { name: "Bistro du Port", amenity: "restaurant" },
-  style: {
-    iconShape: "circle",
-    borderColor: "#000",
-    borderWidth: "2",
-    textColor: "#fff",
-    backgroundColor: "#f00",
-  },
   osmId: 1,
   osmType: "node",
 };
@@ -62,11 +56,47 @@ describe("searchPoi query-variant fallback", () => {
   });
 });
 
+describe("searchPoi language", () => {
+  const okResponse = {
+    ok: true,
+    status: 200,
+    json: async () => ({ results: [], unresponsive_engines: [] }),
+  };
+
+  it("asks SearXNG in the country's language with that language's words", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(okResponse);
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await searchPoi(POI_FIXTURE, "Wien", undefined, 0, {
+      locality: "Wien",
+      county: null,
+      state: null,
+      country: "Österreich",
+      countryCode: "at",
+    });
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1].body));
+    expect(body.language).toBe("de");
+    expect(body.query).toContain("Bewertungen");
+  });
+
+  it("defaults to English without a geocoded country", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(okResponse);
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await searchPoi(POI_FIXTURE, null, undefined, 0);
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1].body));
+    expect(body.language).toBe("en");
+    expect(body.query).toContain("reviews");
+  });
+});
+
 // No manual abort listeners on the caller's signal: the native
 // AbortSignal.any/timeout combination replaced the hand-rolled relay that
 // used to accumulate listeners by the thousands on a batch signal
 
-describe("abort listener cleanup (R20/R25)", () => {
+describe("abort listener cleanup", () => {
   it("adds no manual listeners to the caller's signal", async () => {
     vi.stubGlobal(
       "fetch",
@@ -75,8 +105,8 @@ describe("abort listener cleanup (R20/R25)", () => {
     const ctrl = new AbortController();
     const addSpy = vi.spyOn(ctrl.signal, "addEventListener");
 
-    const { reverseGeocode } = await import("../lib/enrichment/search");
-    await reverseGeocode(43.5, -1.4, "/api", ctrl.signal);
+    const { reverseGeocode } = await import("../lib/enrichment/geocode");
+    await reverseGeocode(43.5, -1.4, ctrl.signal);
 
     expect(addSpy.mock.calls.length).toBe(0);
   });

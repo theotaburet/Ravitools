@@ -1,167 +1,200 @@
-// Export panel (neobrutalist)
-// Two sections: GPS devices + Smartphone offline apps
+// Export panel: one card per format, grouped by target (GPS, smartphone, files).
+// The FIT card is the primary action: it is the only one that carries typed alerts.
 
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useState } from "react";
 import {
-  exportToGeoJson,
-  exportToGpx,
-  exportToKml,
-  exportToKmz,
-  exportToOsmAndGpx,
+  buildGeoJsonObject,
+  buildGpxString,
+  buildKmlString,
+  buildKmzBlob,
+  buildOsmAndGpxString,
+  exportToFit,
 } from "../lib/export";
-import { downloadFile } from "../lib/export/shared";
+import { downloadBlob, downloadFile } from "../lib/export/shared";
 import { t } from "../lib/i18n";
 import { serializeSession } from "../lib/session";
 import { enrichmentsAtom } from "../state/enrichment";
-import {
-  activeCategoriesAtom,
-  filteredPoisAtom,
-  poisAtom,
-  routeSettingsAtom,
-  stageAtom,
-  tracesAtom,
-} from "../state/route";
-import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
+import { filteredPoisAtom, tracesAtom } from "../state/route";
+import { sessionSnapshotAtom } from "../state/session";
+import { targetLanguageAtom } from "../state/ui";
 
 const Roadbook = lazy(() => import("./Roadbook").then((m) => ({ default: m.Roadbook })));
 
+function ExportCard({
+  format,
+  target,
+  primary = false,
+  disabled = false,
+  onClick,
+}: {
+  format: string;
+  target: string;
+  primary?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`export-card${primary ? " is-primary" : ""}`}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span className="export-card-format">{format}</span>
+      <span className="export-card-target">{target}</span>
+    </button>
+  );
+}
+
 export function ExportPanel() {
   const pois = useAtomValue(filteredPoisAtom);
-  const allPois = useAtomValue(poisAtom);
   const traces = useAtomValue(tracesAtom);
-  const activeCategories = useAtomValue(activeCategoriesAtom);
-  const routeSettings = useAtomValue(routeSettingsAtom);
-  const stage = useAtomValue(stageAtom);
+  const snapshot = useAtomValue(sessionSnapshotAtom);
   const enrichments = useAtomValue(enrichmentsAtom);
-  const enrichAll = useAtomValue(enrichAllAtom);
-  const targetLanguage = useAtomValue(targetLanguageAtom);
+  const lang = useAtomValue(targetLanguageAtom);
   const [roadbookOpen, setRoadbookOpen] = useState(false);
   if (pois.length === 0) return null;
 
   const firstName = traces[0]?.name;
-  const baseName = firstName
+  const slug = firstName?.replace(/\s+/g, "-").toLowerCase();
+  const baseName = slug
     ? traces.length === 1
-      ? `ravitools-${firstName.replace(/\s+/g, "-").toLowerCase()}`
+      ? `ravitools-${slug}`
       : `ravitools-${traces.length}-routes`
     : "ravitools-pois";
+  const hasEnrichments = enrichments.size > 0;
+
+  const savePlan = () => {
+    if (!snapshot) return;
+    downloadFile(
+      serializeSession(snapshot),
+      slug ? `${slug}.ravitools.json` : "plan.ravitools.json",
+      "application/json",
+    );
+  };
 
   return (
     <div className="export-panel">
-      <h3>{t("export.gps", targetLanguage)}</h3>
-      <p className="text-xs text-muted font-mono mb-3">
-        {pois.length} {t("export.poisReady", targetLanguage)}
+      <p className="hint">
+        {pois.length} {t("export.poisReady", lang)}
         {traces.length > 1 && ` (${traces.length} traces)`}
-        {enrichments &&
-          enrichments.size > 0 &&
-          ` (${enrichments.size} ${t("export.enriched", targetLanguage)})`}
+        {hasEnrichments && ` (${enrichments.size} ${t("export.enriched", lang)})`}
       </p>
 
-      {/* GPS device exports */}
-      <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          className="neo-btn-lime w-full"
-          onClick={() => exportToGpx(pois, traces, baseName, enrichments)}
-        >
-          .GPX (Garmin, Wahoo...)
-        </button>
-        <button
-          type="button"
-          className="neo-btn-secondary w-full"
-          onClick={() => exportToKml(pois, traces, baseName, enrichments)}
-        >
-          .KML (Google Earth)
-        </button>
-        <button
-          type="button"
-          className="neo-btn-secondary w-full"
-          onClick={() => exportToGeoJson(pois, baseName, enrichments)}
-        >
-          .GeoJSON
-        </button>
+      <div className="export-group">
+        <div className="export-group-title">
+          <span>{t("export.gps", lang)}</span>
+        </div>
+        <div className="export-grid">
+          <ExportCard
+            primary
+            format="FIT"
+            target={t("export.fitTarget", lang)}
+            onClick={() => exportToFit(pois, traces)}
+          />
+          <ExportCard
+            format="GPX"
+            target={t("export.gpxTarget", lang)}
+            onClick={() =>
+              downloadFile(
+                buildGpxString(pois, traces, enrichments),
+                `${baseName}.gpx`,
+                "application/gpx+xml",
+              )
+            }
+          />
+          <ExportCard
+            format="KML"
+            target={t("export.kmlTarget", lang)}
+            onClick={() =>
+              downloadFile(
+                buildKmlString(pois, traces, enrichments),
+                `${baseName}.kml`,
+                "application/vnd.google-earth.kml+xml",
+              )
+            }
+          />
+          <ExportCard
+            format="GeoJSON"
+            target={t("export.geojsonTarget", lang)}
+            onClick={() =>
+              downloadFile(
+                JSON.stringify(buildGeoJsonObject(pois, enrichments), null, 2),
+                `${baseName}.geojson`,
+                "application/geo+json",
+              )
+            }
+          />
+        </div>
       </div>
 
-      {/* Smartphone offline apps */}
-      <div className="export-divider" />
-      <h3>{t("export.smartphone", targetLanguage)}</h3>
-      <p className="text-xs text-muted font-mono mb-3">{t("export.offlineApps", targetLanguage)}</p>
-      <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          className="neo-btn-pink w-full"
-          onClick={() => exportToOsmAndGpx(pois, traces, baseName, enrichments)}
-        >
-          .GPX OsmAnd (icons + colors)
-        </button>
-        <button
-          type="button"
-          className="neo-btn-secondary w-full"
-          onClick={() => exportToKmz(pois, traces, baseName, enrichments)}
-        >
-          .KMZ (Organic Maps, Guru Maps)
-        </button>
+      <div className="export-group">
+        <div className="export-group-title">
+          <span>{t("export.smartphone", lang)}</span>
+        </div>
+        <div className="export-grid">
+          <ExportCard
+            format="GPX OsmAnd"
+            target={t("export.osmandTarget", lang)}
+            onClick={() =>
+              downloadFile(
+                buildOsmAndGpxString(pois, traces, enrichments),
+                `${baseName}-osmand.gpx`,
+                "application/gpx+xml",
+              )
+            }
+          />
+          <ExportCard
+            format="KMZ"
+            target={t("export.kmzTarget", lang)}
+            onClick={() => downloadBlob(buildKmzBlob(pois, traces, enrichments), `${baseName}.kmz`)}
+          />
+        </div>
       </div>
 
-      {/* Plan file: full session as .ravitools.json */}
-      <div className="export-divider" />
-      <h3>{t("export.plan", targetLanguage)}</h3>
-      <p className="text-xs text-muted font-mono mb-3">{t("export.planBody", targetLanguage)}</p>
-      <button
-        type="button"
-        className="neo-btn-secondary w-full"
-        disabled={stage !== "done"}
-        onClick={() =>
-          downloadFile(
-            serializeSession({
-              activeCategories,
-              traces,
-              pois: allPois,
-              enrichments,
-              targetLanguage,
-              enrichAll,
-              routeSettings,
-            }),
-            firstName
-              ? `${firstName.replace(/\s+/g, "-").toLowerCase()}.ravitools.json`
-              : "plan.ravitools.json",
-            "application/json",
-          )
-        }
-      >
-        {t("export.savePlan", targetLanguage)}
-      </button>
-
-      {/* Roadbook */}
-      <div className="export-divider" />
-      <h3>{t("roadbook.title", targetLanguage)}</h3>
-      <p className="text-xs text-muted font-mono mb-3">{t("roadbook.body", targetLanguage)}</p>
-      <button
-        type="button"
-        className="neo-btn-secondary w-full"
-        disabled={stage !== "done"}
-        onClick={() => setRoadbookOpen(true)}
-      >
-        {t("roadbook.open", targetLanguage)}
-      </button>
+      <div className="export-group">
+        <div className="export-group-title">
+          <span>{t("export.files", lang)}</span>
+        </div>
+        <div className="export-grid">
+          <ExportCard
+            format={t("export.plan", lang)}
+            target={t("export.planBody", lang)}
+            disabled={!snapshot}
+            onClick={savePlan}
+          />
+          <ExportCard
+            format={t("roadbook.title", lang)}
+            target={t("roadbook.body", lang)}
+            disabled={!snapshot}
+            onClick={() => setRoadbookOpen(true)}
+          />
+        </div>
+      </div>
       {roadbookOpen && (
         <Suspense fallback={null}>
           <Roadbook onClose={() => setRoadbookOpen(false)} />
         </Suspense>
       )}
 
-      <p className="text-xs text-muted mt-3 leading-snug">
-        <strong>OsmAnd GPX</strong> {t("export.osmandBody", targetLanguage)}
-        <br />
-        <strong>KMZ</strong> {t("export.kmzBody", targetLanguage)}
-        {enrichments && enrichments.size > 0 && (
-          <>
-            <br />
-            <strong>{t("export.enrichedLabel", targetLanguage)}</strong>{" "}
-            {t("export.enrichedBody", targetLanguage)}
-          </>
+      <details className="export-notes">
+        <summary>{t("export.which", lang)}</summary>
+        <p>
+          <strong>FIT</strong> {t("export.fitBody", lang)}
+        </p>
+        <p>
+          <strong>OsmAnd GPX</strong> {t("export.osmandBody", lang)}
+        </p>
+        <p>
+          <strong>KMZ</strong> {t("export.kmzBody", lang)}
+        </p>
+        {hasEnrichments && (
+          <p>
+            <strong>{t("export.enrichedLabel", lang)}</strong> {t("export.enrichedBody", lang)}
+          </p>
         )}
-      </p>
+      </details>
     </div>
   );
 }

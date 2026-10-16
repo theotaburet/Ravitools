@@ -2,7 +2,7 @@
 -- Migration 001: initial schema
 --
 -- Stores enrichment results keyed by OSM identifier.
--- Anonymous public read/write — no user data, only public OSM POIs + their
+-- Anonymous public read/write: no user data, only public OSM POIs + their
 -- enrichment (description, hours, rating, ...).
 -- TTL is enforced at query time (max_age_days param), no auto-deletion.
 

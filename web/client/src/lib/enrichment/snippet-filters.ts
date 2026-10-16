@@ -127,7 +127,7 @@ export function isSnippetGeographicallyCoherent(
 // --- Name relevance: a snippet that never mentions the place is not a source for it ---
 
 /** Category words and function words that say nothing about which place a snippet is about. */
-const GENERIC_NAME_WORDS = new Set([
+export const GENERIC_NAME_WORDS = new Set([
   "hotel",
   "restaurant",
   "bar",
@@ -181,7 +181,7 @@ const GENERIC_NAME_WORDS = new Set([
   "sainte",
 ]);
 
-function foldAccents(text: string): string {
+export function foldAccents(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 

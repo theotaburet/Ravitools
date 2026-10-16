@@ -13,14 +13,8 @@ export function makePoi(overrides: Partial<POI> = {}): POI {
     icon: "utensils",
     distanceToTrace: 120,
     alongTraceDistance: 5000,
+    traceId: "trace_1",
     tags: { amenity: "restaurant", cuisine: "french" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#FF6B35",
-    },
     ...overrides,
   };
 }

@@ -4,9 +4,7 @@ import { GOOGLE_MAPS_PROXY_URL } from "./scrapers/google-maps.js";
 
 let browserPromise: Promise<Browser> | null = null;
 
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export { setTimeout as sleep } from "node:timers/promises";
 
 export function randomDelay(minMs: number, maxMs: number): number {
   return Math.floor(minMs + Math.random() * (maxMs - minMs));

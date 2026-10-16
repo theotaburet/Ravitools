@@ -3,14 +3,14 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_CATEGORIES,
+  CATEGORY_COLORS,
   DEFAULT_CATEGORIES,
   findCategoryForTag,
-  getCategoryConfig,
   getOsmAndIcon,
   OSMAND_CATEGORY_BACKGROUNDS,
-  OSMAND_CATEGORY_COLORS,
   OSMAND_CATEGORY_ICONS,
   POI_CATEGORIES,
+  poiEmoji,
 } from "../lib/poi-config";
 
 // --- Category completeness ---
@@ -58,7 +58,7 @@ describe("POI_CATEGORIES", () => {
   });
 
   it("should have unique colors per category", () => {
-    const colors = POI_CATEGORIES.map((c) => c.style.backgroundColor);
+    const colors = POI_CATEGORIES.map((c) => c.color);
     expect(new Set(colors).size).toBe(colors.length);
   });
 
@@ -189,30 +189,6 @@ describe("findCategoryForTag", () => {
   });
 });
 
-// --- getCategoryConfig ---
-
-describe("getCategoryConfig", () => {
-  it("should return config for known essential category", () => {
-    const config = getCategoryConfig("Water");
-    expect(config).toBeDefined();
-    expect(config?.style.backgroundColor).toBe("#0066CC");
-    expect(config?.defaultEnabled).toBe(true);
-  });
-
-  it("should return config for known optional category", () => {
-    const config = getCategoryConfig("Medical");
-    expect(config).toBeDefined();
-    expect(config?.style.backgroundColor).toBe("#DC2626");
-    expect(config?.defaultEnabled).toBe(false);
-  });
-
-  it("should return undefined for unknown category", () => {
-    // @ts-expect-error testing invalid input
-    const config = getCategoryConfig("NonexistentCategory");
-    expect(config).toBeUndefined();
-  });
-});
-
 // --- OsmAnd mappings ---
 
 describe("OsmAnd mappings", () => {
@@ -225,8 +201,8 @@ describe("OsmAnd mappings", () => {
 
   it("should have colors for all 18 categories", () => {
     for (const cat of ALL_CATEGORIES) {
-      expect(OSMAND_CATEGORY_COLORS[cat]).toBeDefined();
-      expect(OSMAND_CATEGORY_COLORS[cat]).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(CATEGORY_COLORS[cat]).toBeDefined();
+      expect(CATEGORY_COLORS[cat]).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 
@@ -259,5 +235,25 @@ describe("OsmAnd mappings", () => {
       tags: { amenity: "hospital" },
     });
     expect(icon).toBe("amenity_hospital");
+  });
+});
+
+// --- Per-place emoji ---
+
+describe("poiEmoji", () => {
+  it("tells campsites, huts, hotels and shelters apart", () => {
+    expect(poiEmoji({ icon: "tent", category: "Sleeping place" })).toBe("🏕️");
+    expect(poiEmoji({ icon: "hut", category: "Sleeping place" })).toBe("🛖");
+    expect(poiEmoji({ icon: "bed", category: "Sleeping place" })).toBe("🛏️");
+    expect(poiEmoji({ icon: "house", category: "Shelter" })).toBe("🏠");
+  });
+
+  it("falls back to the category emoji for other icons", () => {
+    expect(poiEmoji({ icon: "droplet", category: "Water" })).toBe("💧");
+  });
+
+  it("maps alpine huts and chalets to the hut icon", () => {
+    expect(findCategoryForTag("tourism", "alpine_hut")?.tag.icon).toBe("hut");
+    expect(findCategoryForTag("tourism", "chalet")?.tag.icon).toBe("hut");
   });
 });

@@ -1,8 +1,10 @@
 // Shared rendering of a "done" enrichment result, used by PoiList rows and the RouteMap popup.
 
+import { BOOKING_KEY } from "../lib/enrichment/osm-facts";
 import { getSynthesisBadgeClass, getSynthesisLabel } from "../lib/enrichment/provenance";
 import { getAvailabilityTags, splitHoursLines } from "../lib/export";
-import { t } from "../lib/i18n";
+import { priceTier } from "../lib/format";
+import { t, tLabel } from "../lib/i18n";
 import { starString } from "../lib/stars";
 import type { EnrichedData, POI, TargetLanguage } from "../types";
 
@@ -40,7 +42,7 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
         {enrichment.priceLevel != null && (
           <span>
             {" · "}
-            {"$".repeat(enrichment.priceLevel)}
+            {priceTier(enrichment.priceLevel)}
           </span>
         )}
       </div>
@@ -66,6 +68,21 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
       ) : null}
       {avail.length > 0 && (
         <div className="poi-enrichment-meta poi-enrichment-meta-success">{avail.join(" · ")}</div>
+      )}
+      {enrichment.season && (
+        <div className="poi-enrichment-meta">
+          {tLabel("poi.season", enrichment.season, targetLanguage)}
+        </div>
+      )}
+      {enrichment.priceNote && (
+        <div className="poi-enrichment-meta">
+          {tLabel("poi.prices", enrichment.priceNote, targetLanguage)}
+        </div>
+      )}
+      {enrichment.booking && (
+        <div className="poi-enrichment-meta">
+          {t(BOOKING_KEY[enrichment.booking], targetLanguage)}
+        </div>
       )}
       {enrichment.description && (
         <div className="poi-enrichment-summary">{enrichment.description}</div>

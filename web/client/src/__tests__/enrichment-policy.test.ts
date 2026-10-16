@@ -161,18 +161,18 @@ describe("computeConfidence", () => {
   }
 
   it("returns 0 for no snippets", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     expect(computeConfidence({ ...baseEnrichment, rawSnippets: [] })).toBe(0);
   });
 
   it("returns > 0 for at least one snippet", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const score = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
     expect(score).toBeGreaterThan(0);
   });
 
   it("increases with more snippets", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const score1 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(1) });
     const score3 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
     const score5 = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(5) });
@@ -181,7 +181,7 @@ describe("computeConfidence", () => {
   });
 
   it("increases with engine diversity", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const singleEngine = computeConfidence({
       ...baseEnrichment,
       rawSnippets: makeSnippets(4, ["google"]),
@@ -194,7 +194,7 @@ describe("computeConfidence", () => {
   });
 
   it("increases with structured fields present", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const noFields = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
     const withFields = computeConfidence({
       rating: 4.2,
@@ -208,7 +208,7 @@ describe("computeConfidence", () => {
   });
 
   it("never exceeds 1.0", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const maxScore = computeConfidence({
       rating: 4.5,
       reviewCount: 200,
@@ -221,7 +221,7 @@ describe("computeConfidence", () => {
   });
 
   it("returns a number with at most 2 decimal places", async () => {
-    const { computeConfidence } = await import("../lib/enrichment/enricher");
+    const { computeConfidence } = await import("../lib/enrichment/confidence");
     const score = computeConfidence({ ...baseEnrichment, rawSnippets: makeSnippets(3) });
     expect(score).toBe(Math.round(score * 100) / 100);
   });
@@ -231,24 +231,58 @@ describe("computeConfidence", () => {
 
 describe("extractDeterministicRating", () => {
   it("drops an out-of-range structuredData rating (e.g. 9.2)", async () => {
-    const { extractDeterministicRating } = await import("../lib/enrichment/enricher");
+    const { extractDeterministicRating } = await import("../lib/enrichment/deterministic");
     const website = { structuredData: { rating: 9.2 } } as never;
     expect(extractDeterministicRating([], website)).toBeNull();
   });
 
   it("keeps an in-range structuredData rating", async () => {
-    const { extractDeterministicRating } = await import("../lib/enrichment/enricher");
+    const { extractDeterministicRating } = await import("../lib/enrichment/deterministic");
     const website = { structuredData: { rating: 4.6 } } as never;
     expect(extractDeterministicRating([], website)).toBe(4.6);
   });
 });
 
-// R16 (decision): Google fallback poll deadline must cover realistic job
+// Google fallback poll deadline must cover realistic job
 // latency (serial queue + 4-12s pre-page sleep): 90s, never back to 10s
 
 describe("Google fallback deadline", () => {
   it("poll deadline is at least 60s", async () => {
-    const { GOOGLE_FALLBACK_TIMEOUT_MS } = await import("../lib/enrichment/enricher");
+    const { GOOGLE_FALLBACK_TIMEOUT_MS } = await import("../lib/enrichment/google-fallback");
     expect(GOOGLE_FALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+  });
+});
+
+describe("tallyEnrichments", () => {
+  it("splits the shown POIs into done, skipped and remaining (retryable results remain)", async () => {
+    const { tallyEnrichments } = await import("../lib/enrichment/enricher");
+    const pois = ["done", "generic", "water", "degraded", "error", "fresh"].map((id) => ({ id }));
+    const enrichments = new Map([
+      ["done", { status: "done" as const }],
+      ["generic", { status: "skipped" as const, skipReason: "generic-name" as const }],
+      ["water", { status: "skipped" as const, skipReason: "low-value-category" as const }],
+      [
+        "degraded",
+        {
+          status: "skipped" as const,
+          skipReason: "no-results" as const,
+          unresponsiveEngines: [["yandex", "CAPTCHA"]] as [string, string][],
+        },
+      ],
+      ["error", { status: "error" as const }],
+      ["filtered-out", { status: "done" as const }],
+    ]);
+
+    expect(tallyEnrichments(pois, enrichments)).toEqual({
+      total: 6,
+      done: 1,
+      skipped: 2,
+      remaining: 3,
+      errors: 1,
+      skippedByReason: {
+        "generic-name": [{ id: "generic" }],
+        "low-value-category": [{ id: "water" }],
+      },
+    });
   });
 });

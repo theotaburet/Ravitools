@@ -4,6 +4,7 @@
 import type {
   EnrichabilityPolicy,
   EnrichmentCategoryContract,
+  POI,
   PoiCategory,
   PoiCategoryConfig,
 } from "../types";
@@ -13,13 +14,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Water",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#0066CC",
-    },
+    color: "#0066CC",
+    emoji: "💧",
+    policy: "skip",
+    mergeable: true,
+    gpxSymbol: "Drinking Water",
+    fitType: 3, // water
+    osmand: { icon: "amenity_drinking_water", background: "circle" },
     tags: [
       { key: "amenity", value: "water_point", icon: "droplet" },
       { key: "amenity", value: "drinking_water", icon: "droplet" },
@@ -28,18 +29,18 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Sleeping place",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#1A1A2E",
-    },
+    color: "#1A1A2E",
+    emoji: "🛏️",
+    policy: "full",
+    mergeable: false,
+    gpxSymbol: "Campground",
+    fitType: 27, // campsite
+    osmand: { icon: "tourism_camp_site", background: "circle" },
     tags: [
       { key: "tourism", value: "camp_site", icon: "tent" },
       { key: "tourism", value: "hostel", icon: "bed" },
-      { key: "tourism", value: "alpine_hut", icon: "house" },
-      { key: "tourism", value: "chalet", icon: "house" },
+      { key: "tourism", value: "alpine_hut", icon: "hut" },
+      { key: "tourism", value: "chalet", icon: "hut" },
       { key: "tourism", value: "guest_house", icon: "bed" },
       { key: "tourism", value: "motel", icon: "bed" },
       { key: "tourism", value: "hotel", icon: "bed" },
@@ -48,13 +49,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Restroom",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#000000",
-      borderWidth: "2",
-      textColor: "#000000",
-      backgroundColor: "#FFD700",
-    },
+    color: "#FFD700",
+    emoji: "🚻",
+    policy: "skip",
+    mergeable: true,
+    gpxSymbol: "Restroom",
+    fitType: 39, // toilet
+    osmand: { icon: "amenity_toilets", background: "circle" },
     tags: [
       { key: "amenity", value: "toilets", icon: "restroom" },
       { key: "amenity", value: "shower", icon: "shower" },
@@ -63,25 +64,32 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Shelter",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#444444",
-    },
-    tags: [{ key: "amenity", value: "shelter", icon: "house" }],
+    color: "#444444",
+    emoji: "🏠",
+    policy: "skip",
+    mergeable: true,
+    gpxSymbol: "Shelter",
+    fitType: 36, // shelter
+    osmand: { icon: "amenity_shelter", background: "octagon" },
+    tags: [
+      {
+        key: "amenity",
+        value: "shelter",
+        icon: "house",
+        unless: { shelter_type: ["public_transport", "changing_rooms", "field_shelter"] },
+      },
+    ],
   },
   {
     category: "Food shop",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#228B22",
-    },
+    color: "#228B22",
+    emoji: "🛒",
+    policy: "full",
+    mergeable: false,
+    gpxSymbol: "Shopping Center",
+    fitType: 48, // store
+    osmand: { icon: "shop_supermarket", background: "circle" },
     tags: [
       { key: "shop", value: "supermarket", icon: "cart" },
       { key: "shop", value: "convenience", icon: "store" },
@@ -116,13 +124,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Restaurant or Bar",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#FF6B35",
-    },
+    color: "#FF6B35",
+    emoji: "🍽️",
+    policy: "full",
+    mergeable: false,
+    gpxSymbol: "Restaurant",
+    fitType: 4, // food
+    osmand: { icon: "amenity_restaurant", background: "circle" },
     tags: [
       { key: "amenity", value: "restaurant", icon: "utensils" },
       { key: "amenity", value: "cafe", icon: "coffee" },
@@ -137,13 +145,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Gears",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#CC0000",
-    },
+    color: "#CC0000",
+    emoji: "🔧",
+    policy: "full",
+    mergeable: false,
+    gpxSymbol: "Bike Trail",
+    fitType: 41, // gear
+    osmand: { icon: "shop_bicycle", background: "square" },
     tags: [
       { key: "shop", value: "bicycle", icon: "bicycle" },
       { key: "shop", value: "outdoor", icon: "backpack" },
@@ -153,25 +161,25 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "DIY",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#E65100",
-    },
+    color: "#E65100",
+    emoji: "🛠️",
+    policy: "minimal",
+    mergeable: true,
+    gpxSymbol: "Wrecker",
+    fitType: 31, // service
+    osmand: { icon: "amenity_bicycle_repair_station", background: "square" },
     tags: [{ key: "amenity", value: "bicycle_repair_station", icon: "wrench" }],
   },
   {
     category: "Laundry",
     defaultEnabled: true,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#FFB6C1",
-    },
+    color: "#FFB6C1",
+    emoji: "👕",
+    policy: "minimal",
+    mergeable: true,
+    gpxSymbol: "Building",
+    fitType: 31, // service
+    osmand: { icon: "shop_laundry", background: "circle" },
     tags: [{ key: "shop", value: "laundry", icon: "shirt" }],
   },
 
@@ -179,13 +187,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Medical",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#DC2626",
-    },
+    color: "#DC2626",
+    emoji: "🏥",
+    policy: "minimal",
+    mergeable: false,
+    gpxSymbol: "Medical Facility",
+    fitType: 9, // first_aid
+    osmand: { icon: "amenity_hospital", background: "square" },
     tags: [
       { key: "amenity", value: "hospital", icon: "hospital" },
       { key: "amenity", value: "clinic", icon: "hospital" },
@@ -197,25 +205,25 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Pharmacy",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#16A34A",
-    },
+    color: "#16A34A",
+    emoji: "💊",
+    policy: "minimal",
+    mergeable: false,
+    gpxSymbol: "Pharmacy",
+    fitType: 9, // first_aid
+    osmand: { icon: "amenity_pharmacy", background: "circle" },
     tags: [{ key: "amenity", value: "pharmacy", icon: "pills" }],
   },
   {
     category: "Bank & ATM",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#1D4ED8",
-    },
+    color: "#1D4ED8",
+    emoji: "🏧",
+    policy: "minimal",
+    mergeable: false,
+    gpxSymbol: "Bank",
+    fitType: 0, // generic
+    osmand: { icon: "amenity_atm", background: "circle" },
     tags: [
       { key: "amenity", value: "atm", icon: "creditcard" },
       { key: "amenity", value: "bank", icon: "bank" },
@@ -225,13 +233,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Post office",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#CA8A04",
-    },
+    color: "#CA8A04",
+    emoji: "📮",
+    policy: "minimal",
+    mergeable: false,
+    gpxSymbol: "Post Office",
+    fitType: 0, // generic
+    osmand: { icon: "amenity_post_office", background: "circle" },
     tags: [
       { key: "amenity", value: "post_office", icon: "envelope" },
       { key: "amenity", value: "post_box", icon: "mailbox" },
@@ -240,13 +248,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Viewpoint",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#7C3AED",
-    },
+    color: "#7C3AED",
+    emoji: "👁️",
+    policy: "minimal",
+    mergeable: true,
+    gpxSymbol: "Scenic Area",
+    fitType: 38, // overlook
+    osmand: { icon: "tourism_viewpoint", background: "octagon" },
     tags: [
       { key: "tourism", value: "viewpoint", icon: "eye" },
       { key: "tourism", value: "attraction", icon: "star" },
@@ -260,13 +268,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Tourist info",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#000000",
-      borderWidth: "2",
-      textColor: "#000000",
-      backgroundColor: "#38BDF8",
-    },
+    color: "#38BDF8",
+    emoji: "ℹ️",
+    policy: "minimal",
+    mergeable: false,
+    gpxSymbol: "Information",
+    fitType: 53, // info
+    osmand: { icon: "tourism_information", background: "circle" },
     tags: [
       { key: "tourism", value: "information", icon: "info" },
       { key: "information", value: "office", icon: "info" },
@@ -275,13 +283,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Charging",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#000000",
-      borderWidth: "2",
-      textColor: "#000000",
-      backgroundColor: "#FACC15",
-    },
+    color: "#FACC15",
+    emoji: "🔌",
+    policy: "minimal",
+    mergeable: true,
+    gpxSymbol: "Charging Station",
+    fitType: 31, // service
+    osmand: { icon: "amenity_charging_station", background: "square" },
     tags: [
       { key: "amenity", value: "charging_station", icon: "bolt" },
       { key: "amenity", value: "device_charging_station", icon: "battery" },
@@ -290,13 +298,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Picnic",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#059669",
-    },
+    color: "#059669",
+    emoji: "🌳",
+    policy: "skip",
+    mergeable: true,
+    gpxSymbol: "Picnic Area",
+    fitType: 29, // rest_area
+    osmand: { icon: "tourism_picnic_site", background: "circle" },
     tags: [
       { key: "tourism", value: "picnic_site", icon: "tree" },
       { key: "leisure", value: "picnic_table", icon: "table" },
@@ -306,13 +314,13 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   {
     category: "Wifi",
     defaultEnabled: false,
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#6366F1",
-    },
+    color: "#6366F1",
+    emoji: "📶",
+    policy: "minimal",
+    mergeable: true,
+    gpxSymbol: "Library",
+    fitType: 53, // info
+    osmand: { icon: "amenity_internet_cafe", background: "circle" },
     tags: [
       { key: "amenity", value: "internet_cafe", icon: "wifi" },
       { key: "internet_access", value: "wlan", icon: "wifi" },
@@ -322,23 +330,23 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
 ];
 
 /** Quick lookup: (key, value) -> category config */
+function isExcluded(tag: PoiCategoryConfig["tags"][number], tags: Record<string, string>) {
+  return Object.entries(tag.unless ?? {}).some(([key, values]) => values.includes(tags[key]));
+}
+
 export function findCategoryForTag(
   key: string,
   value: string,
+  tags: Record<string, string> = {},
 ): { category: PoiCategoryConfig; tag: PoiCategoryConfig["tags"][number] } | null {
   for (const cat of POI_CATEGORIES) {
     for (const tag of cat.tags) {
-      if (tag.key === key && tag.value === value) {
+      if (tag.key === key && tag.value === value && !isExcluded(tag, tags)) {
         return { category: cat, tag };
       }
     }
   }
   return null;
-}
-
-/** Get config for a given category */
-export function getCategoryConfig(category: PoiCategory): PoiCategoryConfig | undefined {
-  return POI_CATEGORIES.find((c) => c.category === category);
 }
 
 /** All category names */
@@ -349,102 +357,33 @@ export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES.filter(
   (c) => c.defaultEnabled !== false,
 ).map((c) => c.category);
 
-// OsmAnd extension mappings
-// OsmAnd GPX supports custom extensions for icon, color, and background shape.
-// Namespace: osmand:
+/** Default corridor: POIs farther than this from every trace are dropped (meters) */
+export const DEFAULT_MAX_DISTANCE_M = 1500;
 
-// Map marker emoji per category
-// Used as DivIcon content on the Leaflet map (no external icon font needed)
+function byCategory<T>(pick: (c: PoiCategoryConfig) => T): Record<PoiCategory, T> {
+  return Object.fromEntries(POI_CATEGORIES.map((c) => [c.category, pick(c)])) as Record<
+    PoiCategory,
+    T
+  >;
+}
 
-export const CATEGORY_EMOJI: Record<PoiCategory, string> = {
-  Water: "💧",
-  "Sleeping place": "🏕️",
-  Restroom: "🚻",
-  Shelter: "🏠",
-  "Food shop": "🛒",
-  "Restaurant or Bar": "🍽️",
-  Gears: "🔧",
-  DIY: "🛠️",
-  Laundry: "👕",
-  Medical: "🏥",
-  Pharmacy: "💊",
-  "Bank & ATM": "🏧",
-  "Post office": "📮",
-  Viewpoint: "👁️",
-  "Tourist info": "ℹ️",
-  Charging: "🔌",
-  Picnic: "🌳",
-  Wifi: "📶",
-};
+// Lookups by category, all read from the POI_CATEGORIES rows above
+export const CATEGORY_COLORS = byCategory((c) => c.color);
+export const OSMAND_CATEGORY_ICONS = byCategory((c) => c.osmand.icon);
+export const OSMAND_CATEGORY_BACKGROUNDS = byCategory((c) => c.osmand.background);
+export const GPX_SYMBOLS = byCategory((c) => c.gpxSymbol);
+export const FIT_COURSE_POINT_TYPES = byCategory((c) => c.fitType);
+export const MERGEABLE_CATEGORIES = byCategory((c) => c.mergeable);
+const CATEGORY_EMOJI = byCategory((c) => c.emoji);
+const ENRICHABILITY_POLICY = byCategory((c) => c.policy);
 
-/** OsmAnd icon names follow the pattern "category_value" (underscores). */
-export const OSMAND_CATEGORY_ICONS: Record<PoiCategory, string> = {
-  Water: "amenity_drinking_water",
-  "Sleeping place": "tourism_camp_site",
-  Restroom: "amenity_toilets",
-  Shelter: "amenity_shelter",
-  "Food shop": "shop_supermarket",
-  "Restaurant or Bar": "amenity_restaurant",
-  Gears: "shop_bicycle",
-  DIY: "amenity_bicycle_repair_station",
-  Laundry: "shop_laundry",
-  Medical: "amenity_hospital",
-  Pharmacy: "amenity_pharmacy",
-  "Bank & ATM": "amenity_atm",
-  "Post office": "amenity_post_office",
-  Viewpoint: "tourism_viewpoint",
-  "Tourist info": "tourism_information",
-  Charging: "amenity_charging_station",
-  Picnic: "tourism_picnic_site",
-  Wifi: "amenity_internet_cafe",
-};
+/** Per-tag emoji where one category mixes very different places (a campsite is
+ *  not a hotel); the category emoji is the fallback for every other tag. */
+const ICON_EMOJI: Record<string, string> = { tent: "🏕️", hut: "🛖" };
 
-/**
- * OsmAnd colors: hex values.
- * These map directly to the category background colors.
- */
-export const OSMAND_CATEGORY_COLORS: Record<PoiCategory, string> = {
-  Water: "#0066CC",
-  "Sleeping place": "#1A1A2E",
-  Restroom: "#FFD700",
-  Shelter: "#444444",
-  "Food shop": "#228B22",
-  "Restaurant or Bar": "#FF6B35",
-  Gears: "#CC0000",
-  DIY: "#E65100",
-  Laundry: "#FFB6C1",
-  Medical: "#DC2626",
-  Pharmacy: "#16A34A",
-  "Bank & ATM": "#1D4ED8",
-  "Post office": "#CA8A04",
-  Viewpoint: "#7C3AED",
-  "Tourist info": "#38BDF8",
-  Charging: "#FACC15",
-  Picnic: "#059669",
-  Wifi: "#6366F1",
-};
-
-/** OsmAnd background shape for POI markers */
-export const OSMAND_CATEGORY_BACKGROUNDS: Record<PoiCategory, string> = {
-  Water: "circle",
-  "Sleeping place": "circle",
-  Restroom: "circle",
-  Shelter: "octagon",
-  "Food shop": "circle",
-  "Restaurant or Bar": "circle",
-  Gears: "square",
-  DIY: "square",
-  Laundry: "circle",
-  Medical: "square",
-  Pharmacy: "circle",
-  "Bank & ATM": "circle",
-  "Post office": "circle",
-  Viewpoint: "octagon",
-  "Tourist info": "circle",
-  Charging: "square",
-  Picnic: "circle",
-  Wifi: "circle",
-};
+export function poiEmoji(poi: Pick<POI, "icon" | "category">): string {
+  return ICON_EMOJI[poi.icon] ?? CATEGORY_EMOJI[poi.category] ?? "📍";
+}
 
 /**
  * Per-tag OsmAnd icon overrides.
@@ -516,60 +455,17 @@ export const OSMAND_TAG_ICONS: Record<string, string> = {
   "amenity=library": "amenity_library",
 };
 
-// Enrichability policy per category
-// Determines how much enrichment effort each category deserves.
-// - "full": geocode + search + LLM synthesis (high-value places)
-// - "minimal": geocode only (locality), no web search, no LLM
-// - "skip": no network calls at all, just Google Maps link
-
-export const ENRICHABILITY_POLICY: Record<PoiCategory, EnrichabilityPolicy> = {
-  "Restaurant or Bar": "full",
-  "Food shop": "full",
-  "Sleeping place": "full",
-  Gears: "full",
-  Laundry: "minimal",
-  DIY: "minimal",
-  Medical: "minimal",
-  Pharmacy: "minimal",
-  "Bank & ATM": "minimal",
-  "Post office": "minimal",
-  "Tourist info": "minimal",
-  Viewpoint: "minimal",
-  Charging: "minimal",
-  Wifi: "minimal",
-  Water: "skip",
-  Restroom: "skip",
-  Shelter: "skip",
-  Picnic: "skip",
-};
-
 /** Get the enrichability policy for a category */
 export function getEnrichabilityPolicy(category: PoiCategory): EnrichabilityPolicy {
   return ENRICHABILITY_POLICY[category] ?? "skip";
 }
 
 // Category-level enrichment contracts
-// Defines what each "full" enrichment category must produce, what matters,
-// what must NOT be said, and how to handle weak/contradictory sources.
-// These contracts guide both the LLM prompt and the deterministic builder.
+// What the LLM must never say for a "full" category (injected in the prompt), and
+// the caution shown when no review or discovery platform covers the place.
 
 const RESTAURANT_CONTRACT: EnrichmentCategoryContract = {
   category: "Restaurant or Bar",
-  priorities: [
-    "Cuisine type and standout dish if mentioned",
-    "Reputation signal (rating + volume, not just a number)",
-    "Opening hours or known closure days",
-    "Cyclist-practical info: terrace, large portions, water refill, bike parking",
-    "Price bracket if inferable",
-  ],
-  valuableSignals: [
-    "Explicit rating with review count from Google/TripAdvisor/Yelp",
-    "Mentions of cyclist/hiker friendliness",
-    "Specific closure days (e.g. 'fermé le lundi')",
-    "Payment methods (cash only, CB)",
-    "Terrace / outdoor seating",
-    "Take-away option",
-  ],
   bannedPatterns: [
     "Invented menu items not in sources",
     "Generic praise ('excellent restaurant', 'great food') without source backing",
@@ -577,77 +473,20 @@ const RESTAURANT_CONTRACT: EnrichmentCategoryContract = {
     "Assumed hours from similar places",
     "Marketing language ('don't miss', 'must try', 'hidden gem')",
   ],
-  weakSourceFormulations: [
-    "Limited online presence; verify hours on arrival.",
-    "Few reviews available; reliability cannot be assessed from web sources alone.",
-    "Listed on Google Maps but no review platform coverage found.",
-  ],
-  contradictionFormulations: [
-    "Sources disagree on opening hours: verify locally.",
-    "Rating varies between platforms ({platform_a}: {rating_a}, {platform_b}: {rating_b}).",
-  ],
-  silenceConditions: [
-    "Only a Google Maps pin exists with zero reviews and no website",
-    "All snippets are from aggregator sites with no original content",
-  ],
 };
 
 const FOOD_SHOP_CONTRACT: EnrichmentCategoryContract = {
   category: "Food shop",
-  priorities: [
-    "Shop type (supermarket, bakery, convenience, farm shop, etc.)",
-    "Opening hours: critical for resupply timing",
-    "Whether it is a chain or independent (resupply reliability signal)",
-    "Size/range: small village shop vs full supermarket",
-    "Sunday/holiday opening if detectable",
-  ],
-  valuableSignals: [
-    "Chain name (Carrefour, Spar, Intermarche, Lidl, etc.)",
-    "Explicit opening hours, especially Sunday and lunch break",
-    "ATM on-site or nearby",
-    "Water refill possible",
-    "Local products / farm-direct mention",
-    "Bread baked on-site",
-  ],
   bannedPatterns: [
     "Assumed product range from shop type",
     "Generic statements ('well-stocked', 'nice selection') without source",
     "Invented hours from chain typical schedules",
     "Price comparisons not in sources",
   ],
-  weakSourceFormulations: [
-    "Listed on maps but no online reviews; verify hours and stock on-site.",
-    "Appears to be a small independent shop: hours and availability may vary.",
-  ],
-  contradictionFormulations: [
-    "Hours vary between sources: listed as {hours_a} on Google, {hours_b} on the official site.",
-  ],
-  silenceConditions: [
-    "Only an OSM node with a shop tag and no web footprint at all",
-    "All snippets are duplicates from a single directory listing",
-  ],
 };
 
 const SLEEPING_PLACE_CONTRACT: EnrichmentCategoryContract = {
   category: "Sleeping place",
-  priorities: [
-    "Accommodation type (campsite, hostel, hotel, gite, bivouac, alpine hut)",
-    "Booking requirement vs walk-in possibility",
-    "Price range or explicit tariff if mentioned",
-    "Check-in / reception hours if known",
-    "Cyclist-specific amenities (bike storage, drying room, tools, laundry)",
-    "Seasonal availability (summer-only, closed in winter)",
-  ],
-  valuableSignals: [
-    "Explicit price or price range from booking platforms",
-    "Booking.com / Airbnb / Hostelworld / camping platform listing",
-    "Mentions of bike-friendly labels (Accueil Velo, Cyclists Welcome)",
-    "Kitchen / cooking facilities for self-caterers",
-    "Wild camping tolerance notes",
-    "Proximity to water/food resupply",
-    "Altitude or exposed location (alpine hut context)",
-    "Shower and hot water availability",
-  ],
   bannedPatterns: [
     "Assumed prices from similar establishments",
     "Invented amenity lists",
@@ -655,56 +494,15 @@ const SLEEPING_PLACE_CONTRACT: EnrichmentCategoryContract = {
     "Star classification not in sources",
     "Assumed booking requirements",
   ],
-  weakSourceFormulations: [
-    "Limited info online: contact directly to confirm availability and price.",
-    "Listed on OSM but not found on major booking platforms.",
-    "Few reviews; condition and reliability unclear from web sources.",
-  ],
-  contradictionFormulations: [
-    "Price varies between sources ({source_a}: {price_a}, {source_b}: {price_b}).",
-    "Some sources list this as seasonal; verify opening period.",
-  ],
-  silenceConditions: [
-    "Only an OSM node with tourism=camp_site and no web presence",
-    "All snippets are from real-estate or unrelated sites",
-  ],
 };
 
 const GEARS_CONTRACT: EnrichmentCategoryContract = {
   category: "Gears",
-  priorities: [
-    "Shop type: bike shop, outdoor gear, sports general",
-    "Whether bike repair service is offered",
-    "Opening hours: critical for a rider in need",
-    "Brands or specialty (road, MTB, touring, e-bike)",
-    "Walk-in repair vs appointment only",
-  ],
-  valuableSignals: [
-    "Explicit repair service mention",
-    "Spare parts availability (tubes, tires, chains, brake pads)",
-    "E-bike charging or battery service",
-    "Rental availability",
-    "Workshop wait time or 'while you wait' service",
-    "Known closure days",
-    "Mentions on cycling forums or community recommendations",
-  ],
   bannedPatterns: [
     "Assumed repair capability from shop type",
     "Generic gear lists not in sources",
     "Assumed brand availability",
     "Marketing language ('best bike shop', 'expert mechanics')",
-  ],
-  weakSourceFormulations: [
-    "Listed as a bike/sports shop but limited online info: call ahead for repair availability.",
-    "Google listing exists but no reviews; capability unclear.",
-  ],
-  contradictionFormulations: [
-    "Sources disagree on repair service availability: verify in person.",
-    "Hours listed on Google ({hours_google}) differ from the website ({hours_site}).",
-  ],
-  silenceConditions: [
-    "Only an OSM node with shop=bicycle and zero web footprint",
-    "All snippets are from generic business directories with no original detail",
   ],
 };
 

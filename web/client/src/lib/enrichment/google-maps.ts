@@ -7,7 +7,9 @@ import type {
   POI,
   SearchSnippet,
 } from "../../types";
-import { fetchJson } from "./proxy-api";
+import { priceTier } from "../format";
+import { flattenHours } from "./llm";
+import { API_BASE, fetchJson } from "./proxy-api";
 
 /**
  * Build a Google Maps search URL from POI name + coordinates.
@@ -20,11 +22,10 @@ export function buildGoogleMapsUrl(poi: POI): string {
 
 export async function enqueueGoogleMapsPreview(
   url: string,
-  apiBase: string = "/api",
   signal?: AbortSignal,
   poiName?: string | null,
 ): Promise<GoogleMapsPreviewJob | null> {
-  return fetchJson<GoogleMapsPreviewJob>(`${apiBase}/google-maps-preview/jobs`, {
+  return fetchJson<GoogleMapsPreviewJob>(`${API_BASE}/google-maps-preview/jobs`, {
     body: { url, poiName: poiName ?? undefined },
     signal,
   });
@@ -32,19 +33,17 @@ export async function enqueueGoogleMapsPreview(
 
 export async function pollGoogleMapsPreviewJob(
   jobId: string,
-  apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GoogleMapsPreviewJob | null> {
-  return fetchJson<GoogleMapsPreviewJob>(`${apiBase}/google-maps-preview/jobs/${jobId}`, {
+  return fetchJson<GoogleMapsPreviewJob>(`${API_BASE}/google-maps-preview/jobs/${jobId}`, {
     signal,
   });
 }
 
 export async function fetchGoogleMapsJobStats(
-  apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GoogleFallbackJobStats | null> {
-  return fetchJson<GoogleFallbackJobStats>(`${apiBase}/google-maps-preview/jobs`, { signal });
+  return fetchJson<GoogleFallbackJobStats>(`${API_BASE}/google-maps-preview/jobs`, { signal });
 }
 
 export function buildGoogleMapsSnippets(
@@ -65,20 +64,14 @@ export function buildGoogleMapsSnippets(
 
   // Prefer structured hours (full 7-day table) over collapsed hoursText when available
   const hoursDisplay = preview.structuredHours?.length
-    ? preview.structuredHours
-        .map((e) => {
-          if (e.open.toLowerCase() === "closed") return `${e.day}: closed`;
-          if (e.close) return `${e.day}: ${e.open}-${e.close}`;
-          return `${e.day}: ${e.open}`;
-        })
-        .join("; ")
+    ? flattenHours(preview.structuredHours)
     : preview.hoursText;
 
   const facts = [
     preview.category,
     preview.rating != null ? `Rating ${preview.rating}/5` : null,
     preview.reviewCount != null ? `${preview.reviewCount} reviews` : null,
-    preview.priceLevel != null ? `Price ${"$".repeat(preview.priceLevel)}` : null,
+    preview.priceLevel != null ? `Price ${priceTier(preview.priceLevel)}` : null,
     hoursDisplay,
     preview.address,
     preview.phone,

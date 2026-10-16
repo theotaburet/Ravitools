@@ -8,11 +8,9 @@
 // pipeline keeps working as if no cache existed.
 
 import type { EnrichedData, POI } from "../types";
-
-const API_BASE = "/api";
+import { API_BASE } from "./enrichment/proxy-api";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
-const DEFAULT_MAX_AGE_DAYS = 90;
 /** Must stay ≤ the server's MAX_BATCH_KEYS (200). */
 const BATCH_CHUNK_SIZE = 200;
 
@@ -47,7 +45,8 @@ export function isCacheablePoi(
   );
 }
 
-function poiCacheKey(poi: POI): string | null {
+/** `osm_type/osm_id`, the shared cache key; null for a POI without OSM identity */
+export function poiCacheKey(poi: POI): string | null {
   if (!isCacheablePoi(poi)) return null;
   return `${poi.osmType}/${poi.osmId}`;
 }
@@ -58,10 +57,7 @@ function poiCacheKey(poi: POI): string | null {
  *
  * Returns an empty Map on any failure (network, 503, malformed body).
  */
-export async function lookupPoiBatch(
-  pois: POI[],
-  maxAgeDays: number = DEFAULT_MAX_AGE_DAYS,
-): Promise<Map<string, CachedEnrichment>> {
+export async function lookupPoiBatch(pois: POI[]): Promise<Map<string, CachedEnrichment>> {
   const result = new Map<string, CachedEnrichment>();
   const cacheable = pois.filter(isCacheablePoi);
   if (cacheable.length === 0) return result;
@@ -79,7 +75,7 @@ export async function lookupPoiBatch(
       const res = await fetch(`${API_BASE}/poi/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keys: chunk, max_age_days: maxAgeDays }),
+        body: JSON.stringify({ keys: chunk }),
         signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
       });
       // Still degrade gracefully (empty Map), but don't do it *silently*:
@@ -127,9 +123,4 @@ export async function uploadPoiEnrichment(poi: POI, enrichment: EnrichedData): P
   } catch {
     return false;
   }
-}
-
-/** Helper exposed for tests / callers that need to map a POI to its cache key */
-export function getPoiCacheKey(poi: POI): string | null {
-  return poiCacheKey(poi);
 }

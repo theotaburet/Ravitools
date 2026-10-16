@@ -1,11 +1,9 @@
 import compression from "compression";
-import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { getBrowser, randomDelay, sleep } from "./browser.js";
-import { cache, geocodeCache, searchCache } from "./caches.js";
+import { cache } from "./caches.js";
 import { SEARXNG_URL } from "./config.js";
-import { timingSafeEqualStr } from "./http.js";
 import { scraperLimiter } from "./limiters.js";
 import { log } from "./logger.js";
 import { fetchPageRouter } from "./routes/fetch-page.js";
@@ -19,13 +17,12 @@ import { createScraperJobSystem } from "./scrapers/job-system.js";
 
 export const app = express();
 
+// nginx on the same host forwards the client IP (deployment.md): rate limits key
+// on it. A forwarded header from anyone else is ignored.
+app.set("trust proxy", "loopback");
+
 app.use(helmet());
 app.use(compression());
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
-  }),
-);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.text({ limit: "1mb", type: "application/x-www-form-urlencoded" }));
 
@@ -37,7 +34,7 @@ export const googleMapsSystem = createScraperJobSystem(googleMapsPlugin, {
   getBrowser,
 });
 googleMapsSystem.load(); // restore persisted jobs from disk (if any)
-mountScraperEndpoints(app, googleMapsPlugin, googleMapsSystem, {
+mountScraperEndpoints(app, googleMapsSystem, {
   basePath: "/google-maps-preview",
   limiter: scraperLimiter,
   log,
@@ -56,7 +53,7 @@ app.get("/health", async (_req, res) => {
 
   res.json({
     status: "ok",
-    cache_keys: cache.keys().length,
+    cache_keys: cache.size,
     uptime: process.uptime(),
     services,
   });
@@ -66,49 +63,6 @@ app.get("/health", async (_req, res) => {
 // session/IP as the enrichment requests (opened via /api/searxng-ui)
 app.get("/searxng-ui", (_req, res) => {
   res.redirect(302, `${SEARXNG_URL}/`);
-});
-
-// --- Cache stats + admin flush ---
-app.get("/cache/stats", (_req, res) => {
-  const overpassStats = cache.getStats();
-  const searchStats = searchCache.getStats();
-  const geocodeStats = geocodeCache.getStats();
-  res.json({
-    overpass: {
-      keys: cache.keys().length,
-      hits: overpassStats.hits,
-      misses: overpassStats.misses,
-    },
-    search: {
-      keys: searchCache.keys().length,
-      hits: searchStats.hits,
-      misses: searchStats.misses,
-    },
-    geocode: {
-      keys: geocodeCache.keys().length,
-      hits: geocodeStats.hits,
-      misses: geocodeStats.misses,
-    },
-  });
-});
-
-/** Flush the search cache: useful after engine configuration changes */
-app.delete("/cache/search", (req, res) => {
-  const adminKey = process.env.ADMIN_API_KEY;
-  // Fail closed: no configured key means no admin route, not open admin.
-  if (!adminKey) {
-    res.status(503).json({ error: "Admin API not configured (set ADMIN_API_KEY)" });
-    return;
-  }
-  const provided = req.headers["x-admin-key"];
-  if (!(typeof provided === "string" && timingSafeEqualStr(provided, adminKey))) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const count = searchCache.keys().length;
-  searchCache.flushAll();
-  log.info({ flushed: count }, "Search cache flushed");
-  res.json({ flushed: count });
 });
 
 // --- Proxy routes ---

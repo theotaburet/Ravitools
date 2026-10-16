@@ -3,24 +3,22 @@
 
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
+import { km } from "../lib/format";
 import { parseGpx } from "../lib/gpx-parser";
-import {
-  type OverpassElement,
-  type QueryAllPoisResult,
-  type QueryProgress,
-  queryAllPois,
-} from "../lib/overpass";
-import { ALL_CATEGORIES, DEFAULT_CATEGORIES } from "../lib/poi-config";
+import { t } from "../lib/i18n";
+import { type OverpassElement, queryAllPois } from "../lib/overpass";
+import { ALL_CATEGORIES, DEFAULT_CATEGORIES, DEFAULT_MAX_DISTANCE_M } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
-import type { AppState, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
+import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
+import { targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
-  maxDistanceM: 1500,
+  maxDistanceM: DEFAULT_MAX_DISTANCE_M,
 };
 
 // --- Base atoms ---
 
-export const stageAtom = atom<AppState["stage"]>("idle");
+export const stageAtom = atom<PipelineStage>("idle");
 export const tracesAtom = atom<TraceData[]>([]);
 export const poisAtom = atom<POI[]>([]);
 export const activeCategoriesAtom = atom<Set<PoiCategory>>(
@@ -73,7 +71,7 @@ export const resetRouteAtom = atom(null, (_get, set) => {
 export const restoreRouteAtom = atom(
   null,
   (
-    _get,
+    get,
     set,
     restored: {
       traces: TraceData[];
@@ -88,7 +86,7 @@ export const restoreRouteAtom = atom(
     set(poisAtom, restored.pois);
     set(activeCategoriesAtom, restored.activeCategories);
     set(routeSettingsAtom, restored.routeSettings);
-    set(progressAtom, `Restored ${restored.pois.length} POIs from previous session`);
+    set(progressAtom, t("route.restored", get(targetLanguageAtom), { n: restored.pois.length }));
     set(routeErrorAtom, null);
   },
 );
@@ -104,133 +102,121 @@ export const setAllCategoriesAtom = atom(null, (_get, set, on: boolean) => {
   set(activeCategoriesAtom, on ? new Set<PoiCategory>(ALL_CATEGORIES) : new Set<PoiCategory>());
 });
 
-export const setMaxDistanceAtom = atom(null, (get, set, maxDistanceM: number) => {
-  set(routeSettingsAtom, { maxDistanceM });
-
-  const stage = get(stageAtom);
-  const traces = get(tracesAtom);
-  if (stage !== "done" || traces.length === 0 || rawElements.length === 0) {
-    // After a session restore there are no raw elements, but we
-    // can still re-filter the restored superset by distance.
-    if (stage === "done" && traces.length > 0 && restoredPois.length > 0) {
-      const pois = restoredPois.filter((p) => p.distanceToTrace <= maxDistanceM);
-      set(poisAtom, pois);
-      set(
-        progressAtom,
-        `Found ${pois.length} POIs within ${maxDistanceM}m of your route${traces.length > 1 ? "s" : ""}`,
-      );
-    }
-    return;
-  }
-
-  const pois = processElements(
-    rawElements,
-    traces.map((t) => t.simplified),
-    maxDistanceM,
-    50,
-    traces.map((t) => t.original),
-  );
+/** Keep the POIs within `maxDistanceM` and say how many */
+function showPois(get: Getter, set: Setter, pois: POI[], maxDistanceM: number): void {
   set(poisAtom, pois);
-  set(
-    progressAtom,
-    `Found ${pois.length} POIs within ${maxDistanceM}m of your route${traces.length > 1 ? "s" : ""}`,
-  );
-});
-
-// --- Shared query→process→done pipeline used by processFiles and retryQuery ---
-async function runQuery(
-  get: Getter,
-  set: Setter,
-  traces: TraceData[],
-  ctrl: AbortController,
-): Promise<void> {
-  const log = dlog("pipeline");
-  const selectedCategories = [...get(activeCategoriesAtom)];
-
-  const allSimplified = traces.flatMap((t) => t.simplified);
-
-  const endQuery = log.time("Overpass querying");
-  const queryResult: QueryAllPoisResult = await queryAllPois(
-    allSimplified,
-    1000,
-    selectedCategories,
-    (p: QueryProgress) => {
-      const retryLabel =
-        p.retryRound > 0 ? ` (retry ${p.retryRound}, ${p.retryingCount} chunks)` : "";
-      set(
-        progressAtom,
-        `Querying Overpass... (${p.completedChunks}/${p.totalChunks} chunks)${retryLabel}`,
-      );
-      set(progressRatioAtom, p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null);
-    },
-  );
-  const elements = queryResult.elements;
-  endQuery();
-
-  if (ctrl.signal.aborted) return;
-
-  // Process & filter POIs: distance is min over all traces
-  set(stageAtom, "processing");
-  set(progressAtom, `Processing ${elements.length} raw elements...`);
-
-  const maxDistanceM = get(routeSettingsAtom).maxDistanceM;
-  const endProcess = log.time("POI processing");
-  rawElements = elements;
-  const pois = processElements(
-    elements,
-    traces.map((t) => t.simplified),
-    maxDistanceM,
-    50,
-    traces.map((t) => t.original),
-  );
-  endProcess();
-
-  log.info(`Pipeline complete: ${pois.length} POIs from ${elements.length} raw elements`, {
-    rawElements: elements.length,
-    filteredPois: pois.length,
-    maxDistanceM,
-  });
-
-  if (ctrl.signal.aborted) return;
-
-  // Build warning if some chunks failed
-  const chunkWarning =
-    queryResult.failedChunks > 0
-      ? `${queryResult.failedChunks}/${queryResult.totalChunks} Overpass chunks failed: results may be incomplete for parts of the route.`
-      : null;
-
-  set(stageAtom, "done");
-  set(poisAtom, pois);
-  set(progressAtom, `Found ${pois.length} POIs along your route${traces.length > 1 ? "s" : ""}`);
-  set(progressRatioAtom, null);
-  set(routeWarningAtom, chunkWarning);
+  set(progressAtom, t("route.found", get(targetLanguageAtom), { n: pois.length, m: maxDistanceM }));
 }
 
-export const processFilesAtom = atom(null, async (get, set, files: File[]) => {
+export const setMaxDistanceAtom = atom(null, (get, set, maxDistanceM: number) => {
+  set(routeSettingsAtom, { maxDistanceM });
+  if (get(stageAtom) !== "done") return;
+
+  if (rawElements.length > 0) {
+    showPois(get, set, processElements(rawElements, get(tracesAtom), maxDistanceM), maxDistanceM);
+  } else if (restoredPois.length > 0) {
+    // After a session restore there are no raw elements: re-filter the restored superset
+    showPois(
+      get,
+      set,
+      restoredPois.filter((p) => p.distanceToTrace <= maxDistanceM),
+      maxDistanceM,
+    );
+  }
+});
+
+/**
+ * The upload and retry pipeline: `loadTraces` → Overpass → POIs. A newer run
+ * aborts this one (its requests included), and an aborted run writes nothing.
+ * On error the traces stay on the map so the user can retry without re-uploading.
+ */
+async function runPipeline(
+  get: Getter,
+  set: Setter,
+  loadTraces: (signal: AbortSignal) => Promise<TraceData[]>,
+): Promise<void> {
   const log = dlog("pipeline");
   abortCtrl?.abort();
   const ctrl = new AbortController();
   abortCtrl = ctrl;
-
-  const selectedCategories = [...get(activeCategoriesAtom)];
+  const lang = get(targetLanguageAtom);
+  set(routeErrorAtom, null);
+  set(routeWarningAtom, null);
 
   try {
-    // Stage 1: Parse all GPX files
+    const traces = await loadTraces(ctrl.signal);
+    if (ctrl.signal.aborted) return;
+
+    const selectedCategories = [...get(activeCategoriesAtom)];
+    set(stageAtom, "querying");
+    set(progressAtom, t("route.querying", lang, { n: selectedCategories.length }));
+    set(progressRatioAtom, 0);
+
+    const endQuery = log.time("Overpass querying");
+    const result = await queryAllPois(
+      traces.map((tr) => tr.simplified),
+      1000,
+      selectedCategories,
+      (p) => {
+        if (ctrl.signal.aborted) return;
+        const vars = { done: p.completedChunks, total: p.totalChunks, round: p.retryRound };
+        set(progressAtom, t(p.retryRound > 0 ? "route.chunksRetry" : "route.chunks", lang, vars));
+        set(progressRatioAtom, p.totalChunks > 0 ? p.completedChunks / p.totalChunks : null);
+      },
+      ctrl.signal,
+    );
+    endQuery();
+    if (ctrl.signal.aborted) return;
+
+    set(stageAtom, "processing");
+    set(progressAtom, t("route.processing", lang, { n: result.elements.length }));
+    const maxDistanceM = get(routeSettingsAtom).maxDistanceM;
+    const endProcess = log.time("POI processing");
+    rawElements = result.elements;
+    const pois = processElements(result.elements, traces, maxDistanceM);
+    endProcess();
+    log.info(`Pipeline complete: ${pois.length} POIs from ${result.elements.length} raw elements`, {
+      rawElements: result.elements.length,
+      filteredPois: pois.length,
+      maxDistanceM,
+    });
+
+    set(stageAtom, "done");
+    showPois(get, set, pois, maxDistanceM);
+    set(progressRatioAtom, null);
+    if (result.failedChunks > 0) {
+      set(
+        routeWarningAtom,
+        t("route.chunksFailed", lang, { failed: result.failedChunks, total: result.totalChunks }),
+      );
+    }
+  } catch (err) {
+    if (ctrl.signal.aborted) return;
+    const message = err instanceof Error ? err.message : "Unknown error occurred";
+    log.error(`Pipeline error: ${message}`);
+    set(stageAtom, "error");
+    set(routeErrorAtom, message);
+    set(progressAtom, "");
+    set(progressRatioAtom, null);
+  }
+}
+
+export const processFilesAtom = atom(null, (get, set, files: File[]) =>
+  runPipeline(get, set, async () => {
+    const log = dlog("pipeline");
     set(stageAtom, "parsing");
-    set(routeErrorAtom, null);
-    set(progressAtom, `Reading ${files.length} GPX file${files.length > 1 ? "s" : ""}...`);
+    set(progressAtom, t("route.reading", get(targetLanguageAtom), { n: files.length }));
 
     const endParse = log.time("GPX parsing");
     const traces: TraceData[] = [];
     for (let i = 0; i < files.length; i++) {
-      const text = await files[i].text();
-      const trace = parseGpx(text, i);
+      const trace = parseGpx(await files[i].text(), i);
       // Use filename (without extension) as fallback name
       if (!trace.name) {
         trace.name = files[i].name.replace(/\.gpx$/i, "");
       }
       log.info(
-        `Parsed "${trace.name}": ${trace.original.length} pts → ${trace.simplified.length} simplified, ${(trace.totalDistanceM / 1000).toFixed(1)} km`,
+        `Parsed "${trace.name}": ${trace.original.length} pts → ${trace.simplified.length} simplified, ${km(trace.totalDistanceM)} km`,
         {
           name: trace.name,
           originalPoints: trace.original.length,
@@ -242,70 +228,25 @@ export const processFilesAtom = atom(null, async (get, set, files: File[]) => {
     }
     endParse();
 
-    const totalPoints = traces.reduce((sum, t) => sum + t.original.length, 0);
-    const totalSimplified = traces.reduce((sum, t) => sum + t.simplified.length, 0);
-    const totalKm = traces.reduce((sum, t) => sum + t.totalDistanceM, 0) / 1000;
-
     set(stageAtom, "simplifying");
     set(tracesAtom, traces);
     set(
       progressAtom,
-      `Parsed ${totalPoints} points across ${traces.length} trace${traces.length > 1 ? "s" : ""}, simplified to ${totalSimplified}. Total: ${totalKm.toFixed(1)} km`,
+      t("route.parsed", get(targetLanguageAtom), {
+        points: traces.reduce((sum, tr) => sum + tr.original.length, 0),
+        simplified: traces.reduce((sum, tr) => sum + tr.simplified.length, 0),
+        km: km(traces.reduce((sum, tr) => sum + tr.totalDistanceM, 0)),
+      }),
     );
+    return traces;
+  }),
+);
 
-    if (ctrl.signal.aborted) return;
-
-    // Stages 2-3: Query Overpass + process POIs (shared with retryQuery)
-    set(stageAtom, "querying");
-    set(progressAtom, `Querying OpenStreetMap for ${selectedCategories.length} categories...`);
-    set(progressRatioAtom, 0);
-    set(routeWarningAtom, null);
-    await runQuery(get, set, traces, ctrl);
-  } catch (err) {
-    if (ctrl.signal.aborted) return;
-    const message = err instanceof Error ? err.message : "Unknown error occurred";
-    log.error(`Pipeline error: ${message}`);
-    // Keep traces visible on the map so the user can see what was loaded
-    // and retry without re-uploading. Stage goes to "error" but traces persist.
-    set(stageAtom, "error");
-    set(routeErrorAtom, message);
-    set(progressAtom, "");
-    set(progressRatioAtom, null);
-  }
-});
-
-export const retryQueryAtom = atom(null, async (get, set) => {
-  const log = dlog("pipeline");
-  const currentTraces = get(tracesAtom);
-  if (currentTraces.length === 0) {
-    log.warn("retryQuery called but no traces loaded");
+export const retryQueryAtom = atom(null, (get, set) => {
+  const traces = get(tracesAtom);
+  if (traces.length === 0) {
+    dlog("pipeline").warn("retryQuery called but no traces loaded");
     return;
   }
-
-  const ctrl = new AbortController();
-  abortCtrl = ctrl;
-  const selectedCategories = [...get(activeCategoriesAtom)];
-
-  try {
-    set(stageAtom, "querying");
-    set(routeErrorAtom, null);
-    set(progressAtom, `Retrying Overpass query for ${selectedCategories.length} categories...`);
-    set(progressRatioAtom, 0);
-    set(routeWarningAtom, null);
-
-    log.info("Retrying Overpass query", {
-      traces: currentTraces.length,
-      simplifiedPoints: currentTraces.reduce((sum, t) => sum + t.simplified.length, 0),
-    });
-
-    await runQuery(get, set, currentTraces, ctrl);
-  } catch (err) {
-    if (ctrl.signal.aborted) return;
-    const message = err instanceof Error ? err.message : "Unknown error occurred";
-    log.error(`Retry failed: ${message}`);
-    set(stageAtom, "error");
-    set(routeErrorAtom, message);
-    set(progressAtom, "");
-    set(progressRatioAtom, null);
-  }
+  return runPipeline(get, set, async () => traces);
 });

@@ -1,4 +1,4 @@
-// GpxUpload component test (M3 key component tests)
+// GpxUpload component test
 // Focus: the .gpx filtering / disabled guard in the drop + change handlers.
 // The processFiles action atom is mocked so the real pipeline never runs.
 
@@ -108,7 +108,6 @@ describe("GpxUpload", () => {
           ],
           pois: [],
           enrichments: new Map(),
-          targetLanguage: "en",
           enrichAll: false,
           routeSettings: { maxDistanceM: 1500 },
         }),

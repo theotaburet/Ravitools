@@ -61,14 +61,8 @@ function makePoi(id: string, category: PoiCategory = "Restaurant or Bar"): POI {
     icon: "utensils",
     distanceToTrace: 120,
     alongTraceDistance: 5000,
+    traceId: "trace_1",
     tags: { amenity: "restaurant" },
-    style: {
-      iconShape: "circle",
-      borderColor: "#FFFFFF",
-      borderWidth: "2",
-      textColor: "#FFFFFF",
-      backgroundColor: "#FF6B35",
-    },
   };
 }
 
@@ -110,7 +104,6 @@ describe("session persistence", () => {
       traces: [],
       pois: [],
       enrichments: new Map(),
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     });
@@ -126,7 +119,6 @@ describe("session persistence", () => {
       traces: [],
       pois,
       enrichments,
-      targetLanguage: "fr",
       enrichAll: true,
       routeSettings: { maxDistanceM: 900 },
     });
@@ -139,10 +131,24 @@ describe("session persistence", () => {
     expect(loaded?.enrichments.get("a")?.rating).toBe(4.2);
     expect(loaded?.activeCategories.has("Restaurant or Bar")).toBe(true);
     expect(loaded?.activeCategories.has("Water")).toBe(true);
-    expect(loaded?.targetLanguage).toBe("fr");
     expect(loaded?.enrichAll).toBe(true);
     expect(loaded?.routeSettings.maxDistanceM).toBe(900);
     expect(loaded?.savedAt).toBeTruthy();
+  });
+
+  it("does not carry the UI language: restoring a session must not change it", () => {
+    saveSession({
+      activeCategories: new Set<PoiCategory>(),
+      traces: [],
+      pois: [],
+      enrichments: new Map(),
+      enrichAll: false,
+      routeSettings: { maxDistanceM: 1500 },
+    });
+    expect(JSON.parse(localStorage.getItem("ravitools_session") ?? "{}")).not.toHaveProperty(
+      "targetLanguage",
+    );
+    expect(loadSession()).not.toHaveProperty("targetLanguage");
   });
 
   it("preserves Set semantics for activeCategories", () => {
@@ -151,7 +157,6 @@ describe("session persistence", () => {
       traces: [],
       pois: [],
       enrichments: new Map(),
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     });
@@ -172,7 +177,6 @@ describe("session persistence", () => {
       traces: [],
       pois: [],
       enrichments,
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     });
@@ -188,7 +192,6 @@ describe("session persistence", () => {
       traces: [],
       pois: [makePoi("z")],
       enrichments: new Map(),
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     });
@@ -214,7 +217,6 @@ describe("session persistence", () => {
       trace: null,
       pois: [],
       enrichments: [],
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     };
@@ -256,7 +258,6 @@ describe("session persistence", () => {
       traces: [trace],
       pois: [],
       enrichments: new Map(),
-      targetLanguage: "en",
       enrichAll: false,
       routeSettings: { maxDistanceM: 1500 },
     });
@@ -278,7 +279,6 @@ describe("plan file serialize/parse", () => {
       traces: [],
       pois: [makePoi("a")],
       enrichments: new Map<string, EnrichedData>([["a", makeEnrichment()]]),
-      targetLanguage: "fr" as const,
       enrichAll: true,
       routeSettings: { maxDistanceM: 900 },
     };
@@ -290,7 +290,6 @@ describe("plan file serialize/parse", () => {
     expect(parsed?.pois[0].id).toBe("a");
     expect(parsed?.enrichments.get("a")?.rating).toBe(4.2);
     expect(parsed?.activeCategories.has("Water")).toBe(true);
-    expect(parsed?.targetLanguage).toBe("fr");
     expect(parsed?.routeSettings.maxDistanceM).toBe(900);
   });
 

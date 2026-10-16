@@ -4,9 +4,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
+import { osmFacts } from "../lib/enrichment/osm-facts";
 import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
+import { km } from "../lib/format";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
+import { CATEGORY_COLORS } from "../lib/poi-config";
 import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom } from "../state/route";
 import { selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
@@ -72,14 +75,7 @@ function PoiListInner() {
 
   if (pois.length === 0) {
     // Don't render nothing: tell the user why the list is empty.
-    return (
-      <div
-        className="neo-box"
-        style={{ padding: "1rem", textAlign: "center", color: "#6b6b6b", fontFamily: "monospace" }}
-      >
-        {t("poi.empty", targetLanguage)}
-      </div>
-    );
+    return <div className="neo-box poi-list-empty">{t("poi.empty", targetLanguage)}</div>;
   }
 
   const toggleSources = (e: React.MouseEvent, poiId: string) => {
@@ -106,9 +102,10 @@ function PoiListInner() {
   return (
     <div className="neo-box overflow-hidden">
       <div className="poi-list-header">
-        <span>
-          {t("poi.alongRoute", targetLanguage)} ({pois.length})
-        </span>
+        <h3 className="poi-list-title">
+          {t("poi.alongRoute", targetLanguage)}
+          <small>{pois.length}</small>
+        </h3>
         <button
           type="button"
           className="poi-sort-btn"
@@ -130,6 +127,7 @@ function PoiListInner() {
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const poi = sortedPois[virtualRow.index];
             const enrichment = enrichments.get(poi.id);
+            const facts = osmFacts(poi.tags, targetLanguage);
             const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
             const showSources = expandedSources.has(poi.id);
             const isSelected = selectedPoiId === poi.id;
@@ -161,16 +159,16 @@ function PoiListInner() {
               >
                 <span
                   className="poi-list-dot"
-                  style={{ backgroundColor: poi.style.backgroundColor }}
+                  style={{ backgroundColor: CATEGORY_COLORS[poi.category] }}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="poi-list-name">{translatePoiName(poi.name, targetLanguage)}</div>
                   <div className="poi-list-meta">
                     {translateCategory(poi.category, targetLanguage)} &middot; km{" "}
-                    {(poi.alongTraceDistance / 1000).toFixed(1)} &middot;{" "}
-                    {Math.round(poi.distanceToTrace)}m
+                    {km(poi.alongTraceDistance)} &middot; {Math.round(poi.distanceToTrace)}m
                     {poi.tags.opening_hours && ` · ${poi.tags.opening_hours}`}
                   </div>
+                  {facts.length > 0 && <div className="poi-list-meta">{facts.join(" · ")}</div>}
                   {/* Availability tags from OSM hours (when no enrichment) */}
                   {enrichment?.status !== "done" &&
                     (() => {
@@ -281,16 +279,18 @@ function PoiListInner() {
                     </div>
                   )}
 
-                  {/* Google Maps link: always shown */}
-                  <a
-                    href={gmapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="poi-gmaps-link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Google Maps →
-                  </a>
+                  {/* Google Maps link: on the selected row only (the popup has it too) */}
+                  {isSelected && (
+                    <a
+                      href={gmapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="poi-gmaps-link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Google Maps →
+                    </a>
+                  )}
                 </div>
               </div>
             );

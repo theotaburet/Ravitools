@@ -1,18 +1,16 @@
-// GPX Upload component: drag & drop or file picker (neobrutalist)
-// Supports multiple GPX files simultaneously
+// GPX Upload component: drag & drop, file picker, or the bundled example route.
+// Supports multiple GPX files simultaneously.
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { t } from "../lib/i18n";
 import { parseSession } from "../lib/session";
-import { restoreEnrichmentsAtom } from "../state/enrichment";
-import {
-  isProcessingAtom,
-  processFilesAtom,
-  restoreRouteAtom,
-  routeErrorAtom,
-} from "../state/route";
-import { enrichAllAtom, targetLanguageAtom } from "../state/ui";
+import { isProcessingAtom, processFilesAtom, routeErrorAtom } from "../state/route";
+import { restoreSessionAtom } from "../state/session";
+import { targetLanguageAtom } from "../state/ui";
+
+/** Served from public/, works on the GitHub Pages sub-path too */
+const EXAMPLE_GPX = `${import.meta.env.BASE_URL}examples/galibier-climb.gpx`;
 
 // FileReader instead of File.text(): jsdom (tests) doesn't implement the latter
 function readText(file: File): Promise<string> {
@@ -28,10 +26,7 @@ export function GpxUpload() {
   const onFiles = useSetAtom(processFilesAtom);
   const disabled = useAtomValue(isProcessingAtom);
   const lang = useAtomValue(targetLanguageAtom);
-  const restoreRoute = useSetAtom(restoreRouteAtom);
-  const restoreEnrichments = useSetAtom(restoreEnrichmentsAtom);
-  const setTargetLanguage = useSetAtom(targetLanguageAtom);
-  const setEnrichAll = useSetAtom(enrichAllAtom);
+  const restoreSession = useSetAtom(restoreSessionAtom);
   const setRouteError = useSetAtom(routeErrorAtom);
   const [dragOver, setDragOver] = useState(false);
 
@@ -42,18 +37,9 @@ export function GpxUpload() {
         setRouteError(t("upload.badPlan", lang));
         return;
       }
-      // Same restore path as the "Resume" prompt in App.tsx
-      restoreRoute({
-        traces: session.traces,
-        pois: session.pois,
-        activeCategories: session.activeCategories,
-        routeSettings: session.routeSettings,
-      });
-      restoreEnrichments(session.enrichments);
-      setTargetLanguage(session.targetLanguage);
-      setEnrichAll(session.enrichAll);
+      restoreSession(session);
     },
-    [restoreRoute, restoreEnrichments, setTargetLanguage, setEnrichAll, setRouteError, lang],
+    [restoreSession, setRouteError, lang],
   );
 
   const handleFiles = useCallback(
@@ -91,6 +77,18 @@ export function GpxUpload() {
     [handleFiles],
   );
 
+  // The example goes through the exact same pipeline as a dropped file.
+  const loadExample = useCallback(async () => {
+    try {
+      const res = await fetch(EXAMPLE_GPX);
+      if (!res.ok) throw new Error(String(res.status));
+      const text = await res.text();
+      onFiles([new File([text], "galibier-climb.gpx", { type: "application/gpx+xml" })]);
+    } catch {
+      setRouteError(t("upload.exampleFailed", lang));
+    }
+  }, [onFiles, setRouteError, lang]);
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement: the overlaid file input is the accessible control
     <div
@@ -102,17 +100,15 @@ export function GpxUpload() {
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
     >
-      {/* Big upload icon */}
       <svg
-        width="56"
-        height="56"
+        width="40"
+        height="40"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="text-text"
         aria-hidden="true"
       >
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -120,9 +116,18 @@ export function GpxUpload() {
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
 
-      <p className="text-lg font-black uppercase tracking-tight">{t("upload.drop", lang)}</p>
-      <p className="text-sm text-muted font-mono">{t("upload.browse", lang)}</p>
-      <p className="text-xs text-muted font-mono">{t("upload.plan", lang)}</p>
+      <p className="upload-title">{t("upload.drop", lang)}</p>
+      <p className="upload-hint">{t("upload.browse", lang)}</p>
+      <p className="upload-hint">{t("upload.plan", lang)}</p>
+
+      <button
+        type="button"
+        className="neo-btn-secondary neo-btn-sm upload-example"
+        onClick={loadExample}
+        disabled={disabled}
+      >
+        {t("upload.example", lang)}
+      </button>
 
       <input
         type="file"
@@ -130,7 +135,7 @@ export function GpxUpload() {
         multiple
         onChange={handleChange}
         disabled={disabled}
-        aria-label="Upload GPX files"
+        aria-label={t("upload.input", lang)}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
     </div>

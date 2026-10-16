@@ -1,7 +1,7 @@
 // --- Nominatim reverse geocode adapter (via server proxy) ---
 
 import type { GeoContext } from "../../types";
-import { fetchJson, REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
+import { API_BASE, fetchJson, REQUEST_TIMEOUT, timeoutSignal } from "./proxy-api";
 
 /** Nominatim reverse geocode response (simplified) */
 interface NominatimReverseResponse {
@@ -26,11 +26,10 @@ interface NominatimReverseResponse {
 export async function reverseGeocode(
   lat: number,
   lon: number,
-  apiBase: string = "/api",
   signal?: AbortSignal,
 ): Promise<GeoContext | null> {
   // Non-critical: any failure returns null and enrichment continues without locality.
-  const data = await fetchJson<NominatimReverseResponse>(`${apiBase}/geocode`, {
+  const data = await fetchJson<NominatimReverseResponse>(`${API_BASE}/geocode`, {
     body: { lat, lon },
     signal: timeoutSignal(REQUEST_TIMEOUT, signal),
   });

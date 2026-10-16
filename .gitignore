@@ -24,6 +24,7 @@ __pycache__/
 # Sorties GPS (les exemples de web/examples/ sont suivis)
 *.gpx
 !web/examples/*.gpx
+!web/client/public/examples/*.gpx
 *.kmz
 
 # Env / OS / IDE

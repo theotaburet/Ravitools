@@ -1,46 +1,20 @@
 /**
- * Google Maps scraper: pure parsing helpers + Playwright extraction.
- *
- * Extracted from index.ts in Phase 3b (PR1: pure refactor, no behavior change).
- * The job system (queue, persisted jobs map, retry orchestration) remains in
- * index.ts; this module owns only the page-level extraction.
- *
- * Dependencies are injected (logger, sleep, randomDelay, getBrowser) to keep
- * the module pure and trivially mockable in tests.
+ * Google Maps scraper: pure parsing helpers + Playwright extraction, and the
+ * `googleMapsPlugin` the job system runs.
  */
 
 import type { Logger } from "pino";
 import type { Browser, Page } from "playwright";
 import { getBrowserContext, saveBrowserState } from "../browser-context.js";
+import {
+  BLOCKED_ERROR_PREFIX,
+  type MapHoursEntry,
+  type MapPreview,
+  type MapScraperPlugin,
+  type ScraperDeps,
+} from "./types.js";
 
-// --- Public types ---
-
-export type GoogleMapsHoursEntry = { day: string; open: string; close: string | null };
-
-export type GoogleMapsPreview = {
-  url: string;
-  resolvedUrl: string | null;
-  title: string | null;
-  category: string | null;
-  rating: number | null;
-  reviewCount: number | null;
-  priceLevel: number | null;
-  hoursText: string | null;
-  /** Structured opening hours extracted from the expanded hours panel.
-   *  Array of {day, open, close}: compatible with client OpeningHoursEntry. */
-  structuredHours: GoogleMapsHoursEntry[] | null;
-  address: string | null;
-  phone: string | null;
-  website: string | null;
-  snippet: string | null;
-  fetchedAt: string;
-};
-
-export interface GoogleMapsScraperDeps {
-  log: Logger;
-  sleep: (ms: number) => Promise<void>;
-  randomDelay: (minMs: number, maxMs: number) => number;
-}
+type PageDeps = Omit<ScraperDeps, "getBrowser">;
 
 /**
  * Optional HTTP/SOCKS proxy for Google Maps requests.
@@ -64,10 +38,6 @@ export function extractPriceLevelFromText(text: string | null): number | null {
   return Math.min(match[0].length, 4);
 }
 
-export function normalizeGoogleMapsGlyphs(text: string | null): string | null {
-  return text ? text.replace(/\s+/g, " ").trim() : null;
-}
-
 export function extractLocalGoogleMapsWindow(
   bodyText: string | null,
   title: string | null,
@@ -84,7 +54,7 @@ export function extractGoogleMapsCategory(localText: string | null): string | nu
   if (!localText) return null;
   const starCategory = localText.match(/\(\d[\d\s., ]*\)\s*·\s*([^·]{3,60})\s*·/i);
   if (starCategory?.[1]) {
-    return normalizeGoogleMapsGlyphs(parseGoogleMapsText(starCategory[1]));
+    return parseGoogleMapsText(starCategory[1]);
   }
   const match =
     localText.match(
@@ -93,7 +63,7 @@ export function extractGoogleMapsCategory(localText: string | null): string | nu
     localText.match(
       /\d(?:[.,]\d)\s+([^·]{3,60}?)(?:Présentation|Overview|Prix|About|À propos|Directions|Itinéraires)/i,
     );
-  return normalizeGoogleMapsGlyphs(parseGoogleMapsText(match?.[2] ?? match?.[1] ?? null));
+  return parseGoogleMapsText(match?.[2] ?? match?.[1] ?? null);
 }
 
 export function cleanGoogleMapsPhone(phone: string | null): string | null {
@@ -102,12 +72,17 @@ export function cleanGoogleMapsPhone(phone: string | null): string | null {
   return cleaned || null;
 }
 
-export function cleanGoogleMapsHours(hoursText: string | null): string | null {
-  if (!hoursText) return null;
-  const cleaned = normalizeGoogleMapsGlyphs(hoursText);
-  if (!cleaned || cleaned.length < 4) return null;
-  if (!/(open|closed|ouvre|fermé|ferme|\d{1,2}[:h]\d{2})/i.test(cleaned)) return null;
-  return cleaned;
+/**
+ * Drop the live open/closed status ("Closed ⋅ Opens 9 AM Mon", "Ouvert · Ferme à
+ * 18:30"): it describes the moment of the scrape, not the schedule, and a
+ * night-time scrape would otherwise tell the LLM every place is closed.
+ */
+export function stripLiveOpenStatus(text: string | null): string | null {
+  if (!text) return null;
+  return text.replace(
+    /(?:Ouvert|Fermé|Open|Closed)\s*[·⋅]\s*(?:Ferme|Ouvre|Closes|Opens)\s+(?:à\s+)?\d{1,2}(?:[:h]\d{2})?(?:\s*[AaPp][Mm])?(?:\s+(?:lun|mar|mer|jeu|ven|sam|dim)\.?|\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?![a-z]))?\s*/g,
+    "",
+  );
 }
 
 // --- Day & time normalization ---
@@ -153,11 +128,11 @@ export function normalizeDay(raw: string): string {
 
 export function normalizeTimeString(raw: string): string {
   const s = raw.trim();
-  // 12h format: "8:00 AM", "10:00 PM"
-  const match12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  // 12h format: "8:00 AM", "10:00 PM", "9 AM"
+  const match12 = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
   if (match12) {
     let h = Number.parseInt(match12[1], 10);
-    const m = match12[2];
+    const m = match12[2] ?? "00";
     const meridiem = match12[3].toUpperCase();
     if (meridiem === "AM" && h === 12) h = 0;
     if (meridiem === "PM" && h !== 12) h += 12;
@@ -175,8 +150,8 @@ export function normalizeTimeString(raw: string): string {
   return s;
 }
 
-export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | null {
-  const s = normalizeGoogleMapsGlyphs(row)?.trim();
+export function parseGoogleMapsHoursRow(row: string): MapHoursEntry | null {
+  const s = parseGoogleMapsText(row);
   if (!s) return null;
 
   const spaceIdx = s.search(/\s+/);
@@ -189,7 +164,7 @@ export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | nul
     return { day, open: "closed", close: null };
   }
 
-  const sep = /\s*[–—-]\s*/;
+  const sep = /\s*[\u2013\u2014-]\s*/;
   const rangeParts = timePart.split(sep);
   if (rangeParts.length >= 2) {
     const openTime = normalizeTimeString(rangeParts[0].trim());
@@ -204,6 +179,55 @@ export function parseGoogleMapsHoursRow(row: string): GoogleMapsHoursEntry | nul
   }
 
   return null;
+}
+
+/**
+ * Parse one day button's aria-label. Google Maps (2026) has no hours table any
+ * more: each day is a button labelled "Monday, 9 AM to 12 PM, 2 to 6:30 PM, Copy
+ * open hours" (the page is forced to English; other UI languages parse as long as
+ * the day name is known). Several ranges collapse to first open / last close.
+ */
+export function parseGoogleMapsHoursLabel(label: string): MapHoursEntry | null {
+  const parts = label.split(/,\s*/);
+  if (parts.length < 2) return null;
+  const day = DAY_NORMALIZATIONS[parts[0].trim().toLowerCase()];
+  if (!day) return null;
+  const ranges = parts.slice(1).join(", ");
+  if (/ferm[ée]|closed|cerrado|geschlossen|chiuso/i.test(ranges)) {
+    return { day, open: "closed", close: null };
+  }
+  if (/24\s*h|open 24|ouvert 24/i.test(ranges)) return { day, open: "00:00", close: "23:59" };
+  const times = (ranges.match(/\d{1,2}(?:[:h]\d{2})?(?:\s*[AP]M)?/gi) ?? [])
+    .map(normalizeTimeString)
+    .filter((t) => /^\d{2}:\d{2}$/.test(t));
+  if (times.length < 2) return null;
+  return { day, open: times[0], close: times[times.length - 1] };
+}
+
+const DAY_LINE =
+  /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+.+/i;
+
+/**
+ * Last-resort hours: the block of day-labelled lines ("Monday 9:00–18:00") in
+ * the page text, read line by line (so the text must keep its line breaks).
+ * Null when fewer than two days parse.
+ */
+export function parseHoursFromBodyText(text: string): MapHoursEntry[] | null {
+  const entries: MapHoursEntry[] = [];
+  let consecutiveMisses = 0;
+  for (const line of text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)) {
+    const parsed = DAY_LINE.test(line) ? parseGoogleMapsHoursRow(line) : null;
+    if (parsed) {
+      entries.push(parsed);
+      consecutiveMisses = 0;
+    } else if (entries.length > 0 && ++consecutiveMisses > 2) {
+      break;
+    }
+  }
+  return entries.length >= 2 ? entries : null;
 }
 
 // --- Rating / review count extraction (pure) ---
@@ -306,107 +330,70 @@ export async function acceptGoogleConsentIfPresent(page: Page, log: Logger): Pro
   }
 }
 
+/** Day buttons ("Sunday, 9 am to 7 pm, Copy open hours") of the first hours table. */
+async function readDayButtons(page: Page): Promise<MapHoursEntry[]> {
+  const labels = await page
+    .locator("button[aria-label]")
+    .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
+  const byDay = new Map<string, MapHoursEntry>();
+  for (const label of labels) {
+    const parsed = parseGoogleMapsHoursLabel(label);
+    if (!parsed) continue;
+    // A repeated day starts a second table ("Online service hours"), not this place's
+    if (byDay.has(parsed.day)) break;
+    byDay.set(parsed.day, parsed);
+  }
+  return [...byDay.values()];
+}
+
 /**
- * Click the collapsed hours button to open the expanded panel, then extract
- * structured opening hours row by row. Returns null if extraction fails.
+ * Read the week from the day buttons' aria-labels (see parseGoogleMapsHoursLabel),
+ * opening the folded panel when needed, then fall back to day-labelled lines in
+ * the body text. Returns null when fewer than two days parse (one is enough
+ * from the folded panel).
  */
 export async function extractExpandedGoogleMapsHours(
   page: Page,
-  deps: GoogleMapsScraperDeps,
-): Promise<GoogleMapsHoursEntry[] | null> {
-  const { log, sleep } = deps;
-  const expandSelectors = [
-    'button[aria-label*="Open"]',
-    'button[aria-label*="Closed"]',
-    'button[aria-label*="Ouvre"]',
-    'button[aria-label*="Ferme"]',
-    'button[aria-label*="hours"]',
-    'button[aria-label*="horaires"]',
-    'div[data-section-id="oh"] button',
-    'button[jsaction*="openhours"]',
-  ];
-
-  for (const selector of expandSelectors) {
-    const locator = page.locator(selector).first();
-    if (!(await locator.count())) continue;
-    await locator.click({ timeout: 3_000 }).catch(() => undefined);
-    await sleep(800);
-    break;
+  deps: PageDeps,
+): Promise<MapHoursEntry[] | null> {
+  const { log } = deps;
+  const days = await readDayButtons(page);
+  if (days.length >= 2) {
+    log.info({ parsed: days.length }, "Google Maps: structured hours extracted from day buttons");
+    return days;
   }
 
-  const rowSelectors = [
-    "table.WgFkxc tr",
-    'table[aria-label*="hours"] tr',
-    'table[aria-label*="horaires"] tr',
-    'div[aria-label*="hours"] li',
-    "div.t39EBf.GUrTXd",
-    'tr[class*="hours"]',
-  ];
-
-  for (const selector of rowSelectors) {
-    const rows = page.locator(selector);
-    const count = await rows.count();
-    if (count < 2) continue;
-
-    const entries: GoogleMapsHoursEntry[] = [];
-    for (let i = 0; i < Math.min(count, 7); i++) {
-      const rowText = await rows
-        .nth(i)
-        .innerText({ timeout: 1_500 })
-        .catch(() => "");
-      const parsed = parseGoogleMapsHoursRow(rowText);
-      if (parsed) entries.push(parsed);
-    }
-
-    if (entries.length >= 2) {
-      log.info(
-        { selector, count, parsed: entries.length },
-        "Google Maps: structured hours extracted from panel",
-      );
-      return entries;
+  // Seasonal or irregular hours are folded behind "See more hours": the day
+  // buttons only exist once it is opened, and may list a single day.
+  const seeMore = page.locator('button[aria-label*="See more hours"]').first();
+  if (days.length === 0 && (await seeMore.count()) > 0) {
+    await seeMore.click({ timeout: 3_000 });
+    await page
+      .locator('button[aria-label$="Copy open hours"]')
+      .first()
+      .waitFor({ timeout: 5_000 })
+      .catch(() => undefined);
+    const folded = await readDayButtons(page);
+    if (folded.length > 0) {
+      log.info({ parsed: folded.length }, "Google Maps: structured hours extracted after opening");
+      return folded;
     }
   }
 
-  // Fallback: parse body text for day-labelled lines
-  const bodyText = normalizeGoogleMapsGlyphs(
+  // Fallback: day-labelled lines of the body text
+  const entries = parseHoursFromBodyText(
     await page
       .locator("body")
       .innerText({ timeout: 3_000 })
       .catch(() => ""),
   );
-  if (!bodyText) return null;
-
-  const dayPattern =
-    /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+.+/im;
-  const lines = bodyText
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const entries: GoogleMapsHoursEntry[] = [];
-  let inBlock = false;
-  let consecutiveMisses = 0;
-
-  for (const line of lines) {
-    const parsed = dayPattern.test(line) ? parseGoogleMapsHoursRow(line) : null;
-    if (parsed) {
-      entries.push(parsed);
-      inBlock = true;
-      consecutiveMisses = 0;
-    } else if (inBlock) {
-      consecutiveMisses++;
-      if (consecutiveMisses > 2) break;
-    }
-  }
-
-  if (entries.length >= 2) {
+  if (entries) {
     log.info(
       { parsed: entries.length },
       "Google Maps: structured hours extracted from body text fallback",
     );
-    return entries;
   }
-
-  return null;
+  return entries;
 }
 
 // --- Main extraction entry point ---
@@ -422,15 +409,19 @@ export async function fetchGoogleMapsPreviewOnce(
   url: string,
   attempt: number,
   browser: Browser,
-  deps: GoogleMapsScraperDeps,
-): Promise<GoogleMapsPreview | null> {
+  deps: PageDeps,
+): Promise<MapPreview | null> {
   const { log, sleep, randomDelay } = deps;
   const context = await getBrowserContext(browser);
   const page = await context.newPage();
 
   try {
     log.info({ url, attempt }, "Google Maps preview: opening page");
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    // One UI language whatever the place's country or the operator's locale:
+    // the parsers below only have to know English day names and status words.
+    const target = new URL(url);
+    target.searchParams.set("hl", "en");
+    await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 15_000 });
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
     await acceptGoogleConsentIfPresent(page, log);
     await sleep(randomDelay(1_000, 3_000));
@@ -461,16 +452,15 @@ export async function fetchGoogleMapsPreviewOnce(
     const title =
       parseGoogleMapsText(await page.title()) ??
       (await extractTextBySelectors(page, ["h1", "h1.DUwDvf", 'div[role="main"] h1']));
-    const bodyText = normalizeGoogleMapsGlyphs(
-      parseGoogleMapsText(
-        await page
-          .locator("body")
-          .innerText({ timeout: 5_000 })
-          .catch(() => ""),
-      ),
+    const bodyText = parseGoogleMapsText(
+      await page
+        .locator("body")
+        .innerText({ timeout: 5_000 })
+        .catch(() => ""),
     );
     const localText = extractLocalGoogleMapsWindow(bodyText, title);
-    const snippet = bodyText?.slice(0, 1200) ?? null;
+    const withoutStatus = stripLiveOpenStatus(bodyText);
+    const snippet = withoutStatus?.slice(0, 1200) ?? null;
 
     const rating = extractGoogleMapsRating(localText);
     const reviewCount = extractGoogleMapsReviewCount(localText);
@@ -480,33 +470,28 @@ export async function fetchGoogleMapsPreviewOnce(
       return null;
     });
 
-    let hoursText: string | null = null;
-    if (structuredHours && structuredHours.length > 0) {
-      hoursText = structuredHours
-        .map((e) => {
-          if (e.open.toLowerCase() === "closed") return `${e.day}: closed`;
-          if (e.close) return `${e.day}: ${e.open}-${e.close}`;
-          return `${e.day}: ${e.open}`;
-        })
-        .join("; ");
-    } else {
-      hoursText =
-        (await extractTextBySelectors(page, [
-          'button[aria-label*="Open"]',
-          'button[aria-label*="Closed"]',
-          'button[aria-label*="Ouvre"]',
-          'button[aria-label*="Ferme"]',
-          'div[aria-label*="Hours"]',
-          'div[aria-label*="horaires"]',
-        ])) ??
-        (() => {
-          const match =
-            localText?.match(/(?:Open|Closed)[^\n]{0,80}/i) ??
-            localText?.match(/(?:Ouvre|Fermé|Ferme)[^\n]{0,80}/i);
-          return parseGoogleMapsText(match?.[0] ?? null);
-        })();
-      hoursText = cleanGoogleMapsHours(hoursText);
+    // Layout check: Google changes its markup without notice. It prints a live
+    // status ("Open ⋅ Closes 7 pm") only for places with hours, so a status with no
+    // parsed day is a selector gone stale. "Temporarily closed", "Add hours" or the
+    // "Hours" search filter are not hours.
+    const layoutWarnings: string[] = [];
+    if (!structuredHours && withoutStatus !== bodyText) {
+      layoutWarnings.push("hours shown on the page but no day button parsed");
+      log.error(
+        { url, pageUrl: page.url() },
+        "Google Maps layout check failed: hours shown on the page but no day button parsed",
+      );
     }
+
+    const hoursText = structuredHours?.length
+      ? structuredHours
+          .map((e) => {
+            if (e.open.toLowerCase() === "closed") return `${e.day}: closed`;
+            if (e.close) return `${e.day}: ${e.open}-${e.close}`;
+            return `${e.day}: ${e.open}`;
+          })
+          .join("; ")
+      : null;
 
     const phone = cleanGoogleMapsPhone(
       (await extractTextBySelectors(page, [
@@ -519,15 +504,13 @@ export async function fetchGoogleMapsPreviewOnce(
       .getAttribute("href", { timeout: 1_500 })
       .catch(() => null);
     const address =
-      normalizeGoogleMapsGlyphs(
-        await extractTextBySelectors(page, [
-          'button[data-item-id*="address"]',
-          'button[aria-label^="Address:"]',
-        ]),
-      ) ??
+      (await extractTextBySelectors(page, [
+        'button[data-item-id*="address"]',
+        'button[aria-label^="Address:"]',
+      ])) ??
       (() => {
         const match = bodyText?.match(/\b\d{4,5}[^\n]{10,120}/) ?? null;
-        return normalizeGoogleMapsGlyphs(parseGoogleMapsText(match?.[0] ?? null));
+        return parseGoogleMapsText(match?.[0] ?? null);
       })();
     const category =
       (await extractTextBySelectors(page, [
@@ -535,6 +518,7 @@ export async function fetchGoogleMapsPreviewOnce(
         'button[aria-label*="stars"] + button',
       ])) ?? extractGoogleMapsCategory(localText);
 
+    const priceLevel = extractPriceLevelFromText(bodyText);
     log.info(
       {
         url,
@@ -543,11 +527,12 @@ export async function fetchGoogleMapsPreviewOnce(
         category,
         rating,
         reviewCount,
-        priceLevel: extractPriceLevelFromText(bodyText),
+        priceLevel,
         hasHours: Boolean(hoursText),
         hasAddress: Boolean(address),
         hasPhone: Boolean(phone),
         hasWebsite: Boolean(website),
+        layoutWarnings,
       },
       "Google Maps preview extracted",
     );
@@ -559,7 +544,7 @@ export async function fetchGoogleMapsPreviewOnce(
       category,
       rating,
       reviewCount,
-      priceLevel: extractPriceLevelFromText(bodyText),
+      priceLevel,
       hoursText,
       structuredHours: structuredHours ?? null,
       address,
@@ -567,6 +552,7 @@ export async function fetchGoogleMapsPreviewOnce(
       website,
       snippet,
       fetchedAt: new Date().toISOString(),
+      layoutWarnings,
     };
   } catch (err) {
     log.error(
@@ -582,13 +568,7 @@ export async function fetchGoogleMapsPreviewOnce(
   }
 }
 
-// Plugin export: wires this scraper into the generic plugin system.
-// See web/server/src/scrapers/types.ts for the contract.
-
-import type { MapScraperPlugin, ScraperDeps } from "./types.js";
-import { BLOCKED_ERROR_PREFIX } from "./types.js";
-
-export const googleMapsPlugin: MapScraperPlugin<GoogleMapsPreview> = {
+export const googleMapsPlugin: MapScraperPlugin = {
   name: "google-maps",
   displayName: "Google Maps",
 
@@ -608,26 +588,12 @@ export const googleMapsPlugin: MapScraperPlugin<GoogleMapsPreview> = {
     return parsed.toString();
   },
 
-  // Google Maps URLs are typically inserted directly (e.g. from a SearXNG
-  // result snippet). Programmatic search is possible but currently unused;
-  // omit `buildUrl` so callers must supply a URL.
-
-  async fetchOnce(
-    url: string,
-    attempt: number,
-    deps: ScraperDeps,
-  ): Promise<GoogleMapsPreview | null> {
-    const browser = await deps.getBrowser();
-    return fetchGoogleMapsPreviewOnce(url, attempt, browser, {
-      log: deps.log,
-      sleep: deps.sleep,
-      randomDelay: deps.randomDelay,
-    });
+  async fetchOnce(url: string, attempt: number, deps: ScraperDeps): Promise<MapPreview | null> {
+    return fetchGoogleMapsPreviewOnce(url, attempt, await deps.getBrowser(), deps);
   },
 
   minDelayMs: parseInt(process.env.GOOGLE_MAPS_MIN_DELAY_MS || "4000", 10),
   maxDelayMs: parseInt(process.env.GOOGLE_MAPS_MAX_DELAY_MS || "12000", 10),
   retries: parseInt(process.env.GOOGLE_MAPS_RETRIES || "3", 10),
-  previewCacheTtlSec: 60 * 60 * 24 * 14, // 14 days
   jobsTtlMs: parseInt(process.env.GOOGLE_MAPS_JOBS_TTL_MS || String(7 * 24 * 3600 * 1000), 10),
 };

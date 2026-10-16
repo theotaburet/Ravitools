@@ -8,45 +8,49 @@ import { makePoi } from "./enrichment-helpers";
 // --- Batch enrichment pipeline ---
 
 // We mock the network-dependent modules so enrichBatch runs fully in test.
-vi.mock("../lib/enrichment/search", async () => {
-  const actual = await vi.importActual<typeof import("../lib/enrichment/search")>(
-    "../lib/enrichment/search",
-  );
-  return {
-    ...actual,
-    fetchWebsitePreview: vi.fn(async () => null),
-    reverseGeocode: vi.fn(async () => ({
-      locality: "TestCity",
-      county: null,
-      state: null,
-      country: null,
-      countryCode: null,
-    })),
-    searchPoi: vi.fn(async (poi: POI) => {
-      // Simulate a small delay
-      await new Promise((r) => setTimeout(r, 5));
-      // Return 2 fake snippets wrapped in { snippets, query }
-      return {
-        snippets: [
-          {
-            title: `${poi.name} review`,
-            url: "https://example.com/1",
-            content: "Nice place",
-            engine: "google",
-          },
-          {
-            title: `${poi.name} hours`,
-            url: "https://example.com/2",
-            content: "Open 9-17",
-            engine: "bing",
-          },
-        ],
-        query: `"${poi.name}" avis restaurant site:tripadvisor.com`,
-        unresponsiveEngines: [],
-      };
-    }),
-  };
-});
+vi.mock("../lib/enrichment/websites", async () => ({
+  ...(await vi.importActual<typeof import("../lib/enrichment/websites")>(
+    "../lib/enrichment/websites",
+  )),
+  fetchOfficialSite: vi.fn(async () => ({ preview: null, snippets: [] })),
+  readSearchPages: vi.fn(async () => []),
+}));
+
+vi.mock("../lib/enrichment/geocode", () => ({
+  reverseGeocode: vi.fn(async () => ({
+    locality: "TestCity",
+    county: null,
+    state: null,
+    country: null,
+    countryCode: null,
+  })),
+}));
+
+vi.mock("../lib/enrichment/search", () => ({
+  searchPoi: vi.fn(async (poi: POI) => {
+    // Simulate a small delay
+    await new Promise((r) => setTimeout(r, 5));
+    // Return 2 fake snippets wrapped in { snippets, query }
+    return {
+      snippets: [
+        {
+          title: `${poi.name} review`,
+          url: "https://example.com/1",
+          content: "Nice place",
+          engine: "google",
+        },
+        {
+          title: `${poi.name} hours`,
+          url: "https://example.com/2",
+          content: "Open 9-17",
+          engine: "bing",
+        },
+      ],
+      query: `"${poi.name}" avis restaurant site:tripadvisor.com`,
+      unresponsiveEngines: [],
+    };
+  }),
+}));
 
 vi.mock("../lib/enrichment/llm", async () => {
   const actual =
@@ -97,7 +101,7 @@ describe("enrichBatch pipeline", () => {
 
   it("skips unnamed POIs without network calls", async () => {
     const { enrichBatch } = await import("../lib/enrichment/enricher");
-    const { reverseGeocode } = await import("../lib/enrichment/search");
+    const { reverseGeocode } = await import("../lib/enrichment/geocode");
 
     const pois = [
       makeBatchPoi("named", "Restaurant or Bar", "Le Bistro"),
@@ -116,7 +120,7 @@ describe("enrichBatch pipeline", () => {
 
   it("skips POIs with skip policy without network calls", async () => {
     const { enrichBatch } = await import("../lib/enrichment/enricher");
-    const { reverseGeocode } = await import("../lib/enrichment/search");
+    const { reverseGeocode } = await import("../lib/enrichment/geocode");
 
     const pois = [
       makeBatchPoi("water1", "Water", "Water Fountain"), // skip policy
@@ -181,6 +185,34 @@ describe("enrichBatch pipeline", () => {
     expect(phases).toContain("synthesize");
   });
 
+  it("reports search progress before synthesis, skipped POIs counted as searched", async () => {
+    const { enrichBatch } = await import("../lib/enrichment/enricher");
+    const events: string[] = [];
+
+    const pois = [
+      makeBatchPoi("generic", "Restaurant or Bar", "Unknown"),
+      makeBatchPoi("a"),
+      makeBatchPoi("b"),
+    ];
+    await enrichBatch(pois, {
+      searchStaggerMs: 0,
+      searchConcurrency: 2,
+      onSearchProgress: (searched, poiId) => events.push(`searched ${searched} ${poiId ?? "-"}`),
+      onProgress: (poiId) => events.push(`done ${poiId}`),
+    });
+
+    expect(events.slice(0, 2)).toEqual(["done generic", "searched 1 -"]);
+    // a and b both leave the search before either is synthesized
+    expect(events.slice(2, 4).map((e) => e.slice(0, -2))).toEqual(["searched 2", "searched 3"]);
+    expect(
+      events
+        .slice(2, 4)
+        .map((e) => e.slice(-1))
+        .sort(),
+    ).toEqual(["a", "b"]);
+    expect(events.slice(4).sort()).toEqual(["done a", "done b"]);
+  });
+
   it("cancels during geocode-search stage", async () => {
     const { enrichBatch } = await import("../lib/enrichment/enricher");
 
@@ -209,7 +241,7 @@ describe("enrichBatch pipeline", () => {
 
     // Make searchPoi abort after returning results so synthesis never starts
     const originalImpl = vi.mocked(searchPoi).getMockImplementation()!;
-    vi.mocked(searchPoi).mockImplementation(async (poi, _locality, _apiBase, _signal) => {
+    vi.mocked(searchPoi).mockImplementation(async (poi, _locality, _signal) => {
       await new Promise((r) => setTimeout(r, 5));
       // Abort right after the first search completes: synthesis hasn't started
       controller.abort();

@@ -10,13 +10,6 @@ import {
   setDebugEnabled,
 } from "../lib/debug-log";
 
-const LEVEL_COLORS: Record<string, string> = {
-  debug: "#6b6b6b",
-  info: "#2563eb",
-  warn: "#f59e0b",
-  error: "#ef4444",
-};
-
 export function DebugPanel() {
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(isDebugEnabled);
@@ -114,10 +107,7 @@ export function DebugPanel() {
             {entries.map((e) => (
               <div key={e.seq} className="debug-log-line">
                 <span className="debug-log-ts">{e.isoTs.slice(11, 23)}</span>
-                <span
-                  className="debug-log-level"
-                  style={{ color: LEVEL_COLORS[e.level] || "#000" }}
-                >
+                <span className={`debug-log-level debug-log-level-${e.level}`}>
                   {e.level.toUpperCase().padEnd(5)}
                 </span>
                 <span className="debug-log-source">[{e.source}]</span>

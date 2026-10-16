@@ -3,7 +3,8 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { enrichBatch, enrichPoi, isGenericPoiName } from "../lib/enrichment/enricher";
+import { isGenericPoiName } from "../lib/enrichment/deterministic";
+import { enrichBatch, enrichPoi } from "../lib/enrichment/enricher";
 import { buildStructuredContent } from "../lib/enrichment/structured";
 import { getEnrichabilityPolicy } from "../lib/poi-config";
 import type { EnrichmentStructuredContent, SearchSnippet } from "../types";
@@ -73,10 +74,7 @@ describe("FVM-N: Stability Checks", () => {
     // Should not throw
     const structured = buildStructuredContent(poi, emptyEnrichment, [], null, "en");
     expect(structured).toBeDefined();
-    expect(structured.headline).not.toBeNull();
-    expect(structured.practicalities).toEqual(expect.any(Array));
     expect(structured.cautions).toEqual(expect.any(Array));
-    expect(structured.unknowns).toEqual(expect.any(Array));
     expect(structured.sourceRollup).toEqual(expect.any(Array));
   });
 
@@ -185,12 +183,11 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
   it("I-full-noLLM: enrichPoi full category produces structured output without LLM", async () => {
     const poi = makePoi({ category: "Restaurant or Bar", name: "Chez Marcel" });
     mockFetchResponses({});
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("done");
     expect(result.locality).toBe("Lyon");
     expect(result.sourceCount).toBeGreaterThan(0);
     expect(result.structured).toBeDefined();
-    expect(result.structured!.headline).not.toBeNull();
     expect(result.structured!.sourceRollup.length).toBeGreaterThan(0);
     expect(result.description).not.toBeNull();
     expect(result.confidence).toBeGreaterThan(0);
@@ -201,7 +198,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
     mockFetchResponses({
       search: { results: [], query: "test" },
     });
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("skipped");
     expect(result.skipReason).toBe("no-results");
     expect(result.sourceCount).toBe(0);
@@ -223,7 +220,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
       }
       return new Response("Not found", { status: 404 });
     });
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     // Search failure may yield error or degraded done with 0 sources
     expect(["error", "done"]).toContain(result.status);
     if (result.status === "error") {
@@ -242,7 +239,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
     mockFetchResponses({
       fetchPage: null, // 404 on fetch-page
     });
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     // Should still succeed: website is non-critical
     expect(result.status).toBe("done");
     expect(result.officialWebsite).toBeNull();
@@ -251,7 +248,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
 
   it("I-skip: enrichPoi respects skip policy", async () => {
     const poi = makePoi({ category: "Water", name: "Fontaine du village" });
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("skipped");
     expect(result.skipReason).toBe("low-value-category");
     expect(fetchMock).not.toHaveBeenCalled(); // No network calls for skip
@@ -260,7 +257,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
   it("I-minimal: enrichPoi respects minimal policy", async () => {
     const poi = makePoi({ category: "Laundry", name: "Laverie Express" });
     mockFetchResponses({});
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("done");
     expect(result.locality).toBe("Lyon");
     expect(result.sourceCount).toBe(0); // No search for minimal
@@ -270,23 +267,17 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
   it("I-canonical: enrichPoi done result has canonical structured shape", async () => {
     const poi = makePoi({ category: "Food shop", name: "Chez Marcel" });
     mockFetchResponses({});
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("done");
     const s = result.structured!;
     // All 8 fields exist
-    expect(s).toHaveProperty("headline");
-    expect(s).toHaveProperty("operationalSummary");
-    expect(s).toHaveProperty("practicalities");
     expect(s).toHaveProperty("sourceRollup");
     expect(s).toHaveProperty("cautions");
-    expect(s).toHaveProperty("unknowns");
     expect(s).toHaveProperty("divergences");
     expect(s).toHaveProperty("sourceConfirmation");
     // Arrays are arrays
-    expect(Array.isArray(s.practicalities)).toBe(true);
     expect(Array.isArray(s.sourceRollup)).toBe(true);
     expect(Array.isArray(s.cautions)).toBe(true);
-    expect(Array.isArray(s.unknowns)).toBe(true);
     expect(Array.isArray(s.divergences)).toBe(true);
     // sourceConfirmation is a valid value
     expect(["official", "reviews-only", "both", "none"]).toContain(s.sourceConfirmation);
@@ -309,7 +300,7 @@ describe("FVM-I: Pipeline Integration (enrichPoi)", () => {
         fetchedAt: new Date().toISOString(),
       },
     });
-    const result = await enrichPoi(poi, { apiBase: "" });
+    const result = await enrichPoi(poi);
     expect(result.status).toBe("done");
     expect(result.officialWebsite).not.toBeNull();
     expect(result.structured!.sourceConfirmation).toBe("both");
@@ -369,7 +360,6 @@ describe("FVM-I: enrichBatch mixed policies", () => {
     ];
 
     const results = await enrichBatch(pois, {
-      apiBase: "",
       searchConcurrency: 1,
       searchStaggerMs: 0,
       skipUnnamed: false,
@@ -432,7 +422,6 @@ describe("FVM-I: enrichBatch mixed policies", () => {
     ];
 
     const results = await enrichBatch(pois, {
-      apiBase: "",
       searchConcurrency: 1,
       searchStaggerMs: 0,
     });
@@ -440,12 +429,8 @@ describe("FVM-I: enrichBatch mixed policies", () => {
     for (const [, enrichment] of results) {
       if (enrichment.status === "done" && enrichment.structured) {
         const s = enrichment.structured;
-        expect(s).toHaveProperty("headline");
-        expect(s).toHaveProperty("operationalSummary");
-        expect(Array.isArray(s.practicalities)).toBe(true);
         expect(Array.isArray(s.sourceRollup)).toBe(true);
         expect(Array.isArray(s.cautions)).toBe(true);
-        expect(Array.isArray(s.unknowns)).toBe(true);
         expect(Array.isArray(s.divergences)).toBe(true);
         expect(["official", "reviews-only", "both", "none"]).toContain(s.sourceConfirmation);
       }
@@ -480,7 +465,6 @@ describe("FVM-I: enrichBatch mixed policies", () => {
     );
 
     const results = await enrichBatch(pois, {
-      apiBase: "",
       signal: controller.signal,
       searchConcurrency: 1,
       searchStaggerMs: 0,
@@ -507,9 +491,6 @@ describe("FVM-N: Additional Stability Checks", () => {
     };
     const snippets = makeSnippets(3);
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
-    // Without LLM, fallback produces headline from inferCategoryLead
-    expect(structured.headline).not.toBeNull();
-    expect(structured.practicalities.length).toBeGreaterThan(0);
     expect(structured.sourceRollup.length).toBeGreaterThan(0);
   });
 
@@ -534,7 +515,6 @@ describe("FVM-N: Additional Stability Checks", () => {
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     expect(structured.sourceConfirmation).toBe("reviews-only");
-    expect(structured.headline).not.toBeNull();
     expect(structured.sourceRollup.length).toBe(2);
   });
 
@@ -558,8 +538,6 @@ describe("FVM-N: Additional Stability Checks", () => {
     }
     // Each result should be independent and have valid structure
     for (const s of results) {
-      expect(s.headline).not.toBeNull();
-      expect(s.practicalities.length).toBeGreaterThan(0);
       expect(Array.isArray(s.divergences)).toBe(true);
       expect(["official", "reviews-only", "both", "none"]).toContain(s.sourceConfirmation);
     }
@@ -604,12 +582,7 @@ describe("FVM-L: Reference Case Snapshots", () => {
         content: "Authentic Lyon experience. Book ahead for Friday dinner.",
       },
     ];
-    const structured = buildStructuredContent(poi, enrichment, snippets, null, "fr");
-    expect(structured.headline).toContain("Bouchon lyonnais");
-    expect(structured.practicalities.some((p) => p.includes("4.4"))).toBe(true);
-    expect(structured.practicalities.some((p) => p.includes("250"))).toBe(true);
-    expect(structured.practicalities.some((p) => p.includes("Tue-Sat"))).toBe(true);
-    expect(structured.practicalities.some((p) => p.includes("+33"))).toBe(true);
+    const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     expect(structured.sourceRollup.length).toBe(3);
     expect(structured.sourceConfirmation).toBe("reviews-only");
     expect(structured.divergences).toHaveLength(0);
@@ -638,11 +611,6 @@ describe("FVM-L: Reference Case Snapshots", () => {
       },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
-    // headline is derived from enrichment.summary, not POI name
-    expect(structured.headline).toContain("bakery");
-    // Food shop contract cares about resupply: check cautions or practicalities instead
-    expect(structured.practicalities.length).toBeGreaterThan(0);
-    expect(structured.practicalities.some((p) => p.includes("6:30"))).toBe(true);
     expect(structured.sourceConfirmation).toBe("reviews-only");
   });
 
@@ -686,7 +654,6 @@ describe("FVM-L: Reference Case Snapshots", () => {
     expect(structured.sourceConfirmation).toBe("both");
     expect(structured.sourceRollup.some((d) => d.platform === "booking")).toBe(true);
     expect(structured.sourceRollup.some((d) => d.platform === "official_website")).toBe(true);
-    expect(structured.practicalities.some((p) => p.includes("Apr-Oct"))).toBe(true);
   });
 
   it("L4: bike shop / repair shop", () => {
@@ -718,8 +685,6 @@ describe("FVM-L: Reference Case Snapshots", () => {
       },
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
-    expect(structured.headline).toContain("bike");
-    expect(structured.practicalities.some((p) => p.includes("4.6"))).toBe(true);
     expect(structured.sourceRollup.length).toBe(2);
   });
 
@@ -802,8 +767,6 @@ describe("FVM-L: Reference Case Snapshots", () => {
     expect(structured.divergences.some((d) => d.includes("Rating"))).toBe(true);
     // Should detect closure contradiction
     expect(structured.divergences.some((d) => d.includes("closed"))).toBe(true);
-    // operationalSummary should mention disagreements
-    expect(structured.operationalSummary).toContain("disagreements");
   });
 
   it("L7: noisy search results with irrelevant content still produces safe output", () => {
@@ -842,7 +805,6 @@ describe("FVM-L: Reference Case Snapshots", () => {
     ];
     const structured = buildStructuredContent(poi, enrichment, snippets, null, "en");
     // Should still produce output, not crash
-    expect(structured.headline).not.toBeNull();
     expect(structured.cautions.length).toBeGreaterThan(0);
     // No reputation platforms -> caution about reliability
     expect(structured.cautions.some((c) => c.toLowerCase().includes("rating"))).toBe(true);

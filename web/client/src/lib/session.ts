@@ -1,20 +1,12 @@
 // --- Session persistence: save/restore app state to localStorage ---
 
-import type {
-  EnrichedData,
-  POI,
-  PoiCategory,
-  RouteProcessingSettings,
-  TargetLanguage,
-  TraceData,
-} from "../types";
+import type { EnrichedData, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
+import { DEFAULT_MAX_DISTANCE_M } from "./poi-config";
 
 // --- Schema versioning ---
 
-/** Bump this when the persisted shape changes in a breaking way.
- *  v2: trace → traces (multi-GPX support)
- *  v3: persist route processing settings */
-const SCHEMA_VERSION = 3;
+/** Bump when the persisted shape changes in a breaking way: older sessions are then dropped */
+const SCHEMA_VERSION = 4;
 
 const STORAGE_KEY = "ravitools_session";
 
@@ -32,7 +24,6 @@ interface PersistedSession {
   /** Enrichment results: stored as [id, data][] for JSON compat */
   enrichments: [string, EnrichedData][];
   /** User preferences */
-  targetLanguage: TargetLanguage;
   enrichAll: boolean;
   routeSettings: RouteProcessingSettings;
 }
@@ -44,7 +35,6 @@ export interface SessionSnapshot {
   traces: TraceData[];
   pois: POI[];
   enrichments: Map<string, EnrichedData>;
-  targetLanguage: TargetLanguage;
   enrichAll: boolean;
   routeSettings: RouteProcessingSettings;
   savedAt: string;
@@ -59,7 +49,6 @@ export function serializeSession(snapshot: Omit<SessionSnapshot, "savedAt">): st
     traces: snapshot.traces,
     pois: snapshot.pois,
     enrichments: [...snapshot.enrichments.entries()],
-    targetLanguage: snapshot.targetLanguage,
     enrichAll: snapshot.enrichAll,
     routeSettings: snapshot.routeSettings,
   };
@@ -108,9 +97,8 @@ export function parseSession(json: string): SessionSnapshot | null {
       traces: data.traces,
       pois: data.pois,
       enrichments: new Map(data.enrichments),
-      targetLanguage: data.targetLanguage ?? "en",
       enrichAll: data.enrichAll ?? false,
-      routeSettings: data.routeSettings ?? { maxDistanceM: 1500 },
+      routeSettings: data.routeSettings ?? { maxDistanceM: DEFAULT_MAX_DISTANCE_M },
       savedAt: data.savedAt,
     };
   } catch {

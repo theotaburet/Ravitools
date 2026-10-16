@@ -6,17 +6,19 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildProfile,
   downsampleProfile,
+  elevationScale,
   gainAt,
   type ProfilePoint,
   profileAt,
   type SlopeBucket,
   slopeBuckets,
+  svgPath,
 } from "../lib/elevation";
+import { km } from "../lib/format";
 import { findGaps, type Gap } from "../lib/gaps";
 import { t } from "../lib/i18n";
 import { clusterProfilePois, poiBounds } from "../lib/poi-cluster";
-import { CATEGORY_EMOJI } from "../lib/poi-config";
-import { poisForTrace } from "../lib/trace-attribution";
+import { poiEmoji } from "../lib/poi-config";
 import { filteredPoisAtom, poisAtom, tracesAtom } from "../state/route";
 import {
   gapThresholdKmAtom,
@@ -73,8 +75,6 @@ const ProfileStatic = memo(function ProfileStatic({
   winEnd,
   totalDist,
   totalGain,
-  minEle,
-  maxEle,
   gainCurve,
   targetLanguage,
   onSelectPoi,
@@ -91,8 +91,6 @@ const ProfileStatic = memo(function ProfileStatic({
   winEnd: number;
   totalDist: number;
   totalGain: number;
-  minEle: number;
-  maxEle: number;
   gainCurve: { dist: number; gain: number }[];
   targetLanguage: TargetLanguage;
   onSelectPoi: (id: string) => void;
@@ -103,21 +101,14 @@ const ProfileStatic = memo(function ProfileStatic({
     [tracePois, winStart, winEnd],
   );
   const x = (dist: number) => ((dist - winStart) / (winEnd - winStart)) * VIEW_W;
-  const y = (ele: number) =>
-    maxEle === minEle
-      ? VIEW_H - PAD_Y
-      : VIEW_H - PAD_Y - ((ele - minEle) / (maxEle - minEle)) * (VIEW_H - 2 * PAD_Y);
+  const { minEle, maxEle, y } = elevationScale(winProfile, VIEW_H, PAD_Y);
 
-  const linePath = winProfile
-    .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.dist).toFixed(1)},${y(p.ele).toFixed(1)}`)
-    .join(" ");
+  const linePath = svgPath(winProfile.map((p) => [x(p.dist), y(p.ele)]));
   const areaPath = `${linePath} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`;
 
   const yG = (g: number) =>
     VIEW_H - PAD_Y - (totalGain === 0 ? 0 : (g / totalGain) * (VIEW_H - 2 * PAD_Y));
-  const gainPath = gainCurve
-    .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.dist).toFixed(1)},${yG(p.gain).toFixed(1)}`)
-    .join(" ");
+  const gainPath = svgPath(gainCurve.map((p) => [x(p.dist), yG(p.gain)]));
 
   // Horizontal gridlines at round altitudes (Komoot-style): 2-4 lines
   const gridStep = [1000, 500, 200, 100, 50, 20, 10].find((s) => (maxEle - minEle) / s >= 2) ?? 10;
@@ -240,13 +231,12 @@ const ProfileStatic = memo(function ProfileStatic({
       )}
       {winStart > 0 && (
         <span className="elevation-offscreen left" role="status">
-          ← {(winStart / 1000).toFixed(1)} km · ↑{Math.round(gainAt(fullProfile, winStart))} m
+          ← {km(winStart)} km · ↑{Math.round(gainAt(fullProfile, winStart))} m
         </span>
       )}
       {winEnd < totalDist && (
         <span className="elevation-offscreen right" role="status">
-          {((totalDist - winEnd) / 1000).toFixed(1)} km · ↑
-          {Math.round(totalGain - gainAt(fullProfile, winEnd))} m →
+          {km(totalDist - winEnd)} km · ↑{Math.round(totalGain - gainAt(fullProfile, winEnd))} m →
         </span>
       )}
       {singles.map((poi) => {
@@ -266,7 +256,7 @@ const ProfileStatic = memo(function ProfileStatic({
             title={poi.name || poi.category}
             onClick={() => onSelectPoi(poi.id)}
           >
-            {CATEGORY_EMOJI[poi.category] ?? "📍"}
+            {poiEmoji(poi)}
           </button>
         );
       })}
@@ -351,17 +341,14 @@ export function ElevationProfile() {
     [fullProfile, winStart, winEnd],
   );
 
-  // Attribute each POI to its nearest trace so dots land on the right profile
-  const tracePois = useMemo(
-    () => (trace ? poisForTrace(pois, traces, trace) : []),
-    [trace, traces, pois],
-  );
+  // Each POI belongs to its nearest trace: dots land on the right profile
+  const tracePois = useMemo(() => pois.filter((p) => p.traceId === trace?.id), [trace, pois]);
 
   // Ravito gaps: computed from ALL POIs (unfiltered): unchecking a category
   // in the filter must not turn the trace into a fake desert.
   const { waterGaps, foodGaps } = useMemo(() => {
     if (!trace) return { waterGaps: [], foodGaps: [] };
-    const mine = poisForTrace(allPois, traces, trace);
+    const mine = allPois.filter((p) => p.traceId === trace.id);
     const thresholdM = gapThresholdKm * 1000;
     const water = mine.filter((p) => p.category === "Water").map((p) => p.alongTraceDistance);
     const food = mine
@@ -371,7 +358,7 @@ export function ElevationProfile() {
       waterGaps: findGaps(water, trace.totalDistanceM, thresholdM),
       foodGaps: findGaps(food, trace.totalDistanceM, thresholdM),
     };
-  }, [trace, traces, allPois, gapThresholdKm]);
+  }, [trace, allPois, gapThresholdKm]);
 
   const winProfile = useMemo(() => {
     if (profile.length === 0) return profile;
@@ -398,17 +385,8 @@ export function ElevationProfile() {
   const totalDist = profile[profile.length - 1].dist;
   const totalGain = gainAt(fullProfile, totalDist);
 
-  let minEle = Infinity;
-  let maxEle = -Infinity;
-  for (const p of winProfile) {
-    if (p.ele < minEle) minEle = p.ele;
-    if (p.ele > maxEle) maxEle = p.ele;
-  }
-  // y() duplicated from ProfileStatic: the hover overlays need it too
-  const y = (ele: number) =>
-    maxEle === minEle
-      ? VIEW_H - PAD_Y
-      : VIEW_H - PAD_Y - ((ele - minEle) / (maxEle - minEle)) * (VIEW_H - 2 * PAD_Y);
+  // Same scale as ProfileStatic, for the hover overlays
+  const { y } = elevationScale(winProfile, VIEW_H, PAD_Y);
 
   const handleMove = (e: React.MouseEvent) => {
     const rect = bodyRef.current?.getBoundingClientRect();
@@ -459,12 +437,12 @@ export function ElevationProfile() {
           {t("profile.title", targetLanguage)}
         </button>
         <span className="elevation-stats">
-          {trace.name ?? trace.id} · {(trace.totalDistanceM / 1000).toFixed(1)} km · ↑
-          {trace.elevationGainM}m ↓{trace.elevationLossM}m
+          {trace.name ?? trace.id} · {km(trace.totalDistanceM)} km · ↑{trace.elevationGainM}m ↓
+          {trace.elevationLossM}m
         </span>
         <span className="gap-controls">
           <label className="gap-threshold">
-            &gt;
+            {t("profile.gapPrefix", targetLanguage)}
             <input
               type="number"
               min={1}
@@ -525,8 +503,6 @@ export function ElevationProfile() {
             winEnd={winEnd}
             totalDist={totalDist}
             totalGain={totalGain}
-            minEle={minEle}
-            maxEle={maxEle}
             gainCurve={gainCurve}
             targetLanguage={targetLanguage}
             onSelectPoi={setSelectedPoiId}
@@ -554,9 +530,8 @@ export function ElevationProfile() {
                   top: `${((y(hoverInfo.ele) / VIEW_H) * 100).toFixed(2)}%`,
                 }}
               >
-                <strong>km {(hoverInfo.dist / 1000).toFixed(1)}</strong> ·{" "}
-                {Math.round(hoverInfo.ele)} m · ↑{Math.round(gainAt(fullProfile, hoverInfo.dist))} m
-                ·{" "}
+                <strong>km {km(hoverInfo.dist)}</strong> · {Math.round(hoverInfo.ele)} m · ↑
+                {Math.round(gainAt(fullProfile, hoverInfo.dist))} m ·{" "}
                 <span style={{ color: slopeColor(hoverSlope), fontWeight: 700 }}>
                   {hoverSlope > 0 ? "+" : ""}
                   {hoverSlope.toFixed(1)} %
