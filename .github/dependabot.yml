@@ -1,0 +1,15 @@
+# Weekly update PRs, checked by CI. Majors come alone (AGENTS.md: one major per change).
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

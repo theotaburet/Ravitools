@@ -122,7 +122,7 @@ Tests: vitest + supertest
 ```
 Lint/format: biome (zero warnings)
 Task runner: just (justfile at repo root)
-CI: GitHub Actions (typecheck, test, lint on both packages; Pages deploy of the static client)
+CI: GitHub Actions (typecheck, test, lint on both packages; Pages deploy of the static client), Dependabot weekly updates
 ```
 
 ### Data Model
@@ -298,6 +298,7 @@ just update       # in-range updates (semver ranges of package.json), then just 
 2. Major versions: one package per change, never bundled with a feature. Read the changelog/migration guide, apply it, `just check` plus `CI=1 just test-e2e` (Playwright starts a fresh dev server; a running one still serves the old pre-bundled deps), then report what changed.
 3. Keep the tooling in step: bump `biome.json`'s `$schema` with biome (`biome migrate`), and the stack versions listed in this file.
 4. A dependency the stdlib or the platform now covers gets removed rather than updated.
+5. Dependabot (`.github/dependabot.yml`) opens weekly PRs for bun and GitHub Actions: minor and patch grouped in one PR, each major alone. CI checks them; a major PR still follows step 2 (changelog, `CI=1 just test-e2e`) before merging.
 
 ### Workflow
 
