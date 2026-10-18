@@ -90,8 +90,10 @@ export function buildOverpassQuery(
 
 /** Simplified points per Overpass query: bounds the query size */
 const MAX_POINTS_PER_QUERY = 50;
-/** Retry rounds for failed chunks, each one splitting them in two */
-const MAX_RETRY_ROUNDS = 3;
+/** Retry rounds that split failed chunks in two */
+const MAX_SPLIT_ROUNDS = 3;
+/** Failed chunks keep retrying until this budget is spent: an outage passes without a click */
+const RETRY_BUDGET_MS = 8 * 60_000;
 
 /** Split trace points into overlapping chunks (overlap avoids boundary gaps). */
 export function chunkPoints(
@@ -211,9 +213,10 @@ export interface QueryProgress {
  * (Overpass-friendly). Returns raw elements from all chunks, deduplicated by
  * OSM ID, plus chunk failure counts so the caller can warn the user.
  *
- * The only retry level: failed chunks go again in up to MAX_RETRY_ROUNDS
- * rounds with a growing backoff, split in two each time (a POI-dense city
- * corridor times Overpass out; a smaller one is much cheaper). An aborted
+ * The only retry level: failed chunks go again in rounds with a growing
+ * backoff until RETRY_BUDGET_MS is spent, split in two in the first
+ * MAX_SPLIT_ROUNDS (a POI-dense city corridor times Overpass out; a smaller
+ * one is much cheaper). An aborted
  * `signal` stops between chunks and cancels the request in flight.
  *
  * One point list per trace: chunks never span two traces, since `around:`
@@ -245,13 +248,14 @@ export async function queryAllPois(
   let retryRound = 0;
 
   const endTotal = log.time(`All ${initialChunks.length} chunks`);
+  const startedAt = Date.now();
 
-  while (pending.length > 0 && retryRound <= MAX_RETRY_ROUNDS) {
+  while (pending.length > 0 && Date.now() - startedAt < RETRY_BUDGET_MS) {
     if (retryRound > 0) {
-      // Backoff before retry round: 10s, 20s, 30s
-      const backoffMs = 10_000 * retryRound;
+      // Backoff before retry round: 10s, 20s, 30s... capped at 60s
+      const backoffMs = Math.min(10_000 * retryRound, 60_000);
       log.warn(
-        `Retry round ${retryRound}/${MAX_RETRY_ROUNDS}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
+        `Retry round ${retryRound}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
         { retryRound, pendingCount: pending.length, backoffMs },
       );
       await new Promise((r) => setTimeout(r, backoffMs));
@@ -281,7 +285,7 @@ export async function queryAllPois(
         log.debug(`Chunk ok: ${result.elements.length} elements, ${newCount} new`);
       } catch (err) {
         signal?.throwIfAborted();
-        if (retryRound < MAX_RETRY_ROUNDS && chunk.length >= 4) {
+        if (retryRound < MAX_SPLIT_ROUNDS && chunk.length >= 4) {
           const halves = splitChunk(chunk);
           failedThisRound.push(...halves);
           totalChunks += halves.length - 1;
