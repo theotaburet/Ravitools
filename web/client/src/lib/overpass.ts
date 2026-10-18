@@ -257,8 +257,8 @@ export async function queryAllPois(
 
   while (pending.length > 0 && Date.now() - startedAt < RETRY_BUDGET_MS) {
     if (retryRound > 0) {
-      // Backoff before retry round: 10s, 20s, 30s... capped at 60s
-      const backoffMs = Math.min(10_000 * retryRound, 60_000);
+      // Backoff before retry round: 10s, 20s, then 30s
+      const backoffMs = Math.min(10_000 * retryRound, 30_000);
       log.warn(
         `Retry round ${retryRound}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
         { retryRound, pendingCount: pending.length, backoffMs },
