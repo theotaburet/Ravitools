@@ -6,11 +6,15 @@ import { API_BASE } from "./enrichment/proxy-api";
 import { POI_CATEGORIES } from "./poi-config";
 
 // Static build (VITE_STANDALONE=true, e.g. GitHub Pages): no proxy, the browser
-// asks Overpass itself. Both mirrors send CORS headers; each retry round moves on to the next.
+// asks Overpass itself. Both mirrors send CORS headers; it sticks to the one that answers.
 const DIRECT_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
+let directMirror = 0;
+const nextMirror = () => {
+  directMirror = (directMirror + 1) % DIRECT_URLS.length;
+};
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
 // TTL so stale OSM data isn't served for the whole page lifetime.
@@ -137,8 +141,8 @@ export interface OverpassResponse {
 
 /**
  * One Overpass request: through the server proxy, which tries every mirror, or
- * straight to a mirror in the static build (`attempt` picks it, so a retry
- * round moves on to the next). Throws on any failure: queryAllPois retries.
+ * straight to a mirror in the static build (the last one that answered; a
+ * failure moves on to the next). Throws on any failure: queryAllPois retries.
  */
 export async function queryOverpass(
   query: string,
@@ -153,22 +157,26 @@ export async function queryOverpass(
   }
 
   const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
-  const res =
-    import.meta.env.VITE_STANDALONE === "true"
-      ? await fetch(DIRECT_URLS[attempt % DIRECT_URLS.length], {
-          method: "POST",
-          body: new URLSearchParams({ data: query }),
-          signal,
-        })
-      : await fetch(`${API_BASE}/overpass`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-          signal,
-        });
+  const standalone = import.meta.env.VITE_STANDALONE === "true";
+  const res = standalone
+    ? await fetch(DIRECT_URLS[directMirror], {
+        method: "POST",
+        body: new URLSearchParams({ data: query }),
+        signal,
+      }).catch((err: unknown) => {
+        nextMirror();
+        throw err;
+      })
+    : await fetch(`${API_BASE}/overpass`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+        signal,
+      });
 
   if (!res.ok) {
     endTimer();
+    if (standalone) nextMirror();
     const body = await res.text();
     throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
   }
