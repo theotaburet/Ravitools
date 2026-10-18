@@ -34,3 +34,7 @@ Backoff from 5 s (worse), breaker after 2 failures (worse), halves instead of qu
 ## Not measured by this harness (next version)
 
 The server's queue counts against its 180 s deadline (2 client requests in parallel through the proxy would 504); server-side mirror memory; a proxy-to-direct fallback when the server is down; cities at several offsets so chunk boundaries cannot game the score.
+
+## Revision (same day, after merge)
+
+A live run on designV2 showed the proxy relaying 504s from overloaded mirrors (the last mirror's status goes through when all four fail). The client took every 504 for a query too heavy and split: 3 chunks became 24. The harness only played 502s. Fixed with a failing test first: the harness proxy now relays the last mirror's status, an `overload-504` scenario joins, and every non-city scenario must keep its 5 chunks. Only a runtime error remark splits now; the proxy's 504 carries the remark so the client can tell. New baseline with 12 runs: 2221.

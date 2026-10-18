@@ -32,6 +32,8 @@ const SCENARIOS: Record<string, Scenario> = {
   healthy: { status: () => 200 },
   flaky: { status: (_m, _t, rand) => (rand() < 0.3 ? 502 : 200) },
   "outage-4min": { status: (_m, t) => (t < 240 ? 502 : 200) },
+  // Overloaded mirrors answer 504 at once: a gateway timeout, not a query too heavy
+  "overload-504": { status: (_m, t) => (t < 240 ? 504 : 200) },
   "mirror0-down": { status: (m) => (m === 0 ? 502 : 200) },
   "dense-city": { status: () => 200, city: true },
 };
@@ -101,13 +103,22 @@ function upstream(scenario: Scenario, t0: number) {
       const start = Math.max(now(), proxyFreeAt);
       let elapsed = start - now();
       let result: { status: number; body: unknown; latencyS: number } | undefined;
+      let lastStatus = 502;
       for (let m = 0; m < MIRRORS.length && !result; m++) {
         stats.requests++;
-        const status = scenario.status(m, now() + elapsed, rand);
-        if (status === 200) result = { status, ...answer(queryPoints(query), scenario) };
-        else elapsed += 2;
+        lastStatus = scenario.status(m, now() + elapsed, rand);
+        if (lastStatus !== 200) {
+          elapsed += 2;
+          continue;
+        }
+        result = { status: 200, ...answer(queryPoints(query), scenario) };
+        // Like the server: a runtime error remark becomes a 504 that carries it
+        const { remark } = result.body as { remark?: string };
+        if (remark)
+          result = { ...result, status: 504, body: { detail: JSON.stringify({ remark }) } };
       }
-      result ??= { status: 502, body: { error: "Failed to reach Overpass API" }, latencyS: 0 };
+      // Like the server: every mirror failed, the last one's status goes through
+      result ??= { status: lastStatus, body: { error: "Overpass API error" }, latencyS: 0 };
       proxyFreeAt = start + result.latencyS + (elapsed - (start - now()));
       return reply(result.status, result.body, elapsed + result.latencyS, init.signal);
     }
@@ -180,4 +191,6 @@ it.each(RUNS)("$name ($mode): every POI arrives without a click", async ({ name,
 
   expect(result?.failedChunks).toBe(0);
   expect(missing).toBe(0);
+  // Only a query Overpass itself calls too heavy is split
+  if (!SCENARIOS[name].city) expect(result?.totalChunks).toBe(5);
 });

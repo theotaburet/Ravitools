@@ -97,9 +97,12 @@ overpassRouter.post("/overpass", limiter, async (req, res) => {
         ?.res;
       if (!found?.ok) return found;
       const body = await found.text();
-      // A timed-out query answers 200 with a runtime error remark: a 504 (the
-      // client splits the chunk), never cached
-      return new Response(body, { status: /"remark"\s*:\s*"runtime error/.test(body) ? 504 : 200 });
+      // A timed-out query answers 200 with a runtime error remark: a 504 that
+      // carries it (the client splits the chunk on it), never cached
+      const remark = /"remark"\s*:\s*"(runtime error[^"]*)"/.exec(body)?.[1];
+      return remark
+        ? new Response(JSON.stringify({ remark }), { status: 504 })
+        : new Response(body);
     },
     // An HTML error page served with 200 must not be cached as JSON
     (body) => {

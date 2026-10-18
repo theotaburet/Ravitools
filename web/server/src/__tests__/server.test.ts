@@ -161,6 +161,7 @@ describe("/overpass", () => {
 
     // The client splits a chunk on a 504; a cached remark would lose its POIs for 24 h
     expect(res1.status).toBe(504);
+    expect(res1.body.detail).toContain("runtime error");
     expect(res2.status).toBe(504);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });

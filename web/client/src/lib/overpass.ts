@@ -222,8 +222,9 @@ export interface QueryProgress {
  * OSM ID, plus chunk failure counts so the caller can warn the user.
  *
  * The only retry level: failed chunks go again in rounds with a growing
- * backoff until RETRY_BUDGET_MS is spent. A chunk too heavy for Overpass (a
- * POI-dense city corridor times it out) is split in four and retried at once. An aborted
+ * backoff until RETRY_BUDGET_MS is spent. A chunk Overpass reports as timed
+ * out (a runtime error remark; a bare 504 is mostly an overloaded mirror) is
+ * split in four and retried at once: a POI-dense city corridor is too heavy. An aborted
  * `signal` stops between chunks and cancels the request in flight.
  *
  * One point list per trace: chunks never span two traces, since `around:`
@@ -295,7 +296,7 @@ export async function queryAllPois(
         log.debug(`Chunk ok: ${result.elements.length} elements, ${newCount} new`);
       } catch (err) {
         signal?.throwIfAborted();
-        if (/runtime error|\(504\)/.test(String(err)) && chunk.length >= 4) {
+        if (String(err).includes("runtime error") && chunk.length >= 4) {
           // Too heavy, not a sick server: the quarters join this round
           // (runConcurrent reaches what is pushed), no backoff
           const quarters = splitChunk(chunk).flatMap(splitChunk);
