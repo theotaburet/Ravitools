@@ -90,8 +90,6 @@ export function buildOverpassQuery(
 
 /** Simplified points per Overpass query: bounds the query size */
 const MAX_POINTS_PER_QUERY = 50;
-/** Retry rounds that split failed chunks in two */
-const MAX_SPLIT_ROUNDS = 3;
 /** Failed chunks keep retrying until this budget is spent: an outage passes without a click */
 const RETRY_BUDGET_MS = 8 * 60_000;
 
@@ -214,9 +212,8 @@ export interface QueryProgress {
  * OSM ID, plus chunk failure counts so the caller can warn the user.
  *
  * The only retry level: failed chunks go again in rounds with a growing
- * backoff until RETRY_BUDGET_MS is spent, split in two in the first
- * MAX_SPLIT_ROUNDS (a POI-dense city corridor times Overpass out; a smaller
- * one is much cheaper). An aborted
+ * backoff until RETRY_BUDGET_MS is spent. A chunk too heavy for Overpass (a
+ * POI-dense city corridor times it out) is split in four and retried at once. An aborted
  * `signal` stops between chunks and cancels the request in flight.
  *
  * One point list per trace: chunks never span two traces, since `around:`
@@ -285,18 +282,13 @@ export async function queryAllPois(
         log.debug(`Chunk ok: ${result.elements.length} elements, ${newCount} new`);
       } catch (err) {
         signal?.throwIfAborted();
-        if (String(err).includes("runtime error") && chunk.length >= 4) {
+        if (/runtime error|\(504\)/.test(String(err)) && chunk.length >= 4) {
           // Too heavy, not a sick server: the quarters join this round (the
           // loop reaches what is pushed), no backoff
           const quarters = splitChunk(chunk).flatMap(splitChunk);
           pending.push(...quarters);
           totalChunks += quarters.length - 1;
           log.warn(`Chunk of ${chunk.length} pts timed out: split, retried now`);
-        } else if (retryRound < MAX_SPLIT_ROUNDS && chunk.length >= 4) {
-          const halves = splitChunk(chunk);
-          failedThisRound.push(...halves);
-          totalChunks += halves.length - 1;
-          log.warn(`Chunk of ${chunk.length} pts failed: split for next round: ${err}`);
         } else {
           failedThisRound.push(chunk);
           log.error(`Chunk failed: ${err}`);
