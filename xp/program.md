@@ -24,6 +24,8 @@ Run (overpass): `cd web/client && VITE_XP_SCORE=1 bunx vitest run src/__tests__/
 4. Keep when the score drops and typecheck, lint and the other tests stay green (the harness's own assertions may still fail while scenarios do). Otherwise `git reset --hard HEAD~1`.
 5. Log the row either way.
 
+Read the per-run lines before a keep: a gain that comes from a harness artifact (chunk boundaries against the synthetic city, other PRNG draws) is not a gain, log it as a discard with the reason.
+
 Stop a track after 5 consecutive runs without a gain, then write `xp/<track>.md`: kept commits, what failed, what to merge.
 
 ## Rules
