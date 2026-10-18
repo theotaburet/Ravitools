@@ -131,6 +131,8 @@ export interface OverpassElement {
 
 export interface OverpassResponse {
   elements: OverpassElement[];
+  /** Set on a server-side failure answered with 200 (e.g. "runtime error: Query timed out") */
+  remark?: string;
 }
 
 /**
@@ -173,6 +175,8 @@ export async function queryOverpass(
 
   const data: OverpassResponse = await res.json();
   const elapsedMs = endTimer();
+  // A timed-out query still answers 200, with partial elements: a failure, not a result
+  if (data.remark?.includes("runtime error")) throw new Error(`Overpass ${data.remark}`);
   log.info(`Got ${data.elements.length} elements`, {
     elements: data.elements.length,
     elapsedMs: Math.round(elapsedMs),
