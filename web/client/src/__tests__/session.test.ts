@@ -3,6 +3,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { CORRIDOR_M } from "../lib/poi-config";
 import {
   clearSession,
   hasSession,
@@ -134,6 +135,20 @@ describe("session persistence", () => {
     expect(loaded?.enrichAll).toBe(true);
     expect(loaded?.routeSettings.maxDistanceM).toBe(900);
     expect(loaded?.savedAt).toBeTruthy();
+  });
+
+  // The slider once went to 3000 m: an older session must not land past its end
+  it("caps a saved distance at the corridor", () => {
+    saveSession({
+      activeCategories: new Set(["Water"] as PoiCategory[]),
+      traces: [],
+      pois: [makePoi("a")],
+      enrichments: new Map(),
+      enrichAll: false,
+      routeSettings: { maxDistanceM: 3000 },
+    });
+
+    expect(loadSession()?.routeSettings.maxDistanceM).toBe(CORRIDOR_M);
   });
 
   it("does not carry the UI language: restoring a session must not change it", () => {

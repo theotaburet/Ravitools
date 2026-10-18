@@ -72,6 +72,8 @@ export interface OsmTagMatcher {
   group?: string;
   /** Skip elements carrying one of these tag values (a bus shelter is not a roof for the night) */
   unless?: Record<string, string[]>;
+  /** Keep only elements carrying one of these values (`;` lists count); Overpass filters it too */
+  only?: Record<string, string[]>;
 }
 
 /** Configuration for a single POI category */

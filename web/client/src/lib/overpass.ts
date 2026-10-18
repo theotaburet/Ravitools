@@ -68,10 +68,17 @@ export function buildOverpassQuery(
     ? POI_CATEGORIES.filter((c) => categories.includes(c.category))
     : POI_CATEGORIES;
 
-  // Group tags by OSM key
+  // Group tags by OSM key; a tag with a condition gets its own filter, so Overpass
+  // applies it (every parking meter is a vending machine)
   const tagGroups = new Map<string, Set<string>>();
+  const filters: string[] = [];
   for (const cat of cats) {
     for (const tag of cat.tags) {
+      if (tag.only) {
+        const conditions = Object.entries(tag.only).map(([k, v]) => `["${k}"~"${v.join("|")}"]`);
+        filters.push(`["${tag.key}"="${tag.value}"]${conditions.join("")}`);
+        continue;
+      }
       let group = tagGroups.get(tag.key);
       if (!group) {
         group = new Set();
@@ -84,12 +91,8 @@ export function buildOverpassQuery(
   // Build path lat,lon string
   const pathStr = points.map((p) => `${p.lat},${p.lon}`).join(",");
 
-  // Build query clauses
-  const clauses: string[] = [];
-  for (const [key, values] of tagGroups) {
-    const valuesStr = [...values].join("|");
-    clauses.push(`nwr["${key}"~"${valuesStr}"](around:${radiusM},${pathStr});`);
-  }
+  for (const [key, values] of tagGroups) filters.push(`["${key}"~"${[...values].join("|")}"]`);
+  const clauses = filters.map((filter) => `nwr${filter}(around:${radiusM},${pathStr});`);
 
   return `[out:json][timeout:120];\n(\n${clauses.join("\n")}\n);\nout center;`;
 }

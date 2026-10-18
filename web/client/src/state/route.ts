@@ -7,13 +7,13 @@ import { km } from "../lib/format";
 import { parseGpx } from "../lib/gpx-parser";
 import { t } from "../lib/i18n";
 import { type OverpassElement, queryAllPois } from "../lib/overpass";
-import { ALL_CATEGORIES, DEFAULT_CATEGORIES, DEFAULT_MAX_DISTANCE_M } from "../lib/poi-config";
+import { ALL_CATEGORIES, CORRIDOR_M, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
 import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
 import { showTabAtom, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
-  maxDistanceM: DEFAULT_MAX_DISTANCE_M,
+  maxDistanceM: CORRIDOR_M,
 };
 
 // --- Base atoms ---
@@ -148,16 +148,16 @@ async function runPipeline(
     const traces = await loadTraces(ctrl.signal);
     if (ctrl.signal.aborted) return;
 
-    const selectedCategories = [...get(activeCategoriesAtom)];
     set(stageAtom, "querying");
-    set(progressAtom, t("route.querying", lang, { n: selectedCategories.length }));
+    set(progressAtom, t("route.querying", lang, { n: ALL_CATEGORIES.length }));
     set(progressRatioAtom, 0);
 
     const endQuery = log.time("Overpass querying");
     const result = await queryAllPois(
       traces.map((tr) => tr.simplified),
-      1000,
-      selectedCategories,
+      CORRIDOR_M,
+      // Every category: turning one on later only filters what is already here
+      undefined,
       (p) => {
         if (ctrl.signal.aborted) return;
         const vars = { done: p.completedChunks, total: p.totalChunks, round: p.retryRound };

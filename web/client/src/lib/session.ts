@@ -1,7 +1,7 @@
 // --- Session persistence: save/restore app state to localStorage ---
 
 import type { EnrichedData, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
-import { DEFAULT_MAX_DISTANCE_M } from "./poi-config";
+import { CORRIDOR_M } from "./poi-config";
 
 // --- Schema versioning ---
 
@@ -98,7 +98,10 @@ export function parseSession(json: string): SessionSnapshot | null {
       pois: data.pois,
       enrichments: new Map(data.enrichments),
       enrichAll: data.enrichAll ?? false,
-      routeSettings: data.routeSettings ?? { maxDistanceM: DEFAULT_MAX_DISTANCE_M },
+      // The slider once went to 3000 m: never past its end
+      routeSettings: {
+        maxDistanceM: Math.min(data.routeSettings?.maxDistanceM ?? CORRIDOR_M, CORRIDOR_M),
+      },
       savedAt: data.savedAt,
     };
   } catch {

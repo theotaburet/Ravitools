@@ -220,7 +220,7 @@ Status: in-progress | done | blocked | abandoned
 ```
 GPX upload (browser)
     ↓ parse + resample to ~500 m
-Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1000; failed chunks retry for up to 8 min with no click, a timed-out one is split in four)
+Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1500, every category; failed chunks retry for up to 8 min with no click, a timed-out one is split in four)
     ↓ via server proxy, or directly in the static build (VITE_STANDALONE)
 Tag matching → 18 categories
     ↓ perpendicular distance to trace (< maxDistanceM), dedup 50 m same category, sort along trace

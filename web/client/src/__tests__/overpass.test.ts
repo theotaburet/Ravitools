@@ -38,6 +38,14 @@ describe("buildOverpassQuery", () => {
     // All categories query should be longer
     expect(queryAll.length).toBeGreaterThan(queryWater.length);
   });
+
+  // Every parking meter is a vending machine: Overpass filters a conditional tag itself
+  it("puts a tag's condition in the query", () => {
+    const query = buildOverpassQuery(TRACE, 1000, ["Food shop", "Water"]);
+    expect(query).toMatch(/nwr\["amenity"="vending_machine"\]\["vending"~"[^"]*drinks/);
+    expect(query).toContain('nwr["amenity"="fountain"]["drinking_water"~"yes"]');
+    expect(query).not.toMatch(/\["amenity"~"[^"]*(fountain|vending_machine)/);
+  });
 });
 
 describe("splitChunk", () => {

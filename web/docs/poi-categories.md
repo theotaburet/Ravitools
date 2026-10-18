@@ -16,8 +16,9 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 |---|---|---|
 | `amenity` | `water_point` | Dedicated water filling station |
 | `amenity` | `drinking_water` | Public drinking water fountain |
-
-**Not included (yet)**: `natural=spring` (often not potable), `man_made=water_tap` (rare tagging).
+| `man_made` | `water_tap` | Tap (cemeteries, villages); left out when `drinking_water=no` |
+| `natural` | `spring` | Potability often unknown; left out when `drinking_water=no` |
+| `amenity` | `fountain` | Only with `drinking_water=yes` (most fountains are decorative) |
 
 ### Sleeping place
 
@@ -32,6 +33,7 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 | `tourism` | `guest_house` | B&B style |
 | `tourism` | `motel` | Roadside accommodation |
 | `tourism` | `hotel` | Last resort, usually expensive |
+| `tourism` | `wilderness_hut` | Unstaffed hut, free |
 
 ### Restroom
 
@@ -80,8 +82,12 @@ Picnic, weather and rock shelters, lean-tos, huts. Bus shelters (`shelter_type=p
 | `shop` | `spices` | |
 | `shop` | `brewing_supplies` | |
 | `shop` | `tortilla` | |
+| `shop` | `kiosk` | |
+| `amenity` | `marketplace` | |
+| `amenity` | `fuel` | Fuel stations sell water and food, often late |
+| `amenity` | `vending_machine` | Only with `vending` drinks, water, food, sweets, bread, milk or coffee (not parking meters) |
 
-28 food shop types covering European diversity.
+29 food shop types covering European diversity, plus markets, fuel stations and food or drink vending machines.
 
 ### Restaurant or Bar
 
@@ -120,7 +126,9 @@ Color: `#E65100` (distinct from Gears `#CC0000`).
 |---|---|
 | `shop` | `laundry` |
 
-## Optional categories (disabled by default, user opts in)
+## Optional categories (off by default)
+
+Every category is queried; the filter only hides. Turning one on shows its POIs at once.
 
 ### Medical
 
@@ -224,9 +232,10 @@ Libraries often provide free wifi and power outlets.
 
 ## Corridor and filtering
 
-- **Overpass radius**: 1000m around the simplified trace
-- **Post-filter cutoff**: 1500m perpendicular distance to nearest trace segment
-- **Deduplication**: 50m radius, same category, keeps the POI with most OSM tags
+- **Overpass radius**: 1500 m around the simplified trace (`CORRIDOR_M`), every category
+- **Post-filter cutoff**: the distance slider, 300 m to 1500 m (the query radius), perpendicular distance to the nearest trace segment
+- **Deduplication**: 50 m radius, same mergeable category, keeps the POI with most OSM tags; it no longer grows with POI density (the map's count bubbles handle that)
+- **Conditional tags**: a tag with `only` (vending machines, fountains) gets its own Overpass clause carrying the condition
 
 ## Adding a new category
 

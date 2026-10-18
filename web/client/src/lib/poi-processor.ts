@@ -4,7 +4,7 @@
 import type { POI, TraceData } from "../types";
 import { alongTraceProjection, distanceToTrace, haversine, TraceIndex } from "./gpx-parser";
 import type { OverpassElement } from "./overpass";
-import { DEFAULT_MAX_DISTANCE_M, findCategoryForTag, MERGEABLE_CATEGORIES } from "./poi-config";
+import { CORRIDOR_M, findCategoryForTag, MERGEABLE_CATEGORIES } from "./poi-config";
 
 let nextId = 1;
 function generateId(): string {
@@ -13,7 +13,7 @@ function generateId(): string {
 
 // --- Main processing function ---
 
-/** Same-category POIs closer than this merge (grows with POI density, see computeAdaptiveDedupRadius) */
+/** Same-category POIs closer than this merge (the map's count bubbles handle density) */
 const DEDUP_RADIUS_M = 50;
 
 /**
@@ -29,7 +29,7 @@ const DEDUP_RADIUS_M = 50;
 export function processElements(
   elements: OverpassElement[],
   traces: Pick<TraceData, "id" | "original">[],
-  maxDistanceM: number = DEFAULT_MAX_DISTANCE_M,
+  maxDistanceM: number = CORRIDOR_M,
 ): POI[] {
   // Step 1: Convert elements to POIs
   const rawPois: POI[] = [];
@@ -130,14 +130,12 @@ function formatFallbackName(value: string): string {
 function deduplicatePois(pois: POI[], radiusM: number): POI[] {
   const kept: POI[] = [];
   const removed = new Set<number>();
-  const effectiveRadius = computeAdaptiveDedupRadius(pois.length, radiusM);
-
   for (let i = 0; i < pois.length; i++) {
     if (removed.has(i)) continue;
 
     let best = pois[i];
 
-    if (!MERGEABLE_CATEGORIES[best.category] || effectiveRadius <= 0) {
+    if (!MERGEABLE_CATEGORIES[best.category] || radiusM <= 0) {
       kept.push(best);
       continue;
     }
@@ -147,7 +145,7 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
       if (pois[i].category !== pois[j].category) continue;
 
       const dist = haversine(pois[i], pois[j]);
-      if (dist <= effectiveRadius) {
+      if (dist <= radiusM) {
         // Keep the one with more tags
         if (Object.keys(pois[j].tags).length > Object.keys(best.tags).length) {
           best = pois[j];
@@ -160,11 +158,4 @@ function deduplicatePois(pois: POI[], radiusM: number): POI[] {
   }
 
   return kept;
-}
-
-function computeAdaptiveDedupRadius(count: number, baseRadiusM: number): number {
-  if (count >= 1200) return Math.max(baseRadiusM, 120);
-  if (count >= 700) return Math.max(baseRadiusM, 80);
-  if (count >= 300) return Math.max(baseRadiusM, 60);
-  return baseRadiusM;
 }

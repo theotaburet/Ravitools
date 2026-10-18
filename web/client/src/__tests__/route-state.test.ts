@@ -33,6 +33,7 @@ import {
   restoreRouteAtom,
   retryQueryAtom,
   routeErrorAtom,
+  routeSettingsAtom,
   routeWarningAtom,
   setMaxDistanceAtom,
   stageAtom,
@@ -73,6 +74,20 @@ describe("route state pipeline", () => {
     expect(store.get(stageAtom)).toBe("done");
     expect(store.get(poisAtom)).toHaveLength(1);
     expect(store.get(routeWarningAtom)).toBeNull();
+  });
+
+  // A category turned on after loading must have its POIs: they are already fetched
+  it("queries every category, not only the active ones", async () => {
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(queryAllPois.mock.calls[0][2]).toBeUndefined();
+  });
+
+  // The distance slider must never promise POIs the query did not fetch
+  it("queries as far as the distance setting reaches", async () => {
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(queryAllPois.mock.calls[0][1]).toBeGreaterThanOrEqual(
+      store.get(routeSettingsAtom).maxDistanceM,
+    );
   });
 
   it("surfaces a warning when some Overpass chunks fail", async () => {

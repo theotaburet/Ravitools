@@ -12,6 +12,7 @@ import {
   Croissant,
   Droplet,
   Flame,
+  Fuel,
   Hospital,
   House,
   IceCreamCone,
@@ -59,6 +60,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
     tags: [
       { key: "amenity", value: "water_point", icon: "droplet" },
       { key: "amenity", value: "drinking_water", icon: "droplet" },
+      { key: "man_made", value: "water_tap", icon: "droplet", unless: { drinking_water: ["no"] } },
+      { key: "natural", value: "spring", icon: "droplet", unless: { drinking_water: ["no"] } },
+      { key: "amenity", value: "fountain", icon: "droplet", only: { drinking_water: ["yes"] } },
     ],
   },
   {
@@ -81,6 +85,7 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       { key: "tourism", value: "guest_house", icon: "bed" },
       { key: "tourism", value: "motel", icon: "bed" },
       { key: "tourism", value: "hotel", icon: "bed" },
+      { key: "tourism", value: "wilderness_hut", icon: "hut" },
     ],
   },
   {
@@ -162,6 +167,16 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       { key: "shop", value: "spices", icon: "leaf" },
       { key: "shop", value: "brewing_supplies", icon: "beer" },
       { key: "shop", value: "tortilla", icon: "bread" },
+      { key: "shop", value: "kiosk", icon: "store" },
+      { key: "amenity", value: "marketplace", icon: "store" },
+      // Fuel stations sell water and food, often late
+      { key: "amenity", value: "fuel", icon: "fuel" },
+      {
+        key: "amenity",
+        value: "vending_machine",
+        icon: "store",
+        only: { vending: ["drinks", "water", "food", "sweets", "bread", "milk", "coffee"] },
+      },
     ],
   },
   {
@@ -400,7 +415,12 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
 
 /** Quick lookup: (key, value) -> category config */
 function isExcluded(tag: PoiCategoryConfig["tags"][number], tags: Record<string, string>) {
-  return Object.entries(tag.unless ?? {}).some(([key, values]) => values.includes(tags[key]));
+  const has = (key: string, values: string[]) =>
+    (tags[key] ?? "").split(";").some((v) => values.includes(v.trim()));
+  return (
+    Object.entries(tag.unless ?? {}).some(([key, values]) => has(key, values)) ||
+    Object.entries(tag.only ?? {}).some(([key, values]) => !has(key, values))
+  );
 }
 
 export function findCategoryForTag(
@@ -426,8 +446,9 @@ export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES.filter(
   (c) => c.defaultEnabled !== false,
 ).map((c) => c.category);
 
-/** Default corridor: POIs farther than this from every trace are dropped (meters) */
-export const DEFAULT_MAX_DISTANCE_M = 1500;
+/** Corridor (meters): Overpass is queried this far around the route, and the distance
+ *  slider starts and ends here; POIs farther from every trace are dropped */
+export const CORRIDOR_M = 1500;
 
 function byCategory<T>(pick: (c: PoiCategoryConfig) => T): Record<PoiCategory, T> {
   return Object.fromEntries(POI_CATEGORIES.map((c) => [c.category, pick(c)])) as Record<
@@ -468,6 +489,7 @@ const ICON_GLYPHS: Record<string, IconNode> = {
   creditcard: CreditCard,
   castle: Castle,
   fire: Flame,
+  fuel: Fuel,
 };
 
 export function poiGlyph(poi: Pick<POI, "icon" | "category">): IconNode {

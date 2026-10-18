@@ -17,7 +17,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 │   ┌───────────────────────────────────────────────────────┐  │
 │   │  Construction requêtes Overpass                       │  │
 │   │  • Chunking (50 pts/chunk, 3 pts overlap)             │  │
-│   │  • around:1000 sur trace simplifiée                   │  │
+│   │  • around:1500 sur trace simplifiée                   │  │
 │   │  • 18 catégories POI (9 essential + 9 optional)       │  │
 │   └───────────────────────┬───────────────────────────────┘  │
 │                           │                                  │
@@ -53,7 +53,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
                  │  • Rate limit        │
                  │    - Overpass 10/min  │
                  │    - Enrichment 60/m │
-                 │  • Garde taille 16KB │
+                 │  • Garde taille 32KB │
                  │  • Cache mémoire     │
                  │    - Overpass 24h    │
                  │    - Search 7j       │
@@ -94,7 +94,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 | Endpoint | Concern | How |
 |---|---|---|
-| `POST /overpass` | Overpass proxy | Cache 24h, rate limit, query guard 16KB, mirror fallback, serialized upstream calls |
+| `POST /overpass` | Overpass proxy | Cache 24h, rate limit, query guard 32KB, mirror fallback, serialized upstream calls |
 | `POST /search` | SearXNG proxy | Cache 7 days |
 | `POST /geocode` | Nominatim proxy | Cache 30 days |
 | `POST /fetch-page` | Official-website preview | SSRF guard, redirect re-validation, JSON-LD extraction, size cap |
@@ -105,13 +105,13 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 ## Key design decisions
 
-1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box.
+1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box. Every category is queried within `CORRIDOR_M` (1500 m); the category filter and the distance slider (up to the same 1500 m) only hide.
 
 2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. Failed chunks retry in rounds (10, 20, then 30 s backoff) until an 8-minute budget is spent, so an outage passes with no click; a server failure ends the round early rather than hammering a sick server. A chunk Overpass reports as timed out (a runtime error remark, which Overpass sends with a 200 and the proxy turns into an uncached 504 carrying it; a bare 504 is mostly an overloaded mirror and does not count) is split in four and retried at once: a dense city corridor times Overpass out, a smaller one does not. The static build sticks to the mirror that answers and runs 2 chunks at a time (Overpass allows 2 slots per IP); the proxy serializes anyway. This is the only client-side retry; the server tries the mirrors in turn and never caches a timed-out answer. An answer with no elements and no remark is a desert or a sick mirror (overpass-api.de once sent one for a dense Paris chunk): the next mirror that answers is final, in the proxy and in the static build. `__tests__/overpass-faults.test.ts` replays outages, overloaded (504) flaky, dead and empty-answering mirrors and a dense city in virtual time. Results are deduplicated by OSM element ID.
 
-3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond 1500m are discarded.
+3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond the distance slider (1500 m at most) are discarded.
 
-4. **Client-side deduplication**: POIs of the same category within 50m of each other are merged, keeping the one with richer metadata.
+4. **Client-side deduplication**: POIs of the same mergeable category within 50 m of each other are merged, keeping the one with richer metadata. The radius stays 50 m however dense the route: growing it with the POI count once merged 28 % of the Paris water points.
 
 5. **No GPX storage**: the GPX file is read in-browser and never sent to the server. Privacy by design.
 

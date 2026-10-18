@@ -5,7 +5,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { t, translateCategory } from "../lib/i18n";
-import { POI_CATEGORIES } from "../lib/poi-config";
+import { CORRIDOR_M, POI_CATEGORIES } from "../lib/poi-config";
 import {
   activeCategoriesAtom,
   poisAtom,
@@ -70,7 +70,7 @@ export function CategoryFilter() {
         <input
           type="range"
           min={300}
-          max={3000}
+          max={CORRIDOR_M}
           step={100}
           value={displayDist}
           onChange={(e) => handleDistChange(Number(e.target.value))}
