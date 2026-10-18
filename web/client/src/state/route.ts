@@ -10,7 +10,7 @@ import { type OverpassElement, queryAllPois } from "../lib/overpass";
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, DEFAULT_MAX_DISTANCE_M } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
 import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
-import { targetLanguageAtom } from "./ui";
+import { showTabAtom, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: DEFAULT_MAX_DISTANCE_M,
@@ -82,6 +82,7 @@ export const restoreRouteAtom = atom(
   ) => {
     restoredPois = restored.pois;
     set(stageAtom, "done");
+    set(showTabAtom, "poi");
     set(tracesAtom, restored.traces);
     set(poisAtom, restored.pois);
     set(activeCategoriesAtom, restored.activeCategories);
@@ -182,6 +183,7 @@ async function runPipeline(
     });
 
     set(stageAtom, "done");
+    set(showTabAtom, "poi");
     showPois(get, set, pois, maxDistanceM);
     set(progressRatioAtom, null);
     if (result.failedChunks > 0) {

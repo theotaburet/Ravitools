@@ -15,6 +15,12 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /targets\.spec/, // touch targets: the mobile project only
+    },
+    {
+      // The mid-range Android of web/docs/design.md, section 10
+      name: "pixel7",
+      use: { ...devices["Pixel 7"] },
     },
   ],
   // API calls are stubbed in the specs: only the Vite dev server is needed.

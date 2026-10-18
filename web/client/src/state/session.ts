@@ -12,7 +12,7 @@ import {
   stageAtom,
   tracesAtom,
 } from "./route";
-import { enrichAllAtom, selectedPoiIdAtom } from "./ui";
+import { enrichAllAtom, selectedPoiIdAtom, showTabAtom } from "./ui";
 
 /** What a session holds (every POI, not just the shown ones); null until the pipeline is done */
 export const sessionSnapshotAtom = atom((get): Omit<SessionSnapshot, "savedAt"> | null =>
@@ -45,5 +45,6 @@ export const resetAllAtom = atom(null, (_get, set) => {
   set(resetRouteAtom);
   void set(resetEnrichmentAtom);
   set(selectedPoiIdAtom, null);
+  set(showTabAtom, "trace");
   clearSession();
 });

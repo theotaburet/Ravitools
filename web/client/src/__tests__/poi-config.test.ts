@@ -1,5 +1,6 @@
 // --- Tests for POI config lookups ---
 
+import { Bed, Tent } from "lucide";
 import { describe, expect, it } from "vitest";
 import {
   ALL_CATEGORIES,
@@ -11,6 +12,7 @@ import {
   OSMAND_CATEGORY_ICONS,
   POI_CATEGORIES,
   poiEmoji,
+  poiGlyph,
 } from "../lib/poi-config";
 
 // --- Category completeness ---
@@ -255,5 +257,19 @@ describe("poiEmoji", () => {
   it("maps alpine huts and chalets to the hut icon", () => {
     expect(findCategoryForTag("tourism", "alpine_hut")?.tag.icon).toBe("hut");
     expect(findCategoryForTag("tourism", "chalet")?.tag.icon).toBe("hut");
+  });
+});
+
+describe("poiGlyph", () => {
+  it("takes the tag's own glyph, else the category's", () => {
+    expect(poiGlyph({ category: "Sleeping place", icon: "tent" })).toBe(Tent);
+    expect(poiGlyph({ category: "Sleeping place", icon: "bed" })).toBe(Bed);
+  });
+
+  it("tells the categories of a family apart: the color says the family, the glyph the category", () => {
+    for (const family of new Set(POI_CATEGORIES.map((c) => c.family))) {
+      const glyphs = POI_CATEGORIES.filter((c) => c.family === family).map((c) => c.glyph);
+      expect(new Set(glyphs).size, family).toBe(glyphs.length);
+    }
   });
 });

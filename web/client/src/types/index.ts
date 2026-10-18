@@ -1,5 +1,7 @@
 // --- Domain types for Ravitools ---
 
+import type { IconNode } from "lucide";
+
 /** A single point on a GPX trace */
 export interface TracePoint {
   lat: number;
@@ -49,6 +51,19 @@ export type PoiCategory =
   | "Pharmacy"
   | "Wifi";
 
+/** Map families: the color says the family, the glyph says the category (design.md 3.4) */
+export type PoiFamily =
+  | "Water"
+  | "Food"
+  | "Sleep"
+  | "Mechanics"
+  | "Health"
+  | "Services"
+  | "Discovery";
+
+/** "cvd": the colour-blind (Okabe-Ito) palette */
+export type Palette = "default" | "cvd";
+
 /** An OSM tag matcher */
 export interface OsmTagMatcher {
   key: string; // e.g. "amenity"
@@ -62,6 +77,9 @@ export interface OsmTagMatcher {
 /** Configuration for a single POI category */
 export interface PoiCategoryConfig {
   category: PoiCategory;
+  family: PoiFamily;
+  /** Default lucide glyph on the family color (a tag's own glyph wins, see poiGlyph) */
+  glyph: IconNode;
   /** Marker, list dot, KML and OsmAnd color */
   color: string;
   /** Map marker emoji (a tag's own emoji wins, see poiEmoji) */

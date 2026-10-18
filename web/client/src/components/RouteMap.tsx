@@ -2,10 +2,11 @@
 // Supports multiple traces with distinct colors, legend, and hover highlight
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import type { LatLngBoundsExpression } from "leaflet";
 import L from "leaflet";
+import { Maximize } from "lucide";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AttributionControl,
   CircleMarker,
   MapContainer,
   Marker,
@@ -14,6 +15,7 @@ import {
   TileLayer,
   Tooltip,
   useMap,
+  ZoomControl,
 } from "react-leaflet";
 import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { osmFacts } from "../lib/enrichment/osm-facts";
@@ -24,18 +26,52 @@ import { haversine } from "../lib/gpx-parser";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { clusterPois, type PoiCluster } from "../lib/poi-cluster";
 import { CATEGORY_COLORS, poiEmoji } from "../lib/poi-config";
+import { DESKTOP_QUERY, detentPx, type SheetDetent } from "../lib/shell";
 import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
 import {
+  type MapViewBounds,
   mapFocusAtom,
   mapTraceHoverAtom,
   mapViewBoundsAtom,
   profileHoverAtom,
   selectedPoiIdAtom,
+  sheetDetentAtom,
+  showTabAtom,
   targetLanguageAtom,
 } from "../state/ui";
 import type { EnrichedData, POI, TargetLanguage, TraceData, TracePoint } from "../types";
 import { EnrichmentDetails } from "./EnrichmentDetails";
+import { Icon } from "./Icon";
+
+/** Smallest box around some points */
+function boundsOf(points: readonly { lat: number; lon: number }[]): MapViewBounds {
+  let south = Infinity;
+  let west = Infinity;
+  let north = -Infinity;
+  let east = -Infinity;
+  for (const p of points) {
+    if (p.lat < south) south = p.lat;
+    if (p.lat > north) north = p.lat;
+    if (p.lon < west) west = p.lon;
+    if (p.lon > east) east = p.lon;
+  }
+  return { south, west, north, east };
+}
+
+/** Map pixels hidden by the sheet (mobile) or by the panel and header strip (desktop), plus a margin */
+function cameraPadding(detent: SheetDetent): { topLeft: L.PointTuple; bottomRight: L.PointTuple } {
+  const m = 16;
+  if (!window.matchMedia(DESKTOP_QUERY).matches) {
+    // The sheet may still be sliding to its detent: compute its height, never measure it
+    return { topLeft: [m, 72], bottomRight: [m, detentPx(detent, window.innerHeight) + m] };
+  }
+  // ponytail: the panel and strip never animate on desktop, so measuring them is exact
+  const panel =
+    detent === "low" ? 0 : (document.querySelector(".sheet")?.getBoundingClientRect().right ?? 0);
+  const strip = document.querySelector(".sheet-strip")?.getBoundingClientRect().height ?? 0;
+  return { topLeft: [panel + m, m], bottomRight: [72, strip + 2 * m] };
+}
 
 /** Reads the profile-hover atom itself so a mousemove on the profile only
  *  re-renders this marker, not the whole map (400 POI icons). */
@@ -82,18 +118,20 @@ function MapViewSync() {
 function MapFocus() {
   const map = useMap();
   const [focus, setFocus] = useAtom(mapFocusAtom);
+  const detent = useAtomValue(sheetDetentAtom);
 
   useEffect(() => {
     if (!focus) return;
+    const { topLeft, bottomRight } = cameraPadding(detent);
     map.fitBounds(
       [
         [focus.south, focus.west],
         [focus.north, focus.east],
       ],
-      { padding: [60, 60], maxZoom: 17 },
+      { paddingTopLeft: topLeft, paddingBottomRight: bottomRight, maxZoom: 17 },
     );
     setFocus(null);
-  }, [focus, map, setFocus]);
+  }, [focus, map, setFocus, detent]);
 
   return null;
 }
@@ -258,7 +296,7 @@ const TraceDirection = memo(function TraceDirection({ trace }: { trace: TraceDat
 
 /** Count bubble for a dense cell: click zooms onto its members */
 const ClusterMarker = memo(function ClusterMarker({ cluster }: { cluster: PoiCluster }) {
-  const map = useMap();
+  const setFocus = useSetAtom(mapFocusAtom);
   const icon = useMemo(() => {
     const size = cluster.count >= 50 ? 40 : cluster.count >= 15 ? 36 : 30;
     return L.divIcon({
@@ -269,31 +307,11 @@ const ClusterMarker = memo(function ClusterMarker({ cluster }: { cluster: PoiClu
     });
   }, [cluster.count]);
 
-  const handleClick = () => {
-    let s = Infinity;
-    let w = Infinity;
-    let n = -Infinity;
-    let e = -Infinity;
-    for (const m of cluster.members) {
-      if (m.lat < s) s = m.lat;
-      if (m.lat > n) n = m.lat;
-      if (m.lon < w) w = m.lon;
-      if (m.lon > e) e = m.lon;
-    }
-    map.fitBounds(
-      [
-        [s, w],
-        [n, e],
-      ],
-      { padding: [60, 60], maxZoom: 17 },
-    );
-  };
-
   return (
     <Marker
       position={[cluster.lat, cluster.lon]}
       icon={icon}
-      eventHandlers={{ click: handleClick }}
+      eventHandlers={{ click: () => setFocus(boundsOf(cluster.members)) }}
     />
   );
 });
@@ -437,34 +455,6 @@ const PoiMarker = memo(function PoiMarker({
   );
 });
 
-function FitBounds({ traces }: { traces: TraceData[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const allPoints = traces.flatMap((t) => t.original);
-    if (allPoints.length === 0) return;
-
-    let minLat = Infinity,
-      maxLat = -Infinity,
-      minLon = Infinity,
-      maxLon = -Infinity;
-    for (const p of allPoints) {
-      if (p.lat < minLat) minLat = p.lat;
-      if (p.lat > maxLat) maxLat = p.lat;
-      if (p.lon < minLon) minLon = p.lon;
-      if (p.lon > maxLon) maxLon = p.lon;
-    }
-    const bounds: LatLngBoundsExpression = [
-      [minLat, minLon],
-      [maxLat, maxLon],
-    ];
-
-    map.fitBounds(bounds, { padding: [40, 40] });
-  }, [traces, map]);
-
-  return null;
-}
-
 /** Fly to selected POI and open its popup */
 function FlyToSelected({
   selectedPoiId,
@@ -474,21 +464,27 @@ function FlyToSelected({
   markerRefs: React.MutableRefObject<Map<string, L.Marker>>;
 }) {
   const map = useMap();
+  const detent = useAtomValue(sheetDetentAtom);
 
   useEffect(() => {
     if (!selectedPoiId) return;
     const marker = markerRefs.current.get(selectedPoiId);
     if (!marker) return;
 
-    const latlng = marker.getLatLng();
-    map.flyTo(latlng, Math.max(map.getZoom(), 14), { duration: 0.6 });
+    // Centre the POI in the part of the map left visible by the sheet or panel
+    const zoom = Math.max(map.getZoom(), 14);
+    const { topLeft, bottomRight } = cameraPadding(detent);
+    const shift = L.point((bottomRight[0] - topLeft[0]) / 2, (bottomRight[1] - topLeft[1]) / 2);
+    map.flyTo(map.unproject(map.project(marker.getLatLng(), zoom).add(shift), zoom), zoom, {
+      duration: 0.6,
+    });
 
     // Open popup after fly animation
     const timer = setTimeout(() => {
       marker.openPopup();
     }, 650);
     return () => clearTimeout(timer);
-  }, [selectedPoiId, map, markerRefs]);
+  }, [selectedPoiId, map, markerRefs, detent]);
 
   return null;
 }
@@ -503,6 +499,15 @@ export function RouteMap() {
   const mapBounds = useAtomValue(mapViewBoundsAtom);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const [highlightedTraceId, setHighlightedTraceId] = useState<string | null>(null);
+  const setFocus = useSetAtom(mapFocusAtom);
+  const showTab = useSetAtom(showTabAtom);
+
+  const fitRoute = useCallback(() => {
+    const points = traces.flatMap((t) => t.original);
+    if (points.length > 0) setFocus(boundsOf(points));
+  }, [traces, setFocus]);
+  // A new route: frame it
+  useEffect(fitRoute, [fitRoute]);
 
   // POI-dense areas: grid clustering. Below ~60 POIs everything is readable
   // as-is; above, dense cells collapse into count bubbles that dissolve on zoom.
@@ -532,27 +537,38 @@ export function RouteMap() {
   const handleMarkerClick = useCallback(
     (poiId: string) => {
       onSelectPoi((prev) => (prev === poiId ? null : poiId));
+      showTab("poi");
     },
-    [onSelectPoi],
+    [onSelectPoi, showTab],
   );
 
   return (
     <>
-      {traces.length === 0 && (
-        <div className="map-empty">
-          <div className="map-empty-card">
-            <h2>{t("map.emptyTitle", targetLanguage)}</h2>
-            <p>{t("map.emptyBody", targetLanguage)}</p>
-          </div>
-        </div>
+      {traces.length > 0 && (
+        <button
+          type="button"
+          className="fab fab-fit"
+          aria-label={t("map.fit", targetLanguage)}
+          onClick={fitRoute}
+        >
+          <Icon node={Maximize} />
+        </button>
       )}
-      <MapContainer center={center} zoom={6} className="route-map" scrollWheelZoom={true}>
+      <MapContainer
+        center={center}
+        zoom={6}
+        className="route-map"
+        scrollWheelZoom={true}
+        zoomControl={false}
+        attributionControl={false}
+      >
+        <ZoomControl position="bottomright" />
+        <AttributionControl position="topright" prefix={false} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <FitBounds traces={traces} />
         <MapViewSync />
         <MapFocus />
         <FlyToSelected selectedPoiId={selectedPoiId ?? null} markerRefs={markerRefs} />

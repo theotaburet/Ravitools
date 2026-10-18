@@ -107,7 +107,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box.
 
-2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. Failed chunks retry in rounds (10, 20, then 30 s backoff) until an 8-minute budget is spent, so an outage passes with no click; a server failure ends the round early rather than hammering a sick server. A chunk Overpass times out on (a 200 with a runtime error remark, or a 504) is split in four and retried at once: a dense city corridor times Overpass out, a smaller one does not. The static build sticks to the mirror that answers and runs 2 chunks at a time (Overpass allows 2 slots per IP); the proxy serializes anyway. This is the only client-side retry; the server tries the mirrors in turn and never caches a timed-out answer. `__tests__/overpass-faults.test.ts` replays outages, flaky and dead mirrors and a dense city in virtual time. Results are deduplicated by OSM element ID.
+2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. Failed chunks retry in rounds (10, 20, then 30 s backoff) until an 8-minute budget is spent, so an outage passes with no click; a server failure ends the round early rather than hammering a sick server. A chunk Overpass reports as timed out (a runtime error remark, which Overpass sends with a 200 and the proxy turns into an uncached 504 carrying it; a bare 504 is mostly an overloaded mirror and does not count) is split in four and retried at once: a dense city corridor times Overpass out, a smaller one does not. The static build sticks to the mirror that answers and runs 2 chunks at a time (Overpass allows 2 slots per IP); the proxy serializes anyway. This is the only client-side retry; the server tries the mirrors in turn and never caches a timed-out answer. `__tests__/overpass-faults.test.ts` replays outages, overloaded (504) flaky and dead mirrors and a dense city in virtual time. Results are deduplicated by OSM element ID.
 
 3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond 1500m are discarded.
 
@@ -126,8 +126,8 @@ Ravitools uses a **hybrid client-heavy architecture**:
 - **Map**: Leaflet 1.9 via react-leaflet 5
 - **Server**: Express 5 under Bun, Postgres + PostGIS (optional enrichment cache), Playwright (Google Maps scraper)
 - **Enrichment**: @mlc-ai/web-llm (WebGPU), SearXNG, Nominatim
-- **Quality**: biome (lint + format), vitest, Playwright e2e, GitHub Actions (typecheck, test, lint, Pages deploy)
-- **Design**: "carnet de route" (paper and ink, 2 px frames, square corners, lime as the only action color, hard shadow only on the active step and primary actions, sentence case, dark theme via CSS tokens only). On small screens the sidebar is a bottom sheet over the map: a tap on the handle switches between peek and raised, the map never resizes
+- **Quality**: biome (lint + format), vitest, Playwright e2e on desktop and a Pixel 7 (smoke, touch targets, friction journeys), GitHub Actions (typecheck, test, lint, Pages deploy)
+- **Design**: "Field instrument", being migrated step by step (`web/docs/design.md`, sections 5 and 12). A full-bleed map that never resizes; on phones a bottom sheet with three detents (dragged 1:1, or tapped through) and floating pill tabs 01 to 04; on desktop a floating panel. Theme and colour-blind palette are token swaps on `<html>`
 
 ## File map
 
@@ -147,24 +147,27 @@ web/client/src/
 │   ├── session.ts            # localStorage session + .ravitools.json plan file
 │   ├── poi-cache.ts          # Client side of the shared PostGIS enrichment cache
 │   ├── i18n.ts               # fr/en strings and category labels
+│   ├── shell.ts              # Sheet detents, shared by the sheet and the map camera
 │   ├── export/               # One module per format (fit, gpx, kml, kmz, geojson, osmand) + description, hours, zip
 │   └── enrichment/           # enricher (batch pipeline), search (SearXNG), vocabulary (country language), websites + evidence (official site, one hop, result pages), osm-facts (tags as facts), llm (WebLLM), geocode,
 │                             # structured/deterministic fallbacks, confidence, provenance, google-fallback
 ├── components/
 │   ├── GpxUpload.tsx         # Drag-and-drop upload, plan file import, example route
-│   ├── RouteMap.tsx          # Leaflet map: traces, clustered POI markers, popups
-│   ├── ElevationProfile.tsx  # Profile strip under the map, gap alerts, hover sync
+│   ├── Sheet.tsx             # Bottom sheet (mobile) or panel (desktop), tab panels, pill tabs
+│   ├── Settings.tsx          # Round button + native popover: language, theme, palette, debug
+│   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
+│   ├── RouteMap.tsx          # Leaflet map: traces, clustered POI markers, popups, sheet-aware camera
+│   ├── ElevationProfile.tsx  # Profile strip atop the sheet (floating on desktop), gap alerts, hover sync
 │   ├── CategoryFilter.tsx    # Category chip grid + max distance slider
 │   ├── PoiList.tsx           # Virtualized POI list
 │   ├── EnrichmentPanel.tsx   # Machine check, model download, batch progress, CAPTCHA pause
 │   ├── EnrichmentDetails.tsx # Shared rendering of an enriched POI
 │   ├── ExportPanel.tsx       # Export cards (6 formats, plan file, roadbook)
 │   ├── Roadbook.tsx          # Printable roadbook
-│   ├── Step.tsx              # Numbered sidebar section
 │   ├── TraceSummary.tsx      # Step 01 result card: per trace name, km, D+, POI count
 │   ├── ErrorBoundary.tsx
-│   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling
-├── App.tsx                   # Layout + session lifecycle
+│   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling (the debug view opens from the settings)
+├── App.tsx                   # Shell (map, sheet, tabs) + session lifecycle
 ├── main.tsx                  # Entry point
 └── index.css                 # Tailwind + theme tokens + component styles
 

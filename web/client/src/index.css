@@ -1,64 +1,112 @@
-@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/archivo/wdth.css";
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   "Carnet de route" tokens.
-   Paper, ink, one signal color (lime) for actions. Square corners, 2 px
-   frames; the hard shadow is a focus device (active step, primary action),
-   not wallpaper. Every color used by a component is a token so the dark
-   theme is a token swap and nothing else.
+   "Field instrument" tokens (web/docs/design.md, section 3).
+   Every UI color is a token: the dark theme and the colour-blind mode are
+   token swaps on <html>. Family colors live in lib/poi-config.ts, since
+   exports need them too. Contrast ratios are checked by palettes.test.ts.
    --------------------------------------------------------------------------- */
 
 @theme {
-  --color-bg: #f5f2e9;
-  --color-surface: #fffdf8;
-  --color-soft: #ece8dc;
-  --color-text: #171613;
-  --color-muted: #6a665c;
-  --color-line: #d8d3c6;
-  --color-border: #171613;
-  --color-shadow: #171613;
-  --color-ink: #141310;
-  --color-lime: #a3e635;
-  --color-lime-deep: #4d7c0f;
-  --color-accent: #1d4ed8;
-  --color-accent-hover: #1e40af;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fbe7e7;
-  --color-warning: #d97706;
-  --color-warning-soft: #fcf0dc;
-  --color-success: #16a34a;
-  --color-info-soft: #e9eef8;
+  --color-paper: #f3f0e8;
+  --color-paper-raised: #fbf9f4;
+  --color-paper-sunk: #e8e4da;
+  --color-ink: #16181c;
+  --color-ink-muted: #5b5f66;
+  --color-hairline: color-mix(in oklab, var(--color-ink) 14%, transparent);
+  --color-screen: #0e1114;
+  --color-screen-ink: #2cb5fc;
+  --color-screen-label: #7d8590;
+
+  /* Fills only: on light paper the accent reaches 2.0:1 as text */
+  --color-accent: #2cb5fc;
+  --color-accent-ink: #16181c;
+  --color-accent-text: #0a6fa8;
+
+  /* States: a fill (bars, dots, icons) and a text color (4.5:1 on paper) */
+  --color-success: #1a7335;
+  --color-warning: #995400;
+  --color-danger: #c62828;
+  --color-success-text: var(--color-success);
+  --color-warning-text: var(--color-warning);
+  --color-danger-text: var(--color-danger);
+
+  /* "Carnet de route" names, aliased until their components are replaced (design.md, section 12) */
+  --color-bg: var(--color-paper);
+  --color-surface: var(--color-paper-raised);
+  --color-soft: var(--color-paper-sunk);
+  --color-text: var(--color-ink);
+  --color-muted: var(--color-ink-muted);
+  --color-line: var(--color-hairline);
+  --color-border: var(--color-ink);
+  --color-shadow: var(--color-ink);
+  --color-lime: var(--color-accent);
+  --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, var(--color-paper));
+  --color-warning-soft: color-mix(in oklab, var(--color-warning) 12%, var(--color-paper));
+  --color-info-soft: color-mix(in oklab, var(--color-accent) 12%, var(--color-paper));
 
   --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, monospace;
 }
 
 :root {
+  /* Space, radius, elevation (design.md 3.6) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sheet: 28px;
+  --radius-panel: 24px;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+  --elev-float: 0 1px 2px rgb(16 18 22 / 0.08), 0 8px 24px rgb(16 18 22 / 0.14);
+  --elev-raised: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 1px 2px rgb(16 18 22 / 0.12);
+  --elev-pressed: inset 0 2px 4px rgb(16 18 22 / 0.2);
+  /* Paper grain (3.7): a static noise tile, large surfaces only */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+  --panel-w: clamp(340px, 34vw, 420px);
+  --tabs-space: 80px; /* the pill tabs and their margins, kept free under tab content */
+
+  /* "Carnet de route" shadows, until step 8 */
   --shadow-hard: 3px 3px 0 var(--color-shadow);
   --shadow-soft: 2px 2px 0 var(--color-shadow);
-  --header-h: 56px;
-  --sidebar-w: 400px;
 }
 
 [data-theme="dark"] {
-  --color-bg: #15140f;
-  --color-surface: #1e1c16;
-  --color-soft: #28261f;
-  --color-text: #ebe7da;
-  --color-muted: #a09b8d;
-  --color-line: #3a372f;
-  --color-border: #d8d3c6;
-  --color-shadow: #000000;
-  --color-lime-deep: #bef264;
-  --color-accent: #7aa2f7;
-  --color-accent-hover: #a7bffa;
-  --color-danger: #f87171;
-  --color-danger-soft: #3a1d1d;
-  --color-warning: #fbbf24;
-  --color-warning-soft: #3a2d14;
+  --color-paper: #131518;
+  --color-paper-raised: #1c1f23;
+  --color-paper-sunk: #0e1013;
+  --color-ink: #ece9e1;
+  --color-ink-muted: #9a9ea6;
+  --color-accent-text: #5cc8ff;
   --color-success: #4ade80;
-  --color-info-soft: #1d2537;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-shadow: #000000;
+  --elev-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.4);
+  --elev-raised: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+  --elev-pressed: inset 0 2px 4px rgb(0 0 0 / 0.5);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.06'/%3E%3C/svg%3E");
   color-scheme: dark;
+}
+
+/* Colour-blind mode (Okabe-Ito): states only; accent, traces, ink and paper stay */
+[data-palette="cvd"] {
+  --color-success: #0072b2;
+  --color-warning: #e69f00;
+  --color-danger: #d55e00;
+  --color-warning-text: #8f660c;
+  --color-danger-text: #b35105;
+}
+
+[data-theme="dark"][data-palette="cvd"] {
+  --color-success-text: #398fbd;
+  --color-warning-text: var(--color-warning);
+  --color-danger-text: #d6650b;
 }
 
 /* Map in dark: invert the OSM tiles (classic trick, no dark tile provider) */
@@ -92,16 +140,12 @@ input[type="checkbox"] {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-text);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
 
 a {
-  color: var(--color-accent);
-}
-
-a:hover {
-  color: var(--color-accent-hover);
+  color: var(--color-accent-text);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -197,12 +241,6 @@ a:hover {
   font-size: 0.8rem;
 }
 
-.neo-btn-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-}
-
 .neo-tag {
   display: inline-flex;
   align-items: center;
@@ -231,191 +269,449 @@ a:hover {
 }
 
 /* ---------------------------------------------------------------------------
-   App shell
+   Field-instrument primitives (design.md, section 4)
    --------------------------------------------------------------------------- */
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  height: var(--header-h);
-  padding: 0 1rem;
-  border-bottom: 2px solid var(--color-border);
-  background: var(--color-surface);
-  flex-shrink: 0;
-}
-
-.app-brand {
-  font-size: 1.25rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+.micro {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--color-ink-muted);
 }
 
-.app-tagline {
+.btn {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+  box-shadow: var(--elev-raised);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    box-shadow 80ms,
+    transform 80ms;
+}
+
+.btn:active,
+.fab:active {
+  box-shadow: var(--elev-pressed);
+  transform: translateY(1px);
+}
+
+/* Round floating map button: the only glass in the app (3.7) */
+.fab {
+  position: fixed;
+  z-index: 1002;
+  top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--color-paper) 70%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  color: var(--color-ink);
+  box-shadow: var(--elev-float);
+  cursor: pointer;
+  transition:
+    box-shadow 80ms,
+    transform 80ms;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .fab {
+    background: var(--color-paper);
+  }
+}
+
+/* Exclusive choice: native radios in a sunk track, the checked one raised */
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.segmented {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: var(--color-paper-sunk);
+}
+
+.segmented label {
+  position: relative;
   flex: 1;
-  font-size: 0.875rem;
-  color: var(--color-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: calc(var(--radius-control) - 3px);
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.app-controls {
+.segmented input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented label:has(:checked) {
+  background: var(--color-paper-raised);
+  box-shadow: var(--elev-raised);
+}
+
+.segmented label:has(:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+/* Tactile switch: a native checkbox with role="switch", the label is the target */
+.switch {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-/* Language: a segmented control, the active half is ink */
-.lang-switch {
-  display: inline-flex;
-  border: 2px solid var(--color-border);
-}
-
-.lang-switch button {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 700;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-weight: 600;
   cursor: pointer;
-  background: var(--color-surface);
-  color: var(--color-text);
 }
 
-.lang-switch button[aria-pressed="true"] {
-  background: var(--color-text);
-  color: var(--color-surface);
-}
-
-.app-layout {
-  display: flex;
-  height: calc(100% - var(--header-h));
-  overflow: hidden;
-}
-
-.sidebar {
-  width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
-  display: flex;
-  flex-direction: column;
-  border-right: 2px solid var(--color-border);
-  background: var(--color-bg);
-}
-
-/* Bottom-sheet grab handle: only exists on small screens (see Responsive) */
-.sheet-handle {
-  display: none;
-}
-
-.sidebar-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* A scrolling flex column must never crush its children (overflow:hidden
-   items otherwise shrink to 0: the POI list used to vanish) */
-.sidebar-scroll > * {
-  flex-shrink: 0;
-}
-
-.map-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.map-area {
-  flex: 1;
+.switch input {
   position: relative;
-  min-height: 0;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  appearance: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-sunk);
+  box-shadow: var(--elev-pressed);
+  cursor: pointer;
+  transition: background-color 80ms;
+}
+
+.switch input::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-paper-raised);
+  box-shadow: var(--elev-raised);
+  transition: transform 80ms;
+}
+
+.switch input:checked {
+  background: var(--color-accent);
+}
+
+.switch input:checked::before {
+  transform: translateX(18px);
+}
+
+/* ---------------------------------------------------------------------------
+   Shell (design.md, section 5): full-bleed map, a sheet with detents on
+   mobile, a floating panel on desktop, floating pill tabs and round buttons
+   --------------------------------------------------------------------------- */
+
+.shell,
+.map-area {
+  position: fixed;
+  inset: 0;
 }
 
 .route-map {
   width: 100%;
   height: 100%;
-  background: var(--color-soft);
+  background: var(--color-paper-sunk);
 }
 
-/* ---------------------------------------------------------------------------
-   Carnet de route: numbered step sections
-   The prep flow is a real sequence (load, refine, enrich, export), so the
-   numbers encode progress. The active step carries the only hard shadow.
-   --------------------------------------------------------------------------- */
-
-.step {
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  transition: box-shadow 150ms;
+.fab-settings {
+  left: var(--space-3);
 }
 
-.step--active {
-  box-shadow: 4px 4px 0 var(--color-shadow);
+.fab-fit {
+  right: var(--space-3);
 }
 
-.step--todo {
-  opacity: 0.5;
-}
-
-.step-header {
+/* The sheet is as tall as the full detent and slides by transform (E1):
+   --sheet-h is the visible height, set from lib/shell.ts and by the drag */
+.sheet {
+  position: fixed;
+  z-index: 1001;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100dvh - 64px);
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.9rem;
-  border-bottom: 2px solid var(--color-border);
+  flex-direction: column;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--color-paper) var(--grain);
+  box-shadow: var(--elev-float);
+  transform: translateY(max(0px, calc(100% - var(--sheet-h) - env(safe-area-inset-bottom, 0px))));
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 
-.step--todo .step-header {
-  border-bottom: none;
+.sheet.is-dragging {
+  transition: none;
 }
 
-.step-num {
-  width: 1.75rem;
-  height: 1.75rem;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--color-border);
-  font-size: 0.8rem;
-  font-weight: 700;
-  flex-shrink: 0;
+/* The wordmark heads the desktop panel; on mobile it stays for screen readers only */
+.panel-head {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-.step--active .step-num {
-  background: var(--color-lime);
-  color: var(--color-ink);
-  border-color: var(--color-ink);
-}
-
-.step--done .step-num {
-  background: var(--color-text);
-  color: var(--color-surface);
-}
-
-.step-title {
-  flex: 1;
-  font-size: 0.95rem;
+.wordmark {
+  font-size: 40px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  font-stretch: 62%;
+  line-height: 1;
   text-transform: uppercase;
 }
 
-.step-check {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
+.sheet-handle {
+  flex: none;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  touch-action: none;
+  cursor: grab;
 }
 
-.step-body {
-  padding: 0.9rem;
+.sheet-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-hairline);
+}
+
+.sheet-strip {
+  flex: none;
+}
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+}
+
+/* Each tab scrolls on its own; the bottom padding keeps the end of the
+   content above the pill tabs at the current detent */
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) calc(100dvh - 64px - var(--sheet-rest) + var(--tabs-space));
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
+/* A scrolling flex column must never crush its children (overflow:hidden
+   items otherwise shrink to 0: the POI list used to vanish) */
+.tab-panel > * {
+  flex-shrink: 0;
+}
+
+/* Full detent: the 64 px of map left above the sheet take it back to mid */
+.map-strip {
+  position: fixed;
+  z-index: 1002;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.shell[data-detent="full"] .fab {
+  display: none;
+}
+
+.tabs {
+  position: fixed;
+  z-index: 1003;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  height: 56px;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-raised);
+  box-shadow: var(--elev-float);
+}
+
+/* Widths follow the labels ("03 ENRICHIR" is the longest), so they fit down to 360 px */
+.tabs [role="tab"] {
+  flex: 1 1 auto;
+  min-width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.tabs [role="tab"] .micro {
+  color: inherit;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tabs [role="tab"][aria-selected="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+/* Settings: a native popover under its button */
+.settings {
+  position: fixed;
+  inset: auto;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: var(--space-3);
+  width: min(320px, calc(100vw - 2 * var(--space-3)));
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+  box-shadow: var(--elev-float);
+}
+
+.settings:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Desktop and tablet: the sheet becomes a floating panel, the strip floats over the map */
+@media (min-width: 768px) {
+  .sheet {
+    top: var(--space-4);
+    bottom: var(--space-4);
+    left: var(--space-4);
+    right: auto;
+    width: var(--panel-w);
+    height: auto;
+    border-radius: var(--radius-panel);
+    transform: none;
+    transition: none;
+    will-change: auto; /* else it would hold the fixed strip inside the panel */
+  }
+
+  /* Collapsed: only the pill tabs (and the strip) remain */
+  .sheet[data-detent="low"] {
+    visibility: hidden;
+  }
+
+  .panel-head {
+    position: static;
+    width: auto;
+    height: 76px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-6);
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .sheet-handle,
+  .map-strip {
+    display: none;
+  }
+
+  .sheet-strip {
+    position: fixed;
+    left: calc(var(--panel-w) + 2 * var(--space-4));
+    right: calc(44px + 2 * var(--space-4));
+    bottom: var(--space-4);
+    max-height: 40vh;
+    overflow: hidden;
+    visibility: visible;
+    border-radius: var(--radius-card);
+    background: var(--color-paper-raised);
+    box-shadow: var(--elev-float);
+  }
+
+  .tab-panel {
+    padding: var(--space-2) var(--space-6) calc(var(--tabs-space) + var(--space-2));
+  }
+
+  .tabs {
+    left: calc(2 * var(--space-4));
+    right: auto;
+    width: calc(var(--panel-w) - 2 * var(--space-4));
+    bottom: calc(2 * var(--space-4));
+  }
+
+  .fab {
+    top: var(--space-4);
+  }
+
+  .fab-settings {
+    top: calc(var(--space-4) + 16px);
+    left: calc(var(--panel-w) - 44px);
+  }
+
+  .fab-fit {
+    right: var(--space-4);
+  }
+
+  .shell[data-detent="full"] .fab {
+    display: grid;
+  }
+
+  .settings {
+    top: 84px;
+    left: calc(var(--panel-w) - 320px);
+  }
+
+  .trace-legend {
+    top: var(--space-4);
+    left: calc(var(--panel-w) + 2 * var(--space-4));
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -861,7 +1157,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-weight: 600;
   font-size: 0.75rem;
 }
@@ -873,7 +1169,7 @@ a:hover {
   margin-top: 0.15rem;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: none;
 }
 
@@ -1007,7 +1303,7 @@ a:hover {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 0;
@@ -1028,7 +1324,7 @@ a:hover {
 
 .poi-source-link {
   font-size: 0.7rem;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
@@ -1864,9 +2160,10 @@ div.tally,
   }
 }
 
+/* Under the round buttons, clear of the sheet; on desktop, right of the panel (deleted in step 4) */
 .trace-legend {
   position: absolute;
-  bottom: 24px;
+  top: calc(88px + env(safe-area-inset-top, 0px)); /* under the attribution too */
   left: 12px;
   z-index: 1000;
   padding: 0.5rem 0.75rem;
@@ -1928,48 +2225,31 @@ div.tally,
   flex-shrink: 0;
 }
 
-.map-empty {
-  position: absolute;
-  inset: 0;
-  z-index: 500; /* above leaflet tiles, below its controls (1000) */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.map-empty-card {
-  pointer-events: auto;
-  max-width: 22rem;
-  padding: 1.25rem 1.5rem;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: 6px 6px 0 var(--color-shadow);
-  text-align: center;
-}
-
-.map-empty-card h2 {
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  margin-bottom: 0.4rem;
-}
-
-.map-empty-card p {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-}
-
 /* Leaflet chrome follows the app: square, ink frame, theme colors */
 .leaflet-container {
   font-family: var(--font-sans);
 }
 
 .leaflet-bar {
-  border: 2px solid var(--color-border);
-  border-radius: 0;
-  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-control);
+  box-shadow: var(--elev-float);
+}
+
+.leaflet-bottom.leaflet-right {
+  margin: 0 var(--space-3) var(--space-3) 0;
+}
+
+@media (pointer: coarse) {
+  .leaflet-control-zoom {
+    display: none;
+  }
+}
+
+/* The attribution sits in micro text under the top-right round button */
+.leaflet-top.leaflet-right {
+  top: calc(60px + env(safe-area-inset-top, 0px));
 }
 
 .leaflet-bar a,
@@ -2019,10 +2299,12 @@ div.tally,
   border-top-color: var(--color-border);
 }
 
-.leaflet-control-attribution {
-  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
-  color: var(--color-muted);
-  font-size: 0.65rem;
+.leaflet-container .leaflet-control-attribution {
+  background: color-mix(in oklab, var(--color-paper) 70%, transparent);
+  color: var(--color-ink-muted);
+  font: 12px / 1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .poi-popup {
@@ -2080,48 +2362,10 @@ div.tally,
 }
 
 /* ---------------------------------------------------------------------------
-   Debug footer: a quiet disclosure under the carnet
+   Debug view (opened from the settings)
    --------------------------------------------------------------------------- */
 
-.debug-panel {
-  margin-top: auto;
-  border-top: 1px solid var(--color-line);
-  padding-top: 0.5rem;
-}
-
-.debug-panel-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.25rem 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  text-align: left;
-}
-
-.debug-panel-toggle:hover {
-  color: var(--color-text);
-}
-
-.debug-panel-icon {
-  font-size: 0.6rem;
-}
-
-.debug-panel-count {
-  margin-left: auto;
-  padding: 0 0.375rem;
-  border: 1.5px solid var(--color-line);
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
 .debug-panel-body {
-  margin-top: 0.5rem;
   border: 2px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -2187,7 +2431,7 @@ div.tally,
 }
 
 .debug-log-level-info {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .debug-log-level-warn {
@@ -2418,83 +2662,31 @@ div.tally,
    Responsive
    --------------------------------------------------------------------------- */
 
-@media (max-width: 1024px) {
-  :root {
-    --sidebar-w: 360px;
-  }
-}
-
 @media (max-width: 768px) {
-  :root {
-    --sheet-peek: 32vh;
-  }
-
-  .app-tagline {
-    display: none;
-  }
-
-  /* The sidebar becomes a bottom sheet over the map. The map keeps its size
-     (no Leaflet resize dance) and the profile strip stays above the peek. */
-  .app-layout {
-    position: relative;
-  }
-
-  .map-container {
-    padding-bottom: var(--sheet-peek);
-  }
-
-  .sidebar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1001; /* above Leaflet controls (1000) */
-    width: 100%;
-    min-width: unset;
-    height: var(--sheet-peek);
-    border-right: none;
-    border-top: 2px solid var(--color-border);
-    transition: height 200ms ease;
-  }
-
-  .sidebar.is-open {
-    height: calc(100% - 1.5rem);
-  }
-
-  .sheet-handle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 36px;
-    flex-shrink: 0;
-    cursor: pointer;
-    background: var(--color-surface);
-    border-bottom: 2px solid var(--color-border);
-  }
-
-  .sheet-grip {
-    width: 40px;
-    height: 4px;
-    background: var(--color-ink);
-  }
-
-  .sidebar-scroll {
-    padding: 0.75rem;
-    gap: 0.75rem;
-  }
-
   .sandbox-grid {
     grid-template-columns: 1fr;
   }
 }
 
-/* Bigger tap targets on touch devices (44px min) */
+/* Bigger tap targets on touch devices (44px min, checked by e2e/targets.spec.ts) */
 @media (hover: none) and (pointer: coarse) {
   .neo-btn-sm,
+  .neo-btn-primary,
+  .neo-btn-secondary,
   .poi-sort-btn,
   .poi-sources-toggle,
   .filter-chip,
-  .export-card {
+  .export-card,
+  summary,
+  input[type="range"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  label:has(> input[type="checkbox"]) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     min-height: 44px;
   }
 }

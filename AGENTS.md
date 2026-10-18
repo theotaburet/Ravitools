@@ -104,7 +104,7 @@ UI: Tailwind v4 + plain CSS tokens (neobrutalist "carnet de route", dark theme v
 State: Jotai (atoms + action atoms in src/state/)
 Map: Leaflet 1.9 via react-leaflet 5
 Enrichment: @mlc-ai/web-llm (WebGPU, Qwen2.5-3B), SearXNG + Nominatim through the server proxy
-Tests: vitest (+ jsdom per file), Playwright e2e
+Tests: vitest (+ jsdom per file), Playwright e2e (desktop + Pixel 7)
 ```
 
 ### Backend (`web/server`)
@@ -158,7 +158,7 @@ Do not duplicate schemas here. Source of truth:
 ### Components
 
 ```typescript
-// Pattern: one component per sidebar step (Step.tsx wraps it), explicit props
+// Pattern: one component per tab (TabPanel in Sheet.tsx wraps it), explicit props
 // Pattern: shared rendering extracted once (EnrichmentDetails is used by PoiList and RouteMap)
 ```
 
@@ -316,7 +316,7 @@ just update       # in-range updates (semver ranges of package.json), then just 
 
 - Personal, single-user deployment: no multi-tenant hardening, no heavy observability
 - Languages: FR + EN (UI and enrichment output)
-- Export targets: generic GPX viewers, OsmAnd, Garmin, Wahoo. COROS DURA cannot ingest custom POIs
+- Export targets: generic GPX viewers, OsmAnd, Garmin, Wahoo, COROS (GPX waypoints through the COROS app, fewer than 200 per route recommended; see `web/docs/research/device-poi-transfer.md`)
 - Offline boundary: exports and an already-loaded session work offline; discovery (Overpass) and enrichment need network
 - Data: no user route stored server-side; caches Overpass 24 h, search 7 d, geocode 30 d, PostGIS enrichment 90 d
 - License MIT; OpenStreetMap ODbL attribution on the map and in exports

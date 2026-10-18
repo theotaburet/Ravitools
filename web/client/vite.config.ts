@@ -25,6 +25,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     exclude: ["e2e/**", "node_modules/**"],
+    // Vitest blanks CSS; let `?raw` through so palettes.test.ts reads the real tokens
+    css: { include: [/\.css\?raw$/] },
     // A test without an assertion passes silently
     expect: { requireAssertions: true },
     // Node 25 turns Web Storage on and warns in every worker (no --localstorage-file);
