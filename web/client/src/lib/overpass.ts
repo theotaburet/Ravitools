@@ -267,9 +267,14 @@ export async function queryAllPois(
     }
 
     const failedThisRound: TracePoint[][] = [];
+    let serverDown = false; // a sick server: the rest of the round waits for the backoff
 
     for (const chunk of pending) {
       signal?.throwIfAborted();
+      if (serverDown) {
+        failedThisRound.push(chunk);
+        continue;
+      }
       try {
         const result = await queryOverpass(
           buildOverpassQuery(chunk, radiusM, categories),
@@ -299,6 +304,7 @@ export async function queryAllPois(
           log.warn(`Chunk of ${chunk.length} pts timed out: split, retried now`);
         } else {
           failedThisRound.push(chunk);
+          serverDown = true;
           log.error(`Chunk failed: ${err}`);
         }
       }
