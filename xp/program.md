@@ -14,7 +14,7 @@ Adapted from [karpathy/autoresearch](https://github.com/karpathy/autoresearch): 
 | overpass | `web/client/src/__tests__/overpass-faults.test.ts` | `web/client/src/lib/overpass.ts` | Sum over runs of virtual seconds + 900 × missing POI fraction + 2 × upstream requests |
 | ux | after the designV2 shell exists (E6 to E8) | `index.css`, shell components | friction score |
 
-Run (overpass): `cd web/client && VITE_XP_SCORE=1 bunx vitest run src/__tests__/overpass-faults.test.ts > ../../run.log 2>&1; grep "^xp_" ../../run.log`
+Run (overpass): `cd web/client && VITE_XP_SCORE=1 bunx vitest run src/__tests__/overpass-faults.test.ts --silent=false > ../../run.log 2>&1; grep "^xp_" ../../run.log`
 
 ## Loop
 
