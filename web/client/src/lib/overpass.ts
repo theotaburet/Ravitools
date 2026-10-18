@@ -146,7 +146,6 @@ export interface OverpassResponse {
  */
 export async function queryOverpass(
   query: string,
-  attempt = 0,
   signal?: AbortSignal,
 ): Promise<OverpassResponse> {
   const log = dlog("overpass");
@@ -156,7 +155,7 @@ export async function queryOverpass(
     return cached;
   }
 
-  const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
+  const endTimer = log.time("Overpass fetch");
   const standalone = import.meta.env.VITE_STANDALONE === "true";
   const res = standalone
     ? await fetch(DIRECT_URLS[directMirror], {
@@ -276,11 +275,7 @@ export async function queryAllPois(
         continue;
       }
       try {
-        const result = await queryOverpass(
-          buildOverpassQuery(chunk, radiusM, categories),
-          retryRound,
-          signal,
-        );
+        const result = await queryOverpass(buildOverpassQuery(chunk, radiusM, categories), signal);
         completed++;
         let newCount = 0;
         for (const el of result.elements) {
