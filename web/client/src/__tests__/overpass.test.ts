@@ -100,7 +100,7 @@ describe("queryAllPois, static build", () => {
     // would scan the whole corridor between them
     vi.stubEnv("VITE_STANDALONE", "true");
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
-      Response.json({ elements: [] }),
+      Response.json({ elements: [{ type: "node", id: 1 }] }),
     );
     vi.stubGlobal("fetch", fetchMock);
     // Fresh points: TRACE's query is already in the client cache
@@ -120,6 +120,40 @@ describe("queryAllPois, static build", () => {
     );
     expect(queries).toHaveLength(2);
     expect(queries.filter((q) => q.includes("45.76") && q.includes("45.06"))).toEqual([]);
+  });
+
+  it("asks the other mirror when one answers no elements (a sick mirror)", async () => {
+    vi.stubEnv("VITE_STANDALONE", "true");
+    const fetchMock = vi
+      .fn(async (_url: string, _init: RequestInit) => Response.json({ elements: [] }))
+      .mockResolvedValueOnce(Response.json({ elements: [] }))
+      .mockResolvedValueOnce(Response.json({ elements: [{ type: "node", id: 2 }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const marseille: TracePoint[] = [
+      { lat: 43.3, lon: 5.37 },
+      { lat: 43.31, lon: 5.38 },
+    ];
+
+    const result = await queryAllPois([marseille], 1000, ["Water"]);
+
+    expect(result.elements).toHaveLength(1);
+    const urls = fetchMock.mock.calls.map(([url]) => url);
+    expect(new Set(urls).size).toBe(2);
+  });
+
+  it("accepts no elements once the other mirror agrees (a desert)", async () => {
+    vi.stubEnv("VITE_STANDALONE", "true");
+    const fetchMock = vi.fn(async () => Response.json({ elements: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const sahara: TracePoint[] = [
+      { lat: 23.4, lon: 5.5 },
+      { lat: 23.41, lon: 5.51 },
+    ];
+
+    const result = await queryAllPois([sahara], 1000, ["Water"]);
+
+    expect(result).toMatchObject({ elements: [], failedChunks: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("stops querying once aborted", async () => {

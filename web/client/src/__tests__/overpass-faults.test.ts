@@ -26,6 +26,8 @@ interface Scenario {
   /** HTTP status a mirror answers at virtual second t */
   status: (mirror: number, t: number, rand: () => number) => number;
   city?: boolean;
+  /** Mirror that answers 200 with no elements and no remark */
+  empty?: number;
 }
 
 const SCENARIOS: Record<string, Scenario> = {
@@ -36,6 +38,8 @@ const SCENARIOS: Record<string, Scenario> = {
   "overload-504": { status: (_m, t) => (t < 240 ? 504 : 200) },
   "mirror0-down": { status: (m) => (m === 0 ? 502 : 200) },
   "dense-city": { status: () => 200, city: true },
+  // overpass-api.de once answered a dense Paris chunk with 200 and nothing else
+  "mirror0-empty": { status: () => 200, empty: 0 },
 };
 
 /** Deterministic PRNG (mulberry32) */
@@ -58,7 +62,12 @@ function queryPoints(query: string): number[] {
   return idx;
 }
 
-function answer(points: number[], scenario: Scenario): { body: unknown; latencyS: number } {
+function answer(
+  points: number[],
+  scenario: Scenario,
+  mirror: number,
+): { body: unknown; latencyS: number } {
+  if (mirror === scenario.empty) return { body: { elements: [] }, latencyS: 3 };
   const dense = points.filter((i) => i >= CITY.from && i <= CITY.to).length;
   if (scenario.city && dense > CITY.maxPoints) {
     // What Overpass really does: HTTP 200, no elements, a runtime error remark
@@ -103,6 +112,7 @@ function upstream(scenario: Scenario, t0: number) {
       const start = Math.max(now(), proxyFreeAt);
       let elapsed = start - now();
       let result: { status: number; body: unknown; latencyS: number } | undefined;
+      let empty: typeof result;
       let lastStatus = 502;
       for (let m = 0; m < MIRRORS.length && !result; m++) {
         stats.requests++;
@@ -111,14 +121,25 @@ function upstream(scenario: Scenario, t0: number) {
           elapsed += 2;
           continue;
         }
-        result = { status: 200, ...answer(queryPoints(query), scenario) };
+        const answered = { status: 200, ...answer(queryPoints(query), scenario, m) };
+        const { remark, elements } = answered.body as { remark?: string; elements: unknown[] };
+        // Like the server: no elements and no remark asks the next mirror, once
+        if (!empty && !remark && elements.length === 0) {
+          elapsed += answered.latencyS;
+          empty = { ...answered, latencyS: 0 }; // already counted
+          continue;
+        }
+        result = answered;
         // Like the server: a runtime error remark becomes a 504 that carries it
-        const { remark } = result.body as { remark?: string };
         if (remark)
           result = { ...result, status: 504, body: { detail: JSON.stringify({ remark }) } };
       }
       // Like the server: every mirror failed, the last one's status goes through
-      result ??= { status: lastStatus, body: { error: "Overpass API error" }, latencyS: 0 };
+      result ??= empty ?? {
+        status: lastStatus,
+        body: { error: "Overpass API error" },
+        latencyS: 0,
+      };
       proxyFreeAt = start + result.latencyS + (elapsed - (start - now()));
       return reply(result.status, result.body, elapsed + result.latencyS, init.signal);
     }
@@ -129,7 +150,7 @@ function upstream(scenario: Scenario, t0: number) {
     const status = scenario.status(m, now(), rand);
     const query = (init.body as URLSearchParams).get("data") ?? "";
     const { body, latencyS } =
-      status === 200 ? answer(queryPoints(query), scenario) : { body: {}, latencyS: 2 };
+      status === 200 ? answer(queryPoints(query), scenario, m) : { body: {}, latencyS: 2 };
     active.set(m, (active.get(m) ?? 0) + 1);
     try {
       return await reply(status, body, latencyS, init.signal);

@@ -38,3 +38,5 @@ The server's queue counts against its 180 s deadline (2 client requests in paral
 ## Revision (same day, after merge)
 
 A live run on designV2 showed the proxy relaying 504s from overloaded mirrors (the last mirror's status goes through when all four fail). The client took every 504 for a query too heavy and split: 3 chunks became 24. The harness only played 502s. Fixed with a failing test first: the harness proxy now relays the last mirror's status, an `overload-504` scenario joins, and every non-city scenario must keep its 5 chunks. Only a runtime error remark splits now; the proxy's 504 carries the remark so the client can tell. New baseline with 12 runs: 2221.
+
+Second revision (2026-10-19): a live run showed overpass-api.de answering a dense Paris chunk with 200, no elements and no remark (mail.ru: 3 219 elements), cached 24 h by the proxy. An empty answer without a remark now asks one more mirror, proxy and static. New `mirror0-empty` scenario; the 12 old runs still score 2221, the 14-run baseline is 2346.

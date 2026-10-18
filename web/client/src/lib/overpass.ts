@@ -145,10 +145,12 @@ export interface OverpassResponse {
  * One Overpass request: through the server proxy, which tries every mirror, or
  * straight to a mirror in the static build (the last one that answered; a
  * failure moves on to the next). Throws on any failure: queryAllPois retries.
+ * `confirm`: the other mirror's answer is final (see below).
  */
 export async function queryOverpass(
   query: string,
   signal?: AbortSignal,
+  confirm = false,
 ): Promise<OverpassResponse> {
   const log = dlog("overpass");
   const cached = cacheGet(query);
@@ -187,6 +189,12 @@ export async function queryOverpass(
   const elapsedMs = endTimer();
   // A timed-out query still answers 200, with partial elements: a failure, not a result
   if (data.remark?.includes("runtime error")) throw new Error(`Overpass ${data.remark}`);
+  // No elements and no remark: a desert or a sick mirror (overpass-api.de once sent
+  // this for a dense Paris chunk). The other mirror confirms, as the proxy does
+  if (standalone && !confirm && data.elements.length === 0 && !data.remark) {
+    leaveMirror(mirror);
+    return queryOverpass(query, signal, true);
+  }
   log.info(`Got ${data.elements.length} elements`, {
     elements: data.elements.length,
     elapsedMs: Math.round(elapsedMs),
