@@ -286,11 +286,11 @@ export async function queryAllPois(
       } catch (err) {
         signal?.throwIfAborted();
         if (String(err).includes("runtime error") && chunk.length >= 4) {
-          // Too heavy, not a sick server: the halves join this round (the loop
-          // reaches what is pushed), no backoff
-          const halves = splitChunk(chunk);
-          pending.push(...halves);
-          totalChunks += halves.length - 1;
+          // Too heavy, not a sick server: the quarters join this round (the
+          // loop reaches what is pushed), no backoff
+          const quarters = splitChunk(chunk).flatMap(splitChunk);
+          pending.push(...quarters);
+          totalChunks += quarters.length - 1;
           log.warn(`Chunk of ${chunk.length} pts timed out: split, retried now`);
         } else if (retryRound < MAX_SPLIT_ROUNDS && chunk.length >= 4) {
           const halves = splitChunk(chunk);
