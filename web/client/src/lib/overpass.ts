@@ -3,6 +3,7 @@
 import type { PoiCategory, TracePoint } from "../types";
 import { dlog } from "./debug-log";
 import { API_BASE } from "./enrichment/proxy-api";
+import { runConcurrent } from "./enrichment/run-concurrent";
 import { POI_CATEGORIES } from "./poi-config";
 
 // Static build (VITE_STANDALONE=true, e.g. GitHub Pages): no proxy, the browser
@@ -12,8 +13,9 @@ const DIRECT_URLS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 let directMirror = 0;
-const nextMirror = () => {
-  directMirror = (directMirror + 1) % DIRECT_URLS.length;
+/** Move on from a failed mirror, once even when parallel requests fail on it together */
+const leaveMirror = (failed: number) => {
+  if (failed === directMirror) directMirror = (failed + 1) % DIRECT_URLS.length;
 };
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
@@ -157,13 +159,14 @@ export async function queryOverpass(
 
   const endTimer = log.time("Overpass fetch");
   const standalone = import.meta.env.VITE_STANDALONE === "true";
+  const mirror = directMirror;
   const res = standalone
-    ? await fetch(DIRECT_URLS[directMirror], {
+    ? await fetch(DIRECT_URLS[mirror], {
         method: "POST",
         body: new URLSearchParams({ data: query }),
         signal,
       }).catch((err: unknown) => {
-        nextMirror();
+        leaveMirror(mirror);
         throw err;
       })
     : await fetch(`${API_BASE}/overpass`, {
@@ -175,7 +178,7 @@ export async function queryOverpass(
 
   if (!res.ok) {
     endTimer();
-    if (standalone) nextMirror();
+    if (standalone) leaveMirror(mirror);
     const body = await res.text();
     throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
   }
@@ -268,11 +271,13 @@ export async function queryAllPois(
     const failedThisRound: TracePoint[][] = [];
     let serverDown = false; // a sick server: the rest of the round waits for the backoff
 
-    for (const chunk of pending) {
+    // The browser gets Overpass's 2 slots per IP; the proxy serializes anyway
+    const slots = import.meta.env.VITE_STANDALONE === "true" ? 2 : 1;
+    await runConcurrent(pending, slots, 0, signal, async (chunk) => {
       signal?.throwIfAborted();
       if (serverDown) {
         failedThisRound.push(chunk);
-        continue;
+        return;
       }
       try {
         const result = await queryOverpass(buildOverpassQuery(chunk, radiusM, categories), signal);
@@ -291,8 +296,8 @@ export async function queryAllPois(
       } catch (err) {
         signal?.throwIfAborted();
         if (/runtime error|\(504\)/.test(String(err)) && chunk.length >= 4) {
-          // Too heavy, not a sick server: the quarters join this round (the
-          // loop reaches what is pushed), no backoff
+          // Too heavy, not a sick server: the quarters join this round
+          // (runConcurrent reaches what is pushed), no backoff
           const quarters = splitChunk(chunk).flatMap(splitChunk);
           pending.push(...quarters);
           totalChunks += quarters.length - 1;
@@ -309,7 +314,8 @@ export async function queryAllPois(
         retryRound,
         retryingCount: retryRound > 0 ? pending.length : 0,
       });
-    }
+    });
+    signal?.throwIfAborted(); // runConcurrent stops quietly
 
     pending = failedThisRound;
     retryRound++;
