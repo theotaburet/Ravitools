@@ -19,7 +19,7 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
 
   // Route polyline + both POI markers on the map
   await expect(page.locator(".route-map svg path").first()).toBeVisible();
-  await expect(page.locator(".poi-marker")).toHaveCount(2);
+  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(2);
 
   // POI list shows the named restaurant
   await expect(page.locator(".poi-list-item").first()).toBeVisible();

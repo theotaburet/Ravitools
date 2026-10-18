@@ -41,6 +41,8 @@ export const targetLanguageAtom = atomWithStorage<TargetLanguage>(
 
 export const enrichAllAtom = atom(false);
 export const selectedPoiIdAtom = atom<string | null>(null);
+/** Trace drawn thicker and on top of the others (tap a trace on the map) */
+export const selectedTraceIdAtom = atom<string | null>(null);
 /** Position hovered on the elevation profile, mirrored as a marker on the map */
 export const profileHoverAtom = atom<{ lat: number; lon: number } | null>(null);
 /** Position hovered on a map trace, mirrored as a cursor on the profile */

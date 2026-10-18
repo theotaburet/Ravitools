@@ -707,11 +707,6 @@ a {
     top: 84px;
     left: calc(var(--panel-w) - 320px);
   }
-
-  .trace-legend {
-    top: var(--space-4);
-    left: calc(var(--panel-w) + 2 * var(--space-4));
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -2049,73 +2044,79 @@ div.tally,
 }
 
 /* ---------------------------------------------------------------------------
-   Map: markers, clusters, arrows, flags, legend, empty state, Leaflet chrome
+   Map: traces, pastilles, clusters, arrows, Leaflet chrome (design.md, section 6)
    --------------------------------------------------------------------------- */
 
 .poi-cluster-icon,
-.poi-marker-icon,
+.pastille-icon,
 .trace-arrow-icon,
-.trace-flag-icon {
+.trace-end-icon {
   /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet divIcon defaults */
   background: transparent !important;
   /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet divIcon defaults */
   border: none !important;
 }
 
+/* SVG presentation attributes lose to CSS: the trace follows the theme */
+.trace-casing {
+  stroke: var(--color-paper);
+}
+
+.trace-line {
+  stroke: var(--color-accent);
+}
+
+.profile-hover-dot {
+  stroke: var(--color-ink);
+  fill: var(--color-accent);
+}
+
+/* Leaflet sizes the 44 px target; the pastille or bubble sits in its centre */
+.poi-cluster-icon,
+.pastille-icon {
+  display: grid;
+  place-items: center;
+}
+
 .poi-cluster {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
-  background: var(--color-lime);
+  background: var(--color-paper-raised);
   color: var(--color-ink);
-  border: 2px solid var(--color-ink);
-  box-shadow: var(--shadow-soft);
-  font-weight: 700;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.poi-marker {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 2.5px solid currentColor;
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-  font-size: 13px;
-  line-height: 1;
-  box-shadow: 1px 1px 0 color-mix(in srgb, var(--color-shadow) 30%, transparent);
-  cursor: pointer;
-  transition:
-    transform 100ms,
-    box-shadow 100ms;
-}
-
-.poi-marker-selected {
-  border-width: 3px;
-  background: var(--color-surface);
   box-shadow:
-    0 0 0 3px var(--color-lime),
-    2px 2px 0 color-mix(in srgb, var(--color-shadow) 30%, transparent);
-  /* biome-ignore lint/complexity/noImportantStyles: must beat Leaflet marker stacking */
-  z-index: 1000 !important;
+    0 0 0 2px var(--color-ink),
+    var(--elev-float);
+  font: 600 0.75rem var(--font-mono);
+  cursor: pointer;
 }
 
-.poi-marker-enriching {
-  animation: poi-pulse 1.2s ease-in-out infinite;
+/* Family color and glyph inline (palette); a paper ring lifts it off any map */
+.pastille {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--color-paper),
+    var(--elev-float);
+  cursor: pointer;
 }
 
-@keyframes poi-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 50%, transparent);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 0 6px transparent;
-    transform: scale(1.15);
-  }
+.pastille.is-selected {
+  width: 36px;
+  height: 36px;
+  box-shadow:
+    0 0 0 2px var(--color-paper),
+    0 0 0 5px var(--color-accent),
+    var(--elev-float);
+}
+
+/* Enrichment running: a dashed accent ring, no animation */
+.pastille.is-enriching {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 3px;
 }
 
 .trace-arrow {
@@ -2134,95 +2135,17 @@ div.tally,
   pointer-events: none;
 }
 
-.trace-flag {
-  font-size: 1.2rem;
-  filter: drop-shadow(1px 1px 0 var(--color-surface));
+/* Start and finish: small ink pastilles */
+.trace-end {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  box-shadow: 0 0 0 2px var(--color-paper);
   pointer-events: none;
-}
-
-/* Antpath overlay: marching dashes along the trace (dashArray 10 20, period 30) */
-.trace-antpath {
-  animation: antpath-march 1.5s linear infinite;
-}
-
-@keyframes antpath-march {
-  from {
-    stroke-dashoffset: 30;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trace-antpath {
-    animation: none;
-  }
-}
-
-/* Under the round buttons, clear of the sheet; on desktop, right of the panel (deleted in step 4) */
-.trace-legend {
-  position: absolute;
-  top: calc(88px + env(safe-area-inset-top, 0px)); /* under the attribution too */
-  left: 12px;
-  z-index: 1000;
-  padding: 0.5rem 0.75rem;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-hard);
-  max-width: 220px;
-  pointer-events: auto;
-}
-
-.trace-legend-title {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-  margin-bottom: 0.375rem;
-}
-
-.trace-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-  width: 100%;
-  background: none;
-  border: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: opacity 150ms;
-}
-
-.trace-legend-item.dimmed {
-  opacity: 0.3;
-}
-
-.trace-legend-swatch {
-  display: inline-block;
-  width: 1rem;
-  height: 4px;
-  border: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.trace-legend-name {
-  font-size: 0.75rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.trace-legend-dist {
-  margin-left: auto;
-  font-size: 0.68rem;
-  color: var(--color-muted);
-  flex-shrink: 0;
 }
 
 /* Leaflet chrome follows the app: square, ink frame, theme colors */
@@ -2266,37 +2189,18 @@ div.tally,
   color: var(--color-text);
 }
 
-.leaflet-popup-content-wrapper {
-  border-radius: 0;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: var(--shadow-hard);
-}
-
-.leaflet-popup-tip {
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-top: 0;
-  border-left: 0;
-  box-shadow: none;
-}
-
-.leaflet-container a.leaflet-popup-close-button {
-  color: var(--color-muted);
-}
-
 .leaflet-tooltip {
-  border-radius: 0;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-hairline);
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+  box-shadow: var(--elev-float);
   font-size: 0.8rem;
 }
 
-.leaflet-tooltip-top::before {
-  border-top-color: var(--color-border);
+/* A sticky tooltip follows the cursor: no tip */
+.leaflet-tooltip::before {
+  display: none;
 }
 
 .leaflet-container .leaflet-control-attribution {
@@ -2305,60 +2209,6 @@ div.tally,
   font: 12px / 1.2 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.poi-popup {
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.poi-popup strong {
-  display: block;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.poi-popup-cat {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.05rem 0.45rem;
-  border: 1.5px solid var(--color-border);
-  font-size: 0.72rem;
-  font-weight: 700;
-  margin: 0.25rem 0 0.4rem;
-}
-
-.poi-popup-dist {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
-}
-
-.poi-popup-enrichment {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-}
-
-.poi-popup-sources {
-  margin-top: 0.25rem;
-  font-size: 0.68rem;
-  color: var(--color-muted);
-}
-
-.poi-popup-avail {
-  font-size: 0.75rem;
-  color: var(--color-success);
-  font-weight: 600;
-}
-
-.poi-popup-gmaps {
-  margin-top: 0.5rem;
-}
-
-.poi-popup-retryable {
-  margin-top: 0.25rem;
-  font-size: 0.72rem;
-  color: var(--color-warning);
 }
 
 /* ---------------------------------------------------------------------------

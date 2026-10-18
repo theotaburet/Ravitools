@@ -234,12 +234,14 @@ The settings button opens a native popover (`popover` attribute, no JS state) wi
 
 ## 6. Map
 
-- **Tiles**: CARTO Voyager (light) and Dark Matter (dark), `https://{s}.basemaps.cartocdn.com/{rastertiles/voyager|dark_all}/{z}/{x}/{y}{r}.png`, with the attribution "© OpenStreetMap contributors © CARTO". The CSS invert filter on the tiles is deleted. Usage stays within CARTO's free basemap terms for a personal, low-traffic app; re-check them if traffic grows. E4 confirms the choice.
+- **Tiles**: OpenStreetMap standard (light) and the same tiles under the CSS invert filter (dark), attribution "© OpenStreetMap contributors (ODbL)". The planned CARTO Voyager and Dark Matter need an API key since 25 September 2026 (keyless requests get an "API KEY REQUIRED" tile); E4 then measured the keyless sources and kept OSM (see Results).
 - **Traces**: all in accent cyan over a paper casing (two polylines: an 8 px paper casing under a 4 px line).
   - The selected trace is 6 px on an 11 px casing, drawn on top. The others are at 50 % opacity.
-  - Tapping a trace selects it.
-  - Start and finish are small ink pastilles with lucide glyphs.
-- **POI markers**: 28 px pastilles. The selected one is 36 px with a 3 px accent ring, drawn on top.
+  - Tapping a trace selects it (`selectedTraceIdAtom`); tapping it again clears the selection. A 20 px invisible line takes the tap and, on desktop, the hover that moves the profile cursor.
+  - Start and finish are small ink pastilles with lucide glyphs (`Play`, `Flag`). The direction arrows stay.
+  - Decorative markers (start, finish, arrows) are out of the tab order (`keyboard={false}`).
+- **POI markers**: 28 px pastilles inside a 44 px target. The selected one is 36 px with a 3 px accent ring, drawn on top. A dashed accent ring marks a POI being enriched. Dense cells keep their count bubbles (paper, ink ring, mono count), also on a 44 px target.
+- **No popup**: a tap on a pastille selects the POI, flies to it and opens the POI tab on its row.
 - **Deleted**: Leaflet popups (and the "open popup after `flyTo`" delay), the trace legend overlay, emoji markers.
 
 ## 7. Tab content
@@ -310,7 +312,20 @@ Shared setup:
 ### Results
 
 - **E1** (2026-10-18, throwaway prototype with the real pastilles, 300 markers, Pixel 7 emulation): every variant passes with a wide margin. p95 frame interval 16.8 ms in all 8 variants (`transform`/`height` × blur on/off × SVG/CSS glyph), even with the CPU throttled ×24; the worst long animation frame grows with the throttle (≈ 55 ms at ×16, 85 ms at ×24) the same way in every variant. With no measured difference, the defaults stand: `transform` (compositor only, and it never re-lays out the virtualized POI list during a drag), blur on the round buttons, SVG glyphs (the `iconSvg` helper, no generated stylesheet). Limit: CDP throttles the main thread only, so GPU cost (the blur) is not measured; check it on a real phone.
-- **E6** is `web/client/e2e/targets.spec.ts` (Pixel 7 project). Map markers (step 4) and the header strip (step 6) stay out of it until they are rebuilt.
+- **E4** (2026-10-19, throwaway Leaflet page, 600 × 600 at DPR 2): CARTO now answers every keyless request with an "API KEY REQUIRED" tile, so the planned Voyager and Dark Matter were out. Measured instead: OSM standard, CyclOSM, Humanitarian (HOT) and Esri Light Gray Canvas (light); inverted OSM, inverted HOT and Esri Dark Gray Canvas (dark). Hasparren with synthetic pastilles, Paris with the recorded Overpass answer; at zoom 11 the 3 000 Paris pastilles cover the trace band, so its trace contrast is left out. Mean over both routes and both zooms, OKLab:
+
+  | Base map | Trace vs map (median) | Pastille vs map (p10) | Clutter (edge share) |
+  | -------- | --------------------- | --------------------- | -------------------- |
+  | OSM | 0.24 | 0.17 | 0.074 |
+  | CyclOSM | 0.22 | 0.15 | 0.174 |
+  | HOT | 0.24 | 0.15 | 0.064 |
+  | Esri Light Gray | 0.26 | 0.28 | 0.017 |
+  | OSM inverted | 0.47 | 0.16 | 0.081 |
+  | HOT inverted | 0.48 | 0.16 | 0.069 |
+  | Esri Dark Gray | 0.37 | 0.10 | 0.020 |
+
+  Esri Light Gray wins the light theme on every metric, but its legacy service is in mature support until it retires in December 2029, stops at zoom 16 and has unclear terms for keyless use: the CARTO trap again. Among the keyless OpenStreetMap sources, OSM and HOT tie and OSM has the steadier servers. Muted filters on OSM (saturate 0.5 or 0.25, a grey inversion) move every metric by less than 0.02, which is noise. Decision: tiles unchanged, OSM in light, inverted OSM in dark. CARTO with a free key (non-commercial, 5 M tiles a month) remains possible if the user registers one; it was not measurable without it.
+- **E6** is `web/client/e2e/targets.spec.ts` (Pixel 7 project). Map markers joined it in step 4 (44 px targets); it found the start and finish markers in the tab order with no action, now fixed. The header strip (step 6) stays out until it is rebuilt.
 - **E7** is `web/client/e2e/journey.spec.ts` (both projects). ◀ ▶ and "add a second GPX" join the journey with steps 5 and 7. Step 3 run: 6 taps on mobile, no retry prompt, no covered control, no overflow, CLS within 0.1.
 - **E8** (step 3, throwaway, 360 px Android): dense city (3 000 POIs), 3 traces, long names, 0 POI, Overpass hard failure, no WebGPU and the static build all end with no covered control, no overflow and a message. Fixed on the way: the trace legend hid under the sheet (moved under the round buttons until step 4), and `03 ENRICHIR` spilled onto `04 EXPORT` at 360 px (E7 now flags a label wider than its button).
 
@@ -334,4 +349,4 @@ Each step ends with `just check` and an E6 to E8 pass (fix, re-run, until clean)
 5. POI tab: family filters, compact list, POI detail with ◀ ▶.
 6. Header strip (after E2): compact profile with tap-to-centre, counter; the profile's own trace selector deleted.
 7. Tabs 01, 03, 04; exports take the palette.
-8. Cleanup: dead CSS and `neo-*`, `--shadow-hard`. Update `AGENTS.md` (stack line, the approved timer list loses the popup delay), `CONTRIBUTING.md`, `architecture.md` and `poi-categories.md` (families).
+8. Cleanup: dead CSS and `neo-*`, `--shadow-hard`. Update `AGENTS.md` (stack line; the popup delay already left the approved timer list in step 4), `CONTRIBUTING.md`, `architecture.md` and `poi-categories.md` (families).

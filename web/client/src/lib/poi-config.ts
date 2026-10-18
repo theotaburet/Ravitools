@@ -443,6 +443,7 @@ export const OSMAND_CATEGORY_BACKGROUNDS = byCategory((c) => c.osmand.background
 export const GPX_SYMBOLS = byCategory((c) => c.gpxSymbol);
 export const FIT_COURSE_POINT_TYPES = byCategory((c) => c.fitType);
 const CATEGORY_GLYPHS = byCategory((c) => c.glyph);
+export const CATEGORY_FAMILIES = byCategory((c) => c.family);
 export const MERGEABLE_CATEGORIES = byCategory((c) => c.mergeable);
 const CATEGORY_EMOJI = byCategory((c) => c.emoji);
 const ENRICHABILITY_POLICY = byCategory((c) => c.policy);

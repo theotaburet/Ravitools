@@ -91,10 +91,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "settings.debug": { en: "Debug log", fr: "Journal de débogage" },
   "map.fit": { en: "Fit the map to the route", fr: "Recadrer la carte sur l'itinéraire" },
   "summary.pois": { en: "POIs", fr: "POI" },
-  "map.fromRoute": { en: "m from route", fr: "m de la route" },
-  "map.hours": { en: "Hours:", fr: "Horaires :" },
-  "map.tel": { en: "Tel:", fr: "Tél :" },
-  "map.website": { en: "Website", fr: "Site web" },
+  "map.start": { en: "Start", fr: "Départ" },
+  "map.finish": { en: "Finish", fr: "Arrivée" },
   "profile.title": { en: "Elevation profile", fr: "Profil altimétrique" },
   "profile.gapThreshold": {
     en: "Ravito gap alert threshold (km)",
@@ -102,10 +100,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   },
   "profile.without": { en: "without", fr: "sans" },
   "profile.cluster": { en: "POIs : click to zoom", fr: "POI : cliquer pour zoomer" },
-  "map.searchDegraded": {
-    en: "Search degraded. Retry after cooldown or IP change.",
-    fr: "Recherche dégradée. Réessayez après une pause ou un changement d'IP.",
-  },
   "session.fresh": { en: "Start fresh", fr: "Recommencer" },
   "status.warning": { en: "Warning:", fr: "Attention :" },
   "status.error": { en: "Error:", fr: "Erreur :" },

@@ -156,7 +156,7 @@ web/client/src/
 │   ├── Sheet.tsx             # Bottom sheet (mobile) or panel (desktop), tab panels, pill tabs
 │   ├── Settings.tsx          # Round button + native popover: language, theme, palette, debug
 │   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
-│   ├── RouteMap.tsx          # Leaflet map: traces, clustered POI markers, popups, sheet-aware camera
+│   ├── RouteMap.tsx          # Leaflet map: traces (tap to select), clustered family pastilles, sheet-aware camera
 │   ├── ElevationProfile.tsx  # Profile strip atop the sheet (floating on desktop), gap alerts, hover sync
 │   ├── CategoryFilter.tsx    # Category chip grid + max distance slider
 │   ├── PoiList.tsx           # Virtualized POI list

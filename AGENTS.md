@@ -159,7 +159,7 @@ Do not duplicate schemas here. Source of truth:
 
 ```typescript
 // Pattern: one component per tab (TabPanel in Sheet.tsx wraps it), explicit props
-// Pattern: shared rendering extracted once (EnrichmentDetails is used by PoiList and RouteMap)
+// Pattern: shared rendering extracted once (Icon draws a lucide icon for React, iconSvg for Leaflet divIcons)
 ```
 
 ### Timers (strict)
@@ -168,7 +168,7 @@ Do not duplicate schemas here. Source of truth:
 
 Already approved, do not add to this list without asking:
 
-- UI: `CategoryFilter` slider commit (150 ms), `EnrichmentPanel` scraper job-stats polling, `RouteMap` hover grace and open-popup-after-flyTo delay
+- UI: `CategoryFilter` slider commit (150 ms), `EnrichmentPanel` scraper job-stats polling, `RouteMap` hover grace
 - Async sleeps for retry/backoff/stagger/cooldown: `lib/overpass.ts`, `lib/enrichment/search.ts`, `run-concurrent.ts`, `google-fallback.ts`, `state/enrichment.ts`, server `browser.ts` and `routes/overpass.ts`
 
 ---
