@@ -77,7 +77,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 |---|---|---|
 | GPX parsing | `lib/gpx-parser.ts` | DOMParser, no server needed |
 | Trace simplification | `lib/gpx-parser.ts` | Resamples to ~500m spacing |
-| Query building | `lib/overpass.ts` | Constructs Overpass QL, chunks long traces (50 pts/chunk), retries failed chunks split in two |
+| Query building | `lib/overpass.ts` | Constructs Overpass QL, chunks long traces (50 pts/chunk), retries failed chunks for up to 8 min, splits timed-out ones in four |
 | POI matching | `lib/poi-processor.ts` | Tag matching, distance-to-trace, dedup |
 | Map rendering | `components/RouteMap.tsx` | Leaflet via react-leaflet, screen-grid clustering (`lib/poi-cluster.ts`) |
 | App state | `state/` | jotai atoms: route (traces, POIs, pipeline), enrichment, session (save, resume, import, reset), ui |
@@ -107,7 +107,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box.
 
-2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. A failed chunk is retried in up to 3 rounds (10, 20, 30 s backoff), split in two each time: a dense city corridor times Overpass out, a smaller one does not. This is the only client-side retry; the server tries the mirrors in turn. Results are deduplicated by OSM element ID.
+2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. Failed chunks retry in rounds (10, 20, then 30 s backoff) until an 8-minute budget is spent, so an outage passes with no click; a server failure ends the round early rather than hammering a sick server. A chunk Overpass times out on (a 200 with a runtime error remark, or a 504) is split in four and retried at once: a dense city corridor times Overpass out, a smaller one does not. The static build sticks to the mirror that answers and runs 2 chunks at a time (Overpass allows 2 slots per IP); the proxy serializes anyway. This is the only client-side retry; the server tries the mirrors in turn and never caches a timed-out answer. `__tests__/overpass-faults.test.ts` replays outages, flaky and dead mirrors and a dense city in virtual time. Results are deduplicated by OSM element ID.
 
 3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond 1500m are discarded.
 

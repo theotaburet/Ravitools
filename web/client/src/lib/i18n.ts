@@ -103,7 +103,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "session.fresh": { en: "Start fresh", fr: "Recommencer" },
   "status.warning": { en: "Warning:", fr: "Attention :" },
   "status.error": { en: "Error:", fr: "Erreur :" },
-  "action.retryChunks": { en: "Retry failed chunks", fr: "Réessayer les blocs échoués" },
   "action.retryQuery": { en: "Retry query", fr: "Relancer la requête" },
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },

@@ -151,6 +151,20 @@ describe("/overpass", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
+  it("answers a timed-out query (200 with a runtime error remark) with an uncached 504", async () => {
+    const query = uniqueQuery("remark");
+    const timedOut = JSON.stringify({ elements: [], remark: "runtime error: Query timed out" });
+    mockFetch.mockResolvedValue(fakeResponse(timedOut));
+
+    const res1 = await request(app).post("/overpass").send({ data: query });
+    const res2 = await request(app).post("/overpass").send({ data: query });
+
+    // The client splits a chunk on a 504; a cached remark would lose its POIs for 24 h
+    expect(res1.status).toBe(504);
+    expect(res2.status).toBe(504);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("forwards upstream error status", async () => {
     const query = uniqueQuery("upstream-err");
     // Every mirror rate-limits (each gets one Retry-After retry → 2 calls per mirror)
