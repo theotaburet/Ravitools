@@ -202,7 +202,7 @@ export default function App() {
               <div className="box-actions">
                 <GpxUpload append />
                 <button type="button" className="btn btn-quiet" onClick={handleReset}>
-                  {t("action.loadNew", targetLanguage)}
+                  {t("action.startOver", targetLanguage)}
                 </button>
               </div>
             </>

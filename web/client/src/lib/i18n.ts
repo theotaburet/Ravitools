@@ -90,14 +90,20 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "settings.palette": { en: "Colour-blind palette", fr: "Palette pour daltoniens" },
   "settings.debug": { en: "Debug log", fr: "Journal de débogage" },
   "map.fit": { en: "Fit the map to the route", fr: "Recadrer la carte sur l'itinéraire" },
-  "summary.gapsWater": { en: "{n} × > {km} km without water", fr: "{n} × > {km} km sans eau" },
-  "summary.gapsFood": { en: "{n} × > {km} km without food", fr: "{n} × > {km} km sans ravito" },
+  "summary.gapsWater": {
+    en: "Stretches over {km} km without water: {n}",
+    fr: "Tronçons de plus de {km} km sans eau : {n}",
+  },
+  "summary.gapsFood": {
+    en: "Stretches over {km} km without food: {n}",
+    fr: "Tronçons de plus de {km} km sans ravito : {n}",
+  },
   "map.start": { en: "Start", fr: "Départ" },
   "map.finish": { en: "Finish", fr: "Arrivée" },
   "profile.title": { en: "Elevation profile", fr: "Profil altimétrique" },
   "profile.gapThreshold": {
-    en: "Ravito gap alert threshold (km)",
-    fr: "Seuil d'alerte désert de ravito (km)",
+    en: "Length from which a stretch without water or food is flagged (km)",
+    fr: "Longueur à partir de laquelle un tronçon sans eau ni ravito est signalé (km)",
   },
   "profile.centre": {
     en: "Centre the map on a kilometre of the route",
@@ -194,7 +200,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "poi.skip.rate-limited": { en: "Rate limited", fr: "Limite de requêtes atteinte" },
   "poi.skip.cancelled": { en: "Cancelled", fr: "Annulé" },
   // Export panel
-  "action.loadNew": { en: "Load new GPX files", fr: "Charger de nouveaux fichiers GPX" },
   "export.poisReady": { en: "POIs ready", fr: "POI prêts" },
   "export.enriched": { en: "enriched", fr: "enrichis" },
   "export.format": { en: "Format", fr: "Format" },
@@ -268,7 +273,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   },
   "export.kmzTarget": { en: "Organic Maps, Guru Maps", fr: "Organic Maps, Guru Maps" },
   // Elevation strip
-  "profile.gapPrefix": { en: "Alert above", fr: "Alerte au-delà de" },
+  "profile.gapPrefix": {
+    en: "Flag stretches without water or food longer than",
+    fr: "Signaler les tronçons sans eau ni ravito de plus de",
+  },
   // Local model capability check
   "llm.title": { en: "Local AI synthesis", fr: "Synthèse IA locale" },
   "llm.more": { en: "See more", fr: "Voir plus" },
