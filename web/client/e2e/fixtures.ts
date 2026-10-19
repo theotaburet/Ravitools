@@ -14,7 +14,7 @@ export const GPX_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 
 // Three POIs on the route, in default-enabled categories, >50m apart (no dedup); two water
 // points so ◀ ▶ have somewhere to go once filtered to water
-const OVERPASS_STUB = {
+export const OVERPASS_STUB = {
   elements: [
     { type: "node", id: 1, lat: 48.8531, lon: 2.3511, tags: { amenity: "drinking_water" } },
     {

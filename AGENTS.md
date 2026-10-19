@@ -262,6 +262,7 @@ Every enriched POI carries confidence, provenance and `synthesisSource` (AI / AI
 - GPX-parsing tests need `// @vitest-environment jsdom` (no `DOMParser` in Node)
 - Any POI-logic change is also checked on a real GPX from `web/examples/`
 - A parser of an outside format (OSM `opening_hours`, GPX, Overpass JSON) is tested on real-world samples, the format's own idioms included (`Su off`, `24/7`, `PH off`)
+- e2e tests validate user scenarios: the journey reaches its outcome and nothing blocks it. No budgets or magic numbers (tap counts, layout-shift scores, screen fractions, scroll offsets, row indexes), and no e2e that repeats what a unit test or another journey already covers
 
 ### UI changes: done means used, not specified
 
