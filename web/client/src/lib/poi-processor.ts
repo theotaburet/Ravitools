@@ -6,11 +6,6 @@ import { alongTraceProjection, distanceToTrace, haversine, TraceIndex } from "./
 import type { OverpassElement } from "./overpass";
 import { CORRIDOR_M, findCategoryForTag, MERGEABLE_CATEGORIES } from "./poi-config";
 
-let nextId = 1;
-function generateId(): string {
-  return `poi_${nextId++}`;
-}
-
 // --- Main processing function ---
 
 /** Same-category POIs closer than this merge (the map's count bubbles handle density) */
@@ -96,7 +91,8 @@ function elementToPoi(el: OverpassElement): POI | null {
     const match = findCategoryForTag(key, value, tags);
     if (match) {
       return {
-        id: generateId(),
+        // From the OSM element: stable across runs (slider, retry), enrichments are keyed by it
+        id: `poi_${el.type}_${el.id}`,
         lat,
         lon,
         category: match.category.category,

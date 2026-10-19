@@ -33,6 +33,14 @@ describe("processElements", () => {
     expect(pois[0].distanceToTrace).toBeGreaterThan(0);
   });
 
+  it("gives a POI the same id on every run (enrichments are keyed by it)", () => {
+    const elements: OverpassElement[] = [
+      { type: "node", id: 1001, lat: 48.858, lon: 2.356, tags: { amenity: "drinking_water" } },
+    ];
+    const first = processElements(elements, [TRACE])[0].id;
+    expect(processElements(elements, [TRACE], 1000)[0].id).toBe(first);
+  });
+
   it("should match a campsite POI", () => {
     const elements: OverpassElement[] = [
       {
