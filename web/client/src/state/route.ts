@@ -3,6 +3,7 @@
 
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
+import { isOpenEvening, isOpenSunday } from "../lib/export/hours";
 import { km } from "../lib/format";
 import { findGaps } from "../lib/gaps";
 import { parseGpx } from "../lib/gpx-parser";
@@ -10,7 +11,14 @@ import { t } from "../lib/i18n";
 import { type OverpassElement, queryAllPois } from "../lib/overpass";
 import { ALL_CATEGORIES, CORRIDOR_M, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
-import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
+import type {
+  EnrichedData,
+  PipelineStage,
+  POI,
+  PoiCategory,
+  RouteProcessingSettings,
+  TraceData,
+} from "../types";
 import { gapThresholdKmAtom, showTabAtom, type Tab, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
@@ -30,13 +38,32 @@ export const routeErrorAtom = atom<string | null>(null);
 export const progressAtom = atom("");
 export const progressRatioAtom = atom<number | null>(null);
 export const routeWarningAtom = atom<string | null>(null);
+/** Enrichment results by POI id (written by state/enrichment.ts; here, the hours filters read them) */
+export const enrichmentsAtom = atom<Map<string, EnrichedData>>(new Map());
+
+export type HoursFilter = "sunday" | "evening";
+/** Each one hides the POIs whose known hours (enriched, else OSM) say closed then; without hours,
+ *  a POI stays: a fountain must not leave the map and the export */
+export const hoursFiltersAtom = atom<ReadonlySet<HoursFilter>>(new Set<HoursFilter>());
+const OPEN_WHEN: Record<HoursFilter, typeof isOpenSunday> = {
+  sunday: isOpenSunday,
+  evening: isOpenEvening,
+};
 
 // --- Derived atoms ---
 
-/** POIs filtered by the active categories */
+/** POIs filtered by the active categories and the hours filters */
 export const filteredPoisAtom = atom((get) => {
   const active = get(activeCategoriesAtom);
-  return get(poisAtom).filter((p) => active.has(p.category));
+  const byCategory = get(poisAtom).filter((p) => active.has(p.category));
+  const hours = get(hoursFiltersAtom);
+  if (hours.size === 0) return byCategory; // no re-filtering on every enrichment result
+  const enrichments = get(enrichmentsAtom);
+  return byCategory.filter((p) => {
+    const enriched = enrichments.get(p.id)?.hours;
+    const osm = p.tags.opening_hours;
+    return !(enriched || osm) || [...hours].every((h) => OPEN_WHEN[h](enriched, osm));
+  });
 });
 
 export const isProcessingAtom = atom((get) =>
@@ -93,6 +120,7 @@ export const resetRouteAtom = atom(null, (_get, set) => {
   set(tracesAtom, []);
   set(poisAtom, []);
   set(activeCategoriesAtom, new Set<PoiCategory>(DEFAULT_CATEGORIES));
+  set(hoursFiltersAtom, new Set<HoursFilter>());
   set(routeSettingsAtom, DEFAULT_ROUTE_SETTINGS);
   set(routeErrorAtom, null);
   set(progressAtom, "");
@@ -123,6 +151,13 @@ export const restoreRouteAtom = atom(
     set(routeErrorAtom, null);
   },
 );
+
+export const toggleHoursFilterAtom = atom(null, (get, set, filter: HoursFilter) => {
+  const next = new Set(get(hoursFiltersAtom));
+  if (next.has(filter)) next.delete(filter);
+  else next.add(filter);
+  set(hoursFiltersAtom, next);
+});
 
 export const toggleCategoryAtom = atom(null, (get, set, cat: PoiCategory) => {
   const next = new Set(get(activeCategoriesAtom));

@@ -122,6 +122,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Déposez ou choisissez un ou plusieurs fichiers .gpx",
   },
   "filter.all": { en: "All", fr: "Tout" },
+  "filter.hoursHint": {
+    en: "Hides the POIs whose known hours say closed then; those without hours stay.",
+    fr: "Masque les POI dont les horaires connus disent fermé ; ceux sans horaires restent.",
+  },
   "filter.none": { en: "None", fr: "Aucun" },
   "filter.maxDistance": { en: "Max distance to route", fr: "Distance max. à l'itinéraire" },
   "filter.distanceHint": {
@@ -129,8 +133,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Réduisez pour moins de POI urbains, élargissez pour les routes rurales.",
   },
   "filter.more": {
-    en: "Distance {m} m · categories {on}/{all}",
-    fr: "Distance {m} m · catégories {on}/{all}",
+    en: "Distance {m} m · categories {on}/{all} · hours {h}",
+    fr: "Distance {m} m · catégories {on}/{all} · horaires {h}",
   },
   "family.Water": { en: "Water", fr: "Eau" },
   "family.Food": { en: "Food", fr: "Alimentation" },

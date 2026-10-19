@@ -8,8 +8,8 @@ import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EnrichmentPanel } from "../components/EnrichmentPanel";
 import type { LlmCapability } from "../lib/enrichment/capability";
-import { enrichmentJobAtom, enrichmentsAtom, llmCapabilityAtom } from "../state/enrichment";
-import { activeCategoriesAtom, poisAtom } from "../state/route";
+import { enrichmentJobAtom, llmCapabilityAtom } from "../state/enrichment";
+import { activeCategoriesAtom, enrichmentsAtom, poisAtom } from "../state/route";
 import { selectedPoiIdAtom } from "../state/ui";
 import type { EnrichedData, EnrichmentJobState, POI, PoiCategory } from "../types";
 

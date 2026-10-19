@@ -14,8 +14,7 @@ import {
 import { downloadBlob, downloadFile } from "../lib/export/shared";
 import { t } from "../lib/i18n";
 import { serializeSession } from "../lib/session";
-import { enrichmentsAtom } from "../state/enrichment";
-import { filteredPoisAtom, tracesAtom } from "../state/route";
+import { enrichmentsAtom, filteredPoisAtom, tracesAtom } from "../state/route";
 import { sessionSnapshotAtom } from "../state/session";
 import { paletteAtom, targetLanguageAtom } from "../state/ui";
 
