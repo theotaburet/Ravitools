@@ -110,6 +110,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
   "action.back": { en: "Back", fr: "Retour" },
+  "enrich.static": {
+    en: "Enrichment (hours, ratings and reviews found on the web) goes through the Ravitools server, which this static demo does not have. Run Ravitools locally (just dev) or on your own server to use it.",
+    fr: "L'enrichissement (horaires, notes et avis trouvés sur le web) passe par le serveur Ravitools, absent de cette démo statique. Lancez Ravitools en local (just dev) ou sur votre serveur pour l'utiliser.",
+  },
   "upload.drop": { en: "Load a GPX", fr: "Charger un GPX" },
   "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
   "upload.add": { en: "Add a GPX", fr: "Ajouter un GPX" },
