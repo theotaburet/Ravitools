@@ -2188,65 +2188,78 @@ div.tally,
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: #ffffff;
-  color: #141310;
+  background: var(--color-paper);
+  color: var(--color-ink);
   overflow-y: auto;
-  padding: 1.5rem;
+  padding: var(--space-6) var(--space-4);
 }
 
 .roadbook-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .roadbook-toolbar h2 {
   flex: 1;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.roadbook-toolbar .neo-btn-secondary {
-  background: #ffffff;
-  color: #141310;
-  border-color: #141310;
+  font-size: 20px;
+  font-weight: 700;
+  font-stretch: 75%;
 }
 
 .roadbook-trace {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-8);
 }
 
 .roadbook-trace h3 {
-  font-weight: 700;
-  margin-bottom: 0.5rem;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
 }
 
 .roadbook-profile {
   width: 100%;
   height: 90px;
-  border: 1px solid #141310;
-  margin-bottom: 0.5rem;
+  border: 1px solid var(--color-hairline);
+  margin-bottom: var(--space-2);
 }
 
 .roadbook-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 .roadbook-table th,
 .roadbook-table td {
-  border: 1px solid #141310;
-  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-hairline);
+  padding: var(--space-1) var(--space-2);
   text-align: left;
 }
 
+/* The hours run long: they break anywhere so the table fits 360 px, the other columns keep words */
+.roadbook-table :is(th, td):last-child {
+  overflow-wrap: anywhere;
+}
+
+.roadbook-table th {
+  font: 12px / 1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/* On paper: black on white whatever the theme */
 @media print {
   body:has(.roadbook-overlay) > *:not(.roadbook-overlay) {
     display: none;
   }
   .roadbook-overlay {
+    --color-paper: #ffffff;
+    --color-ink: #000000;
+    --color-ink-muted: #555555;
+    --color-hairline: #bbbbbb;
     position: static;
     overflow: visible;
     padding: 0;
