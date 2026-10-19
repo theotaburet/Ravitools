@@ -26,7 +26,9 @@ vi.mock("../lib/debug-log", () => ({
 }));
 
 import {
+  enrichmentsAtom,
   filteredPoisAtom,
+  hoursFiltersAtom,
   lockedTabsAtom,
   poisAtom,
   processFilesAtom,
@@ -167,6 +169,31 @@ describe("route state pipeline", () => {
 
     store.set(toggleCategoryAtom, "Water" as POI["category"]);
     expect(store.get(filteredPoisAtom).map((p) => p.id)).toEqual(["b"]);
+  });
+
+  // "Open on Sunday": a fountain without hours stays (on the map, in the export); only what
+  // its known hours say closed goes. Enriched hours win over OSM ones
+  it("hides the POIs whose known hours say closed on Sunday", () => {
+    const withHours = (id: string, category: string, opening_hours?: string): POI =>
+      ({ ...poi(id, category), tags: opening_hours ? { opening_hours } : {} }) as POI;
+    store.set(restoreRouteAtom, {
+      traces: [trace],
+      pois: [
+        withHours("open", "Food shop", "Mo-Su 08:00-19:00"),
+        withHours("closed", "Food shop", "Mo-Sa 08:00-19:00; Su off"),
+        withHours("fountain", "Water"),
+      ],
+      activeCategories: new Set(["Food shop", "Water"]) as Set<POI["category"]>,
+      routeSettings: { maxDistanceM: 1500 },
+    });
+    store.set(hoursFiltersAtom, new Set(["sunday"] as const));
+    expect(store.get(filteredPoisAtom).map((p) => p.id)).toEqual(["open", "fountain"]);
+
+    store.set(
+      enrichmentsAtom,
+      new Map([["open", { hours: "Mo-Sa 08:00-19:00, Su closed" } as never]]),
+    );
+    expect(store.get(filteredPoisAtom).map((p) => p.id)).toEqual(["fountain"]);
   });
 });
 

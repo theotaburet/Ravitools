@@ -2,9 +2,10 @@
 
 import { atom } from "jotai";
 import { clearSession, type SessionSnapshot } from "../lib/session";
-import { enrichmentsAtom, resetEnrichmentAtom, restoreEnrichmentsAtom } from "./enrichment";
+import { resetEnrichmentAtom, restoreEnrichmentsAtom } from "./enrichment";
 import {
   activeCategoriesAtom,
+  enrichmentsAtom,
   poisAtom,
   resetRouteAtom,
   restoreRouteAtom,

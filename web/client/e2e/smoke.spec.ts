@@ -3,7 +3,7 @@
 
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { loadRoute, stubApi } from "./fixtures";
+import { loadRoute, OVERPASS_STUB, stubApi } from "./fixtures";
 
 test.beforeEach(({ page }) => stubApi(page));
 
@@ -21,7 +21,9 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
 
   // Route polyline + every POI marker on the map
   await expect(page.locator(".route-map svg path").first()).toBeVisible();
-  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(3);
+  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(
+    OVERPASS_STUB.elements.length,
+  );
 
   // POI list shows the named restaurant
   await expect(page.locator(".poi-list-item").first()).toBeVisible();

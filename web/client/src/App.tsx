@@ -45,11 +45,9 @@ const EnrichmentSandbox = lazy(() =>
   })),
 );
 
-// Static build (GitHub Pages): no server, so no enrichment.
+// Static build (GitHub Pages): no server, so no enrichment; tab 03 says so instead of vanishing
 const STANDALONE = import.meta.env.VITE_STANDALONE === "true";
-const TABS: PillTab[] = STANDALONE
-  ? ["trace", "poi", "export"]
-  : ["trace", "poi", "enrich", "export"];
+const TABS: PillTab[] = ["trace", "poi", "enrich", "export"];
 
 export default function App() {
   const sandboxMode = useMemo(
@@ -221,17 +219,21 @@ export default function App() {
           </div>
         </TabPanel>
 
-        {/* 03: Enrich (optional, needs the server: not in the static build) */}
-        {!STANDALONE && (
-          <TabPanel tab="enrich">
-            <EnrichmentPanel />
-            {sandboxMode && (
-              <Suspense fallback={null}>
-                <EnrichmentSandbox />
-              </Suspense>
-            )}
-          </TabPanel>
-        )}
+        {/* 03: Enrich (optional, needs the server: the static build explains why it is not there) */}
+        <TabPanel tab="enrich">
+          {STANDALONE ? (
+            <p className="card p-4">{t("enrich.static", targetLanguage)}</p>
+          ) : (
+            <>
+              <EnrichmentPanel />
+              {sandboxMode && (
+                <Suspense fallback={null}>
+                  <EnrichmentSandbox />
+                </Suspense>
+              )}
+            </>
+          )}
+        </TabPanel>
 
         {/* 04: Export offline */}
         <TabPanel tab="export">

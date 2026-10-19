@@ -20,7 +20,7 @@ import {
 import { API_BASE } from "../lib/enrichment/proxy-api";
 import { lookupPoiBatch, poiCacheKey, uploadPoiEnrichment } from "../lib/poi-cache";
 import type { EnrichedData, EnrichmentJobState, POI } from "../types";
-import { filteredPoisAtom } from "./route";
+import { enrichmentsAtom, filteredPoisAtom } from "./route";
 import { enrichAllAtom, targetLanguageAtom } from "./ui";
 
 /** Max number of automatic retry passes for failed POIs */
@@ -51,8 +51,6 @@ const INITIAL_JOB: EnrichmentJobState = {
 // --- Base atoms ---
 
 export const enrichmentJobAtom = atom<EnrichmentJobState>(INITIAL_JOB);
-
-export const enrichmentsAtom = atom<Map<string, EnrichedData>>(new Map());
 
 /** Machine check for the local model; null until probed (see probeLlmCapabilityAtom) */
 export const llmCapabilityAtom = atom<LlmCapability | null>(null);

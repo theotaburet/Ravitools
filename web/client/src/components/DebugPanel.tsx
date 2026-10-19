@@ -1,5 +1,7 @@
 // --- DebugPanel: log viewer for pipeline diagnostics (the debug view, opened from the settings) ---
 
+import { useAtomValue, useSetAtom } from "jotai";
+import { ChevronLeft } from "lucide";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearLog,
@@ -9,8 +11,13 @@ import {
   onLog,
   setDebugEnabled,
 } from "../lib/debug-log";
+import { t } from "../lib/i18n";
+import { showDebugAtom, targetLanguageAtom } from "../state/ui";
+import { Icon } from "./Icon";
 
 export function DebugPanel() {
+  const lang = useAtomValue(targetLanguageAtom);
+  const showDebug = useSetAtom(showDebugAtom);
   const [enabled, setEnabled] = useState(isDebugEnabled);
   const [entries, setEntries] = useState<readonly LogEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,6 +66,13 @@ export function DebugPanel() {
 
   return (
     <div className="debug-panel">
+      <div className="debug-head">
+        <button type="button" className="btn btn-quiet btn-sm" onClick={() => showDebug(false)}>
+          <Icon node={ChevronLeft} />
+          {t("action.back", lang)}
+        </button>
+        <h2 className="micro">{t("settings.debug", lang)}</h2>
+      </div>
       <div className="debug-panel-body">
         <div className="debug-panel-toolbar">
           <label className="switch">

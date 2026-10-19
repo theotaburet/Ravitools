@@ -1,5 +1,5 @@
 // Category filter (design.md 7, 02 POI): the family toggles, always in sight; the distance
-// slider and the category chips one tap away, so the list starts high in the sheet.
+// slider, the hours filters and the category chips one tap away, so the list starts high in the sheet.
 // Each chip wraps a real checkbox (screen readers, tests); the chip is the control.
 
 import { useAtomValue, useSetAtom } from "jotai";
@@ -8,11 +8,14 @@ import { t, translateCategory } from "../lib/i18n";
 import { ALL_CATEGORIES, CORRIDOR_M, FAMILY_COLORS, POI_FAMILIES } from "../lib/poi-config";
 import {
   activeCategoriesAtom,
+  type HoursFilter,
+  hoursFiltersAtom,
   poisAtom,
   routeSettingsAtom,
   setCategoriesAtom,
   setMaxDistanceAtom,
   toggleCategoryAtom,
+  toggleHoursFilterAtom,
 } from "../state/route";
 import { paletteAtom, targetLanguageAtom } from "../state/ui";
 import type { PoiCategory } from "../types";
@@ -25,6 +28,8 @@ export function CategoryFilter() {
   const targetLanguage = useAtomValue(targetLanguageAtom);
   const palette = useAtomValue(paletteAtom);
   const onToggle = useSetAtom(toggleCategoryAtom);
+  const hours = useAtomValue(hoursFiltersAtom);
+  const onToggleHours = useSetAtom(toggleHoursFilterAtom);
   const setCategories = useSetAtom(setCategoriesAtom);
   const onMaxDistanceChange = useSetAtom(setMaxDistanceAtom);
   const showCounts = pois.length > 0;
@@ -89,6 +94,7 @@ export function CategoryFilter() {
             m: displayDist,
             on: activeCategories.size,
             all: ALL_CATEGORIES.length,
+            h: hours.size,
           })}
         </summary>
         <div className="filter-distance">
@@ -107,6 +113,15 @@ export function CategoryFilter() {
           />
           <p className="hint">{t("filter.distanceHint", targetLanguage)}</p>
         </div>
+        <div className="chip-row">
+          {(["sunday", "evening"] as HoursFilter[]).map((h) => (
+            <label key={h} className="chip">
+              <input type="checkbox" checked={hours.has(h)} onChange={() => onToggleHours(h)} />
+              {t(`avail.${h}`, targetLanguage)}
+            </label>
+          ))}
+        </div>
+        <p className="hint">{t("filter.hoursHint", targetLanguage)}</p>
         {POI_FAMILIES.map(({ family, categories }) => (
           <div key={family} className="chip-row">
             {categories.map((cat) => (

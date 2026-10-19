@@ -34,9 +34,9 @@ const SUNDAY_PATTERNS = /\b(su|sun|sunday|dim|dimanche|do|domingo)\b/i;
 /** Patterns indicating a day range that includes Sunday (e.g. Mo-Su, Mon-Sun, 7j/7, 7/7) */
 const SUNDAY_RANGE_PATTERNS = /\b(mo|mon|lu|lun)\s*[-–]\s*(su|sun|dim|do)\b|7\s*[j/]\s*[/]?\s*7/i;
 
-/** Patterns that explicitly say Sunday is closed */
+/** Patterns that explicitly say Sunday is closed ("off" is OSM's word: "Su off") */
 const SUNDAY_CLOSED =
-  /\b(su|sun|sunday|dim|dimanche)\b[^;/\n]*\b(closed|fermé|geschlossen|cerrado)\b/i;
+  /\b(su|sun|sunday|dim|dimanche)\b[^;/\n]*\b(closed|fermé|geschlossen|cerrado|off)\b/i;
 
 /**
  * Detect whether a POI is open on Sunday, from either enrichment hours or OSM opening_hours.
@@ -60,7 +60,7 @@ export function isOpenSunday(hours: string | null | undefined, osmHours?: string
     if (sunMatch) {
       const sunEnd = (sunMatch.index ?? 0) + sunMatch[0].length;
       const afterSun = lower.slice(sunEnd, sunEnd + 30);
-      if (!/closed|fermé|geschlossen|cerrado/.test(afterSun)) return true;
+      if (!/closed|fermé|geschlossen|cerrado|\boff\b/.test(afterSun)) return true;
     }
   }
 

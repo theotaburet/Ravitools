@@ -33,6 +33,7 @@ Spec and living reference: `web/docs/design.md`. Branch `designV2` (from `dev`, 
   - [x] 8c. Docs: AGENTS.md (references, stack line, primitives pattern, pipeline line), CONTRIBUTING.md (where things live, category row, UI convention), architecture.md (design line, file map: PoiDetail, tab 01 cards, "Add a GPX", export), design.md (migration done); poi-categories.md was done in 7c
 - [x] E7/E8 loop after each step (E7 permanent from step 3; E8 throwaway script pattern in the session scratchpad)
 - [x] Research: `web/docs/research/similar-tools.md`, `device-poi-transfer.md` (COROS keeps GPX waypoints, under 200 recommended; Karoo drops every Ravitools GPX POI)
+- [x] Feedback on the live demo (2026-10-19): the debug view had no way back (a Back button returns to the tab it was opened from; E6 checks it); the static build hid tab 03 (it now says enrichment needs the server); hours filters "open Sunday" and "open evenings" in `filteredPoisAtom` (hide what known hours say closed, keep POIs without hours; `enrichmentsAtom` moved to `state/route.ts` for it). Found on the way: OSM's "Su off" read as open on Sunday (badge, filter), failing test first. Paris: 1 495 of 2 560 food places have OSM hours; "open Sunday" hides 544, "open evenings" 273, the 139 water points stay
 - [ ] Reverse COROS: **paused by the user (2026-10-18)**. When resumed: device test by the user first (250-waypoint GPX), then HAR, then APK
 
 ## Decisions

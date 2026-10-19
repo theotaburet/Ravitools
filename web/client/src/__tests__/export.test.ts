@@ -9,6 +9,7 @@ import {
   buildOsmAndGpxString,
   buildZipSingleFile,
 } from "../lib/export";
+import { isOpenSunday } from "../lib/export/hours";
 import type { POI, TraceData } from "../types";
 
 const MOCK_POIS: POI[] = [
@@ -136,6 +137,16 @@ describe("export colours", () => {
     expect(gpx).toContain("<osmand:color>#0072B2</osmand:color>");
     expect(gpx).toContain('name="Water" color="#0072B2"');
     expect(buildOsmAndGpxString(MOCK_POIS, [])).toContain("<osmand:color>#1F5FBF</osmand:color>");
+  });
+});
+
+// OSM writes a closed day "Su off": it read as open on Sunday (the badge, the hours filter)
+describe("Sunday availability", () => {
+  it("reads OSM's Su off as closed, a range through Sunday as open", () => {
+    expect(isOpenSunday(null, "Mo-Sa 08:00-19:00; Su off")).toBe(false);
+    expect(isOpenSunday(null, "Mo-Su 08:00-19:00; Su off")).toBe(false);
+    expect(isOpenSunday(null, "Mo-Su 08:00-19:00")).toBe(true);
+    expect(isOpenSunday(null, "Su 09:00-12:00")).toBe(true);
   });
 });
 

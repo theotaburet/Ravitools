@@ -8,8 +8,8 @@ import { memo, useEffect, useRef, useState } from "react";
 import { km } from "../lib/format";
 import { t, translatePoiName } from "../lib/i18n";
 import { CATEGORY_FAMILIES, FAMILY_COLORS, poiGlyph } from "../lib/poi-config";
-import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
-import { filteredPoisAtom } from "../state/route";
+import { enrichingPoiIdsAtom } from "../state/enrichment";
+import { enrichmentsAtom, filteredPoisAtom } from "../state/route";
 import { paletteAtom, selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
 import { Icon } from "./Icon";
 

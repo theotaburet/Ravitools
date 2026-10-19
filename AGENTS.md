@@ -261,6 +261,16 @@ Every enriched POI carries confidence, provenance and `synthesisSource` (AI / AI
 - A bug fix starts with a failing regression test
 - GPX-parsing tests need `// @vitest-environment jsdom` (no `DOMParser` in Node)
 - Any POI-logic change is also checked on a real GPX from `web/examples/`
+- A parser of an outside format (OSM `opening_hours`, GPX, Overpass JSON) is tested on real-world samples, the format's own idioms included (`Su off`, `24/7`, `PH off`)
+- e2e tests validate user scenarios: the journey reaches its outcome and nothing blocks it. No budgets or magic numbers (tap counts, layout-shift scores, screen fractions, scroll offsets, row indexes), and no e2e that repeats what a unit test or another journey already covers
+
+### UI changes: done means used, not specified
+
+The spec and the tests only check what they describe. Before calling a UI change done:
+
+- **Every view has a way out.** Enter each view you touched and leave it (POI detail, debug view, roadbook, settings, any overlay): a visible back or close, in sight at every detent
+- **Every build is checked, not only `just dev`.** The static build (`VITE_STANDALONE=true`, what GitHub Pages serves) has no server: a feature it lacks says why in place, it never vanishes. After a merge to `main`, open the live demo
+- **The rider's questions get an answer.** Walk the main ones on a real GPX: where is water, where can I eat, what is open when I pass (Sunday, evening), what will my GPS show. A question the UI cannot answer is a finding, raised before the step is called done, even if the spec is silent
 
 ---
 

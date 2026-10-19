@@ -1,5 +1,5 @@
 // CategoryFilter component test
-// Focus: checkbox toggle, family toggles, all/none, and the 150ms distance-slider debounce.
+// Focus: checkbox toggle, family toggles, all/none, hours filters, and the 150ms distance-slider debounce.
 // State is injected/observed through a jotai store.
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -7,7 +7,7 @@ import { createStore, Provider } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { POI_CATEGORIES } from "../lib/poi-config";
-import { activeCategoriesAtom, routeSettingsAtom } from "../state/route";
+import { activeCategoriesAtom, hoursFiltersAtom, routeSettingsAtom } from "../state/route";
 import type { PoiCategory } from "../types";
 
 afterEach(cleanup);
@@ -31,8 +31,17 @@ function renderFilter(maxDistanceM = 500, active: PoiCategory[] = []) {
 describe("CategoryFilter", () => {
   it("toggles the category in state when a checkbox is clicked", () => {
     const { store } = renderFilter();
-    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    fireEvent.click(screen.getByRole("checkbox", { name: new RegExp(`^${essentialFirst}`) }));
     expect(store.get(activeCategoriesAtom).has(essentialFirst)).toBe(true);
+  });
+
+  it("turns an hours filter on and off", () => {
+    const { store } = renderFilter();
+    const sunday = screen.getByRole("checkbox", { name: "Open Sunday" });
+    fireEvent.click(sunday);
+    expect([...store.get(hoursFiltersAtom)]).toEqual(["sunday"]);
+    fireEvent.click(sunday);
+    expect(store.get(hoursFiltersAtom).size).toBe(0);
   });
 
   it("selects every category when nothing is selected yet", () => {

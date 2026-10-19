@@ -61,10 +61,10 @@ import {
   cancelEnrichmentAtom,
   enrichmentJobAtom,
   enrichmentSettledAtom,
-  enrichmentsAtom,
   resumeAfterCaptchaAtom,
   startEnrichmentAtom,
 } from "../state/enrichment";
+import { enrichmentsAtom } from "../state/route";
 
 const poi = (id: string): POI =>
   ({ id, category: "Restaurant or Bar", name: id }) as unknown as POI;

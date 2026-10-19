@@ -75,6 +75,14 @@ export const showTabAtom = atom(null, (_get, set, tab: Tab) => {
   set(activeTabAtom, tab);
   set(sheetDetentAtom, "mid");
 });
+/** The tab the debug view was opened from: its back button returns there */
+const debugReturnAtom = atom<Tab>("trace");
+/** Open the debug view (settings), or leave it for the tab it was opened from */
+export const showDebugAtom = atom(null, (get, set, open: boolean) => {
+  if (!open) return set(activeTabAtom, get(debugReturnAtom));
+  if (get(activeTabAtom) !== "debug") set(debugReturnAtom, get(activeTabAtom));
+  set(showTabAtom, "debug");
+});
 /** Ravito-gap alert threshold in km (not persisted on purpose) */
 export const gapThresholdKmAtom = atom(25);
 

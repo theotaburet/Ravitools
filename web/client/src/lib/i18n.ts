@@ -109,6 +109,11 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.retryQuery": { en: "Retry query", fr: "Relancer la requête" },
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
+  "action.back": { en: "Back", fr: "Retour" },
+  "enrich.static": {
+    en: "Enrichment (hours, ratings and reviews found on the web) goes through the Ravitools server, which this static demo does not have. Run Ravitools locally (just dev) or on your own server to use it.",
+    fr: "L'enrichissement (horaires, notes et avis trouvés sur le web) passe par le serveur Ravitools, absent de cette démo statique. Lancez Ravitools en local (just dev) ou sur votre serveur pour l'utiliser.",
+  },
   "upload.drop": { en: "Load a GPX", fr: "Charger un GPX" },
   "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
   "upload.add": { en: "Add a GPX", fr: "Ajouter un GPX" },
@@ -117,6 +122,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Déposez ou choisissez un ou plusieurs fichiers .gpx",
   },
   "filter.all": { en: "All", fr: "Tout" },
+  "filter.hoursHint": {
+    en: "Hides the POIs whose known hours say closed then; those without hours stay.",
+    fr: "Masque les POI dont les horaires connus disent fermé ; ceux sans horaires restent.",
+  },
   "filter.none": { en: "None", fr: "Aucun" },
   "filter.maxDistance": { en: "Max distance to route", fr: "Distance max. à l'itinéraire" },
   "filter.distanceHint": {
@@ -124,8 +133,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "Réduisez pour moins de POI urbains, élargissez pour les routes rurales.",
   },
   "filter.more": {
-    en: "Distance {m} m · categories {on}/{all}",
-    fr: "Distance {m} m · catégories {on}/{all}",
+    en: "Distance {m} m · categories {on}/{all} · hours {h}",
+    fr: "Distance {m} m · catégories {on}/{all} · horaires {h}",
   },
   "family.Water": { en: "Water", fr: "Eau" },
   "family.Food": { en: "Food", fr: "Alimentation" },

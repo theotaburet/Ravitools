@@ -158,7 +158,7 @@ web/client/src/
 │   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
 │   ├── RouteMap.tsx          # Leaflet map: traces (tap to select), clustered family pastilles, sheet-aware camera
 │   ├── HeaderStrip.tsx       # Counter and compact profile atop the sheet (floating on desktop), tap to centre the map
-│   ├── CategoryFilter.tsx    # Family toggles, then distance slider and category chips behind "more"
+│   ├── CategoryFilter.tsx    # Family toggles, then distance slider, hours filters and category chips behind "more"
 │   ├── PoiList.tsx           # Virtualized POI list, route order, in the tab panel's scroll
 │   ├── PoiDetail.tsx         # Selected POI in place of the list: ◀ ▶ in route order, trust, sources
 │   ├── EnrichmentPanel.tsx   # Machine check, model download, batch progress, CAPTCHA pause

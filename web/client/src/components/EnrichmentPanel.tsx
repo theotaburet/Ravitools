@@ -11,7 +11,6 @@ import {
   checkSearxngAtom,
   continueEnrichmentAtom,
   enrichmentJobAtom,
-  enrichmentsAtom,
   enrichmentTallyAtom,
   llmCapabilityAtom,
   llmEnabledAtom,
@@ -21,7 +20,7 @@ import {
   resumeAfterCaptchaAtom,
   startEnrichmentAtom,
 } from "../state/enrichment";
-import { filteredPoisAtom } from "../state/route";
+import { enrichmentsAtom, filteredPoisAtom } from "../state/route";
 import { enrichAllAtom, selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
 import type { POI, SkipReason, TargetLanguage } from "../types";
 import { Icon } from "./Icon";

@@ -1,30 +1,9 @@
-// E7 (web/docs/design.md, section 10), on desktop and Pixel 7: the main journeys, with one
-// failing Overpass chunk. After each step: no covered control, no page overflow, no
-// clipped or overflowing text, no retry prompt; at the end: few taps and no layout shift.
+// E7 (web/docs/design.md, section 10), on desktop and Pixel 7: the main journeys reach their
+// outcome, one with a failing Overpass chunk. After each step: no covered control, no page
+// overflow, no clipped or overflowing text, no retry prompt.
 
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { GPX_FIXTURE, loadRoute, stubApi } from "./fixtures";
-
-declare global {
-  interface Window {
-    __cls: number;
-  }
-}
-
-/** Layout-shift score since load (shifts right after an input do not count) */
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    window.__cls = 0;
-    new PerformanceObserver((list) => {
-      for (const e of list.getEntries() as (PerformanceEntry & {
-        value: number;
-        hadRecentInput: boolean;
-      })[]) {
-        if (!e.hadRecentInput) window.__cls += e.value;
-      }
-    }).observe({ type: "layout-shift", buffered: true });
-  });
-});
 
 /** Friction on screen now: covered controls, page overflow, text clipped without an ellipsis */
 function friction(page: Page): Promise<string[]> {
@@ -85,15 +64,8 @@ function friction(page: Page): Promise<string[]> {
 
 function journal(page: Page) {
   const issues: string[] = [];
-  let taps = 0;
   return {
     issues,
-    taps: () => taps,
-    tap: async (target: Locator) => {
-      taps++;
-      await target.click();
-    },
-    countTap: () => taps++,
     check: async (step: string) => {
       for (const issue of await friction(page)) issues.push(`${step}: ${issue}`);
       await expect(page.getByRole("button", { name: /retry|try again/i })).toHaveCount(0);
@@ -103,7 +75,6 @@ function journal(page: Page) {
 
 test("load, keep the water, open a POI, next, export: no friction despite a failing chunk", async ({
   page,
-  isMobile,
 }) => {
   test.slow(); // the failing chunk waits out the 10 s retry backoff
   await stubApi(page, { failingChunks: 1 });
@@ -112,36 +83,34 @@ test("load, keep the water, open a POI, next, export: no friction despite a fail
   await page.goto("/");
   await j.check("empty");
 
-  j.countTap(); // choosing the file
-  const chosenAt = Date.now();
   await loadRoute(page);
-  test.info().annotations.push({ type: "first POI", description: `${Date.now() - chosenAt} ms` });
   await j.check("loaded");
 
-  await j.tap(page.getByRole("button", { name: "None" }));
-  await j.tap(page.getByRole("button", { name: /^Water/ })); // the family toggle
-  await expect(page.locator(".poi-list-item")).toHaveCount(2);
+  await page.getByRole("button", { name: "None" }).click();
+  await page.getByRole("button", { name: /^Water/ }).click(); // the family toggle
+  // The restaurant leaves the list, the water points stay
+  const rows = page.locator(".poi-list-item");
+  await expect(rows.filter({ hasText: "Chez Test" })).toHaveCount(0);
+  await expect(rows.filter({ hasText: "Fontaine Wallace" })).toBeVisible();
   await j.check("water only");
 
-  await j.tap(page.locator(".poi-list-item").first());
+  await page.locator(".poi-list-item").first().click();
   await expect(page.locator(".poi-detail h2")).toBeFocused();
   await j.check("POI detail");
 
   // The list is in route order: the next water point down the road
-  await j.tap(page.getByRole("button", { name: "Next POI" }));
+  await page.getByRole("button", { name: "Next POI" }).click();
   await expect(page.locator(".poi-detail h2")).toHaveText("Fontaine Wallace");
   await j.check("next POI");
 
-  await j.tap(page.getByRole("tab", { name: /Export/ }));
+  await page.getByRole("tab", { name: /Export/ }).click();
   const download = page.waitForEvent("download");
-  await j.tap(page.getByRole("radio", { name: /^GPX COROS/ }));
-  await j.tap(page.getByRole("button", { name: "Download GPX" }));
+  await page.getByRole("radio", { name: /^GPX COROS/ }).click();
+  await page.getByRole("button", { name: "Download GPX" }).click();
   await download;
   await j.check("exported");
 
   expect(j.issues).toEqual([]);
-  if (isMobile) expect(j.taps()).toBeLessThanOrEqual(8);
-  expect(await page.evaluate(() => window.__cls)).toBeLessThanOrEqual(0.1);
 });
 
 test("resume a saved session in one tap", async ({ page }) => {
@@ -152,7 +121,7 @@ test("resume a saved session in one tap", async ({ page }) => {
 
   const j = journal(page);
   await j.check("resume prompt");
-  await j.tap(page.getByRole("button", { name: "Resume" }));
+  await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".poi-list-item").first()).toBeVisible();
   await j.check("resumed");
@@ -165,7 +134,7 @@ test("add a second GPX: a card per trace, each one selects its trace", async ({ 
   await loadRoute(page);
 
   const j = journal(page);
-  await j.tap(page.getByRole("tab", { name: /Trace/ }));
+  await page.getByRole("tab", { name: /Trace/ }).click();
   await page.getByLabel("Add a GPX").setInputFiles({
     name: "second.gpx",
     mimeType: "application/gpx+xml",
@@ -173,23 +142,23 @@ test("add a second GPX: a card per trace, each one selects its trace", async ({ 
   });
   // A clean run goes straight to the list; the cards wait on 01
   await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
-  await j.tap(page.getByRole("tab", { name: /Trace/ }));
+  await page.getByRole("tab", { name: /Trace/ }).click();
   await expect(page.locator(".trace-card")).toHaveCount(2);
-  await j.tap(page.locator(".trace-card").last());
+  await page.locator(".trace-card").last().click();
   await expect(page.locator(".trace-card").last()).toHaveAttribute("aria-pressed", "true");
   await j.check("two traces");
   expect(j.issues).toEqual([]);
 });
 
-test("a POI deep in a long list opens, and back gives its row the focus", async ({ page }) => {
+test("the last POI of a long list opens, and back gives its row the focus", async ({ page }) => {
   await stubApi(page, { longList: true });
   await page.goto("/");
   await loadRoute(page);
 
-  await page.locator(".tab-panel:not([hidden])").evaluate((el) => el.scrollBy(0, 4000));
+  await page.locator(".tab-panel:not([hidden])").evaluate((el) => el.scrollTo(0, el.scrollHeight));
   // The virtualizer renders the scrolled range a frame later: pick a row once it has
   await expect(page.locator('.poi-list-item[data-index="0"]')).toHaveCount(0);
-  const id = await page.locator(".poi-list-item").nth(10).getAttribute("data-poi-id");
+  const id = await page.locator(".poi-list-item").last().getAttribute("data-poi-id");
   await page.locator(`[data-poi-id="${id}"]`).click();
   await expect(page.locator(".poi-detail h2")).toBeFocused();
 

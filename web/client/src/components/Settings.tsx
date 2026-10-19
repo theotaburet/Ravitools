@@ -3,14 +3,14 @@
 import { useAtom, useSetAtom } from "jotai";
 import { Settings as SettingsGlyph } from "lucide";
 import { t } from "../lib/i18n";
-import { paletteAtom, showTabAtom, targetLanguageAtom, themeAtom } from "../state/ui";
+import { paletteAtom, showDebugAtom, targetLanguageAtom, themeAtom } from "../state/ui";
 import { Icon } from "./Icon";
 
 export function Settings() {
   const [lang, setLang] = useAtom(targetLanguageAtom);
   const [theme, setTheme] = useAtom(themeAtom);
   const [palette, setPalette] = useAtom(paletteAtom);
-  const showTab = useSetAtom(showTabAtom);
+  const showDebug = useSetAtom(showDebugAtom);
 
   return (
     <>
@@ -59,7 +59,7 @@ export function Settings() {
           className="btn"
           popoverTarget="settings"
           popoverTargetAction="hide"
-          onClick={() => showTab("debug")}
+          onClick={() => showDebug(true)}
         >
           {t("settings.debug", lang)}
         </button>

@@ -8,8 +8,7 @@ import { splitHoursLines } from "../lib/export/hours";
 import { km } from "../lib/format";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
 import { poiEmoji } from "../lib/poi-config";
-import { enrichmentsAtom } from "../state/enrichment";
-import { filteredPoisAtom, tracesAtom } from "../state/route";
+import { enrichmentsAtom, filteredPoisAtom, tracesAtom } from "../state/route";
 import { targetLanguageAtom } from "../state/ui";
 import type { TraceData } from "../types";
 
