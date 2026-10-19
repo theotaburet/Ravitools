@@ -131,10 +131,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "family.Services": { en: "Services", fr: "Services" },
   "family.Discovery": { en: "Discovery", fr: "Découverte" },
   "poi.alongRoute": { en: "POIs along route", fr: "POI le long de l'itinéraire" },
-  "poi.changeSort": { en: "Change sort order", fr: "Changer le tri" },
-  "poi.sort.distance": { en: "Distance to route", fr: "Distance à l'itinéraire" },
-  "poi.sort.category": { en: "Category", fr: "Catégorie" },
-  "poi.sort.name": { en: "Name (A-Z)", fr: "Nom (A-Z)" },
+  "poi.enriched": { en: "Enriched", fr: "Enrichi" },
   "poi.empty": {
     en: "No POIs match the active filters.",
     fr: "Aucun POI ne correspond aux filtres actifs.",

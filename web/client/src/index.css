@@ -530,6 +530,18 @@ a {
   background: currentColor;
 }
 
+/* Outline pill with micro text: trust, confidence, state */
+.badge {
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  font: 600 11px / 1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
 /* ---------------------------------------------------------------------------
    Shell (design.md, section 5): full-bleed map, a sheet with detents on
    mobile, a floating panel on desktop, floating pill tabs and round buttons
@@ -1138,129 +1150,53 @@ a {
    POI list
    --------------------------------------------------------------------------- */
 
-.poi-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.6rem 0.9rem;
-  border-bottom: 2px solid var(--color-border);
-}
-
 .poi-list-title {
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.poi-list-title small {
-  margin-left: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.poi-sort-btn {
-  padding: 0.2rem 0.5rem;
-  border: 1.5px solid var(--color-line);
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 120ms,
-    color 120ms;
-}
-
-.poi-sort-btn:hover {
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-.poi-list-scroll {
-  max-height: 440px;
-  overflow-y: auto;
+  margin-bottom: var(--space-2);
 }
 
 .poi-list-empty {
-  padding: 1rem;
+  padding: var(--space-4) 0;
   text-align: center;
-  font-size: 0.875rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
+/* Absolutely placed by the virtualizer (translateY from the list's top) */
 .poi-list-item {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.55rem 0.9rem 0.55rem 0.75rem;
-  border-left: 3px solid transparent;
-  border-bottom: 1px solid var(--color-line);
-  font-size: 0.875rem;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-hairline);
+  background: none;
+  color: var(--color-ink);
+  text-align: left;
   cursor: pointer;
-  transition: background-color 100ms;
 }
 
-.poi-list-item:hover {
-  background-color: var(--color-soft);
+.poi-list-item > svg {
+  flex: none;
+  color: var(--color-ink-muted);
 }
 
-.poi-list-item-selected,
-.poi-list-item-selected:hover {
-  background-color: var(--color-soft);
-  border-left-color: var(--color-lime);
-}
-
-.poi-list-dot {
-  width: 0.6rem;
-  height: 0.6rem;
-  margin-top: 0.4rem;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  flex-shrink: 0;
+.poi-list-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .poi-list-name {
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.poi-list-meta {
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.poi-enriching-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--color-accent-text);
   font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.poi-gmaps-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-accent-text);
-  text-decoration: none;
-}
-
-.poi-gmaps-link:hover {
-  text-decoration: underline;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Enrichment details inside a row or a popup */
@@ -1273,11 +1209,6 @@ a {
 
 .poi-enrichment-meta-preline {
   white-space: pre-line;
-}
-
-.poi-enrichment-meta-success {
-  color: var(--color-success);
-  font-weight: 600;
 }
 
 .poi-enrichment-summary {
@@ -1383,20 +1314,6 @@ a {
 .poi-confidence-none {
   background: var(--color-soft);
   color: var(--color-muted);
-}
-
-.poi-sources-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-accent-text);
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0;
-}
-
-.poi-sources-toggle:hover {
-  text-decoration: underline;
 }
 
 .poi-sources-list {
@@ -2601,8 +2518,6 @@ div.tally,
   .neo-btn-sm,
   .neo-btn-primary,
   .neo-btn-secondary,
-  .poi-sort-btn,
-  .poi-sources-toggle,
   .btn-sm,
   .chip,
   .export-card,

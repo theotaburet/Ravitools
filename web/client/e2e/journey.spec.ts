@@ -94,7 +94,7 @@ function journal(page: Page) {
   };
 }
 
-test("load, keep the water, open a POI, export: no friction despite a failing chunk", async ({
+test("load, keep the water, open a POI, next, export: no friction despite a failing chunk", async ({
   page,
   isMobile,
 }) => {
@@ -120,6 +120,11 @@ test("load, keep the water, open a POI, export: no friction despite a failing ch
   await expect(page.locator(".poi-detail h2")).toBeFocused();
   await j.check("POI detail");
 
+  // The list is in route order: the next water point down the road
+  await j.tap(page.getByRole("button", { name: "Next POI" }));
+  await expect(page.locator(".poi-detail h2")).toHaveText("Fontaine Wallace");
+  await j.check("next POI");
+
   await j.tap(page.getByRole("tab", { name: /Export/ }));
   const download = page.waitForEvent("download");
   await j.tap(page.getByRole("button", { name: /^GPX COROS/ }));
@@ -144,4 +149,19 @@ test("resume a saved session in one tap", async ({ page }) => {
   await expect(page.locator(".poi-list-item").first()).toBeVisible();
   await j.check("resumed");
   expect(j.issues).toEqual([]);
+});
+
+test("a POI deep in a long list opens, and back gives its row the focus", async ({ page }) => {
+  await stubApi(page, { longList: true });
+  await page.goto("/");
+  await loadRoute(page);
+
+  await page.locator(".tab-panel:not([hidden])").evaluate((el) => el.scrollBy(0, 4000));
+  const row = page.locator(".poi-list-item").nth(10);
+  const id = await row.getAttribute("data-poi-id");
+  await row.click();
+  await expect(page.locator(".poi-detail h2")).toBeFocused();
+
+  await page.getByRole("button", { name: "List" }).click();
+  await expect(page.locator(`[data-poi-id="${id}"]`)).toBeFocused();
 });

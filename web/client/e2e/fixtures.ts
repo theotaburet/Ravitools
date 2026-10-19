@@ -34,8 +34,22 @@ const OVERPASS_STUB = {
   ],
 };
 
+/** A long list: 210 named water points on a ~110 m grid around the route (no dedup) */
+const GRID_STUB = {
+  elements: Array.from({ length: 210 }, (_, i) => ({
+    type: "node",
+    id: 100 + i,
+    lat: 48.8455 + Math.floor(i / 14) * 0.001,
+    lon: 2.3405 + (i % 14) * 0.0015,
+    tags: { amenity: "drinking_water", name: `Point ${i}` },
+  })),
+};
+
 /** Stub the server; the first `failingChunks` Overpass calls answer 502, like a busy mirror */
-export async function stubApi(page: Page, { failingChunks = 0 } = {}): Promise<void> {
+export async function stubApi(
+  page: Page,
+  { failingChunks = 0, longList = false } = {},
+): Promise<void> {
   let failures = failingChunks;
   await page.route("**/api/health", (route) =>
     route.fulfill({ json: { status: "ok", services: { searxng: "ok" } } }),
@@ -43,7 +57,7 @@ export async function stubApi(page: Page, { failingChunks = 0 } = {}): Promise<v
   await page.route("**/api/overpass", (route) =>
     failures-- > 0
       ? route.fulfill({ status: 502, json: { error: "Bad gateway" } })
-      : route.fulfill({ json: OVERPASS_STUB }),
+      : route.fulfill({ json: longList ? GRID_STUB : OVERPASS_STUB }),
   );
 }
 

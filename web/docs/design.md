@@ -258,7 +258,7 @@ The settings button opens a native popover (`popover` attribute, no JS state) wi
 ### 02 POI
 
 - **Filters**: the family toggles first, always in sight: one `.chip` per family (pastille, name, count; a family partly on is raised on a dashed ring, `aria-pressed="mixed"`), then All/None (None while anything is on, so "only water" is two taps). The distance slider (keeping its approved 150 ms commit) and one row of category chips per family sit behind a `<details>` whose summary reads `DISTANCE 1500 M · CATEGORIES 9/18`. A first version showed every family with its chips: at mid the list started 1 400 px down, under the slider alone.
-- **List**: virtualized, one compact row per POI: 20 px pastille, name, micro `KM 142 · +240 M`, trailing chevron. Enrichment shows only as a small badge (a spinner while searching).
+- **List**: virtualized, one compact row per POI: 20 px pastille, name, micro `KM 142 · +240 M`, trailing chevron. Enrichment shows only as a small badge (a spinner while searching). Rows are in route order, the order ◀ ▶ walk (the old sort by distance, category or name is gone), and scroll with the tab panel (no nested scroller).
 - **POI detail** (`PoiDetail.tsx`, open while `selectedPoiIdAtom` is set): it replaces the list and its filters, which stay mounted underneath, and is the only place the detail appears. A top bar holds the back button, the position (`12 / 64`) and **◀ ▶**, so they are in sight at mid. Then:
   1. pastille, name, category;
   2. micro `KM 142.3 · 240 M FROM ROUTE`;
@@ -329,7 +329,7 @@ Shared setup:
 
   Esri Light Gray wins the light theme on every metric, but its legacy service is in mature support until it retires in December 2029, stops at zoom 16 and has unclear terms for keyless use: the CARTO trap again. Among the keyless OpenStreetMap sources, OSM and HOT tie and OSM has the steadier servers. Muted filters on OSM (saturate 0.5 or 0.25, a grey inversion) move every metric by less than 0.02, which is noise. Decision: tiles unchanged, OSM in light, inverted OSM in dark. CARTO with a free key (non-commercial, 5 M tiles a month) remains possible if the user registers one; it was not measurable without it.
 - **E6** is `web/client/e2e/targets.spec.ts` (Pixel 7 project). Map markers joined it in step 4 (44 px targets); it found the start and finish markers in the tab order with no action, now fixed. The header strip (step 6) stays out until it is rebuilt.
-- **E7** is `web/client/e2e/journey.spec.ts` (both projects). ◀ ▶ and "add a second GPX" join the journey with steps 5 and 7. Step 3 run: 6 taps on mobile, no retry prompt, no covered control, no overflow, CLS within 0.1.
+- **E7** is `web/client/e2e/journey.spec.ts` (both projects). ◀ ▶ joined the journey in step 5, with a long-list case (210 POIs: open a row deep in the list, back gives it the focus), which found a render loop the 3-POI stub could not show. "Add a second GPX" joins with step 7. Step 3 run: 6 taps on mobile, no retry prompt, no covered control, no overflow, CLS within 0.1.
 - **E8** (step 3, throwaway, 360 px Android): dense city (3 000 POIs), 3 traces, long names, 0 POI, Overpass hard failure, no WebGPU and the static build all end with no covered control, no overflow and a message. Fixed on the way: the trace legend hid under the sheet (moved under the round buttons until step 4), and `03 ENRICHIR` spilled onto `04 EXPORT` at 360 px (E7 now flags a label wider than its button).
 
 ## 11. Out of scope
