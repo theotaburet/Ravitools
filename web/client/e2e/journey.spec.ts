@@ -157,9 +157,10 @@ test("a POI deep in a long list opens, and back gives its row the focus", async 
   await loadRoute(page);
 
   await page.locator(".tab-panel:not([hidden])").evaluate((el) => el.scrollBy(0, 4000));
-  const row = page.locator(".poi-list-item").nth(10);
-  const id = await row.getAttribute("data-poi-id");
-  await row.click();
+  // The virtualizer renders the scrolled range a frame later: pick a row once it has
+  await expect(page.locator('.poi-list-item[data-index="0"]')).toHaveCount(0);
+  const id = await page.locator(".poi-list-item").nth(10).getAttribute("data-poi-id");
+  await page.locator(`[data-poi-id="${id}"]`).click();
   await expect(page.locator(".poi-detail h2")).toBeFocused();
 
   await page.getByRole("button", { name: "List" }).click();
