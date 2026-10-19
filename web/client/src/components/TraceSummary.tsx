@@ -1,17 +1,26 @@
-// TraceSummary: what step 01 produced, at a glance. One row per trace with its own POI count
-// (nearest-trace attribution, like the profile and roadbook) and its stretches without water or
-// food past the alert threshold, which is set here.
+// TraceSummary: what step 01 produced. One card per trace, the legend and selector of the map's
+// traces: name, distance, elevation gain, its own POI count (nearest-trace attribution, like the
+// strip and the roadbook) and its stretches without water or food past the alert threshold, which
+// is set here.
 
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useMemo } from "react";
+import { kmShort } from "../lib/format";
 import { t } from "../lib/i18n";
 import { filteredPoisAtom, ravitoGapsAtom, tracesAtom } from "../state/route";
-import { gapThresholdKmAtom, targetLanguageAtom } from "../state/ui";
+import {
+  gapThresholdKmAtom,
+  selectedTraceIdAtom,
+  selectTraceAtom,
+  targetLanguageAtom,
+} from "../state/ui";
 
 export function TraceSummary() {
   const traces = useAtomValue(tracesAtom);
   const pois = useAtomValue(filteredPoisAtom);
   const gaps = useAtomValue(ravitoGapsAtom);
+  const selectedTraceId = useAtomValue(selectedTraceIdAtom);
+  const selectTrace = useSetAtom(selectTraceAtom);
   const [gapThresholdKm, setGapThresholdKm] = useAtom(gapThresholdKmAtom);
   const lang = useAtomValue(targetLanguageAtom);
   const counts = useMemo(
@@ -22,7 +31,7 @@ export function TraceSummary() {
 
   return (
     <>
-      <ul className="neo-box trace-summary">
+      <ul className="trace-cards">
         {traces.map((trace, i) => {
           const { water = [], food = [] } = gaps.get(trace.id) ?? {};
           const warnings = [
@@ -31,20 +40,21 @@ export function TraceSummary() {
             food.length > 0 && t("summary.gapsFood", lang, { n: food.length, km: gapThresholdKm }),
           ].filter(Boolean);
           return (
-            <li key={trace.id} className="trace-summary-row">
-              <span
-                className="trace-summary-swatch"
-                style={{ backgroundColor: trace.color }}
-                aria-hidden="true"
-              />
-              <span className="trace-summary-name">{trace.name ?? trace.id}</span>
-              <span className="trace-summary-stats">
-                {(trace.totalDistanceM / 1000).toFixed(1)} km · ↑{trace.elevationGainM}m ·{" "}
-                {counts[i]} {t("summary.pois", lang)}
-              </span>
-              {warnings.length > 0 && (
-                <span className="trace-summary-gaps">{warnings.join(" · ")}</span>
-              )}
+            <li key={trace.id}>
+              <button
+                type="button"
+                className="card trace-card"
+                aria-pressed={trace.id === selectedTraceId}
+                onClick={() => selectTrace(trace.id)}
+              >
+                <span className="trace-card-name">{trace.name ?? trace.id}</span>
+                <span className="micro">
+                  {kmShort(trace.totalDistanceM)} KM · {trace.elevationGainM} M D+ · {counts[i]} POI
+                </span>
+                {warnings.length > 0 && (
+                  <span className="trace-card-gaps">{warnings.join(" · ")}</span>
+                )}
+              </button>
             </li>
           );
         })}
@@ -53,6 +63,7 @@ export function TraceSummary() {
         {t("profile.gapPrefix", lang)}
         <input
           type="number"
+          className="field"
           min={1}
           value={gapThresholdKm}
           aria-label={t("profile.gapThreshold", lang)}

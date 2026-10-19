@@ -33,6 +33,7 @@ import {
   profileHoverAtom,
   selectedPoiIdAtom,
   selectedTraceIdAtom,
+  selectTraceAtom,
   sheetDetentAtom,
   showTabAtom,
   targetLanguageAtom,
@@ -394,7 +395,8 @@ export function RouteMap() {
   const traces = useAtomValue(tracesAtom);
   const pois = useAtomValue(filteredPoisAtom);
   const [selectedPoiId, onSelectPoi] = useAtom(selectedPoiIdAtom);
-  const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom);
+  const selectedTraceId = useAtomValue(selectedTraceIdAtom);
+  const selectTrace = useSetAtom(selectTraceAtom);
   const enrichingPoiIds = useAtomValue(enrichingPoiIdsAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
   const palette = useAtomValue(paletteAtom);
@@ -432,10 +434,6 @@ export function RouteMap() {
       showTab("poi");
     },
     [onSelectPoi, showTab],
-  );
-  const selectTrace = useCallback(
-    (id: string) => setSelectedTraceId((prev) => (prev === id ? null : id)),
-    [setSelectedTraceId],
   );
   // A selection left over from a previous route selects nothing
   const selectedTrace = traces.some((tr) => tr.id === selectedTraceId) ? selectedTraceId : null;

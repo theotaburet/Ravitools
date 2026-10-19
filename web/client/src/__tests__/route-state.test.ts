@@ -128,6 +128,16 @@ describe("route state pipeline", () => {
     expect(store.get(activeTabAtom)).toBe("trace");
   });
 
+  // "Add a GPX" (tab 01): the loaded traces stay, POIs come again for all of them
+  it("appends traces and queries them all", async () => {
+    await store.set(processFilesAtom, [gpxFile()]);
+    await store.set(processFilesAtom, [gpxFile()], true);
+    expect(store.get(tracesAtom)).toHaveLength(2);
+    expect(parseGpx.mock.calls[1][1]).toBe(1); // the next trace colour
+    expect(queryAllPois.mock.calls[1][0]).toHaveLength(2);
+    expect(processElements.mock.calls[1][1]).toHaveLength(2);
+  });
+
   it("keeps the parsed traces visible when the query errors out", async () => {
     queryAllPois.mockRejectedValue(new Error("overpass down"));
     await store.set(processFilesAtom, [gpxFile()]);

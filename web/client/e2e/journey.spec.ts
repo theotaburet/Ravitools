@@ -3,7 +3,7 @@
 // clipped or overflowing text, no retry prompt; at the end: few taps and no layout shift.
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { loadRoute, stubApi } from "./fixtures";
+import { GPX_FIXTURE, loadRoute, stubApi } from "./fixtures";
 
 declare global {
   interface Window {
@@ -148,6 +148,28 @@ test("resume a saved session in one tap", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".poi-list-item").first()).toBeVisible();
   await j.check("resumed");
+  expect(j.issues).toEqual([]);
+});
+
+test("add a second GPX: a card per trace, each one selects its trace", async ({ page }) => {
+  await stubApi(page);
+  await page.goto("/");
+  await loadRoute(page);
+
+  const j = journal(page);
+  await j.tap(page.getByRole("tab", { name: /Trace/ }));
+  await page.getByLabel("Add a GPX").setInputFiles({
+    name: "second.gpx",
+    mimeType: "application/gpx+xml",
+    buffer: Buffer.from(GPX_FIXTURE),
+  });
+  // A clean run goes straight to the list; the cards wait on 01
+  await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
+  await j.tap(page.getByRole("tab", { name: /Trace/ }));
+  await expect(page.locator(".trace-card")).toHaveCount(2);
+  await j.tap(page.locator(".trace-card").last());
+  await expect(page.locator(".trace-card").last()).toHaveAttribute("aria-pressed", "true");
+  await j.check("two traces");
   expect(j.issues).toEqual([]);
 });
 

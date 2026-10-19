@@ -530,6 +530,25 @@ a {
   background: currentColor;
 }
 
+/* Grouping: cards sit on paper with a hairline, no shadow (3.6) */
+.card {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
+}
+
+/* Input, select: 16 px text, so iOS does not zoom in */
+.field {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-paper-sunk);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 16px;
+}
+
 /* Outline pill with micro text: trust, confidence, state */
 .badge {
   flex: none;
@@ -985,45 +1004,45 @@ a {
   flex-wrap: wrap;
 }
 
-/* Step 01 result: one row per trace, the swatch is the trace color on the map */
-.trace-summary {
+/* Tab 01: one card per trace, the legend and selector of the map's traces */
+.trace-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
+  gap: var(--space-2);
 }
 
-.trace-summary-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.5rem;
-  align-items: center;
+.trace-card {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.trace-summary-swatch {
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--color-ink);
+/* The selected trace: the accent bar */
+.trace-card[aria-pressed="true"] {
+  box-shadow: inset 4px 0 0 var(--color-accent);
 }
 
-.trace-summary-name {
-  font-weight: 700;
+.trace-card-name {
+  max-width: 100%;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.trace-summary-stats,
-.trace-summary-gaps {
-  grid-column: 2;
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
 /* Said in words, so the colour is not alone */
-.trace-summary-gaps {
-  color: var(--color-warning-text);
+.trace-card-gaps {
+  font-size: 14px;
   font-weight: 600;
+  color: var(--color-warning-text);
 }
 
 .session-prompt {
@@ -1866,16 +1885,8 @@ div.tally,
   white-space: nowrap;
 }
 
-.gap-threshold input {
+.gap-threshold .field {
   width: 4rem;
-  min-height: 44px;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-control);
-  background: var(--color-paper-sunk);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 16px;
   text-align: center;
 }
 

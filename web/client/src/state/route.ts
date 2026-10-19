@@ -250,16 +250,18 @@ async function runPipeline(
   }
 }
 
-export const processFilesAtom = atom(null, (get, set, files: File[]) =>
+/** Load GPX files, in place of the traces on the map or, with `append` ("Add a GPX"), next to them */
+export const processFilesAtom = atom(null, (get, set, files: File[], append = false) =>
   runPipeline(get, set, async () => {
     const log = dlog("pipeline");
     set(stageAtom, "parsing");
     set(progressAtom, t("route.reading", get(targetLanguageAtom), { n: files.length }));
 
     const endParse = log.time("GPX parsing");
-    const traces: TraceData[] = [];
+    const traces: TraceData[] = append ? [...get(tracesAtom)] : [];
+    const offset = traces.length;
     for (let i = 0; i < files.length; i++) {
-      const trace = parseGpx(await files[i].text(), i);
+      const trace = parseGpx(await files[i].text(), offset + i);
       // Use filename (without extension) as fallback name
       if (!trace.name) {
         trace.name = files[i].name.replace(/\.gpx$/i, "");

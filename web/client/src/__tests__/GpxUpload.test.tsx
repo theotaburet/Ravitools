@@ -12,7 +12,9 @@ vi.mock("../state/route", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../state/route")>();
   return {
     ...orig,
-    processFilesAtom: atom(null, (_get, _set, files: File[]) => onFiles(files)),
+    processFilesAtom: atom(null, (_get, _set, files: File[], append?: boolean) =>
+      onFiles(files, append),
+    ),
   };
 });
 
@@ -80,6 +82,16 @@ describe("GpxUpload", () => {
 
     expect(onFiles).toHaveBeenCalledTimes(1);
     expect(onFiles.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("adds the picked files to the loaded traces with append", () => {
+    render(
+      <Provider store={createStore()}>
+        <GpxUpload append />
+      </Provider>,
+    );
+    fireEvent.change(screen.getByLabelText("Add a GPX"), { target: { files: [gpx("b.gpx")] } });
+    expect(onFiles).toHaveBeenCalledWith([expect.objectContaining({ name: "b.gpx" })], true);
   });
 
   it("imports a .ravitools.json plan instead of running the pipeline", async () => {

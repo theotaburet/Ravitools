@@ -90,7 +90,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "settings.palette": { en: "Colour-blind palette", fr: "Palette pour daltoniens" },
   "settings.debug": { en: "Debug log", fr: "Journal de débogage" },
   "map.fit": { en: "Fit the map to the route", fr: "Recadrer la carte sur l'itinéraire" },
-  "summary.pois": { en: "POIs", fr: "POI" },
   "summary.gapsWater": { en: "{n} × > {km} km without water", fr: "{n} × > {km} km sans eau" },
   "summary.gapsFood": { en: "{n} × > {km} km without food", fr: "{n} × > {km} km sans ravito" },
   "map.start": { en: "Start", fr: "Départ" },
@@ -112,6 +111,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
   "upload.drop": { en: "Drop your .GPX files here", fr: "Déposez vos fichiers .GPX ici" },
   "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
+  "upload.add": { en: "Add a GPX", fr: "Ajouter un GPX" },
   "upload.browse": {
     en: "or click to browse (multiple files OK)",
     fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)",

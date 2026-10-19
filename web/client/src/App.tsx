@@ -208,9 +208,12 @@ export default function App() {
           {stage === "done" && (
             <>
               <TraceSummary />
-              <button type="button" className="neo-btn-secondary w-full" onClick={handleReset}>
-                {t("action.loadNew", targetLanguage)}
-              </button>
+              <div className="box-actions">
+                <GpxUpload append />
+                <button type="button" className="btn btn-quiet" onClick={handleReset}>
+                  {t("action.loadNew", targetLanguage)}
+                </button>
+              </div>
             </>
           )}
         </TabPanel>

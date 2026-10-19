@@ -1,13 +1,16 @@
 // GPX Upload component: drag & drop, file picker, or the bundled example route.
-// Supports multiple GPX files simultaneously.
+// Supports multiple GPX files simultaneously. With `append`, a button that adds GPX files to the
+// loaded traces ("Add a GPX", tab 01).
 
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useState } from "react";
+import { Plus } from "lucide";
+import { useCallback, useRef, useState } from "react";
 import { t } from "../lib/i18n";
 import { parseSession } from "../lib/session";
 import { isProcessingAtom, processFilesAtom, routeErrorAtom } from "../state/route";
 import { restoreSessionAtom } from "../state/session";
 import { targetLanguageAtom } from "../state/ui";
+import { Icon } from "./Icon";
 
 /** Served from public/, works on the GitHub Pages sub-path too */
 const EXAMPLE_GPX = `${import.meta.env.BASE_URL}examples/galibier-climb.gpx`;
@@ -22,13 +25,14 @@ function readText(file: File): Promise<string> {
   });
 }
 
-export function GpxUpload() {
+export function GpxUpload({ append = false }: { append?: boolean }) {
   const onFiles = useSetAtom(processFilesAtom);
   const disabled = useAtomValue(isProcessingAtom);
   const lang = useAtomValue(targetLanguageAtom);
   const restoreSession = useSetAtom(restoreSessionAtom);
   const setRouteError = useSetAtom(routeErrorAtom);
   const [dragOver, setDragOver] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
 
   const importPlan = useCallback(
     async (file: File) => {
@@ -44,16 +48,17 @@ export function GpxUpload() {
 
   const handleFiles = useCallback(
     (files: File[]) => {
-      const plan = files.find((f) => f.name.toLowerCase().endsWith(".json"));
+      // A plan replaces the route: not something to add to it
+      const plan = !append && files.find((f) => f.name.toLowerCase().endsWith(".json"));
       if (plan) {
         void importPlan(plan);
         return;
       }
       const gpxFiles = files.filter((f) => f.name.toLowerCase().endsWith(".gpx"));
-      if (gpxFiles.length > 0) onFiles(gpxFiles);
+      if (gpxFiles.length > 0) onFiles(gpxFiles, append);
       else setRouteError(t("upload.unsupported", lang));
     },
-    [importPlan, onFiles, setRouteError, lang],
+    [importPlan, onFiles, setRouteError, lang, append],
   );
 
   const handleDrop = useCallback(
@@ -87,6 +92,31 @@ export function GpxUpload() {
       setRouteError(t("upload.exampleFailed", lang));
     }
   }, [onFiles, setRouteError, lang]);
+
+  if (append) {
+    return (
+      <>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => input.current?.click()}
+          disabled={disabled}
+        >
+          <Icon node={Plus} />
+          {t("upload.add", lang)}
+        </button>
+        <input
+          ref={input}
+          type="file"
+          accept=".gpx"
+          multiple
+          hidden
+          onChange={handleChange}
+          aria-label={t("upload.add", lang)}
+        />
+      </>
+    );
+  }
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement: the overlaid file input is the accessible control

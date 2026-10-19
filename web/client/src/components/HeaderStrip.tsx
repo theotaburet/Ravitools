@@ -13,7 +13,7 @@ import {
   slopeBuckets,
   svgPath,
 } from "../lib/elevation";
-import { km } from "../lib/format";
+import { km, kmShort } from "../lib/format";
 import type { Gap } from "../lib/gaps";
 import { t } from "../lib/i18n";
 import { FAMILY_COLORS } from "../lib/poi-config";
@@ -88,18 +88,13 @@ export function HeaderStrip() {
   const trace = traces.find((tr) => tr.id === selectedTraceId) ?? traces[0];
   if (!trace) return null;
   const poiCount = pois.filter((p) => p.traceId === trace.id).length;
-  // Past 100 km the tenth is noise and costs width
-  const distance =
-    trace.totalDistanceM >= 100_000
-      ? String(Math.round(trace.totalDistanceM / 1000))
-      : km(trace.totalDistanceM);
 
   return (
     <div className="strip">
       <dl className="counter">
         <div>
           <dt className="micro">KM</dt>
-          <dd>{distance}</dd>
+          <dd>{kmShort(trace.totalDistanceM)}</dd>
         </div>
         <div>
           <dt className="micro">D+</dt>

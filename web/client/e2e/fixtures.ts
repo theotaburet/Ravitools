@@ -3,7 +3,7 @@
 import type { Page } from "@playwright/test";
 
 // ~700m track in central Paris (3 points is enough for the pipeline)
-const GPX_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+export const GPX_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="ravitools-e2e" xmlns="http://www.topografix.com/GPX/1/1">
   <trk><name>Smoke Route</name><trkseg>
     <trkpt lat="48.8500" lon="2.3500"><ele>35</ele></trkpt>
