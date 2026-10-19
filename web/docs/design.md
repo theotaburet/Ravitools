@@ -207,7 +207,8 @@ UI state lives in atoms in `state/ui.ts`: `sheetDetentAtom` (`"low" | "mid" | "f
 - **Rules**:
   - tapping a tab while at low opens mid;
   - tapping the active tab collapses to low;
-  - when processing finishes, switch to 02 at mid;
+  - when processing finishes with POIs and no failed chunk, switch to 02 at mid; with 0 POI, failed chunks or an error, show 01 at mid, where the message and the retry are;
+  - `03` and `04` are disabled (`lockedTabsAtom`) while the pipeline runs and whenever no POI passes the filters;
   - tapping a marker selects the POI and opens 02, POI detail, at mid;
   - tapping the profile leaves the detent unchanged.
 - **Viewport-aware camera**: `fitBounds` and `flyTo` pad by the height of the sheet at its current detent, so the target is never hidden behind it.

@@ -603,6 +603,12 @@ a {
   color: var(--color-accent-ink);
 }
 
+/* Enrich and Export before there are POIs to work on */
+.tabs [role="tab"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Settings: a native popover under its button */
 .settings {
   position: fixed;

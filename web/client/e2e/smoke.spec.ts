@@ -11,6 +11,8 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("header h1")).toHaveText("Ravitools");
   await expect(page.locator(".upload-zone")).toBeVisible();
+  // Nothing to export before there are POIs
+  await expect(page.getByRole("tab", { name: /Export/ })).toBeDisabled();
 
   await loadRoute(page);
 

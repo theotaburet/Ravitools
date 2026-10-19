@@ -221,6 +221,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     en: "Try an example route (Col du Galibier)",
     fr: "Essayer un parcours exemple (col du Galibier)",
   },
+  "upload.unsupported": {
+    en: "Only .gpx routes and .ravitools.json plans can be loaded.",
+    fr: "Seuls les parcours .gpx et les plans .ravitools.json peuvent être chargés.",
+  },
   "upload.exampleFailed": {
     en: "The example route could not be loaded.",
     fr: "Le parcours exemple n'a pas pu être chargé.",
@@ -477,6 +481,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "route.chunksFailed": {
     en: "{failed}/{total} OpenStreetMap chunks failed: results may be incomplete for parts of the route.",
     fr: "{failed}/{total} tronçons OpenStreetMap en échec : résultats peut-être incomplets sur une partie de l'itinéraire.",
+  },
+  "route.allChunksFailed": {
+    en: "OpenStreetMap did not answer for any part of the route. Retry in a few minutes.",
+    fr: "OpenStreetMap n'a répondu pour aucune partie de l'itinéraire. Relancez dans quelques minutes.",
   },
   "enrich.retry": { en: "Retry", fr: "Réessayer" },
 };

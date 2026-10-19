@@ -50,11 +50,10 @@ export function GpxUpload() {
         return;
       }
       const gpxFiles = files.filter((f) => f.name.toLowerCase().endsWith(".gpx"));
-      if (gpxFiles.length > 0) {
-        onFiles(gpxFiles);
-      }
+      if (gpxFiles.length > 0) onFiles(gpxFiles);
+      else setRouteError(t("upload.unsupported", lang));
     },
-    [importPlan, onFiles],
+    [importPlan, onFiles, setRouteError, lang],
   );
 
   const handleDrop = useCallback(

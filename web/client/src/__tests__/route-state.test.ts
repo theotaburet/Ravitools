@@ -27,6 +27,7 @@ vi.mock("../lib/debug-log", () => ({
 
 import {
   filteredPoisAtom,
+  lockedTabsAtom,
   poisAtom,
   processFilesAtom,
   resetRouteAtom,
@@ -40,6 +41,7 @@ import {
   toggleCategoryAtom,
   tracesAtom,
 } from "../state/route";
+import { activeTabAtom } from "../state/ui";
 
 const trace: TraceData = {
   name: "Route",
@@ -97,6 +99,34 @@ describe("route state pipeline", () => {
     expect(store.get(routeWarningAtom)).toMatch(/chunks failed/i);
   });
 
+  // Overpass down on the whole route is not "0 POI": say so, keep the retry at hand
+  it("turns a run where every chunk failed into an error", async () => {
+    queryAllPois.mockResolvedValue({ elements: [], failedChunks: 5, totalChunks: 5 });
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(store.get(stageAtom)).toBe("error");
+    expect(store.get(routeErrorAtom)).toMatch(/OpenStreetMap/);
+    expect(store.get(tracesAtom)).toHaveLength(1);
+  });
+
+  // Tab 02 only when there is a list to read; otherwise the message stays in sight on 01
+  it.each([
+    ["a clean run with POIs", [poi("a", "Water")], 0, "poi"],
+    ["0 POI", [], 0, "trace"],
+    ["failed chunks", [poi("a", "Water")], 2, "trace"],
+  ] as const)("ends %s on the right tab", async (_case, pois, failedChunks, tab) => {
+    queryAllPois.mockResolvedValue({ elements: [], failedChunks, totalChunks: 5 });
+    processElements.mockReturnValue([...pois]);
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(store.get(activeTabAtom)).toBe(tab);
+  });
+
+  it("brings an error back to tab 01, where it is shown", async () => {
+    store.set(activeTabAtom, "poi");
+    queryAllPois.mockRejectedValue(new Error("overpass down"));
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(store.get(activeTabAtom)).toBe("trace");
+  });
+
   it("keeps the parsed traces visible when the query errors out", async () => {
     queryAllPois.mockRejectedValue(new Error("overpass down"));
     await store.set(processFilesAtom, [gpxFile()]);
@@ -126,6 +156,29 @@ describe("route state pipeline", () => {
 
     store.set(toggleCategoryAtom, "Water" as POI["category"]);
     expect(store.get(filteredPoisAtom).map((p) => p.id)).toEqual(["b"]);
+  });
+});
+
+// Enrich and Export have nothing to work on without POIs
+
+describe("tabs that need POIs", () => {
+  it("are locked until the pipeline is done with POIs", async () => {
+    expect(store.get(lockedTabsAtom)).toEqual(["enrich", "export"]);
+    await store.set(processFilesAtom, [gpxFile()]);
+    expect(store.get(lockedTabsAtom)).toEqual([]);
+  });
+
+  it("are locked while a run is in flight", async () => {
+    queryAllPois.mockImplementationOnce(() => new Promise(() => {}));
+    void store.set(processFilesAtom, [gpxFile()]);
+    await vi.waitFor(() => expect(queryAllPois).toHaveBeenCalledTimes(1));
+    expect(store.get(lockedTabsAtom)).toEqual(["enrich", "export"]);
+  });
+
+  it("are locked when no POI passes the filters", async () => {
+    await store.set(processFilesAtom, [gpxFile()]);
+    store.set(toggleCategoryAtom, "Water" as POI["category"]);
+    expect(store.get(lockedTabsAtom)).toEqual(["enrich", "export"]);
   });
 });
 

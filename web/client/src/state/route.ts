@@ -10,7 +10,7 @@ import { type OverpassElement, queryAllPois } from "../lib/overpass";
 import { ALL_CATEGORIES, CORRIDOR_M, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
 import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
-import { showTabAtom, targetLanguageAtom } from "./ui";
+import { showTabAtom, type Tab, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: CORRIDOR_M,
@@ -40,6 +40,11 @@ export const filteredPoisAtom = atom((get) => {
 
 export const isProcessingAtom = atom((get) =>
   ["parsing", "simplifying", "querying", "processing"].includes(get(stageAtom)),
+);
+
+/** Enrich and Export work on POIs: locked while the pipeline runs or when no POI passes the filters */
+export const lockedTabsAtom = atom((get): Tab[] =>
+  get(stageAtom) === "done" && get(filteredPoisAtom).length > 0 ? [] : ["enrich", "export"],
 );
 
 // --- Non-reactive pipeline context (module singletons, not render state) ---
@@ -168,6 +173,10 @@ async function runPipeline(
     );
     endQuery();
     if (ctrl.signal.aborted) return;
+    // Overpass down on the whole route is not "0 POI": an error, with its retry
+    if (result.failedChunks > 0 && result.failedChunks === result.totalChunks) {
+      throw new Error(t("route.allChunksFailed", lang));
+    }
 
     set(stageAtom, "processing");
     set(progressAtom, t("route.processing", lang, { n: result.elements.length }));
@@ -183,7 +192,6 @@ async function runPipeline(
     });
 
     set(stageAtom, "done");
-    set(showTabAtom, "poi");
     showPois(get, set, pois, maxDistanceM);
     set(progressRatioAtom, null);
     if (result.failedChunks > 0) {
@@ -192,11 +200,14 @@ async function runPipeline(
         t("route.chunksFailed", lang, { failed: result.failedChunks, total: result.totalChunks }),
       );
     }
+    // Straight to the list on a clean run; a warning or 0 POI stays in sight on 01
+    set(showTabAtom, pois.length > 0 && result.failedChunks === 0 ? "poi" : "trace");
   } catch (err) {
     if (ctrl.signal.aborted) return;
     const message = err instanceof Error ? err.message : "Unknown error occurred";
     log.error(`Pipeline error: ${message}`);
     set(stageAtom, "error");
+    set(showTabAtom, "trace");
     set(routeErrorAtom, message);
     set(progressAtom, "");
     set(progressRatioAtom, null);

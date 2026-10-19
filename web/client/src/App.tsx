@@ -172,6 +172,11 @@ export default function App() {
               <p>
                 <strong>{t("status.warning", targetLanguage)}</strong> {warning}
               </p>
+              <div className="box-actions">
+                <button type="button" className="neo-btn-sm neo-btn-primary" onClick={retryQuery}>
+                  {t("action.retryQuery", targetLanguage)}
+                </button>
+              </div>
             </div>
           )}
 

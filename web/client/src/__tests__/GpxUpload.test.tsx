@@ -30,11 +30,12 @@ function gpx(name: string): File {
 function renderUpload(processing = false) {
   const store = createStore();
   if (processing) store.set(stageAtom, "querying");
-  return render(
+  const view = render(
     <Provider store={store}>
       <GpxUpload />
     </Provider>,
   );
+  return { ...view, store };
 }
 
 describe("GpxUpload", () => {
@@ -51,13 +52,15 @@ describe("GpxUpload", () => {
     expect(passed.map((f) => f.name)).toEqual(["route.gpx"]);
   });
 
-  it("does not call processFiles when a non-.gpx file is dropped", () => {
-    const { container } = renderUpload();
+  // A .fit or .tcx dropped (or picked on Android, where accept is a hint) must not do nothing
+  it("says so when no dropped file can be loaded", () => {
+    const { container, store } = renderUpload();
     const zone = container.querySelector(".upload-zone") as HTMLElement;
 
-    fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "notes.txt")] } });
+    fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "ride.fit")] } });
 
     expect(onFiles).not.toHaveBeenCalled();
+    expect(store.get(routeErrorAtom)).toMatch(/\.gpx/);
   });
 
   it("ignores drops while the pipeline is processing", () => {

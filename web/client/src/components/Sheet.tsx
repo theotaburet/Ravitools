@@ -13,6 +13,7 @@ import {
 } from "react";
 import { t } from "../lib/i18n";
 import { detentPx, nearestDetent, nextDetent } from "../lib/shell";
+import { lockedTabsAtom } from "../state/route";
 import {
   activeTabAtom,
   selectTabAtom,
@@ -141,11 +142,15 @@ export function TabBar({ tabs }: { tabs: PillTab[] }) {
   const active = useAtomValue(activeTabAtom);
   const selectTab = useSetAtom(selectTabAtom);
   const setActive = useSetAtom(activeTabAtom);
+  const locked = useAtomValue(lockedTabsAtom);
+  const open = tabs.filter((tab) => !locked.includes(tab));
 
-  const onKeyDown = (e: KeyboardEvent, i: number) => {
+  // Arrow keys walk the open tabs only: a locked tab cannot take focus
+  const onKeyDown = (e: KeyboardEvent, tab: PillTab) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (step === 0) return;
-    const next = tabs[(i + step + tabs.length) % tabs.length];
+    const i = open.indexOf(tab);
+    const next = open[(i + step + open.length) % open.length];
     setActive(next);
     document.getElementById(`tab-${next}`)?.focus();
   };
@@ -160,9 +165,10 @@ export function TabBar({ tabs }: { tabs: PillTab[] }) {
           id={`tab-${tab}`}
           aria-selected={tab === active}
           aria-controls={`panel-${tab}`}
+          disabled={locked.includes(tab)}
           tabIndex={tab === active || (!tabs.includes(active as PillTab) && i === 0) ? 0 : -1}
           onClick={() => selectTab(tab)}
-          onKeyDown={(e) => onKeyDown(e, i)}
+          onKeyDown={(e) => onKeyDown(e, tab)}
         >
           <Icon node={TAB_MARKS[tab].icon} />
           <span className="micro">
