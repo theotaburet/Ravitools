@@ -51,9 +51,11 @@ export function TraceSummary() {
                 <span className="micro">
                   {kmShort(trace.totalDistanceM)} KM · {trace.elevationGainM} M D+ · {counts[i]} POI
                 </span>
-                {warnings.length > 0 && (
-                  <span className="trace-card-gaps">{warnings.join(" · ")}</span>
-                )}
+                {warnings.map((warning) => (
+                  <span key={String(warning)} className="trace-card-gaps">
+                    {warning}
+                  </span>
+                ))}
               </button>
             </li>
           );

@@ -86,14 +86,14 @@ describe("TraceSummary", () => {
 
   it("warns about stretches without food past the alert threshold, which can be changed", () => {
     const { store } = renderWith([makeTrace("trace_1", 45, "Col du Test")]);
-    expect(screen.queryByText(/without food/)).toBeNull(); // 1.1 km is under the 25 km default
+    expect(screen.queryByText(/km without food/)).toBeNull(); // 1.1 km is under the 25 km default
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: /alert threshold/ }), {
+    fireEvent.change(screen.getByRole("spinbutton", { name: /stretch without water or food/ }), {
       target: { value: "1" },
     });
     expect(store.get(gapThresholdKmAtom)).toBe(1);
-    expect(screen.getByText("1 × > 1 km without food")).toBeTruthy();
-    expect(screen.queryByText(/without water/)).toBeNull(); // the fountain sits at 0.5 km
+    expect(screen.getByText("Stretches over 1 km without food: 1")).toBeTruthy();
+    expect(screen.queryByText(/km without water/)).toBeNull(); // the fountain sits at 0.5 km
   });
 
   it("renders nothing without a trace", () => {
