@@ -418,15 +418,6 @@ export function RouteMap() {
     return clusterPois(pois, mapBounds, { keepId: selectedPoiId ?? null });
   }, [pois, mapBounds, selectedPoiId]);
 
-  const center = useMemo<[number, number]>(() => {
-    const allPoints = traces.flatMap((t) => t.original);
-    if (allPoints.length > 0) {
-      const mid = allPoints[Math.floor(allPoints.length / 2)];
-      return [mid.lat, mid.lon];
-    }
-    return [46.5, 2.5];
-  }, [traces]);
-
   // Functional update keeps this callback stable → memoized markers survive selection changes
   const handleMarkerClick = useCallback(
     (poiId: string) => {
@@ -451,8 +442,9 @@ export function RouteMap() {
         </button>
       )}
       <MapContainer
-        center={center}
-        zoom={6}
+        // The whole world until a route comes (fitRoute frames it, a restored one too)
+        center={[30, 0]}
+        zoom={2}
         className="route-map"
         scrollWheelZoom={true}
         zoomControl={false}

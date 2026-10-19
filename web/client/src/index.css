@@ -460,6 +460,12 @@ a {
   height: 36px;
 }
 
+.btn-primary {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
 .btn-quiet {
   background: none;
   box-shadow: none;
@@ -547,6 +553,57 @@ a {
   color: var(--color-ink);
   font: inherit;
   font-size: 16px;
+}
+
+/* Pixel bar: the accent fills in 6 px square steps (3.7) */
+.progress {
+  height: 6px;
+  background: var(--color-paper-sunk);
+  mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
+}
+
+.progress > div {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 300ms;
+}
+
+/* State message: soft background, the state colour on the icon. The text stays ink: the state
+   text colours drop to 3.97 to 4.43 on the soft background in light (4.5 needed) */
+.notice {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  color: var(--color-ink);
+}
+
+.notice > svg {
+  flex: none;
+}
+
+.notice-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notice-warning {
+  background: var(--color-warning-soft);
+}
+
+.notice-warning > svg {
+  color: var(--color-warning-text);
+}
+
+.notice-danger {
+  background: var(--color-danger-soft);
+}
+
+.notice-danger > svg {
+  color: var(--color-danger-text);
 }
 
 /* Outline pill with micro text: trust, confidence, state */
@@ -854,89 +911,66 @@ a {
    Upload zone
    --------------------------------------------------------------------------- */
 
+/* The first-launch card: the whole card is the file input, the example button sits above it */
 .upload-zone {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1.75rem 1rem 1.25rem;
-  border: 2px dashed var(--color-border);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-style: dashed;
   text-align: center;
   cursor: pointer;
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 10px,
-    var(--color-soft) 10px,
-    var(--color-soft) 11px
-  );
-  transition:
-    background-color 150ms,
-    border-style 150ms;
 }
 
-.upload-zone:hover,
 .upload-zone.drag-over {
-  background: var(--color-lime);
   border-style: solid;
-  color: var(--color-ink);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .upload-zone.disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   pointer-events: none;
 }
 
 .upload-title {
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-size: 20px;
+  font-weight: 700;
+  font-stretch: 75%;
 }
 
-.upload-hint {
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-.upload-zone:hover .upload-hint,
-.upload-zone.drag-over .upload-hint {
-  color: var(--color-ink);
-}
-
-/* Sits above the invisible file input */
 .upload-example {
   position: relative;
   z-index: 1;
-  margin-top: 0.5rem;
+}
+
+/* Registration marks: the map centre between two crosses, the 01 02 03 04 ruler */
+.poster-marks {
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
 }
 
 /* ---------------------------------------------------------------------------
    Status, progress, alerts
    --------------------------------------------------------------------------- */
 
-.status-bar {
+/* Pipeline status line: spinner, message, pixel bar */
+.status {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  font-size: 0.85rem;
+  gap: var(--space-3);
+  font-size: 14px;
 }
 
-.status-bar-body {
+.status-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.status-bar.error {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger);
+  gap: var(--space-2);
 }
 
 .spinner {
@@ -982,8 +1016,7 @@ a {
   transition: width 300ms ease;
 }
 
-.error-box,
-.warning-box {
+.error-box {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -991,11 +1024,6 @@ a {
   border: 2px solid var(--color-danger);
   background: var(--color-danger-soft);
   font-size: 0.875rem;
-}
-
-.warning-box {
-  border-color: var(--color-warning);
-  background: var(--color-warning-soft);
 }
 
 .box-actions {
@@ -1046,27 +1074,11 @@ a {
 }
 
 .session-prompt {
-  padding: 0.85rem;
-  border: 2px solid var(--color-ink);
-  background: var(--color-lime);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-hard);
-}
-
-.session-prompt-text {
-  font-size: 0.875rem;
-  font-weight: 700;
-  margin-bottom: 0.6rem;
-}
-
-.session-prompt-actions {
   display: flex;
-  gap: 0.5rem;
-}
-
-.session-prompt .neo-btn-secondary {
-  background: var(--color-surface);
-  color: var(--color-text);
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------------------

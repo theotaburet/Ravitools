@@ -1,15 +1,16 @@
-// GPX Upload component: drag & drop, file picker, or the bundled example route.
+// GPX Upload component: drag & drop, file picker, or the bundled example route, on the poster's
+// registration marks (design.md 3.7, first launch only).
 // Supports multiple GPX files simultaneously. With `append`, a button that adds GPX files to the
 // loaded traces ("Add a GPX", tab 01).
 
 import { useAtomValue, useSetAtom } from "jotai";
-import { Plus } from "lucide";
+import { Plus, Upload } from "lucide";
 import { useCallback, useRef, useState } from "react";
 import { t } from "../lib/i18n";
 import { parseSession } from "../lib/session";
 import { isProcessingAtom, processFilesAtom, routeErrorAtom } from "../state/route";
 import { restoreSessionAtom } from "../state/session";
-import { targetLanguageAtom } from "../state/ui";
+import { mapViewBoundsAtom, targetLanguageAtom } from "../state/ui";
 import { Icon } from "./Icon";
 
 /** Served from public/, works on the GitHub Pages sub-path too */
@@ -25,12 +26,20 @@ function readText(file: File): Promise<string> {
   });
 }
 
+/** The map centre as a poster coordinate: "45.06° N · 6.41° E" */
+function centreLabel(b: { south: number; west: number; north: number; east: number }): string {
+  const lat = (b.south + b.north) / 2;
+  const lon = (((b.west + b.east) / 2 + 540) % 360) - 180; // the map wraps around
+  return `${Math.abs(lat).toFixed(2)}° ${lat < 0 ? "S" : "N"} · ${Math.abs(lon).toFixed(2)}° ${lon < 0 ? "W" : "E"}`;
+}
+
 export function GpxUpload({ append = false }: { append?: boolean }) {
   const onFiles = useSetAtom(processFilesAtom);
   const disabled = useAtomValue(isProcessingAtom);
   const lang = useAtomValue(targetLanguageAtom);
   const restoreSession = useSetAtom(restoreSessionAtom);
   const setRouteError = useSetAtom(routeErrorAtom);
+  const bounds = useAtomValue(mapViewBoundsAtom);
   const [dragOver, setDragOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -121,7 +130,7 @@ export function GpxUpload({ append = false }: { append?: boolean }) {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a pointer-only enhancement: the overlaid file input is the accessible control
     <div
-      className={`upload-zone ${dragOver ? "drag-over" : ""} ${disabled ? "disabled" : ""}`}
+      className={`card upload-zone ${dragOver ? "drag-over" : ""} ${disabled ? "disabled" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -129,34 +138,30 @@ export function GpxUpload({ append = false }: { append?: boolean }) {
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
     >
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </svg>
-
+      <p className="micro poster-marks" aria-hidden="true">
+        <span>+</span>
+        {bounds && <span>{centreLabel(bounds)}</span>}
+        <span>+</span>
+      </p>
+      <Icon node={Upload} size={32} />
       <p className="upload-title">{t("upload.drop", lang)}</p>
-      <p className="upload-hint">{t("upload.browse", lang)}</p>
-      <p className="upload-hint">{t("upload.plan", lang)}</p>
+      <p className="hint">{t("upload.browse", lang)}</p>
+      <p className="hint">{t("upload.plan", lang)}</p>
 
       <button
         type="button"
-        className="neo-btn-secondary neo-btn-sm upload-example"
+        className="btn btn-quiet btn-sm upload-example"
         onClick={loadExample}
         disabled={disabled}
       >
         {t("upload.example", lang)}
       </button>
+      <p className="micro poster-marks" aria-hidden="true">
+        <span>01</span>
+        <span>02</span>
+        <span>03</span>
+        <span>04</span>
+      </p>
 
       <input
         type="file"

@@ -1,6 +1,7 @@
 // --- App: layout + session lifecycle (state lives in jotai atoms, src/state/) ---
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { CircleAlert, TriangleAlert } from "lucide";
 import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { DebugPanel } from "./components/DebugPanel";
@@ -8,6 +9,7 @@ import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
 import { HeaderStrip } from "./components/HeaderStrip";
+import { Icon } from "./components/Icon";
 import { PoiDetail } from "./components/PoiDetail";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
@@ -121,17 +123,13 @@ export default function App() {
         {/* 01: Load a route: upload, resume, pipeline status, errors */}
         <TabPanel tab="trace">
           {showResumePrompt && (
-            <div className="session-prompt">
-              <p className="session-prompt-text">{t("session.prompt", targetLanguage)}</p>
-              <div className="session-prompt-actions">
-                <button type="button" className="neo-btn-sm neo-btn-primary" onClick={handleResume}>
+            <div className="card session-prompt">
+              <p>{t("session.prompt", targetLanguage)}</p>
+              <div className="box-actions">
+                <button type="button" className="btn btn-primary" onClick={handleResume}>
                   {t("session.resume", targetLanguage)}
                 </button>
-                <button
-                  type="button"
-                  className="neo-btn-sm neo-btn-secondary"
-                  onClick={handleDismissResume}
-                >
+                <button type="button" className="btn btn-quiet" onClick={handleDismissResume}>
                   {t("session.fresh", targetLanguage)}
                 </button>
               </div>
@@ -142,26 +140,19 @@ export default function App() {
             !showResumePrompt && <GpxUpload />}
 
           {progress && (
-            <div
-              className={`status-bar ${stage === "error" ? "error" : ""}`}
-              role="status"
-              aria-live="polite"
-            >
+            <div className="status" role="status" aria-live="polite">
               {isProcessing && <span className="spinner" />}
-              <div className="status-bar-body">
+              <div className="status-body">
                 <span>{progress}</span>
                 {progressRatio != null && (
                   <div
-                    className="progress-bar-track"
+                    className="progress"
                     role="progressbar"
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(progressRatio * 100)}
                   >
-                    <div
-                      className="progress-bar-fill"
-                      style={{ width: `${Math.round(progressRatio * 100)}%` }}
-                    />
+                    <div style={{ width: `${Math.round(progressRatio * 100)}%` }} />
                   </div>
                 )}
               </div>
@@ -169,38 +160,40 @@ export default function App() {
           )}
 
           {warning && (
-            <div className="warning-box">
-              <p>
-                <strong>{t("status.warning", targetLanguage)}</strong> {warning}
-              </p>
-              <div className="box-actions">
-                <button type="button" className="neo-btn-sm neo-btn-primary" onClick={retryQuery}>
-                  {t("action.retryQuery", targetLanguage)}
-                </button>
+            <div className="notice notice-warning">
+              <Icon node={TriangleAlert} />
+              <div className="notice-body">
+                <p>
+                  <strong>{t("status.warning", targetLanguage)}</strong> {warning}
+                </p>
+                <div className="box-actions">
+                  <button type="button" className="btn btn-sm" onClick={retryQuery}>
+                    {t("action.retryQuery", targetLanguage)}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="error-box" role="alert">
-              <p>
-                <strong>{t("status.error", targetLanguage)}</strong> {error}
-              </p>
-              <div className="box-actions">
-                {traces.length > 0 && (
-                  <button type="button" className="neo-btn-sm neo-btn-primary" onClick={retryQuery}>
-                    {t("action.retryQuery", targetLanguage)}
+            <div className="notice notice-danger" role="alert">
+              <Icon node={CircleAlert} />
+              <div className="notice-body">
+                <p>
+                  <strong>{t("status.error", targetLanguage)}</strong> {error}
+                </p>
+                <div className="box-actions">
+                  {traces.length > 0 && (
+                    <button type="button" className="btn btn-sm" onClick={retryQuery}>
+                      {t("action.retryQuery", targetLanguage)}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-quiet btn-sm" onClick={handleReset}>
+                    {traces.length > 0
+                      ? t("action.startOver", targetLanguage)
+                      : t("action.tryAgain", targetLanguage)}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="neo-btn-sm neo-btn-secondary"
-                  onClick={handleReset}
-                >
-                  {traces.length > 0
-                    ? t("action.startOver", targetLanguage)
-                    : t("action.tryAgain", targetLanguage)}
-                </button>
+                </div>
               </div>
             </div>
           )}

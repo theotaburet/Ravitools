@@ -109,12 +109,12 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.retryQuery": { en: "Retry query", fr: "Relancer la requête" },
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
-  "upload.drop": { en: "Drop your .GPX files here", fr: "Déposez vos fichiers .GPX ici" },
+  "upload.drop": { en: "Load a GPX", fr: "Charger un GPX" },
   "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
   "upload.add": { en: "Add a GPX", fr: "Ajouter un GPX" },
   "upload.browse": {
-    en: "or click to browse (multiple files OK)",
-    fr: "ou cliquez pour parcourir (plusieurs fichiers possibles)",
+    en: "Drop or choose one or more .gpx files",
+    fr: "Déposez ou choisissez un ou plusieurs fichiers .gpx",
   },
   "filter.all": { en: "All", fr: "Tout" },
   "filter.none": { en: "None", fr: "Aucun" },
@@ -233,8 +233,8 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "roadbook.hours": { en: "Hours", fr: "Horaires" },
   // Upload extras
   "upload.example": {
-    en: "Try an example route (Col du Galibier)",
-    fr: "Essayer un parcours exemple (col du Galibier)",
+    en: "Try an example (Col du Galibier)",
+    fr: "Essayer un exemple (col du Galibier)",
   },
   "upload.unsupported": {
     en: "Only .gpx routes and .ravitools.json plans can be loaded.",

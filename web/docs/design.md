@@ -173,7 +173,7 @@ These replace every `neo-*` class. Step 3 brought what the shell uses (`.micro`,
 | `.counter`            | Screen with 2 to 4 cells                | Value plus micro label per cell                                         |
 | `.progress`           | Pixel bar                               | `.progress-segmented` for done / skipped / remaining                    |
 | `.field`              | Input, select                           | `paper-sunk`, radius-control, 44 px min height, 16 px text (no iOS zoom) |
-| `.notice`             | State message                           | Soft background, state text color, icon, optional action                |
+| `.notice`             | State message                           | Soft background, icon in the state color, ink text (the state text colors fall to 3.97 to 4.43 on the soft background in light), optional action |
 
 ## 5. Layout shell
 

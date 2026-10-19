@@ -49,7 +49,7 @@ test("invalid GPX shows an error with recovery", async ({ page }) => {
     buffer: Buffer.from("<not-a-gpx>hello</not-a-gpx>"),
   });
 
-  const errorBox = page.locator(".error-box");
+  const errorBox = page.getByRole("alert");
   await expect(errorBox).toBeVisible({ timeout: 10_000 });
   await errorBox.getByText("Try again").click();
   await expect(page.locator(".upload-zone")).toBeVisible();
