@@ -16,11 +16,13 @@ const linear = (hex: string): RGB =>
     return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   }) as RGB;
 
+function luminance(hex: string): number {
+  const [r, g, b] = linear(hex);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 function contrast(a: string, b: string): number {
-  const [la, lb] = [a, b].map((hex) => {
-    const [r, g, bl] = linear(hex);
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-  });
+  const [la, lb] = [luminance(a), luminance(b)];
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
@@ -104,6 +106,15 @@ describe.each(MODES)("UI tokens (dark: $dark, colour-blind: $cvd)", ({ dark, cvd
     for (const paper of ["--color-paper", "--color-paper-raised"]) {
       expect(contrast(t(name), t(paper)), `${name} on ${paper}`).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it("counter numerals stay near the ceiling in full sun (E2: white, not cyan)", () => {
+    // design.md 10, E2: luminance × 800 cd/m² plus 400 cd/m² reflected; the ceiling is 3.00
+    const sun = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi * 800 + 400) / (lo * 800 + 400);
+    };
+    expect(sun(t("--color-screen-ink"), t("--color-screen"))).toBeGreaterThanOrEqual(2.9);
   });
 
   it("accent labels and the counter screen are at least 4.5:1", () => {

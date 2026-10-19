@@ -16,7 +16,7 @@
   --color-ink-muted: #5b5f66;
   --color-hairline: color-mix(in oklab, var(--color-ink) 14%, transparent);
   --color-screen: #0e1114;
-  --color-screen-ink: #2cb5fc;
+  --color-screen-ink: #ffffff; /* white, not cyan: E2 */
   --color-screen-label: #7d8590;
 
   /* Fills only: on light paper the accent reaches 2.0:1 as text */

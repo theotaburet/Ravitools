@@ -51,7 +51,7 @@ Every contrast ratio below was measured (WCAG 2 formula). The E3 test re-checks 
 | `--color-ink-muted`    | `#5B5F66` | `#9A9EA6` | Secondary text, micro labels (5.6:1 / 6.8:1)     |
 | `--color-hairline`     | ink 14 %  | ink 14 %  | 1 px rules and outlines (`color-mix` of ink)     |
 | `--color-screen`       | `#0E1114` | `#0E1114` | Counter screen (same in both themes)             |
-| `--color-screen-ink`   | `#2CB5FC` | `#2CB5FC` | Counter numerals (8.2:1)                         |
+| `--color-screen-ink`   | `#FFFFFF` | `#FFFFFF` | Counter numerals (18.9:1; cyan lost in the sun, E2) |
 | `--color-screen-label` | `#7D8590` | `#7D8590` | Counter labels (5.1:1)                           |
 
 ### 3.2 Accent
@@ -315,6 +315,16 @@ Shared setup:
 ### Results
 
 - **E1** (2026-10-18, throwaway prototype with the real pastilles, 300 markers, Pixel 7 emulation): every variant passes with a wide margin. p95 frame interval 16.8 ms in all 8 variants (`transform`/`height` × blur on/off × SVG/CSS glyph), even with the CPU throttled ×24; the worst long animation frame grows with the throttle (≈ 55 ms at ×16, 85 ms at ×24) the same way in every variant. With no measured difference, the defaults stand: `transform` (compositor only, and it never re-lays out the virtualized POI list during a drag), blur on the round buttons, SVG glyphs (the `iconSvg` helper, no generated stylesheet). Limit: CDP throttles the main thread only, so GPU cost (the blur) is not measured; check it on a real phone.
+- **E2** (2026-10-19, throwaway script: the sunlight model on the tokens, Archivo measured in Chromium). The model's ceiling is 3.00 (pure white on pure black), so the 3:1 counter criterion only says "as close to the ceiling as the palette allows":
+
+  | Counter pair | WCAG | In the sun |
+  | ------------ | ---- | ---------- |
+  | cyan `#2CB5FC` on screen (planned) | 8.2 | 1.79 |
+  | white on screen | 18.9 | **2.97** |
+  | ink on raised paper (light) | 16.9 | 2.84 |
+  | ink on paper (light / dark) | 15.6 / 15.1 | 2.70 / 2.59 |
+
+  Archivo's cap height is 0.687 em: 32 px gives 17.3 arcmin (fails), 40 px 21.6 (passes), 48 px 25.9. At 40 px, `248.3` is 77 px wide at wdth 62, 89 at 75, 113 at 100. Decision: the counter keeps its dark screen with **white** numerals (`--color-screen-ink`), 40 px, wdth 62; a vitest pins the pair at 2.9 or more in the sun. Pastille glyphs: any fill whose luminance lies between 0.25 and 0.52 stays under 2:1 with either glyph, which catches Food and Discovery (default) and Food, Sleep, Health and Services (colour-blind), all still 4.6:1 or more in WCAG. Kept as they are (the user's call, 2026-10-19): in the sun the fill carries the family and the glyph is secondary; reworking them would reopen the palettes and E3. List names, ink on paper, are 2.70 / 2.59.
 - **E4** (2026-10-19, throwaway Leaflet page, 600 × 600 at DPR 2): CARTO now answers every keyless request with an "API KEY REQUIRED" tile, so the planned Voyager and Dark Matter were out. Measured instead: OSM standard, CyclOSM, Humanitarian (HOT) and Esri Light Gray Canvas (light); inverted OSM, inverted HOT and Esri Dark Gray Canvas (dark). Hasparren with synthetic pastilles, Paris with the recorded Overpass answer; at zoom 11 the 3 000 Paris pastilles cover the trace band, so its trace contrast is left out. Mean over both routes and both zooms, OKLab:
 
   | Base map | Trace vs map (median) | Pastille vs map (p10) | Clutter (edge share) |
