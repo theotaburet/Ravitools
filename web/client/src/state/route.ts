@@ -4,16 +4,17 @@
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
 import { km } from "../lib/format";
+import { findGaps } from "../lib/gaps";
 import { parseGpx } from "../lib/gpx-parser";
 import { t } from "../lib/i18n";
 import { type OverpassElement, queryAllPois } from "../lib/overpass";
-import { ALL_CATEGORIES, DEFAULT_CATEGORIES, DEFAULT_MAX_DISTANCE_M } from "../lib/poi-config";
+import { ALL_CATEGORIES, CORRIDOR_M, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
 import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
-import { targetLanguageAtom } from "./ui";
+import { gapThresholdKmAtom, showTabAtom, type Tab, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
-  maxDistanceM: DEFAULT_MAX_DISTANCE_M,
+  maxDistanceM: CORRIDOR_M,
 };
 
 // --- Base atoms ---
@@ -40,6 +41,37 @@ export const filteredPoisAtom = atom((get) => {
 
 export const isProcessingAtom = atom((get) =>
   ["parsing", "simplifying", "querying", "processing"].includes(get(stageAtom)),
+);
+
+/** Stretches longer than the alert threshold without water or food, per trace id. From every
+ *  POI, not the filtered ones: hiding a category must not turn the route into a desert */
+export const ravitoGapsAtom = atom((get) => {
+  const thresholdM = get(gapThresholdKmAtom) * 1000;
+  const pois = get(poisAtom);
+  return new Map(
+    get(tracesAtom).map((trace) => {
+      const along = (cats: PoiCategory[]) =>
+        pois
+          .filter((p) => p.traceId === trace.id && cats.includes(p.category))
+          .map((p) => p.alongTraceDistance);
+      return [
+        trace.id,
+        {
+          water: findGaps(along(["Water"]), trace.totalDistanceM, thresholdM),
+          food: findGaps(
+            along(["Food shop", "Restaurant or Bar"]),
+            trace.totalDistanceM,
+            thresholdM,
+          ),
+        },
+      ];
+    }),
+  );
+});
+
+/** Enrich and Export work on POIs: locked while the pipeline runs or when no POI passes the filters */
+export const lockedTabsAtom = atom((get): Tab[] =>
+  get(stageAtom) === "done" && get(filteredPoisAtom).length > 0 ? [] : ["enrich", "export"],
 );
 
 // --- Non-reactive pipeline context (module singletons, not render state) ---
@@ -82,6 +114,7 @@ export const restoreRouteAtom = atom(
   ) => {
     restoredPois = restored.pois;
     set(stageAtom, "done");
+    set(showTabAtom, "poi");
     set(tracesAtom, restored.traces);
     set(poisAtom, restored.pois);
     set(activeCategoriesAtom, restored.activeCategories);
@@ -98,9 +131,18 @@ export const toggleCategoryAtom = atom(null, (get, set, cat: PoiCategory) => {
   set(activeCategoriesAtom, next);
 });
 
-export const setAllCategoriesAtom = atom(null, (_get, set, on: boolean) => {
-  set(activeCategoriesAtom, on ? new Set<PoiCategory>(ALL_CATEGORIES) : new Set<PoiCategory>());
-});
+/** Turn several categories on or off at once: a family, or all of them */
+export const setCategoriesAtom = atom(
+  null,
+  (get, set, categories: readonly PoiCategory[], on: boolean) => {
+    const next = new Set(get(activeCategoriesAtom));
+    for (const c of categories) {
+      if (on) next.add(c);
+      else next.delete(c);
+    }
+    set(activeCategoriesAtom, next);
+  },
+);
 
 /** Keep the POIs within `maxDistanceM` and say how many */
 function showPois(get: Getter, set: Setter, pois: POI[], maxDistanceM: number): void {
@@ -147,16 +189,16 @@ async function runPipeline(
     const traces = await loadTraces(ctrl.signal);
     if (ctrl.signal.aborted) return;
 
-    const selectedCategories = [...get(activeCategoriesAtom)];
     set(stageAtom, "querying");
-    set(progressAtom, t("route.querying", lang, { n: selectedCategories.length }));
+    set(progressAtom, t("route.querying", lang, { n: ALL_CATEGORIES.length }));
     set(progressRatioAtom, 0);
 
     const endQuery = log.time("Overpass querying");
     const result = await queryAllPois(
       traces.map((tr) => tr.simplified),
-      1000,
-      selectedCategories,
+      CORRIDOR_M,
+      // Every category: turning one on later only filters what is already here
+      undefined,
       (p) => {
         if (ctrl.signal.aborted) return;
         const vars = { done: p.completedChunks, total: p.totalChunks, round: p.retryRound };
@@ -167,6 +209,10 @@ async function runPipeline(
     );
     endQuery();
     if (ctrl.signal.aborted) return;
+    // Overpass down on the whole route is not "0 POI": an error, with its retry
+    if (result.failedChunks > 0 && result.failedChunks === result.totalChunks) {
+      throw new Error(t("route.allChunksFailed", lang));
+    }
 
     set(stageAtom, "processing");
     set(progressAtom, t("route.processing", lang, { n: result.elements.length }));
@@ -190,27 +236,32 @@ async function runPipeline(
         t("route.chunksFailed", lang, { failed: result.failedChunks, total: result.totalChunks }),
       );
     }
+    // Straight to the list on a clean run; a warning or 0 POI stays in sight on 01
+    set(showTabAtom, pois.length > 0 && result.failedChunks === 0 ? "poi" : "trace");
   } catch (err) {
     if (ctrl.signal.aborted) return;
     const message = err instanceof Error ? err.message : "Unknown error occurred";
     log.error(`Pipeline error: ${message}`);
     set(stageAtom, "error");
+    set(showTabAtom, "trace");
     set(routeErrorAtom, message);
     set(progressAtom, "");
     set(progressRatioAtom, null);
   }
 }
 
-export const processFilesAtom = atom(null, (get, set, files: File[]) =>
+/** Load GPX files, in place of the traces on the map or, with `append` ("Add a GPX"), next to them */
+export const processFilesAtom = atom(null, (get, set, files: File[], append = false) =>
   runPipeline(get, set, async () => {
     const log = dlog("pipeline");
     set(stageAtom, "parsing");
     set(progressAtom, t("route.reading", get(targetLanguageAtom), { n: files.length }));
 
     const endParse = log.time("GPX parsing");
-    const traces: TraceData[] = [];
+    const traces: TraceData[] = append ? [...get(tracesAtom)] : [];
+    const offset = traces.length;
     for (let i = 0; i < files.length; i++) {
-      const trace = parseGpx(await files[i].text(), i);
+      const trace = parseGpx(await files[i].text(), offset + i);
       // Use filename (without extension) as fallback name
       if (!trace.name) {
         trace.name = files[i].name.replace(/\.gpx$/i, "");

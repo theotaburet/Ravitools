@@ -3,14 +3,20 @@
 import type { PoiCategory, TracePoint } from "../types";
 import { dlog } from "./debug-log";
 import { API_BASE } from "./enrichment/proxy-api";
+import { runConcurrent } from "./enrichment/run-concurrent";
 import { POI_CATEGORIES } from "./poi-config";
 
 // Static build (VITE_STANDALONE=true, e.g. GitHub Pages): no proxy, the browser
-// asks Overpass itself. Both mirrors send CORS headers; each retry round moves on to the next.
+// asks Overpass itself. Both mirrors send CORS headers; it sticks to the one that answers.
 const DIRECT_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
+let directMirror = 0;
+/** Move on from a failed mirror, once even when parallel requests fail on it together */
+const leaveMirror = (failed: number) => {
+  if (failed === directMirror) directMirror = (failed + 1) % DIRECT_URLS.length;
+};
 
 const OVERPASS_CACHE_MAX_ENTRIES = 50;
 // TTL so stale OSM data isn't served for the whole page lifetime.
@@ -62,10 +68,17 @@ export function buildOverpassQuery(
     ? POI_CATEGORIES.filter((c) => categories.includes(c.category))
     : POI_CATEGORIES;
 
-  // Group tags by OSM key
+  // Group tags by OSM key; a tag with a condition gets its own filter, so Overpass
+  // applies it (every parking meter is a vending machine)
   const tagGroups = new Map<string, Set<string>>();
+  const filters: string[] = [];
   for (const cat of cats) {
     for (const tag of cat.tags) {
+      if (tag.only) {
+        const conditions = Object.entries(tag.only).map(([k, v]) => `["${k}"~"${v.join("|")}"]`);
+        filters.push(`["${tag.key}"="${tag.value}"]${conditions.join("")}`);
+        continue;
+      }
       let group = tagGroups.get(tag.key);
       if (!group) {
         group = new Set();
@@ -78,20 +91,16 @@ export function buildOverpassQuery(
   // Build path lat,lon string
   const pathStr = points.map((p) => `${p.lat},${p.lon}`).join(",");
 
-  // Build query clauses
-  const clauses: string[] = [];
-  for (const [key, values] of tagGroups) {
-    const valuesStr = [...values].join("|");
-    clauses.push(`nwr["${key}"~"${valuesStr}"](around:${radiusM},${pathStr});`);
-  }
+  for (const [key, values] of tagGroups) filters.push(`["${key}"~"${[...values].join("|")}"]`);
+  const clauses = filters.map((filter) => `nwr${filter}(around:${radiusM},${pathStr});`);
 
   return `[out:json][timeout:120];\n(\n${clauses.join("\n")}\n);\nout center;`;
 }
 
 /** Simplified points per Overpass query: bounds the query size */
 const MAX_POINTS_PER_QUERY = 50;
-/** Retry rounds for failed chunks, each one splitting them in two */
-const MAX_RETRY_ROUNDS = 3;
+/** Failed chunks keep retrying until this budget is spent: an outage passes without a click */
+const RETRY_BUDGET_MS = 8 * 60_000;
 
 /** Split trace points into overlapping chunks (overlap avoids boundary gaps). */
 export function chunkPoints(
@@ -131,17 +140,20 @@ export interface OverpassElement {
 
 export interface OverpassResponse {
   elements: OverpassElement[];
+  /** Set on a server-side failure answered with 200 (e.g. "runtime error: Query timed out") */
+  remark?: string;
 }
 
 /**
  * One Overpass request: through the server proxy, which tries every mirror, or
- * straight to a mirror in the static build (`attempt` picks it, so a retry
- * round moves on to the next). Throws on any failure: queryAllPois retries.
+ * straight to a mirror in the static build (the last one that answered; a
+ * failure moves on to the next). Throws on any failure: queryAllPois retries.
+ * `confirm`: the other mirror's answer is final (see below).
  */
 export async function queryOverpass(
   query: string,
-  attempt = 0,
   signal?: AbortSignal,
+  confirm = false,
 ): Promise<OverpassResponse> {
   const log = dlog("overpass");
   const cached = cacheGet(query);
@@ -150,29 +162,42 @@ export async function queryOverpass(
     return cached;
   }
 
-  const endTimer = log.time(`Overpass fetch (attempt ${attempt + 1})`);
-  const res =
-    import.meta.env.VITE_STANDALONE === "true"
-      ? await fetch(DIRECT_URLS[attempt % DIRECT_URLS.length], {
-          method: "POST",
-          body: new URLSearchParams({ data: query }),
-          signal,
-        })
-      : await fetch(`${API_BASE}/overpass`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-          signal,
-        });
+  const endTimer = log.time("Overpass fetch");
+  const standalone = import.meta.env.VITE_STANDALONE === "true";
+  const mirror = directMirror;
+  const res = standalone
+    ? await fetch(DIRECT_URLS[mirror], {
+        method: "POST",
+        body: new URLSearchParams({ data: query }),
+        signal,
+      }).catch((err: unknown) => {
+        leaveMirror(mirror);
+        throw err;
+      })
+    : await fetch(`${API_BASE}/overpass`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+        signal,
+      });
 
   if (!res.ok) {
     endTimer();
+    if (standalone) leaveMirror(mirror);
     const body = await res.text();
     throw new Error(`Overpass error (${res.status}): ${body.slice(0, 200)}`);
   }
 
   const data: OverpassResponse = await res.json();
   const elapsedMs = endTimer();
+  // A timed-out query still answers 200, with partial elements: a failure, not a result
+  if (data.remark?.includes("runtime error")) throw new Error(`Overpass ${data.remark}`);
+  // No elements and no remark: a desert or a sick mirror (overpass-api.de once sent
+  // this for a dense Paris chunk). The other mirror confirms, as the proxy does
+  if (standalone && !confirm && data.elements.length === 0 && !data.remark) {
+    leaveMirror(mirror);
+    return queryOverpass(query, signal, true);
+  }
   log.info(`Got ${data.elements.length} elements`, {
     elements: data.elements.length,
     elapsedMs: Math.round(elapsedMs),
@@ -207,9 +232,10 @@ export interface QueryProgress {
  * (Overpass-friendly). Returns raw elements from all chunks, deduplicated by
  * OSM ID, plus chunk failure counts so the caller can warn the user.
  *
- * The only retry level: failed chunks go again in up to MAX_RETRY_ROUNDS
- * rounds with a growing backoff, split in two each time (a POI-dense city
- * corridor times Overpass out; a smaller one is much cheaper). An aborted
+ * The only retry level: failed chunks go again in rounds with a growing
+ * backoff until RETRY_BUDGET_MS is spent. A chunk Overpass reports as timed
+ * out (a runtime error remark; a bare 504 is mostly an overloaded mirror) is
+ * split in four and retried at once: a POI-dense city corridor is too heavy. An aborted
  * `signal` stops between chunks and cancels the request in flight.
  *
  * One point list per trace: chunks never span two traces, since `around:`
@@ -241,28 +267,32 @@ export async function queryAllPois(
   let retryRound = 0;
 
   const endTotal = log.time(`All ${initialChunks.length} chunks`);
+  const startedAt = Date.now();
 
-  while (pending.length > 0 && retryRound <= MAX_RETRY_ROUNDS) {
+  while (pending.length > 0 && Date.now() - startedAt < RETRY_BUDGET_MS) {
     if (retryRound > 0) {
-      // Backoff before retry round: 10s, 20s, 30s
-      const backoffMs = 10_000 * retryRound;
+      // Backoff before retry round: 10s, 20s, then 30s
+      const backoffMs = Math.min(10_000 * retryRound, 30_000);
       log.warn(
-        `Retry round ${retryRound}/${MAX_RETRY_ROUNDS}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
+        `Retry round ${retryRound}: ${pending.length} chunks to retry after ${backoffMs / 1000}s backoff`,
         { retryRound, pendingCount: pending.length, backoffMs },
       );
       await new Promise((r) => setTimeout(r, backoffMs));
     }
 
     const failedThisRound: TracePoint[][] = [];
+    let serverDown = false; // a sick server: the rest of the round waits for the backoff
 
-    for (const chunk of pending) {
+    // The browser gets Overpass's 2 slots per IP; the proxy serializes anyway
+    const slots = import.meta.env.VITE_STANDALONE === "true" ? 2 : 1;
+    await runConcurrent(pending, slots, 0, signal, async (chunk) => {
       signal?.throwIfAborted();
+      if (serverDown) {
+        failedThisRound.push(chunk);
+        return;
+      }
       try {
-        const result = await queryOverpass(
-          buildOverpassQuery(chunk, radiusM, categories),
-          retryRound,
-          signal,
-        );
+        const result = await queryOverpass(buildOverpassQuery(chunk, radiusM, categories), signal);
         completed++;
         let newCount = 0;
         for (const el of result.elements) {
@@ -277,13 +307,16 @@ export async function queryAllPois(
         log.debug(`Chunk ok: ${result.elements.length} elements, ${newCount} new`);
       } catch (err) {
         signal?.throwIfAborted();
-        if (retryRound < MAX_RETRY_ROUNDS && chunk.length >= 4) {
-          const halves = splitChunk(chunk);
-          failedThisRound.push(...halves);
-          totalChunks += halves.length - 1;
-          log.warn(`Chunk of ${chunk.length} pts failed: split for next round: ${err}`);
+        if (String(err).includes("runtime error") && chunk.length >= 4) {
+          // Too heavy, not a sick server: the quarters join this round
+          // (runConcurrent reaches what is pushed), no backoff
+          const quarters = splitChunk(chunk).flatMap(splitChunk);
+          pending.push(...quarters);
+          totalChunks += quarters.length - 1;
+          log.warn(`Chunk of ${chunk.length} pts timed out: split, retried now`);
         } else {
           failedThisRound.push(chunk);
+          serverDown = true;
           log.error(`Chunk failed: ${err}`);
         }
       }
@@ -293,7 +326,8 @@ export async function queryAllPois(
         retryRound,
         retryingCount: retryRound > 0 ? pending.length : 0,
       });
-    }
+    });
+    signal?.throwIfAborted(); // runConcurrent stops quietly
 
     pending = failedThisRound;
     retryRound++;

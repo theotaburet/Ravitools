@@ -1,20 +1,55 @@
 // POI category configuration
 // Categories and their OSM tag matchers
 
+import {
+  Bed,
+  Beer,
+  Bike,
+  Binoculars,
+  Castle,
+  Coffee,
+  CreditCard,
+  Croissant,
+  Droplet,
+  Flame,
+  Fuel,
+  Hospital,
+  House,
+  IceCreamCone,
+  type IconNode,
+  Info,
+  Landmark,
+  Mail,
+  Pill,
+  ShoppingCart,
+  ShowerHead,
+  Stethoscope,
+  Tent,
+  Toilet,
+  TreeDeciduous,
+  Utensils,
+  WashingMachine,
+  Wifi,
+  Wrench,
+  Zap,
+} from "lucide";
 import type {
   EnrichabilityPolicy,
   EnrichmentCategoryContract,
+  Palette,
   POI,
   PoiCategory,
   PoiCategoryConfig,
+  PoiFamily,
 } from "../types";
 
 export const POI_CATEGORIES: PoiCategoryConfig[] = [
   // --- Essential categories (enabled by default) ---
   {
     category: "Water",
+    family: "Water",
+    glyph: Droplet,
     defaultEnabled: true,
-    color: "#0066CC",
     emoji: "💧",
     policy: "skip",
     mergeable: true,
@@ -24,12 +59,16 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
     tags: [
       { key: "amenity", value: "water_point", icon: "droplet" },
       { key: "amenity", value: "drinking_water", icon: "droplet" },
+      { key: "man_made", value: "water_tap", icon: "droplet", unless: { drinking_water: ["no"] } },
+      { key: "natural", value: "spring", icon: "droplet", unless: { drinking_water: ["no"] } },
+      { key: "amenity", value: "fountain", icon: "droplet", only: { drinking_water: ["yes"] } },
     ],
   },
   {
     category: "Sleeping place",
+    family: "Sleep",
+    glyph: Bed,
     defaultEnabled: true,
-    color: "#1A1A2E",
     emoji: "🛏️",
     policy: "full",
     mergeable: false,
@@ -44,12 +83,14 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       { key: "tourism", value: "guest_house", icon: "bed" },
       { key: "tourism", value: "motel", icon: "bed" },
       { key: "tourism", value: "hotel", icon: "bed" },
+      { key: "tourism", value: "wilderness_hut", icon: "hut" },
     ],
   },
   {
     category: "Restroom",
+    family: "Water",
+    glyph: Toilet,
     defaultEnabled: true,
-    color: "#FFD700",
     emoji: "🚻",
     policy: "skip",
     mergeable: true,
@@ -63,8 +104,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Shelter",
+    family: "Sleep",
+    glyph: House,
     defaultEnabled: true,
-    color: "#444444",
     emoji: "🏠",
     policy: "skip",
     mergeable: true,
@@ -82,8 +124,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Food shop",
+    family: "Food",
+    glyph: ShoppingCart,
     defaultEnabled: true,
-    color: "#228B22",
     emoji: "🛒",
     policy: "full",
     mergeable: false,
@@ -119,12 +162,23 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
       { key: "shop", value: "spices", icon: "leaf" },
       { key: "shop", value: "brewing_supplies", icon: "beer" },
       { key: "shop", value: "tortilla", icon: "bread" },
+      { key: "shop", value: "kiosk", icon: "store" },
+      { key: "amenity", value: "marketplace", icon: "store" },
+      // Fuel stations sell water and food, often late
+      { key: "amenity", value: "fuel", icon: "fuel" },
+      {
+        key: "amenity",
+        value: "vending_machine",
+        icon: "store",
+        only: { vending: ["drinks", "water", "food", "sweets", "bread", "milk", "coffee"] },
+      },
     ],
   },
   {
     category: "Restaurant or Bar",
+    family: "Food",
+    glyph: Utensils,
     defaultEnabled: true,
-    color: "#FF6B35",
     emoji: "🍽️",
     policy: "full",
     mergeable: false,
@@ -144,8 +198,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Gears",
+    family: "Mechanics",
+    glyph: Bike,
     defaultEnabled: true,
-    color: "#CC0000",
     emoji: "🔧",
     policy: "full",
     mergeable: false,
@@ -160,8 +215,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "DIY",
+    family: "Mechanics",
+    glyph: Wrench,
     defaultEnabled: true,
-    color: "#E65100",
     emoji: "🛠️",
     policy: "minimal",
     mergeable: true,
@@ -172,8 +228,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Laundry",
+    family: "Services",
+    glyph: WashingMachine,
     defaultEnabled: true,
-    color: "#FFB6C1",
     emoji: "👕",
     policy: "minimal",
     mergeable: true,
@@ -186,8 +243,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   // --- Optional categories (disabled by default, user opts in) ---
   {
     category: "Medical",
+    family: "Health",
+    glyph: Stethoscope,
     defaultEnabled: false,
-    color: "#DC2626",
     emoji: "🏥",
     policy: "minimal",
     mergeable: false,
@@ -204,8 +262,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Pharmacy",
+    family: "Health",
+    glyph: Pill,
     defaultEnabled: false,
-    color: "#16A34A",
     emoji: "💊",
     policy: "minimal",
     mergeable: false,
@@ -216,8 +275,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Bank & ATM",
+    family: "Services",
+    glyph: Landmark,
     defaultEnabled: false,
-    color: "#1D4ED8",
     emoji: "🏧",
     policy: "minimal",
     mergeable: false,
@@ -232,8 +292,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Post office",
+    family: "Services",
+    glyph: Mail,
     defaultEnabled: false,
-    color: "#CA8A04",
     emoji: "📮",
     policy: "minimal",
     mergeable: false,
@@ -247,8 +308,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Viewpoint",
+    family: "Discovery",
+    glyph: Binoculars,
     defaultEnabled: false,
-    color: "#7C3AED",
     emoji: "👁️",
     policy: "minimal",
     mergeable: true,
@@ -267,8 +329,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Tourist info",
+    family: "Discovery",
+    glyph: Info,
     defaultEnabled: false,
-    color: "#38BDF8",
     emoji: "ℹ️",
     policy: "minimal",
     mergeable: false,
@@ -282,8 +345,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Charging",
+    family: "Mechanics",
+    glyph: Zap,
     defaultEnabled: false,
-    color: "#FACC15",
     emoji: "🔌",
     policy: "minimal",
     mergeable: true,
@@ -297,8 +361,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Picnic",
+    family: "Food",
+    glyph: TreeDeciduous,
     defaultEnabled: false,
-    color: "#059669",
     emoji: "🌳",
     policy: "skip",
     mergeable: true,
@@ -313,8 +378,9 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
   },
   {
     category: "Wifi",
+    family: "Services",
+    glyph: Wifi,
     defaultEnabled: false,
-    color: "#6366F1",
     emoji: "📶",
     policy: "minimal",
     mergeable: true,
@@ -331,7 +397,12 @@ export const POI_CATEGORIES: PoiCategoryConfig[] = [
 
 /** Quick lookup: (key, value) -> category config */
 function isExcluded(tag: PoiCategoryConfig["tags"][number], tags: Record<string, string>) {
-  return Object.entries(tag.unless ?? {}).some(([key, values]) => values.includes(tags[key]));
+  const has = (key: string, values: string[]) =>
+    (tags[key] ?? "").split(";").some((v) => values.includes(v.trim()));
+  return (
+    Object.entries(tag.unless ?? {}).some(([key, values]) => has(key, values)) ||
+    Object.entries(tag.only ?? {}).some(([key, values]) => !has(key, values))
+  );
 }
 
 export function findCategoryForTag(
@@ -357,8 +428,9 @@ export const DEFAULT_CATEGORIES: PoiCategory[] = POI_CATEGORIES.filter(
   (c) => c.defaultEnabled !== false,
 ).map((c) => c.category);
 
-/** Default corridor: POIs farther than this from every trace are dropped (meters) */
-export const DEFAULT_MAX_DISTANCE_M = 1500;
+/** Corridor (meters): Overpass is queried this far around the route, and the distance
+ *  slider starts and ends here; POIs farther from every trace are dropped */
+export const CORRIDOR_M = 1500;
 
 function byCategory<T>(pick: (c: PoiCategoryConfig) => T): Record<PoiCategory, T> {
   return Object.fromEntries(POI_CATEGORIES.map((c) => [c.category, pick(c)])) as Record<
@@ -368,11 +440,12 @@ function byCategory<T>(pick: (c: PoiCategoryConfig) => T): Record<PoiCategory, T
 }
 
 // Lookups by category, all read from the POI_CATEGORIES rows above
-export const CATEGORY_COLORS = byCategory((c) => c.color);
 export const OSMAND_CATEGORY_ICONS = byCategory((c) => c.osmand.icon);
 export const OSMAND_CATEGORY_BACKGROUNDS = byCategory((c) => c.osmand.background);
 export const GPX_SYMBOLS = byCategory((c) => c.gpxSymbol);
 export const FIT_COURSE_POINT_TYPES = byCategory((c) => c.fitType);
+const CATEGORY_GLYPHS = byCategory((c) => c.glyph);
+export const CATEGORY_FAMILIES = byCategory((c) => c.family);
 export const MERGEABLE_CATEGORIES = byCategory((c) => c.mergeable);
 const CATEGORY_EMOJI = byCategory((c) => c.emoji);
 const ENRICHABILITY_POLICY = byCategory((c) => c.policy);
@@ -384,6 +457,62 @@ const ICON_EMOJI: Record<string, string> = { tent: "🏕️", hut: "🛖" };
 export function poiEmoji(poi: Pick<POI, "icon" | "category">): string {
   return ICON_EMOJI[poi.icon] ?? CATEGORY_EMOJI[poi.category] ?? "📍";
 }
+
+/** Per-tag glyph where one category mixes different places, keyed like ICON_EMOJI by the tag's icon */
+const ICON_GLYPHS: Record<string, IconNode> = {
+  tent: Tent,
+  shower: ShowerHead,
+  bread: Croissant,
+  coffee: Coffee,
+  beer: Beer,
+  icecream: IceCreamCone,
+  hospital: Hospital,
+  creditcard: CreditCard,
+  castle: Castle,
+  fire: Flame,
+  fuel: Fuel,
+};
+
+/** A category's family fill in a palette: the map's colour, which the exports write too */
+export function categoryColor(category: PoiCategory, palette: Palette): string {
+  return FAMILY_COLORS[palette][CATEGORY_FAMILIES[category]].fill;
+}
+
+export function poiGlyph(poi: Pick<POI, "icon" | "category">): IconNode {
+  return ICON_GLYPHS[poi.icon] ?? CATEGORY_GLYPHS[poi.category];
+}
+
+const WHITE = "#FFFFFF";
+const INK = "#16181C";
+
+/** Family fill and glyph per palette (design.md 3.4): the glyph is white or ink,
+ *  whichever contrasts more. The same ink as --color-ink in light, in both themes. */
+export const FAMILY_COLORS: Record<Palette, Record<PoiFamily, { fill: string; glyph: string }>> = {
+  default: {
+    Water: { fill: "#1F5FBF", glyph: WHITE },
+    Food: { fill: "#E8711A", glyph: INK },
+    Sleep: { fill: "#6E44C2", glyph: WHITE },
+    Mechanics: { fill: "#4B5563", glyph: WHITE },
+    Health: { fill: "#D32F2F", glyph: WHITE },
+    Services: { fill: "#2E7D32", glyph: WHITE },
+    Discovery: { fill: "#C9A227", glyph: INK },
+  },
+  cvd: {
+    Water: { fill: "#0072B2", glyph: WHITE },
+    Food: { fill: "#E69F00", glyph: INK },
+    Sleep: { fill: "#CC79A7", glyph: INK },
+    Mechanics: { fill: "#3D434B", glyph: WHITE },
+    Health: { fill: "#D55E00", glyph: INK },
+    Services: { fill: "#009E73", glyph: INK },
+    Discovery: { fill: "#F0E442", glyph: INK },
+  },
+};
+
+/** Families in display order (design.md 3.4), each with its categories in config order */
+export const POI_FAMILIES = (Object.keys(FAMILY_COLORS.default) as PoiFamily[]).map((family) => ({
+  family,
+  categories: POI_CATEGORIES.filter((c) => c.family === family),
+}));
 
 /**
  * Per-tag OsmAnd icon overrides.

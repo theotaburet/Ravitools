@@ -12,7 +12,9 @@ vi.mock("../state/route", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../state/route")>();
   return {
     ...orig,
-    processFilesAtom: atom(null, (_get, _set, files: File[]) => onFiles(files)),
+    processFilesAtom: atom(null, (_get, _set, files: File[], append?: boolean) =>
+      onFiles(files, append),
+    ),
   };
 });
 
@@ -30,11 +32,12 @@ function gpx(name: string): File {
 function renderUpload(processing = false) {
   const store = createStore();
   if (processing) store.set(stageAtom, "querying");
-  return render(
+  const view = render(
     <Provider store={store}>
       <GpxUpload />
     </Provider>,
   );
+  return { ...view, store };
 }
 
 describe("GpxUpload", () => {
@@ -51,13 +54,15 @@ describe("GpxUpload", () => {
     expect(passed.map((f) => f.name)).toEqual(["route.gpx"]);
   });
 
-  it("does not call processFiles when a non-.gpx file is dropped", () => {
-    const { container } = renderUpload();
+  // A .fit or .tcx dropped (or picked on Android, where accept is a hint) must not do nothing
+  it("says so when no dropped file can be loaded", () => {
+    const { container, store } = renderUpload();
     const zone = container.querySelector(".upload-zone") as HTMLElement;
 
-    fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "notes.txt")] } });
+    fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "ride.fit")] } });
 
     expect(onFiles).not.toHaveBeenCalled();
+    expect(store.get(routeErrorAtom)).toMatch(/\.gpx/);
   });
 
   it("ignores drops while the pipeline is processing", () => {
@@ -77,6 +82,16 @@ describe("GpxUpload", () => {
 
     expect(onFiles).toHaveBeenCalledTimes(1);
     expect(onFiles.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("adds the picked files to the loaded traces with append", () => {
+    render(
+      <Provider store={createStore()}>
+        <GpxUpload append />
+      </Provider>,
+    );
+    fireEvent.change(screen.getByLabelText("Add a GPX"), { target: { files: [gpx("b.gpx")] } });
+    expect(onFiles).toHaveBeenCalledWith([expect.objectContaining({ name: "b.gpx" })], true);
   });
 
   it("imports a .ravitools.json plan instead of running the pipeline", async () => {

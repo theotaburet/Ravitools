@@ -83,7 +83,7 @@ describe("EnrichmentPanel", () => {
 
   it("idle: enables the start button when SearXNG is available", () => {
     const { container } = renderPanel({ stage: "idle", searxngAvailable: true });
-    const start = container.querySelector(".neo-btn-primary.w-full") as HTMLButtonElement;
+    const start = container.querySelector(".btn-primary") as HTMLButtonElement;
     expect(start).toBeTruthy();
     expect(start.disabled).toBe(false);
   });
@@ -93,13 +93,13 @@ describe("EnrichmentPanel", () => {
       json: () => Promise.resolve({ services: { searxng: "error" } }),
     }) as unknown as typeof fetch;
     const { container } = renderPanel({ stage: "idle", searxngAvailable: false });
-    const start = container.querySelector(".neo-btn-primary.w-full") as HTMLButtonElement;
+    const start = container.querySelector(".btn-primary") as HTMLButtonElement;
     expect(start.disabled).toBe(true);
   });
 
   it("loading-model: shows a progress bar", () => {
     const { container } = renderPanel({ stage: "loading-model", modelLoadProgress: 0.4 });
-    expect(container.querySelector(".progress-bar-fill")).toBeTruthy();
+    expect(container.querySelector(".progress > div")).toBeTruthy();
   });
 
   it("shows the scraper-blocked hint when a scrape was blocked", () => {
@@ -162,7 +162,7 @@ describe("EnrichmentPanel", () => {
       p1: { status: "skipped", skipReason: "generic-name" },
       p2: { status: "error" },
     });
-    const zones = [...container.querySelectorAll<HTMLElement>(".tally-bar > span")];
+    const zones = [...container.querySelectorAll<HTMLElement>(".progress-segmented > span")];
     // done and skipped fill the bar; what remains is the empty track
     expect(zones.map((z) => z.style.width)).toEqual(["25%", "25%"]);
     const tally = container.querySelector<HTMLDetailsElement>("details.tally");

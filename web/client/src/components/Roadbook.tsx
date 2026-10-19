@@ -35,10 +35,10 @@ export function Roadbook({ onClose }: { onClose: () => void }) {
     <div className="roadbook-overlay">
       <div className="roadbook-toolbar">
         <h2>{t("roadbook.title", lang)}</h2>
-        <button type="button" className="neo-btn-primary" onClick={() => window.print()}>
+        <button type="button" className="btn btn-primary" onClick={() => window.print()}>
           {t("roadbook.print", lang)}
         </button>
-        <button type="button" className="neo-btn-secondary" onClick={onClose}>
+        <button type="button" className="btn btn-quiet" onClick={onClose}>
           {t("roadbook.close", lang)}
         </button>
       </div>
@@ -61,7 +61,12 @@ export function Roadbook({ onClose }: { onClose: () => void }) {
                 role="img"
                 aria-label={t("profile.title", lang)}
               >
-                <path d={path} fill="none" stroke="black" vectorEffect="non-scaling-stroke" />
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="currentColor"
+                  vectorEffect="non-scaling-stroke"
+                />
               </svg>
             )}
             <table className="roadbook-table">

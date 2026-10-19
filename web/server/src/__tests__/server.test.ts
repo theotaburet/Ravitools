@@ -120,7 +120,7 @@ describe("/overpass", () => {
   });
 
   it("identifies itself to the mirrors: two of them answer 429 without a User-Agent", async () => {
-    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ elements: [] })));
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ elements: [{ id: 1 }] })));
 
     await request(app)
       .post("/overpass")
@@ -136,7 +136,7 @@ describe("/overpass", () => {
 
   it("returns cached response on second request", async () => {
     const query = uniqueQuery("cache");
-    const upstream = JSON.stringify({ elements: [] });
+    const upstream = JSON.stringify({ elements: [{ id: 1 }] });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
     // First request: cache MISS
@@ -149,6 +149,45 @@ describe("/overpass", () => {
     expect(res2.headers["x-cache"]).toBe("HIT");
     // fetch should not be called again
     expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  // overpass-api.de once answered a dense Paris chunk with 200 and no elements
+  // (mail.ru: 3 219 for the same query); cached, the route showed 0 POI for 24 h
+  it("asks the next mirror when one answers no elements", async () => {
+    const query = uniqueQuery("empty");
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ elements: [] })));
+    mockFetch.mockResolvedValueOnce(fakeResponse(JSON.stringify({ elements: [{ id: 5 }] })));
+
+    const res = await request(app).post("/overpass").send({ data: query });
+
+    expect(JSON.parse(res.text).elements).toEqual([{ id: 5 }]);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts no elements once a second mirror agrees (a desert)", async () => {
+    const query = uniqueQuery("desert");
+    mockFetch.mockResolvedValue(fakeResponse(JSON.stringify({ elements: [] })));
+
+    const res = await request(app).post("/overpass").send({ data: query });
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text).elements).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers a timed-out query (200 with a runtime error remark) with an uncached 504", async () => {
+    const query = uniqueQuery("remark");
+    const timedOut = JSON.stringify({ elements: [], remark: "runtime error: Query timed out" });
+    mockFetch.mockResolvedValue(fakeResponse(timedOut));
+
+    const res1 = await request(app).post("/overpass").send({ data: query });
+    const res2 = await request(app).post("/overpass").send({ data: query });
+
+    // The client splits a chunk on a 504; a cached remark would lose its POIs for 24 h
+    expect(res1.status).toBe(504);
+    expect(res1.body.detail).toContain("runtime error");
+    expect(res2.status).toBe(504);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("forwards upstream error status", async () => {
@@ -197,7 +236,7 @@ describe("/overpass", () => {
 
   it("accepts query from text body (form-encoded fallback)", async () => {
     const query = uniqueQuery("text-body");
-    const upstream = JSON.stringify({ elements: [] });
+    const upstream = JSON.stringify({ elements: [{ id: 1 }] });
     mockFetch.mockResolvedValueOnce(fakeResponse(upstream));
 
     const res = await request(app)

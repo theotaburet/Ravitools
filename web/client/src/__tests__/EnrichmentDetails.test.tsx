@@ -5,7 +5,6 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { EnrichmentDetails } from "../components/EnrichmentDetails";
 import type { EnrichedData } from "../types";
-import { makePoi } from "./enrichment-helpers";
 
 const BASE: EnrichedData = {
   rating: null,
@@ -30,7 +29,6 @@ describe("EnrichmentDetails", () => {
   it("renders season, prices and booking with French labels", () => {
     const { container } = render(
       <EnrichmentDetails
-        poi={makePoi()}
         enrichment={{
           ...BASE,
           season: "6 juin au 28 septembre 2026",
@@ -46,9 +44,7 @@ describe("EnrichmentDetails", () => {
   });
 
   it("renders nothing for those when absent", () => {
-    const { container } = render(
-      <EnrichmentDetails poi={makePoi()} enrichment={BASE} targetLanguage="en" />,
-    );
+    const { container } = render(<EnrichmentDetails enrichment={BASE} targetLanguage="en" />);
     expect(container.textContent).not.toMatch(/Season|Prices|Booking/);
   });
 });

@@ -17,7 +17,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 │   ┌───────────────────────────────────────────────────────┐  │
 │   │  Construction requêtes Overpass                       │  │
 │   │  • Chunking (50 pts/chunk, 3 pts overlap)             │  │
-│   │  • around:1000 sur trace simplifiée                   │  │
+│   │  • around:1500 sur trace simplifiée                   │  │
 │   │  • 18 catégories POI (9 essential + 9 optional)       │  │
 │   └───────────────────────┬───────────────────────────────┘  │
 │                           │                                  │
@@ -53,7 +53,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
                  │  • Rate limit        │
                  │    - Overpass 10/min  │
                  │    - Enrichment 60/m │
-                 │  • Garde taille 16KB │
+                 │  • Garde taille 32KB │
                  │  • Cache mémoire     │
                  │    - Overpass 24h    │
                  │    - Search 7j       │
@@ -77,7 +77,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 |---|---|---|
 | GPX parsing | `lib/gpx-parser.ts` | DOMParser, no server needed |
 | Trace simplification | `lib/gpx-parser.ts` | Resamples to ~500m spacing |
-| Query building | `lib/overpass.ts` | Constructs Overpass QL, chunks long traces (50 pts/chunk), retries failed chunks split in two |
+| Query building | `lib/overpass.ts` | Constructs Overpass QL, chunks long traces (50 pts/chunk), retries failed chunks for up to 8 min, splits timed-out ones in four |
 | POI matching | `lib/poi-processor.ts` | Tag matching, distance-to-trace, dedup |
 | Map rendering | `components/RouteMap.tsx` | Leaflet via react-leaflet, screen-grid clustering (`lib/poi-cluster.ts`) |
 | App state | `state/` | jotai atoms: route (traces, POIs, pipeline), enrichment, session (save, resume, import, reset), ui |
@@ -94,7 +94,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 | Endpoint | Concern | How |
 |---|---|---|
-| `POST /overpass` | Overpass proxy | Cache 24h, rate limit, query guard 16KB, mirror fallback, serialized upstream calls |
+| `POST /overpass` | Overpass proxy | Cache 24h, rate limit, query guard 32KB, mirror fallback, serialized upstream calls |
 | `POST /search` | SearXNG proxy | Cache 7 days |
 | `POST /geocode` | Nominatim proxy | Cache 30 days |
 | `POST /fetch-page` | Official-website preview | SSRF guard, redirect re-validation, JSON-LD extraction, size cap |
@@ -105,13 +105,13 @@ Ravitools uses a **hybrid client-heavy architecture**:
 
 ## Key design decisions
 
-1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box.
+1. **Corridor, not radius**: the trace is simplified then `around:` is used with Overpass. This queries a corridor along the route, not a naive bounding box. Every category is queried within `CORRIDOR_M` (1500 m); the category filter and the distance slider (up to the same 1500 m) only hide.
 
-2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. A failed chunk is retried in up to 3 rounds (10, 20, 30 s backoff), split in two each time: a dense city corridor times Overpass out, a smaller one does not. This is the only client-side retry; the server tries the mirrors in turn. Results are deduplicated by OSM element ID.
+2. **Chunked queries**: long traces are split into overlapping chunks of 50 points each (with 3 points overlap), queried one at a time. Each trace is chunked on its own: `around:` over several points is a polyline, so a chunk spanning two traces would scan the gap between them. Failed chunks retry in rounds (10, 20, then 30 s backoff) until an 8-minute budget is spent, so an outage passes with no click; a server failure ends the round early rather than hammering a sick server. When every chunk still fails, the run is an error with a retry, not a route with 0 POI; when only some fail, the warning on tab 01 carries the retry. A chunk Overpass reports as timed out (a runtime error remark, which Overpass sends with a 200 and the proxy turns into an uncached 504 carrying it; a bare 504 is mostly an overloaded mirror and does not count) is split in four and retried at once: a dense city corridor times Overpass out, a smaller one does not. The static build sticks to the mirror that answers and runs 2 chunks at a time (Overpass allows 2 slots per IP); the proxy serializes anyway. This is the only client-side retry; the server tries the mirrors in turn and never caches a timed-out answer. An answer with no elements and no remark is a desert or a sick mirror (overpass-api.de once sent one for a dense Paris chunk): the next mirror that answers is final, in the proxy and in the static build. `__tests__/overpass-faults.test.ts` replays outages, overloaded (504) flaky, dead and empty-answering mirrors and a dense city in virtual time. Results are deduplicated by OSM element ID.
 
-3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond 1500m are discarded.
+3. **Distance-to-trace filtering**: after Overpass returns raw elements, each POI's distance to the nearest segment of the trace is computed. POIs beyond the distance slider (1500 m at most) are discarded.
 
-4. **Client-side deduplication**: POIs of the same category within 50m of each other are merged, keeping the one with richer metadata.
+4. **Client-side deduplication**: POIs of the same mergeable category within 50 m of each other are merged, keeping the one with richer metadata. The radius stays 50 m however dense the route: growing it with the POI count once merged 28 % of the Paris water points.
 
 5. **No GPX storage**: the GPX file is read in-browser and never sent to the server. Privacy by design.
 
@@ -126,8 +126,8 @@ Ravitools uses a **hybrid client-heavy architecture**:
 - **Map**: Leaflet 1.9 via react-leaflet 5
 - **Server**: Express 5 under Bun, Postgres + PostGIS (optional enrichment cache), Playwright (Google Maps scraper)
 - **Enrichment**: @mlc-ai/web-llm (WebGPU), SearXNG, Nominatim
-- **Quality**: biome (lint + format), vitest, Playwright e2e, GitHub Actions (typecheck, test, lint, Pages deploy)
-- **Design**: "carnet de route" (paper and ink, 2 px frames, square corners, lime as the only action color, hard shadow only on the active step and primary actions, sentence case, dark theme via CSS tokens only). On small screens the sidebar is a bottom sheet over the map: a tap on the handle switches between peek and raised, the map never resizes
+- **Quality**: biome (lint + format), vitest, Playwright e2e on desktop and a Pixel 7 (smoke, touch targets, friction journeys), GitHub Actions (typecheck, test, lint, Pages deploy)
+- **Design**: "Field instrument" (`web/docs/design.md`). A full-bleed map that never resizes; on phones a bottom sheet with three detents (dragged 1:1, or tapped through) and floating pill tabs 01 to 04; on desktop a floating panel. Theme and colour-blind palette are token swaps on `<html>`
 
 ## File map
 
@@ -147,24 +147,28 @@ web/client/src/
 │   ├── session.ts            # localStorage session + .ravitools.json plan file
 │   ├── poi-cache.ts          # Client side of the shared PostGIS enrichment cache
 │   ├── i18n.ts               # fr/en strings and category labels
+│   ├── shell.ts              # Sheet detents, shared by the sheet and the map camera
 │   ├── export/               # One module per format (fit, gpx, kml, kmz, geojson, osmand) + description, hours, zip
 │   └── enrichment/           # enricher (batch pipeline), search (SearXNG), vocabulary (country language), websites + evidence (official site, one hop, result pages), osm-facts (tags as facts), llm (WebLLM), geocode,
 │                             # structured/deterministic fallbacks, confidence, provenance, google-fallback
 ├── components/
-│   ├── GpxUpload.tsx         # Drag-and-drop upload, plan file import, example route
-│   ├── RouteMap.tsx          # Leaflet map: traces, clustered POI markers, popups
-│   ├── ElevationProfile.tsx  # Profile strip under the map, gap alerts, hover sync
-│   ├── CategoryFilter.tsx    # Category chip grid + max distance slider
-│   ├── PoiList.tsx           # Virtualized POI list
+│   ├── GpxUpload.tsx         # Drag-and-drop upload, plan file import, example route; "Add a GPX" (append)
+│   ├── Sheet.tsx             # Bottom sheet (mobile) or panel (desktop), tab panels, pill tabs
+│   ├── Settings.tsx          # Round button + native popover: language, theme, palette, debug
+│   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
+│   ├── RouteMap.tsx          # Leaflet map: traces (tap to select), clustered family pastilles, sheet-aware camera
+│   ├── HeaderStrip.tsx       # Counter and compact profile atop the sheet (floating on desktop), tap to centre the map
+│   ├── CategoryFilter.tsx    # Family toggles, then distance slider and category chips behind "more"
+│   ├── PoiList.tsx           # Virtualized POI list, route order, in the tab panel's scroll
+│   ├── PoiDetail.tsx         # Selected POI in place of the list: ◀ ▶ in route order, trust, sources
 │   ├── EnrichmentPanel.tsx   # Machine check, model download, batch progress, CAPTCHA pause
 │   ├── EnrichmentDetails.tsx # Shared rendering of an enriched POI
-│   ├── ExportPanel.tsx       # Export cards (6 formats, plan file, roadbook)
+│   ├── ExportPanel.tsx       # Formats as radio cards, docked download (palette-aware colours), plan file, roadbook
 │   ├── Roadbook.tsx          # Printable roadbook
-│   ├── Step.tsx              # Numbered sidebar section
-│   ├── TraceSummary.tsx      # Step 01 result card: per trace name, km, D+, POI count
+│   ├── TraceSummary.tsx      # Tab 01: one card per trace (legend and selector): km, D+, POI count, gap alerts and their threshold
 │   ├── ErrorBoundary.tsx
-│   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling
-├── App.tsx                   # Layout + session lifecycle
+│   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling (the debug view opens from the settings)
+├── App.tsx                   # Shell (map, sheet, tabs) + session lifecycle
 ├── main.tsx                  # Entry point
 └── index.css                 # Tailwind + theme tokens + component styles
 

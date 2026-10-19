@@ -1,4 +1,4 @@
-// --- DebugPanel: collapsible log viewer for pipeline diagnostics ---
+// --- DebugPanel: log viewer for pipeline diagnostics (the debug view, opened from the settings) ---
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -11,7 +11,6 @@ import {
 } from "../lib/debug-log";
 
 export function DebugPanel() {
-  const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(isDebugEnabled);
   const [entries, setEntries] = useState<readonly LogEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -60,70 +59,54 @@ export function DebugPanel() {
 
   return (
     <div className="debug-panel">
-      <button
-        type="button"
-        className="debug-panel-toggle"
-        onClick={() => {
-          setOpen(!open);
-          if (!open && !enabled) toggleEnabled();
-        }}
-      >
-        <span className="debug-panel-icon">{open ? "▼" : "▶"}</span>
-        <span>Debug</span>
-        {enabled && entries.length > 0 && (
-          <span className="debug-panel-count">{entries.length}</span>
-        )}
-      </button>
-
-      {open && (
-        <div className="debug-panel-body">
-          <div className="debug-panel-toolbar">
-            <label className="debug-panel-label">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={toggleEnabled}
-                className="neo-checkbox"
-              />
-              Logging
-            </label>
-            <button
-              type="button"
-              className="neo-btn-sm neo-btn-secondary"
-              onClick={handleClear}
-              disabled={entries.length === 0}
-            >
-              Clear
-            </button>
-          </div>
-          <div className="debug-panel-log" ref={scrollRef} onScroll={handleScroll}>
-            {entries.length === 0 && (
-              <div className="debug-panel-empty">
-                {enabled
-                  ? "No log entries yet. Upload a GPX to see pipeline logs."
-                  : "Enable logging to start capturing."}
-              </div>
-            )}
-            {entries.map((e) => (
-              <div key={e.seq} className="debug-log-line">
-                <span className="debug-log-ts">{e.isoTs.slice(11, 23)}</span>
-                <span className={`debug-log-level debug-log-level-${e.level}`}>
-                  {e.level.toUpperCase().padEnd(5)}
-                </span>
-                <span className="debug-log-source">[{e.source}]</span>
-                <span className="debug-log-msg">{e.message}</span>
-                {e.data && (
-                  <span className="debug-log-data">
-                    {Object.entries(e.data)
-                      .map(([k, v]) => `${k}=${v}`)
-                      .join(" ")}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+      <div className="debug-panel-body">
+        <div className="debug-panel-toolbar">
+          <label className="switch">
+            <input
+              type="checkbox"
+              role="switch"
+              aria-checked={enabled}
+              checked={enabled}
+              onChange={toggleEnabled}
+            />
+            Logging
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleClear}
+            disabled={entries.length === 0}
+          >
+            Clear
+          </button>
         </div>
-      )}
+        <div className="debug-panel-log" ref={scrollRef} onScroll={handleScroll}>
+          {entries.length === 0 && (
+            <div className="debug-panel-empty">
+              {enabled
+                ? "No log entries yet. Upload a GPX to see pipeline logs."
+                : "Enable logging to start capturing."}
+            </div>
+          )}
+          {entries.map((e) => (
+            <div key={e.seq} className="debug-log-line">
+              <span className="debug-log-ts">{e.isoTs.slice(11, 23)}</span>
+              <span className={`debug-log-level debug-log-level-${e.level}`}>
+                {e.level.toUpperCase().padEnd(5)}
+              </span>
+              <span className="debug-log-source">[{e.source}]</span>
+              <span className="debug-log-msg">{e.message}</span>
+              {e.data && (
+                <span className="debug-log-data">
+                  {Object.entries(e.data)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join(" ")}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -21,7 +21,9 @@ function enqueueOverpass<T>(fn: () => Promise<T>): Promise<T> {
 /**
  * POST the query to each mirror in turn. A 429 gets ONE same-mirror retry after
  * the announced Retry-After (slots free in 10–45s; instant retries reset the
- * penalty). Returns the successful response, else the last non-OK one, else
+ * penalty). An answer with no elements and no remark is a desert or a sick mirror
+ * (overpass-api.de once sent one for a dense Paris chunk): the next mirror that
+ * answers is final. Returns the successful response, else the last non-OK one, else
  * undefined when every mirror was unreachable. Timeouts re-throw (→ 504).
  */
 async function fetchFromMirrors(
@@ -30,6 +32,7 @@ async function fetchFromMirrors(
   deadline: number,
 ): Promise<{ res: Response; url: string } | undefined> {
   let last: { res: Response; url: string } | undefined;
+  let empty: { res: Response; url: string } | undefined;
   for (const url of OVERPASS_URLS) {
     for (let attempt = 0; attempt < 2; attempt++) {
       let overpassRes: Response;
@@ -49,7 +52,14 @@ async function fetchFromMirrors(
         log.warn({ url }, "Overpass fetch failed, trying next");
         break;
       }
-      if (overpassRes.ok) return { res: overpassRes, url };
+      if (overpassRes.ok) {
+        const body = await overpassRes.text();
+        const found = { res: new Response(body), url };
+        if (empty || !isBare(body)) return found;
+        empty = found;
+        log.warn({ url }, "Overpass mirror answered no elements, asking the next");
+        break;
+      }
       last = { res: overpassRes, url };
       log.warn({ url, status: overpassRes.status }, "Overpass mirror non-OK");
       if (overpassRes.status !== 429 || attempt > 0) break;
@@ -61,8 +71,12 @@ async function fetchFromMirrors(
       await sleep(waitS * 1000);
     }
   }
-  return last;
+  // ponytail: a lone empty answer (every other mirror failed) is cached 24 h like any other
+  return empty ?? last;
 }
+
+const isBare = (body: string) =>
+  /"elements"\s*:\s*\[\s*\]/.test(body) && !body.includes('"remark"');
 
 overpassRouter.post("/overpass", limiter, async (req, res) => {
   // Accept query from JSON body or form-encoded body
@@ -92,8 +106,18 @@ overpassRouter.post("/overpass", limiter, async (req, res) => {
     "Overpass API",
     cache,
     cacheKey,
-    async () =>
-      (await enqueueOverpass(() => fetchFromMirrors(query, timeoutSignal, deadline)))?.res,
+    async () => {
+      const found = (await enqueueOverpass(() => fetchFromMirrors(query, timeoutSignal, deadline)))
+        ?.res;
+      if (!found?.ok) return found;
+      const body = await found.text();
+      // A timed-out query answers 200 with a runtime error remark: a 504 that
+      // carries it (the client splits the chunk on it), never cached
+      const remark = /"remark"\s*:\s*"(runtime error[^"]*)"/.exec(body)?.[1];
+      return remark
+        ? new Response(JSON.stringify({ remark }), { status: 504 })
+        : new Response(body);
+    },
     // An HTML error page served with 200 must not be cached as JSON
     (body) => {
       try {

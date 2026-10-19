@@ -57,14 +57,14 @@ Si la modification touche la logique POI (requête Overpass, matching, filtrage,
 | `web/client/src/components/` | UI React |
 | `web/server/src/app.ts` + `routes/` | proxy Express, caches, rate limit |
 | `web/server/src/scrapers/` | jobs Playwright (Google Maps) |
-| `web/docs/` | architecture, déploiement, catégories POI |
+| `web/docs/` | architecture, déploiement, catégories POI, charte « instrument de terrain » (`design.md`) |
 | `tasks/` | suivi des travaux en cours |
 
 ## Ajouter ou modifier une catégorie POI
 
 1. Vérifier si des tags OSM peuvent être ajoutés à une catégorie existante.
 2. Choisir les tags les plus pertinents pour l'usage vélo et estimer le risque de faux positifs.
-3. Ajouter une ligne à `POI_CATEGORIES` dans `poi-config.ts` : tags, couleur, emoji, politique d'enrichissement, fusion des doublons, symbole GPX, type FIT, icône et fond OsmAnd (le type impose chaque champ). Puis le type `PoiCategory` dans `types/index.ts` et les libellés dans `lib/i18n.ts` (fr + en). Un contrat d'enrichissement dans `ENRICHMENT_CONTRACTS` seulement pour une catégorie `full`.
+3. Ajouter une ligne à `POI_CATEGORIES` dans `poi-config.ts` : tags, famille, glyphe, emoji, politique d'enrichissement, fusion des doublons, symbole GPX, type FIT, icône et fond OsmAnd (le type impose chaque champ). Puis le type `PoiCategory` dans `types/index.ts` et les libellés dans `lib/i18n.ts` (fr + en). Un contrat d'enrichissement dans `ENRICHMENT_CONTRACTS` seulement pour une catégorie `full`.
 4. Documenter le choix et ses limites dans `web/docs/poi-categories.md`.
 5. `just check`, puis test sur un GPX d'exemple.
 
@@ -77,6 +77,7 @@ Si la modification touche la logique POI (requête Overpass, matching, filtrage,
 - Pas de tiret cadratin dans le code, les commentaires, l'UI ou la doc : deux-points, point-virgule ou parenthèses.
 - Un commentaire explique un choix non évident, jamais l'historique d'un changement (c'est le rôle de git).
 - Tailwind v4 : pas de `@apply` sur des classes custom du même fichier CSS.
+- UI : partir des primitives de `index.css` (`.btn`, `.chip`, `.card`, `.notice`…, `design.md` section 4), couleurs en jetons.
 - Tests qui parsent du GPX : `// @vitest-environment jsdom` (pas de `DOMParser` en Node).
 - Commits : une ligne, pas de corps.
 

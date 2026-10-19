@@ -9,3 +9,8 @@ export function priceTier(level: number): string {
 export function km(meters: number): string {
   return (meters / 1000).toFixed(1);
 }
+
+/** Kilometers for the counter and the trace cards: past 100 km the tenth is noise and costs width */
+export function kmShort(meters: number): string {
+  return meters >= 100_000 ? String(Math.round(meters / 1000)) : km(meters);
+}

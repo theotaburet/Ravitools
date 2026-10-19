@@ -3,64 +3,36 @@
 
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { loadRoute, stubApi } from "./fixtures";
 
-// ~700m track in central Paris (3 points is enough for the pipeline)
-const GPX_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="ravitools-e2e" xmlns="http://www.topografix.com/GPX/1/1">
-  <trk><name>Smoke Route</name><trkseg>
-    <trkpt lat="48.8500" lon="2.3500"><ele>35</ele></trkpt>
-    <trkpt lat="48.8530" lon="2.3510"><ele>36</ele></trkpt>
-    <trkpt lat="48.8560" lon="2.3520"><ele>37</ele></trkpt>
-  </trkseg></trk>
-</gpx>`;
-
-// Two POIs on the route, in default-enabled categories, >50m apart (no dedup)
-const OVERPASS_STUB = {
-  elements: [
-    { type: "node", id: 1, lat: 48.8531, lon: 2.3511, tags: { amenity: "drinking_water" } },
-    {
-      type: "node",
-      id: 2,
-      lat: 48.8502,
-      lon: 2.3502,
-      tags: { amenity: "restaurant", name: "Chez Test" },
-    },
-  ],
-};
-
-test.beforeEach(async ({ page }) => {
-  await page.route("**/api/health", (route) =>
-    route.fulfill({ json: { status: "ok", services: { searxng: "ok" } } }),
-  );
-  await page.route("**/api/overpass", (route) => route.fulfill({ json: OVERPASS_STUB }));
-});
+test.beforeEach(({ page }) => stubApi(page));
 
 test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("header h1")).toHaveText("Ravitools");
   await expect(page.locator(".upload-zone")).toBeVisible();
+  // Nothing to export before there are POIs
+  await expect(page.getByRole("tab", { name: /Export/ })).toBeDisabled();
 
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "smoke.gpx",
-    mimeType: "application/gpx+xml",
-    buffer: Buffer.from(GPX_FIXTURE),
-  });
+  await loadRoute(page);
 
-  // Pipeline done → export panel appears
-  await expect(page.locator(".export-panel")).toBeVisible({ timeout: 20_000 });
+  // Pipeline done → the POI tab is shown
+  await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
 
-  // Route polyline + both POI markers on the map
+  // Route polyline + every POI marker on the map
   await expect(page.locator(".route-map svg path").first()).toBeVisible();
-  await expect(page.locator(".poi-marker")).toHaveCount(2);
+  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(3);
 
   // POI list shows the named restaurant
   await expect(page.locator(".poi-list-item").first()).toBeVisible();
   await expect(page.getByText("Chez Test").first()).toBeVisible();
 
   // GPX export downloads a file with waypoints and the track
+  await page.getByRole("tab", { name: /Export/ }).click();
+  await page.getByRole("radio", { name: /^GPX COROS/ }).check();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: /^GPX COROS/ }).click(),
+    page.getByRole("button", { name: "Download GPX" }).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.gpx$/);
   const gpx = readFileSync((await download.path()) as string, "utf8");
@@ -77,7 +49,7 @@ test("invalid GPX shows an error with recovery", async ({ page }) => {
     buffer: Buffer.from("<not-a-gpx>hello</not-a-gpx>"),
   });
 
-  const errorBox = page.locator(".error-box");
+  const errorBox = page.getByRole("alert");
   await expect(errorBox).toBeVisible({ timeout: 10_000 });
   await errorBox.getByText("Try again").click();
   await expect(page.locator(".upload-zone")).toBeVisible();

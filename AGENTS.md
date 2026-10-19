@@ -11,6 +11,7 @@ The core value is relevance: POIs along the actual route, with low noise, not ev
 - `CONTRIBUTING.md`: setup, verification, where things live, how to add a POI category
 - `web/docs/architecture.md`: pipeline, what runs where, file map, server endpoints
 - `web/docs/poi-categories.md`: the 18 categories and their OSM tags
+- `web/docs/design.md`: the "Field instrument" charter: tokens, primitives, layout, tab content, experiments
 - `web/docs/deployment.md`: GitHub Pages demo and VPS deployment
 - `tasks/`: active work tracking (see below)
 
@@ -100,11 +101,11 @@ const { maxDistanceM } = useAtomValue(routeSettingsAtom); // state/route.ts, def
 ```
 Runtime: Bun 1.x
 Framework: React 19 + TypeScript 7 strict + Vite 8 (Rolldown)
-UI: Tailwind v4 + plain CSS tokens (neobrutalist "carnet de route", dark theme via tokens)
+UI: Tailwind v4 + plain CSS tokens ("field instrument", web/docs/design.md; dark theme and colour-blind palette via tokens)
 State: Jotai (atoms + action atoms in src/state/)
 Map: Leaflet 1.9 via react-leaflet 5
 Enrichment: @mlc-ai/web-llm (WebGPU, Qwen2.5-3B), SearXNG + Nominatim through the server proxy
-Tests: vitest (+ jsdom per file), Playwright e2e
+Tests: vitest (+ jsdom per file), Playwright e2e (desktop + Pixel 7)
 ```
 
 ### Backend (`web/server`)
@@ -158,8 +159,10 @@ Do not duplicate schemas here. Source of truth:
 ### Components
 
 ```typescript
-// Pattern: one component per sidebar step (Step.tsx wraps it), explicit props
-// Pattern: shared rendering extracted once (EnrichmentDetails is used by PoiList and RouteMap)
+// Pattern: one component per tab (TabPanel in Sheet.tsx wraps it), explicit props
+// Pattern: shared rendering extracted once (Icon draws a lucide icon for React, iconSvg for Leaflet divIcons)
+// Pattern: build from the primitives in index.css (.btn, .chip, .card, .field, .notice, .progress, .dock...,
+// design.md 4); a colour is a token, a family colour comes inline from FAMILY_COLORS[palette]
 ```
 
 ### Timers (strict)
@@ -168,7 +171,7 @@ Do not duplicate schemas here. Source of truth:
 
 Already approved, do not add to this list without asking:
 
-- UI: `CategoryFilter` slider commit (150 ms), `EnrichmentPanel` scraper job-stats polling, `RouteMap` hover grace and open-popup-after-flyTo delay
+- UI: `CategoryFilter` slider commit (150 ms), `EnrichmentPanel` scraper job-stats polling, `RouteMap` hover grace
 - Async sleeps for retry/backoff/stagger/cooldown: `lib/overpass.ts`, `lib/enrichment/search.ts`, `run-concurrent.ts`, `google-fallback.ts`, `state/enrichment.ts`, server `browser.ts` and `routes/overpass.ts`
 
 ---
@@ -220,11 +223,11 @@ Status: in-progress | done | blocked | abandoned
 ```
 GPX upload (browser)
     ↓ parse + resample to ~500 m
-Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1000; a failed chunk is retried up to 3 rounds, split in two)
+Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1500, every category; failed chunks retry for up to 8 min with no click, a timed-out one is split in four)
     ↓ via server proxy, or directly in the static build (VITE_STANDALONE)
 Tag matching → 18 categories
     ↓ perpendicular distance to trace (< maxDistanceM), dedup 50 m same category, sort along trace
-Map + list + elevation profile (gaps without water/food)
+Map + list + header strip (counter, whole-trace profile, stretches without water/food)
     ↓ optional enrichment: geocode → official site (+1 hop, evidence windows) → SearXNG in the country's language → WebLLM synthesis, deterministic fallback
 Export: GPX, KML, GeoJSON, OsmAnd GPX, KMZ, plan file (.ravitools.json)
 ```
@@ -316,7 +319,7 @@ just update       # in-range updates (semver ranges of package.json), then just 
 
 - Personal, single-user deployment: no multi-tenant hardening, no heavy observability
 - Languages: FR + EN (UI and enrichment output)
-- Export targets: generic GPX viewers, OsmAnd, Garmin, Wahoo. COROS DURA cannot ingest custom POIs
+- Export targets: generic GPX viewers, OsmAnd, Garmin, Wahoo, COROS (GPX waypoints through the COROS app, fewer than 200 per route recommended; see `web/docs/research/device-poi-transfer.md`)
 - Offline boundary: exports and an already-loaded session work offline; discovery (Overpass) and enrichment need network
 - Data: no user route stored server-side; caches Overpass 24 h, search 7 d, geocode 30 d, PostGIS enrichment 90 d
 - License MIT; OpenStreetMap ODbL attribution on the map and in exports

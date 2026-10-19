@@ -33,6 +33,14 @@ describe("processElements", () => {
     expect(pois[0].distanceToTrace).toBeGreaterThan(0);
   });
 
+  it("gives a POI the same id on every run (enrichments are keyed by it)", () => {
+    const elements: OverpassElement[] = [
+      { type: "node", id: 1001, lat: 48.858, lon: 2.356, tags: { amenity: "drinking_water" } },
+    ];
+    const first = processElements(elements, [TRACE])[0].id;
+    expect(processElements(elements, [TRACE], 1000)[0].id).toBe(first);
+  });
+
   it("should match a campsite POI", () => {
     const elements: OverpassElement[] = [
       {
@@ -141,35 +149,47 @@ describe("processElements", () => {
     expect(pois.length).toBe(2);
   });
 
-  it("should use a larger dedup radius for dense mergeable categories", () => {
-    const elements: OverpassElement[] = Array.from({ length: 300 }, (_, index) => ({
+  // Paris: the 1 800 restaurants grew the merge radius to 120 m, and 28 % of the
+  // water points vanished though the base map draws them
+  it("keeps two water points 100 m apart, however many restaurants surround them", () => {
+    const elements: OverpassElement[] = Array.from({ length: 1300 }, (_, index) => ({
       type: "node" as const,
       id: 4200 + index,
-      lat: 48.858 + index * 0.0003,
-      lon: 2.356 + index * 0.0003,
-      tags: { amenity: "drinking_water", name: `Water ${index}` },
+      lat: 48.858 + index * 0.00005,
+      lon: 2.356,
+      tags: { amenity: "restaurant", name: `Restaurant ${index}` },
     }));
-
     elements.push(
-      {
-        type: "node",
-        id: 99901,
-        lat: 48.95,
-        lon: 2.45,
-        tags: { amenity: "drinking_water", name: "Dense A" },
-      },
-      {
-        type: "node",
-        id: 99902,
-        lat: 48.9505,
-        lon: 2.45,
-        tags: { amenity: "drinking_water", name: "Dense B" },
-      },
+      { type: "node", id: 99901, lat: 48.95, lon: 2.45, tags: { amenity: "drinking_water" } },
+      { type: "node", id: 99902, lat: 48.9509, lon: 2.45, tags: { amenity: "drinking_water" } },
     );
 
     const pois = processElements(elements, [TRACE], 20000);
-    expect(pois.some((poi) => poi.name === "Dense A")).toBe(true);
-    expect(pois.some((poi) => poi.name === "Dense B")).toBe(false);
+    expect(pois.filter((poi) => poi.category === "Water")).toHaveLength(2);
+  });
+
+  // Places the base map draws that were in no category
+  it.each([
+    [{ man_made: "water_tap" }, "Water"],
+    [{ natural: "spring" }, "Water"],
+    [{ amenity: "fountain", drinking_water: "yes" }, "Water"],
+    [{ tourism: "wilderness_hut" }, "Sleeping place"],
+    [{ amenity: "fuel" }, "Food shop"],
+    [{ shop: "kiosk" }, "Food shop"],
+    [{ amenity: "marketplace" }, "Food shop"],
+    [{ amenity: "vending_machine", vending: "sweets;drinks" }, "Food shop"],
+  ])("files %o under %s", (tags, category) => {
+    const el: OverpassElement = { type: "node", id: 1, lat: 48.86, lon: 2.36, tags };
+    expect(processElements([el], [TRACE], 1500)[0]?.category).toBe(category);
+  });
+
+  it.each<Record<string, string>>([
+    { man_made: "water_tap", drinking_water: "no" },
+    { amenity: "fountain" },
+    { amenity: "vending_machine", vending: "parking_tickets" },
+  ])("leaves out %o", (tags) => {
+    const el: OverpassElement = { type: "node", id: 1, lat: 48.86, lon: 2.36, tags };
+    expect(processElements([el], [TRACE], 1500)).toEqual([]);
   });
 
   it("should not deduplicate POIs of different categories", () => {

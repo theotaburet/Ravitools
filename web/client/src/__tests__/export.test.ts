@@ -127,6 +127,18 @@ describe("KML export", () => {
   });
 });
 
+// The map's family colours, in the palette the user picked (design.md 8)
+describe("export colours", () => {
+  it("writes the family fill of the palette in KML and OsmAnd GPX", () => {
+    // Water in the colour-blind palette: #0072B2 (KML reads it aabbggrr)
+    expect(buildKmlString(MOCK_POIS, [], undefined, "cvd")).toContain("<color>ffB27200</color>");
+    const gpx = buildOsmAndGpxString(MOCK_POIS, [], undefined, "cvd");
+    expect(gpx).toContain("<osmand:color>#0072B2</osmand:color>");
+    expect(gpx).toContain('name="Water" color="#0072B2"');
+    expect(buildOsmAndGpxString(MOCK_POIS, [])).toContain("<osmand:color>#1F5FBF</osmand:color>");
+  });
+});
+
 describe("GeoJSON export", () => {
   it("should produce valid GeoJSON", () => {
     const geojson = buildGeoJsonObject(MOCK_POIS);
@@ -182,10 +194,8 @@ describe("OsmAnd GPX export", () => {
 
   it("should include OsmAnd category colors", () => {
     const gpx = buildOsmAndGpxString(MOCK_POIS, [MOCK_TRACE]);
-    // Water color: #0066CC
-    expect(gpx).toContain("#0066CC");
-    // Sleeping place color: #1A1A2E
-    expect(gpx).toContain("#1A1A2E");
+    expect(gpx).toContain("#1F5FBF"); // the Water family
+    expect(gpx).toContain("#6E44C2"); // the Sleep family
   });
 
   it("should still be valid GPX (basic structure)", () => {
@@ -259,7 +269,7 @@ describe("OsmAnd GPX with optional categories", () => {
   it("should include osmand extensions for optional category POIs", () => {
     const gpx = buildOsmAndGpxString([OPTIONAL_POI], []);
     expect(gpx).toContain("<osmand:icon>amenity_hospital</osmand:icon>");
-    expect(gpx).toContain("<osmand:color>#DC2626</osmand:color>");
+    expect(gpx).toContain("<osmand:color>#D32F2F</osmand:color>"); // the Health family
     expect(gpx).toContain('name="Medical"');
   });
 

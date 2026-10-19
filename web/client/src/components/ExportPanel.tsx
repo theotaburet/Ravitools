@@ -1,5 +1,5 @@
-// Export panel: one card per format, grouped by target (GPS, smartphone, files).
-// The FIT card is the primary action: it is the only one that carries typed alerts.
+// Export panel: the formats as radio cards (FIT first: the only one that carries typed alerts) and
+// one download button; then the plan file and the roadbook. Colours follow the palette (design.md 8).
 
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useState } from "react";
@@ -17,35 +17,9 @@ import { serializeSession } from "../lib/session";
 import { enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
 import { sessionSnapshotAtom } from "../state/session";
-import { targetLanguageAtom } from "../state/ui";
+import { paletteAtom, targetLanguageAtom } from "../state/ui";
 
 const Roadbook = lazy(() => import("./Roadbook").then((m) => ({ default: m.Roadbook })));
-
-function ExportCard({
-  format,
-  target,
-  primary = false,
-  disabled = false,
-  onClick,
-}: {
-  format: string;
-  target: string;
-  primary?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`export-card${primary ? " is-primary" : ""}`}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <span className="export-card-format">{format}</span>
-      <span className="export-card-target">{target}</span>
-    </button>
-  );
-}
 
 export function ExportPanel() {
   const pois = useAtomValue(filteredPoisAtom);
@@ -53,6 +27,8 @@ export function ExportPanel() {
   const snapshot = useAtomValue(sessionSnapshotAtom);
   const enrichments = useAtomValue(enrichmentsAtom);
   const lang = useAtomValue(targetLanguageAtom);
+  const palette = useAtomValue(paletteAtom);
+  const [chosen, setChosen] = useState(0);
   const [roadbookOpen, setRoadbookOpen] = useState(false);
   if (pois.length === 0) return null;
 
@@ -64,6 +40,56 @@ export function ExportPanel() {
       : `ravitools-${traces.length}-routes`
     : "ravitools-pois";
   const hasEnrichments = enrichments.size > 0;
+
+  const formats = [
+    { label: "FIT", target: "export.fitTarget", run: () => exportToFit(pois, traces) },
+    {
+      label: "GPX",
+      target: "export.gpxTarget",
+      run: () =>
+        downloadFile(
+          buildGpxString(pois, traces, enrichments),
+          `${baseName}.gpx`,
+          "application/gpx+xml",
+        ),
+    },
+    {
+      label: "GPX OsmAnd",
+      target: "export.osmandTarget",
+      run: () =>
+        downloadFile(
+          buildOsmAndGpxString(pois, traces, enrichments, palette),
+          `${baseName}-osmand.gpx`,
+          "application/gpx+xml",
+        ),
+    },
+    {
+      label: "KMZ",
+      target: "export.kmzTarget",
+      run: () => downloadBlob(buildKmzBlob(pois, traces, enrichments, palette), `${baseName}.kmz`),
+    },
+    {
+      label: "KML",
+      target: "export.kmlTarget",
+      run: () =>
+        downloadFile(
+          buildKmlString(pois, traces, enrichments, palette),
+          `${baseName}.kml`,
+          "application/vnd.google-earth.kml+xml",
+        ),
+    },
+    {
+      label: "GeoJSON",
+      target: "export.geojsonTarget",
+      run: () =>
+        downloadFile(
+          JSON.stringify(buildGeoJsonObject(pois, enrichments), null, 2),
+          `${baseName}.geojson`,
+          "application/geo+json",
+        ),
+    },
+  ];
+  const format = formats[chosen];
 
   const savePlan = () => {
     if (!snapshot) return;
@@ -82,95 +108,37 @@ export function ExportPanel() {
         {hasEnrichments && ` (${enrichments.size} ${t("export.enriched", lang)})`}
       </p>
 
-      <div className="export-group">
-        <div className="export-group-title">
-          <span>{t("export.gps", lang)}</span>
-        </div>
-        <div className="export-grid">
-          <ExportCard
-            primary
-            format="FIT"
-            target={t("export.fitTarget", lang)}
-            onClick={() => exportToFit(pois, traces)}
-          />
-          <ExportCard
-            format="GPX"
-            target={t("export.gpxTarget", lang)}
-            onClick={() =>
-              downloadFile(
-                buildGpxString(pois, traces, enrichments),
-                `${baseName}.gpx`,
-                "application/gpx+xml",
-              )
-            }
-          />
-          <ExportCard
-            format="KML"
-            target={t("export.kmlTarget", lang)}
-            onClick={() =>
-              downloadFile(
-                buildKmlString(pois, traces, enrichments),
-                `${baseName}.kml`,
-                "application/vnd.google-earth.kml+xml",
-              )
-            }
-          />
-          <ExportCard
-            format="GeoJSON"
-            target={t("export.geojsonTarget", lang)}
-            onClick={() =>
-              downloadFile(
-                JSON.stringify(buildGeoJsonObject(pois, enrichments), null, 2),
-                `${baseName}.geojson`,
-                "application/geo+json",
-              )
-            }
-          />
-        </div>
-      </div>
+      <fieldset className="export-formats">
+        <legend className="micro">{t("export.format", lang)}</legend>
+        {formats.map((f, i) => (
+          <label key={f.label} className="card export-card">
+            <input
+              type="radio"
+              name="export-format"
+              checked={i === chosen}
+              onChange={() => setChosen(i)}
+            />
+            <span className="export-card-format">{f.label}</span>
+            <span className="export-card-target">{t(f.target, lang)}</span>
+          </label>
+        ))}
+      </fieldset>
+      <button type="button" className="btn btn-primary dock" onClick={format.run}>
+        {t("export.download", lang, { format: format.label })}
+      </button>
 
-      <div className="export-group">
-        <div className="export-group-title">
-          <span>{t("export.smartphone", lang)}</span>
-        </div>
-        <div className="export-grid">
-          <ExportCard
-            format="GPX OsmAnd"
-            target={t("export.osmandTarget", lang)}
-            onClick={() =>
-              downloadFile(
-                buildOsmAndGpxString(pois, traces, enrichments),
-                `${baseName}-osmand.gpx`,
-                "application/gpx+xml",
-              )
-            }
-          />
-          <ExportCard
-            format="KMZ"
-            target={t("export.kmzTarget", lang)}
-            onClick={() => downloadBlob(buildKmzBlob(pois, traces, enrichments), `${baseName}.kmz`)}
-          />
-        </div>
-      </div>
-
-      <div className="export-group">
-        <div className="export-group-title">
-          <span>{t("export.files", lang)}</span>
-        </div>
-        <div className="export-grid">
-          <ExportCard
-            format={t("export.plan", lang)}
-            target={t("export.planBody", lang)}
-            disabled={!snapshot}
-            onClick={savePlan}
-          />
-          <ExportCard
-            format={t("roadbook.title", lang)}
-            target={t("roadbook.body", lang)}
-            disabled={!snapshot}
-            onClick={() => setRoadbookOpen(true)}
-          />
-        </div>
+      <div className="box-actions">
+        <button type="button" className="btn btn-quiet" disabled={!snapshot} onClick={savePlan}>
+          {t("export.plan", lang)}
+        </button>
+        <button
+          type="button"
+          className="btn btn-quiet"
+          disabled={!snapshot}
+          onClick={() => setRoadbookOpen(true)}
+        >
+          {t("roadbook.title", lang)}
+        </button>
       </div>
       {roadbookOpen && (
         <Suspense fallback={null}>
@@ -188,6 +156,12 @@ export function ExportPanel() {
         </p>
         <p>
           <strong>KMZ</strong> {t("export.kmzBody", lang)}
+        </p>
+        <p>
+          <strong>{t("export.plan", lang)}</strong> {t("export.planBody", lang)}
+        </p>
+        <p>
+          <strong>{t("roadbook.title", lang)}</strong> {t("roadbook.body", lang)}
         </p>
         {hasEnrichments && (
           <p>

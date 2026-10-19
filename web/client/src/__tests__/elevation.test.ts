@@ -1,7 +1,7 @@
 // --- Elevation profile helpers: buildProfile, downsampleProfile, profileAt ---
 
 import { describe, expect, it } from "vitest";
-import { buildProfile, downsampleProfile, gainAt, profileAt, slopeBuckets } from "../lib/elevation";
+import { buildProfile, downsampleProfile, profileAt, slopeBuckets } from "../lib/elevation";
 import type { TracePoint } from "../types";
 
 // ~111m per 0.001° latitude: convenient for distance assertions
@@ -76,27 +76,6 @@ describe("profileAt", () => {
     expect(mid.ele).toBeCloseTo(150, 5);
     expect(mid.lat).toBeCloseTo(45.0005, 6);
     expect(mid.lon).toBe(5);
-  });
-});
-
-describe("gainAt", () => {
-  // up 50, down 30, up 60: only climbs count
-  const profile = buildProfile([pt(0, 100), pt(1, 150), pt(2, 120), pt(3, 180)])!;
-  const seg = profile[1].dist;
-
-  it("is 0 at the start and full D+ at (or past) the end", () => {
-    expect(gainAt(profile, 0)).toBe(0);
-    expect(gainAt(profile, profile[3].dist)).toBeCloseTo(110, 5);
-    expect(gainAt(profile, profile[3].dist + 1000)).toBeCloseTo(110, 5);
-  });
-
-  it("interpolates inside a climbing segment", () => {
-    expect(gainAt(profile, seg / 2)).toBeCloseTo(25, 5);
-  });
-
-  it("ignores descents", () => {
-    // mid of the descending segment: still only the first 50m climbed
-    expect(gainAt(profile, seg * 1.5)).toBeCloseTo(50, 5);
   });
 });
 

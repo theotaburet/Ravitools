@@ -16,8 +16,9 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 |---|---|---|
 | `amenity` | `water_point` | Dedicated water filling station |
 | `amenity` | `drinking_water` | Public drinking water fountain |
-
-**Not included (yet)**: `natural=spring` (often not potable), `man_made=water_tap` (rare tagging).
+| `man_made` | `water_tap` | Tap (cemeteries, villages); left out when `drinking_water=no` |
+| `natural` | `spring` | Potability often unknown; left out when `drinking_water=no` |
+| `amenity` | `fountain` | Only with `drinking_water=yes` (most fountains are decorative) |
 
 ### Sleeping place
 
@@ -32,6 +33,7 @@ The category definitions live in `web/client/src/lib/poi-config.ts`.
 | `tourism` | `guest_house` | B&B style |
 | `tourism` | `motel` | Roadside accommodation |
 | `tourism` | `hotel` | Last resort, usually expensive |
+| `tourism` | `wilderness_hut` | Unstaffed hut, free |
 
 ### Restroom
 
@@ -80,8 +82,12 @@ Picnic, weather and rock shelters, lean-tos, huts. Bus shelters (`shelter_type=p
 | `shop` | `spices` | |
 | `shop` | `brewing_supplies` | |
 | `shop` | `tortilla` | |
+| `shop` | `kiosk` | |
+| `amenity` | `marketplace` | |
+| `amenity` | `fuel` | Fuel stations sell water and food, often late |
+| `amenity` | `vending_machine` | Only with `vending` drinks, water, food, sweets, bread, milk or coffee (not parking meters) |
 
-28 food shop types covering European diversity.
+29 food shop types covering European diversity, plus markets, fuel stations and food or drink vending machines.
 
 ### Restaurant or Bar
 
@@ -112,15 +118,15 @@ Picnic, weather and rock shelters, lean-tos, huts. Bus shelters (`shelter_type=p
 
 Public repair stations with tools and pump. Very valuable for bikepackers.
 
-Color: `#E65100` (distinct from Gears `#CC0000`).
-
 ### Laundry
 
 | OSM key | OSM value |
 |---|---|
 | `shop` | `laundry` |
 
-## Optional categories (disabled by default, user opts in)
+## Optional categories (off by default)
+
+Every category is queried; the filter only hides. Turning one on shows its POIs at once.
 
 ### Medical
 
@@ -199,39 +205,21 @@ For e-bike batteries and device charging.
 
 Libraries often provide free wifi and power outlets.
 
-## Category colors
+## Colors
 
-| Category | Color | Background |
-|---|---|---|
-| Water | `#0066CC` | Blue |
-| Sleeping place | `#1A1A2E` | Dark navy |
-| Restroom | `#FFD700` | Gold |
-| Shelter | `#444444` | Dark gray |
-| Food shop | `#228B22` | Forest green |
-| Restaurant or Bar | `#FF6B35` | Orange |
-| Gears | `#CC0000` | Red |
-| DIY | `#E65100` | Deep orange |
-| Laundry | `#FFB6C1` | Light pink |
-| Medical | `#DC2626` | Red |
-| Pharmacy | `#16A34A` | Green |
-| Bank & ATM | `#1D4ED8` | Blue |
-| Post office | `#CA8A04` | Amber |
-| Viewpoint | `#7C3AED` | Purple |
-| Tourist info | `#38BDF8` | Sky blue |
-| Charging | `#FACC15` | Yellow |
-| Picnic | `#059669` | Emerald |
-| Wifi | `#6366F1` | Indigo |
+A category takes its family's color (`FAMILY_COLORS` in `lib/poi-config.ts`, `web/docs/design.md` 3.4), in the palette the user picked: the map, the list and the exports (KML, KMZ, OsmAnd GPX through `categoryColor`) show the same one. The glyph tells the categories of a family apart.
 
 ## Corridor and filtering
 
-- **Overpass radius**: 1000m around the simplified trace
-- **Post-filter cutoff**: 1500m perpendicular distance to nearest trace segment
-- **Deduplication**: 50m radius, same category, keeps the POI with most OSM tags
+- **Overpass radius**: 1500 m around the simplified trace (`CORRIDOR_M`), every category
+- **Post-filter cutoff**: the distance slider, 300 m to 1500 m (the query radius), perpendicular distance to the nearest trace segment
+- **Deduplication**: 50 m radius, same mergeable category, keeps the POI with most OSM tags; it no longer grows with POI density (the map's count bubbles handle that)
+- **Conditional tags**: a tag with `only` (vending machines, fountains) gets its own Overpass clause carrying the condition
 
 ## Adding a new category
 
 1. Add the category name to `PoiCategory` type in `types/index.ts`
-2. Add one row to `POI_CATEGORIES` in `lib/poi-config.ts`: OSM tag matchers, `defaultEnabled`, color, emoji, enrichment policy, dedup merge, GPX symbol, FIT course point type, OsmAnd icon and background (the type requires every field)
+2. Add one row to `POI_CATEGORIES` in `lib/poi-config.ts`: OSM tag matchers, `defaultEnabled`, family, glyph, emoji, enrichment policy, dedup merge, GPX symbol, FIT course point type, OsmAnd icon and background (the type requires every field)
 3. Add the fr label in `lib/i18n.ts`; an `ENRICHMENT_CONTRACTS` entry only for a `full` category
 4. `just check`, then test on an example GPX
 

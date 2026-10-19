@@ -1,9 +1,10 @@
 // --- Tests for POI config lookups ---
 
+import { Bed, Tent } from "lucide";
 import { describe, expect, it } from "vitest";
 import {
   ALL_CATEGORIES,
-  CATEGORY_COLORS,
+  categoryColor,
   DEFAULT_CATEGORIES,
   findCategoryForTag,
   getOsmAndIcon,
@@ -11,6 +12,7 @@ import {
   OSMAND_CATEGORY_ICONS,
   POI_CATEGORIES,
   poiEmoji,
+  poiGlyph,
 } from "../lib/poi-config";
 
 // --- Category completeness ---
@@ -55,11 +57,6 @@ describe("POI_CATEGORIES", () => {
     for (const cat of POI_CATEGORIES) {
       expect(cat.tags.length).toBeGreaterThan(0);
     }
-  });
-
-  it("should have unique colors per category", () => {
-    const colors = POI_CATEGORIES.map((c) => c.color);
-    expect(new Set(colors).size).toBe(colors.length);
   });
 
   it("should mark essential categories as defaultEnabled true", () => {
@@ -199,10 +196,10 @@ describe("OsmAnd mappings", () => {
     }
   });
 
-  it("should have colors for all 18 categories", () => {
+  it("should have colors for all 18 categories, in both palettes", () => {
     for (const cat of ALL_CATEGORIES) {
-      expect(CATEGORY_COLORS[cat]).toBeDefined();
-      expect(CATEGORY_COLORS[cat]).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(categoryColor(cat, "default")).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(categoryColor(cat, "cvd")).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 
@@ -255,5 +252,19 @@ describe("poiEmoji", () => {
   it("maps alpine huts and chalets to the hut icon", () => {
     expect(findCategoryForTag("tourism", "alpine_hut")?.tag.icon).toBe("hut");
     expect(findCategoryForTag("tourism", "chalet")?.tag.icon).toBe("hut");
+  });
+});
+
+describe("poiGlyph", () => {
+  it("takes the tag's own glyph, else the category's", () => {
+    expect(poiGlyph({ category: "Sleeping place", icon: "tent" })).toBe(Tent);
+    expect(poiGlyph({ category: "Sleeping place", icon: "bed" })).toBe(Bed);
+  });
+
+  it("tells the categories of a family apart: the color says the family, the glyph the category", () => {
+    for (const family of new Set(POI_CATEGORIES.map((c) => c.family))) {
+      const glyphs = POI_CATEGORIES.filter((c) => c.family === family).map((c) => c.glyph);
+      expect(new Set(glyphs).size, family).toBe(glyphs.length);
+    }
   });
 });

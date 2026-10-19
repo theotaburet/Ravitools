@@ -1,7 +1,7 @@
 // --- KML Export: for Google Earth and some GPS apps ---
 
-import type { EnrichedData, POI, TraceData } from "../../types";
-import { CATEGORY_COLORS } from "../poi-config";
+import type { EnrichedData, Palette, POI, TraceData } from "../../types";
+import { categoryColor } from "../poi-config";
 import { formatPoiDescriptionHtml } from "./description";
 import { escapeXml, hexToKmlColor } from "./shared";
 
@@ -9,6 +9,7 @@ export function buildKmlString(
   pois: POI[],
   traces: TraceData[],
   enrichments?: Map<string, EnrichedData>,
+  palette: Palette = "default",
 ): string {
   // Group POIs by category for folders
   const byCategory = new Map<string, POI[]>();
@@ -30,7 +31,7 @@ export function buildKmlString(
         <description><![CDATA[${formatPoiDescriptionHtml(poi, enrichments?.get(poi.id))}]]></description>
         <Style>
           <IconStyle>
-            <color>ff${hexToKmlColor(CATEGORY_COLORS[poi.category])}</color>
+            <color>ff${hexToKmlColor(categoryColor(poi.category, palette))}</color>
             <scale>1.0</scale>
           </IconStyle>
         </Style>

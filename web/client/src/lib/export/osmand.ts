@@ -1,9 +1,9 @@
 // OsmAnd GPX Export: GPX with osmand: extensions for icon/color/background
 // Best experience on OsmAnd; other apps simply ignore the extensions.
 
-import type { EnrichedData, POI, PoiCategory, TraceData } from "../../types";
+import type { EnrichedData, Palette, POI, PoiCategory, TraceData } from "../../types";
 import {
-  CATEGORY_COLORS,
+  categoryColor,
   GPX_SYMBOLS,
   getOsmAndIcon,
   OSMAND_CATEGORY_BACKGROUNDS,
@@ -15,6 +15,7 @@ export function buildOsmAndGpxString(
   pois: POI[],
   traces: TraceData[],
   enrichments?: Map<string, EnrichedData>,
+  palette: Palette = "default",
 ): string {
   // Build <osmand:points_groups> for the <extensions> block
   const categoriesUsed = new Set<PoiCategory>();
@@ -24,7 +25,7 @@ export function buildOsmAndGpxString(
 
   const pointsGroups = Array.from(categoriesUsed)
     .map((cat) => {
-      const color = CATEGORY_COLORS[cat] ?? "#3b82f6";
+      const color = categoryColor(cat, palette);
       const bg = OSMAND_CATEGORY_BACKGROUNDS[cat] ?? "circle";
       const icon = getOsmAndIcon({ category: cat, tags: {} });
       return `      <group name="${escapeXml(cat)}" color="${color}" icon="${icon}" background="${bg}" />`;
@@ -43,7 +44,7 @@ ${pointsGroups}
       const desc = formatPoiDescriptionCompact(poi, enrichments?.get(poi.id));
       const sym = GPX_SYMBOLS[poi.category] ?? "Flag, Blue";
       const osmandIcon = getOsmAndIcon(poi);
-      const osmandColor = CATEGORY_COLORS[poi.category] ?? "#3b82f6";
+      const osmandColor = categoryColor(poi.category, palette);
       const osmandBg = OSMAND_CATEGORY_BACKGROUNDS[poi.category] ?? "circle";
 
       return `  <wpt lat="${poi.lat}" lon="${poi.lon}">
