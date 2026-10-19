@@ -2,6 +2,7 @@
 // Machine check first (can the local model run here?), then the batch controls.
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { CircleAlert, TriangleAlert } from "lucide";
 import { useEffect } from "react";
 import { km } from "../lib/format";
 import { t, tLabel, translateCategory, translatePoiName } from "../lib/i18n";
@@ -23,6 +24,7 @@ import {
 import { filteredPoisAtom } from "../state/route";
 import { enrichAllAtom, selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
 import type { POI, SkipReason, TargetLanguage } from "../types";
+import { Icon } from "./Icon";
 
 /** Format seconds into a human-readable ETA string */
 function formatEta(seconds: number): string {
@@ -44,7 +46,7 @@ function LlmCheck({ lang }: { lang: TargetLanguage }) {
 
   if (!cap) {
     return (
-      <div className="llm-check">
+      <div className="card llm-check">
         <div className="llm-check-title">{tLabel("llm.title", t("llm.checking", lang), lang)}</div>
       </div>
     );
@@ -53,7 +55,7 @@ function LlmCheck({ lang }: { lang: TargetLanguage }) {
   const modelNote = `${(cap.modelSizeMb / 1000).toFixed(1)} GB ${t("llm.modelNote", lang)}`;
   const reasons = cap.reasons.map((r) => t(`llm.reason.${r}`, lang)).join(", ");
   return (
-    <div className={`llm-check llm-check-${cap.level}`}>
+    <div className={`card llm-check llm-check-${cap.level}`}>
       <div className="llm-check-title">
         {tLabel("llm.title", t(`llm.${cap.level}`, lang), lang)}
         {cap.gpuName && ` (${cap.gpuName})`}
@@ -68,10 +70,11 @@ function LlmCheck({ lang }: { lang: TargetLanguage }) {
         {enabled && <div className="hint">{t("enrich.aiDisclaimer", lang)}</div>}
       </details>
       {cap.level === "limited" && (
-        <label>
+        <label className="switch">
           <input
             type="checkbox"
-            className="neo-checkbox"
+            role="switch"
+            aria-checked={optIn}
             checked={optIn}
             onChange={(e) => setOptIn(e.target.checked)}
           />
@@ -91,7 +94,7 @@ function Tally({ lang }: { lang: TargetLanguage }) {
   const width = (n: number) => `${(n / total) * 100}%`;
   const overview = (
     <>
-      <span className="tally-bar" aria-hidden="true">
+      <span className="progress progress-segmented" aria-hidden="true">
         <span className="is-done" style={{ width: width(done) }} />
         <span className="is-skipped" style={{ width: width(skipped) }} />
       </span>
@@ -217,34 +220,39 @@ export function EnrichmentPanel() {
 
       {/* SearXNG status */}
       {!job.searxngAvailable && (
-        <div className="enrichment-notice notice-warning">
-          {t("enrich.searxngUnavailable", lang)}
+        <div className="notice notice-warning">
+          <Icon node={TriangleAlert} />
+          <p>{t("enrich.searxngUnavailable", lang)}</p>
         </div>
       )}
 
-      {job.googleFallbackStatus && (
-        <div className="enrichment-notice notice-progress">{job.googleFallbackStatus}</div>
-      )}
+      {job.googleFallbackStatus && <p className="hint">{job.googleFallbackStatus}</p>}
 
       {/* Scraper blocked signal: CAPTCHA/anti-bot on Google/Yandex */}
       {(job.googleFallbackStats?.counts.blocked ?? 0) > 0 && (
-        <div className="enrichment-notice notice-danger">{t("enrich.scraperBlocked", lang)}</div>
+        <div className="notice notice-danger">
+          <Icon node={CircleAlert} />
+          <p>{t("enrich.scraperBlocked", lang)}</p>
+        </div>
       )}
 
       {/* Source layout drift: Google changed its page and a section no longer parses */}
       {(job.googleFallbackStats?.counts.layoutIssues ?? 0) > 0 && (
-        <div className="enrichment-notice notice-danger">{t("enrich.sourceLayout", lang)}</div>
+        <div className="notice notice-danger">
+          <Icon node={CircleAlert} />
+          <p>{t("enrich.sourceLayout", lang)}</p>
+        </div>
       )}
 
       {job.googleFallbackStats &&
         (job.googleFallbackStats.counts.queued > 0 ||
           job.googleFallbackStats.counts.running > 0) && (
-          <div className="enrichment-notice notice-progress">
+          <div className="hint">
             {t("enrich.googleQueue", lang)} {job.googleFallbackStats.counts.queued}{" "}
             {t("enrich.queued", lang)}, {job.googleFallbackStats.counts.running}{" "}
             {t("enrich.running", lang)}
             {job.googleFallbackStats.jobs.length > 0 && (
-              <div className="hint">
+              <div>
                 {job.googleFallbackStats.jobs
                   .filter((item) => item.status === "queued" || item.status === "running")
                   .slice(0, 3)
@@ -263,22 +271,22 @@ export function EnrichmentPanel() {
 
       {/* Enrich-all toggle */}
       {!isRunning && (
-        <label className="enrichment-row cursor-pointer">
+        <label className="switch">
           <input
             type="checkbox"
+            role="switch"
+            aria-checked={enrichAll}
             checked={enrichAll}
             onChange={(e) => onEnrichAllChange(e.target.checked)}
-            className="neo-checkbox"
           />
-          <span className={enrichAll ? "" : "text-muted"}>
-            {t("enrich.enrichEverything", lang)}
-          </span>
+          {t("enrich.enrichEverything", lang)}
         </label>
       )}
 
-      {/* Idle state: show trigger button */}
+      {/* Idle state: show trigger button (direct children of the panel, so the main action can
+          dock above the tabs) */}
       {job.stage === "idle" && enrichedCount === 0 && (
-        <div className="flex flex-col gap-2">
+        <>
           {!enrichAll && poiCount > 0 && (
             <div className="hint">
               {poiCount} {t("enrich.poisTotalHint", lang)}
@@ -286,7 +294,7 @@ export function EnrichmentPanel() {
           )}
           <button
             type="button"
-            className="neo-btn-primary w-full"
+            className="btn btn-primary dock"
             onClick={onStart}
             disabled={!job.searxngAvailable}
             title={!job.searxngAvailable ? t("enrich.startSearxngTitle", lang) : undefined}
@@ -295,17 +303,17 @@ export function EnrichmentPanel() {
             {enrichAll ? `${t("enrich.all", lang)} ${poiCount}` : `${poiCount}`}{" "}
             {t("enrich.poisWord", lang)}
           </button>
-        </div>
+        </>
       )}
 
       {/* Done, or idle after a partial run: offer continue or re-enrich */}
       {(isDone || (job.stage === "idle" && enrichedCount > 0)) && (
-        <div className="flex flex-col gap-2">
+        <>
           <Tally lang={lang} />
           {pendingCount > 0 && (
             <button
               type="button"
-              className="neo-btn-primary w-full"
+              className="btn btn-primary dock"
               onClick={onContinue}
               disabled={!job.searxngAvailable}
             >
@@ -314,19 +322,19 @@ export function EnrichmentPanel() {
           )}
           <button
             type="button"
-            className="neo-btn-sm neo-btn-secondary w-full"
+            className="btn btn-quiet"
             onClick={onStart}
             disabled={!job.searxngAvailable}
           >
             {t("enrich.reEnrichAll", lang)} ({poiCount})
           </button>
-        </div>
+        </>
       )}
 
       {/* Loading model */}
       {job.stage === "loading-model" && (
-        <div className="flex flex-col gap-2">
-          <div className="enrichment-row">
+        <>
+          <div className="status">
             <span className="spinner" />
             <span>
               {job.llmActive
@@ -334,22 +342,19 @@ export function EnrichmentPanel() {
                 : t("enrich.preparing", lang)}
             </span>
           </div>
-          <div className="progress-bar-track">
-            <div
-              className="progress-bar-fill"
-              style={{ width: `${Math.round(job.modelLoadProgress * 100)}%` }}
-            />
+          <div className="progress">
+            <div style={{ width: `${Math.round(job.modelLoadProgress * 100)}%` }} />
           </div>
-          <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={onCancel}>
+          <button type="button" className="btn btn-quiet" onClick={onCancel}>
             {t("enrich.cancel", lang)}
           </button>
-        </div>
+        </>
       )}
 
       {/* Running batch */}
       {job.stage === "running" && (
-        <div className="flex flex-col gap-2">
-          <div className="enrichment-row">
+        <>
+          <div className="status">
             <span className="spinner" />
             <span>
               {t(`enrich.phase.${job.phase}`, lang)} {phaseCount}/{job.total}
@@ -371,37 +376,35 @@ export function EnrichmentPanel() {
             </div>
           )}
           <Tally lang={lang} />
-          <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={onCancel}>
+          <button type="button" className="btn" onClick={onCancel}>
             {t("enrich.stop", lang)}
           </button>
-        </div>
+        </>
       )}
 
       {/* Paused: CAPTCHA required */}
       {isPausedCaptcha && (
-        <div className="flex flex-col gap-2">
-          <div className="enrichment-notice notice-warning">
-            <strong>{t("enrich.captchaBlocked", lang)}</strong>
-            <br />
-            {t("enrich.captchaInstructions", lang)}
+        <>
+          <div className="notice notice-warning">
+            <Icon node={TriangleAlert} />
+            <p>
+              <strong>{t("enrich.captchaBlocked", lang)}</strong>
+              <br />
+              {t("enrich.captchaInstructions", lang)}
+            </p>
           </div>
           {job.captchaUrl && (
-            <a
-              href={job.captchaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="neo-btn-primary w-full"
-            >
+            <a href={job.captchaUrl} target="_blank" rel="noopener noreferrer" className="btn">
               {t("enrich.openSearxng", lang)}
             </a>
           )}
-          <button type="button" className="neo-btn-primary w-full" onClick={onResumeAfterCaptcha}>
+          <button type="button" className="btn btn-primary dock" onClick={onResumeAfterCaptcha}>
             {t("enrich.resume", lang)} ({pendingCount} {t("enrich.remaining", lang)})
           </button>
-          <button type="button" className="neo-btn-sm neo-btn-secondary" onClick={onCancel}>
+          <button type="button" className="btn btn-quiet" onClick={onCancel}>
             {t("enrich.cancel", lang)}
           </button>
-        </div>
+        </>
       )}
 
       {/* Unresponsive engines warning */}
@@ -429,23 +432,24 @@ export function EnrichmentPanel() {
 
       {/* Error */}
       {hasError && (
-        <div className="flex flex-col gap-2">
-          <div className="enrichment-counts">
-            <span className="is-error">
-              {t("enrich.error", lang)} {job.error}
-            </span>
+        <>
+          <div className="notice notice-danger">
+            <Icon node={CircleAlert} />
+            <p>
+              <strong>{t("enrich.error", lang)}</strong> {job.error}
+            </p>
           </div>
           {enrichedCount > 0 && <Tally lang={lang} />}
           {pendingCount > 0 ? (
-            <button type="button" className="neo-btn-sm neo-btn-primary" onClick={onContinue}>
+            <button type="button" className="btn btn-primary dock" onClick={onContinue}>
               {t("enrich.continueShort", lang)} ({pendingCount} {t("enrich.retryable", lang)})
             </button>
           ) : (
-            <button type="button" className="neo-btn-sm neo-btn-primary" onClick={onStart}>
+            <button type="button" className="btn btn-primary dock" onClick={onStart}>
               {t("enrich.retry", lang)}
             </button>
           )}
-        </div>
+        </>
       )}
     </div>
   );

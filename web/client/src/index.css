@@ -568,6 +568,17 @@ a {
   transition: width 300ms;
 }
 
+/* Zones side by side (done, skipped); what remains is the track, a hairline (3.3) */
+.progress-segmented {
+  display: flex;
+  background: var(--color-hairline);
+}
+
+.progress-segmented > span {
+  background: var(--zone);
+  transition: width 300ms;
+}
+
 /* State message: soft background, the state colour on the icon. The text stays ink: the state
    text colours drop to 3.97 to 4.43 on the soft background in light (4.5 needed) */
 .notice {
@@ -582,7 +593,8 @@ a {
   flex: none;
 }
 
-.notice-body {
+.notice-body,
+.notice > p {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -733,7 +745,10 @@ a {
   position: sticky;
   z-index: 1;
   bottom: var(--space-2);
-  box-shadow: var(--elev-float);
+  /* A paper margin: what scrolls under it does not peek out at the corners */
+  box-shadow:
+    0 0 0 var(--space-2) var(--color-paper),
+    var(--elev-float);
 }
 
 .tab-panel[hidden] {
@@ -1010,20 +1025,6 @@ a {
   to {
     transform: rotate(360deg);
   }
-}
-
-.progress-bar-track {
-  width: 100%;
-  height: 0.6rem;
-  background: var(--color-soft);
-  border: 2px solid var(--color-border);
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: var(--color-lime);
-  transition: width 300ms ease;
 }
 
 .error-box {
@@ -1401,53 +1402,7 @@ a {
 .enrichment-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-}
-
-.enrichment-notice {
-  padding: 0.55rem 0.7rem;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-soft);
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--color-text);
-}
-
-.enrichment-notice code {
-  font-size: 0.75rem;
-  font-family: ui-monospace, monospace;
-}
-
-.enrichment-notice.notice-warning {
-  background: var(--color-warning-soft);
-  border-color: var(--color-warning);
-}
-
-.enrichment-notice.notice-progress {
-  background: var(--color-info-soft);
-  border-color: var(--color-accent);
-}
-
-.enrichment-notice.notice-danger {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger);
-}
-
-.enrichment-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-}
-
-.enrichment-counts {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-}
-
-.enrichment-counts .is-error {
-  color: var(--color-danger);
+  gap: var(--space-3);
 }
 
 /* Enrichment tally: one bar in three zones (done, skipped, remaining is the empty track) */
@@ -1455,8 +1410,8 @@ div.tally,
 .tally > summary {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.8rem;
+  gap: var(--space-2);
+  font-size: 14px;
 }
 
 .tally > summary {
@@ -1469,28 +1424,15 @@ div.tally,
 }
 
 .tally .is-done {
-  --zone: var(--color-lime);
+  --zone: var(--color-success);
 }
 
 .tally .is-skipped {
-  --zone: repeating-linear-gradient(45deg, var(--color-muted) 0 2px, var(--color-soft) 2px 5px);
+  --zone: var(--color-warning);
 }
 
 .tally .is-remaining {
-  --zone: var(--color-soft);
-}
-
-.tally-bar {
-  display: flex;
-  height: 0.6rem;
-  background: var(--color-soft);
-  border: 2px solid var(--color-border);
-  overflow: hidden;
-}
-
-.tally-bar > span {
-  background: var(--zone);
-  transition: width 300ms ease;
+  --zone: var(--color-hairline);
 }
 
 .tally-legend {
@@ -1507,9 +1449,8 @@ div.tally,
 
 .tally-legend > span::before {
   content: "";
-  width: 0.6rem;
-  height: 0.6rem;
-  border: 1.5px solid var(--color-border);
+  width: 10px;
+  height: 10px;
   background: var(--zone);
 }
 
@@ -1520,16 +1461,17 @@ div.tally,
 }
 
 .tally-reasons {
-  margin-top: 0.35rem;
-  padding-left: 0.9rem;
-  font-size: 0.8rem;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
 }
 
 .tally-reasons summary {
   display: flex;
-  gap: 0.4rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
   cursor: pointer;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
 .tally-reasons summary::before {
@@ -1551,118 +1493,104 @@ div.tally,
   padding: 0;
   max-height: 14rem;
   overflow-y: auto;
-  border-left: 2px solid var(--color-line);
+  border-left: 1px solid var(--color-hairline);
 }
 
 .tally-reasons button {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 0.2rem 0.5rem;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
   text-align: left;
   background: none;
   border: 0;
-  color: var(--color-text);
+  color: var(--color-ink);
   cursor: pointer;
 }
 
 .tally-reasons button:hover,
 .tally-reasons button:focus-visible {
-  background: var(--color-soft);
+  background: var(--color-paper-sunk);
 }
 
 .tally-poi-meta {
-  font-size: 0.75rem;
-  color: var(--color-muted);
+  font-size: 12px;
+  color: var(--color-ink-muted);
   overflow-wrap: anywhere;
 }
 
 /* Machine check for the local model */
+/* Machine check for the local model: a card, its verdict on a state dot */
 .llm-check {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.6rem 0.7rem;
-  border: 2px solid var(--color-line);
-  font-size: 0.8rem;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
 }
 
 .llm-check-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
+  gap: var(--space-2);
+  font-weight: 600;
 }
 
 .llm-check-title::before {
   content: "";
-  width: 0.6rem;
-  height: 0.6rem;
+  flex: none;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-soft);
-  flex-shrink: 0;
+  background: var(--dot, var(--color-hairline));
 }
 
 .llm-check-ready {
-  border-color: var(--color-lime);
-}
-
-.llm-check-ready .llm-check-title::before {
-  background: var(--color-lime);
+  --dot: var(--color-success);
 }
 
 .llm-check-limited {
-  border-color: var(--color-warning);
+  --dot: var(--color-warning);
 }
 
-.llm-check-limited .llm-check-title::before {
-  background: var(--color-warning);
-}
-
-.llm-check-unsupported .llm-check-title::before {
-  background: var(--color-danger);
+.llm-check-unsupported {
+  --dot: var(--color-danger);
 }
 
 .llm-check summary {
   width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  color: var(--color-muted);
-}
-
-.llm-check summary ~ * {
-  margin-top: 0.35rem;
+  color: var(--color-ink-muted);
 }
 
 .llm-check-body {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   line-height: 1.4;
 }
 
-.llm-check label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  color: var(--color-text);
-}
-
 .engine-failures {
-  border: 1.5px solid var(--color-warning);
+  border-radius: var(--radius-card);
   background: var(--color-warning-soft);
-  font-size: 0.75rem;
+  font-size: 14px;
 }
 
 .engine-failures-summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
   cursor: pointer;
-  padding: 0.35rem 0.5rem;
   font-weight: 600;
   user-select: none;
 }
 
 .engine-failures-list {
   list-style: none;
-  padding: 0 0.5rem 0.35rem 0.5rem;
+  padding: 0 var(--space-4) var(--space-3);
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -1680,7 +1608,7 @@ div.tally,
 }
 
 .engine-failures-list .engine-reason {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   text-align: right;
 }
 

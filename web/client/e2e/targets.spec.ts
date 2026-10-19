@@ -1,5 +1,6 @@
 // E6 (web/docs/design.md, section 10), on the Pixel 7 project: every visible control
-// is a 44 x 44 px target, and the tabs, ◀ ▶ and primary buttons sit in the thumb zone.
+// is a 44 x 44 px target, and the tabs, ◀ ▶ and primary buttons sit in the thumb zone. A tab's
+// primary button is on screen, not past the fold.
 
 import { expect, type Page, test } from "@playwright/test";
 import { loadRoute, stubApi } from "./fixtures";
@@ -29,7 +30,7 @@ function smallTargets(page: Page): Promise<string[]> {
 /** Centres of the tabs and of the primary buttons on screen, as a fraction of the viewport height */
 function thumbCentres(page: Page): Promise<number[]> {
   return page.evaluate(() =>
-    [...document.querySelectorAll('[role="tab"], .neo-btn-primary, .poi-detail-bar .btn')]
+    [...document.querySelectorAll('[role="tab"], .btn-primary, .poi-detail-bar .btn')]
       .filter((el) => el.checkVisibility())
       .map((el) => el.getBoundingClientRect())
       .filter((r) => r.bottom > 0 && r.top < innerHeight)
@@ -37,9 +38,21 @@ function thumbCentres(page: Page): Promise<number[]> {
   );
 }
 
+/** Primary buttons of the open tab that sit past the fold (under the tabs, or below the screen) */
+function primariesOutOfSight(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const floor =
+      document.querySelector('[role="tablist"]')?.getBoundingClientRect().top ?? innerHeight;
+    return [...document.querySelectorAll(".tab-panel:not([hidden]) .btn-primary")]
+      .filter((el) => el.checkVisibility() && el.getBoundingClientRect().bottom > floor)
+      .map((el) => el.textContent ?? "");
+  });
+}
+
 async function expectReachable(page: Page): Promise<void> {
   expect(await smallTargets(page)).toEqual([]);
   for (const y of await thumbCentres(page)) expect(y).toBeGreaterThanOrEqual(0.45);
+  expect(await primariesOutOfSight(page)).toEqual([]);
 }
 
 test("every view keeps 44 px targets and its main actions under the thumb", async ({ page }) => {
