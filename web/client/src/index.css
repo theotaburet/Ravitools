@@ -1758,263 +1758,105 @@ div.tally,
 }
 
 /* ---------------------------------------------------------------------------
-   Elevation profile strip (under the map)
+   Header strip (design.md 5.1): the counter screen and the compact profile
    --------------------------------------------------------------------------- */
 
-.elevation-strip {
-  border-top: 2px solid var(--color-border);
-  background: var(--color-surface);
-  flex-shrink: 0;
-}
-
-.elevation-header {
+/* 72 px: lib/shell.ts LOW_PX counts it (handle 44 + strip 72 + pill tabs 80) */
+.strip {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.3rem 0.75rem;
-  flex-wrap: wrap;
+  gap: var(--space-3);
+  height: 72px;
+  padding: 0 var(--space-4) var(--space-2);
 }
 
-.elevation-toggle {
-  font-size: 0.75rem;
+/* Set into the paper (3.7); white numerals, the best pair in the sun (E2) */
+.counter {
+  flex: none;
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-screen);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.6),
+    0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+.counter dt {
+  color: var(--color-screen-label);
+}
+
+/* A rule between the cells, so 41.9 515 0 does not read as one number */
+.counter > div + div {
+  padding-left: var(--space-3);
+  border-left: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.counter dd {
+  margin: 0;
+  color: var(--color-screen-ink);
+  font-size: 40px;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  padding: 0.25rem 0;
-  color: var(--color-text);
+  font-stretch: 62%;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
-.elevation-stats {
-  font-size: 0.78rem;
-  color: var(--color-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.elevation-chips {
-  display: flex;
-  gap: 0.375rem;
-  margin-left: auto;
-}
-
-.elevation-chip {
-  width: 1.25rem;
-  height: 0.75rem;
-  border: 2px solid var(--color-border);
-  cursor: pointer;
-  opacity: 0.4;
-  padding: 0;
-}
-
-.elevation-chip.active {
-  opacity: 1;
-  box-shadow: var(--shadow-soft);
-}
-
-.elevation-body {
+.profile {
   position: relative;
-  height: 160px;
-  border-top: 1px solid var(--color-line);
+  flex: 1;
+  min-width: 0;
 }
 
-.elevation-svg {
+.profile svg {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.elevation-slope-fill {
-  opacity: 0.9;
-}
-
-.elevation-legend {
-  position: absolute;
-  bottom: 3px;
-  right: 24px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 2px 6px;
-  border: 1px solid var(--color-line);
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-  font-size: 0.62rem;
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 4;
-}
-
-.elevation-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.elevation-legend-item i {
-  width: 9px;
-  height: 9px;
-  display: inline-block;
-  border: 1px solid var(--color-border);
-}
-
-.elevation-grid {
-  stroke: var(--color-border);
-  opacity: 0.15;
-  stroke-dasharray: 4 4;
-}
-
-.elevation-gain-line {
+.profile-line {
   fill: none;
-  stroke: var(--color-muted);
-  stroke-width: 1.5px;
-  stroke-dasharray: 5 4;
-  opacity: 0.7;
+  stroke: var(--color-ink);
+  stroke-width: 1.5;
 }
 
-.elevation-gridlabel {
-  position: absolute;
-  left: 4px;
-  transform: translateY(-115%);
-  font-size: 0.62rem;
-  color: var(--color-muted);
-  pointer-events: none;
+/* Outside the map's view: the lit stretch is what the map shows */
+.profile-dim {
+  fill: var(--color-paper);
+  opacity: 0.6;
 }
 
-.elevation-dot {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-lime);
-  border: 2px solid var(--color-border);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.elevation-tooltip {
-  position: absolute;
-  transform: translate(12px, -130%);
-  padding: 3px 8px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.elevation-tooltip.flip {
-  transform: translate(calc(-100% - 12px), -130%);
-}
-
-.elevation-flag {
-  position: absolute;
-  bottom: 8px;
-  font-size: 1rem;
-  pointer-events: none;
-  filter: drop-shadow(1px 1px 0 var(--color-surface));
-}
-
-.elevation-flag.left {
-  left: 2px;
-}
-
-.elevation-flag.right {
-  right: 2px;
-}
-
-.elevation-offscreen {
-  position: absolute;
-  top: 4px;
-  padding: 1px 6px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
-  font-size: 0.68rem;
-  font-weight: 700;
-  pointer-events: none;
-  z-index: 4;
-}
-
-.elevation-offscreen.left {
-  left: 4px;
-}
-
-.elevation-offscreen.right {
-  right: 4px;
-}
-
-.elevation-line {
-  fill: none;
-  stroke: var(--color-border);
-  stroke-width: 2px;
-}
-
-.elevation-cursor-line {
+.profile-cursor {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 0;
-  border-left: 1px dashed var(--color-border);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-accent);
   pointer-events: none;
 }
 
-.elevation-axis {
+/* A transparent native slider over the drawing: a tap, a drag or the arrow keys centre the map */
+.profile-scrub {
   position: absolute;
-  right: 4px;
-  font-size: 0.62rem;
-  color: var(--color-muted);
-  pointer-events: none;
-}
-
-.elevation-axis-max {
-  top: 2px;
-}
-
-.elevation-axis-min {
-  bottom: 2px;
-}
-
-.elevation-poi {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  background: none;
-  border: 0;
-  font-size: 0.85rem;
-  line-height: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
   cursor: pointer;
-  padding: 1px;
-  transition: transform 100ms;
 }
 
-.elevation-poi:hover {
-  transform: translate(-50%, -100%) scale(1.4);
+.profile:has(.profile-scrub:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
 }
 
-.elevation-poi-cluster {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border: 2px solid var(--color-ink);
-  border-radius: 999px;
-  background: var(--color-lime);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-soft);
-  font-size: 0.62rem;
-  font-weight: 700;
-}
-
-/* Ravito gaps */
-.gap-band-water {
-  fill: rgba(37, 99, 235, 0.18);
-}
-
-.gap-band-food {
-  fill: rgba(234, 88, 12, 0.18);
+@media (min-width: 768px) {
+  .strip {
+    padding: var(--space-2);
+  }
 }
 
 .gap-threshold {
@@ -2035,17 +1877,6 @@ div.tally,
   font: inherit;
   font-size: 16px;
   text-align: center;
-}
-
-@media (max-width: 768px) {
-  .elevation-body {
-    height: 110px;
-  }
-
-  /* The step 01 summary card carries these on small screens */
-  .elevation-stats {
-    display: none;
-  }
 }
 
 /* ---------------------------------------------------------------------------

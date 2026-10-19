@@ -25,6 +25,7 @@ import { enrichingPoiIdsAtom } from "../state/enrichment";
 import { filteredPoisAtom, tracesAtom } from "../state/route";
 import {
   type MapViewBounds,
+  mapCenterAtom,
   mapFocusAtom,
   mapTraceHoverAtom,
   mapViewBoundsAtom,
@@ -109,7 +110,7 @@ function MapViewSync() {
   return null;
 }
 
-/** Consume one-shot zoom requests (profile cluster clicks) */
+/** Consume one-shot zoom requests (fit the route) */
 function MapFocus() {
   const map = useMap();
   const [focus, setFocus] = useAtom(mapFocusAtom);
@@ -353,6 +354,13 @@ const PoiMarker = memo(function PoiMarker({
   );
 });
 
+/** The map centre that puts a point in the middle of the part left visible by the sheet or panel */
+function visibleCentre(map: L.Map, at: L.LatLngTuple, zoom: number, detent: SheetDetent): L.LatLng {
+  const { topLeft, bottomRight } = cameraPadding(detent);
+  const shift = L.point((bottomRight[0] - topLeft[0]) / 2, (bottomRight[1] - topLeft[1]) / 2);
+  return map.unproject(map.project(at, zoom).add(shift), zoom);
+}
+
 /** Fly to the selected POI */
 function FlyToSelected({ poi }: { poi: POI | undefined }) {
   const map = useMap();
@@ -360,14 +368,24 @@ function FlyToSelected({ poi }: { poi: POI | undefined }) {
 
   useEffect(() => {
     if (!poi) return;
-    // Centre the POI in the part of the map left visible by the sheet or panel
     const zoom = Math.max(map.getZoom(), 14);
-    const { topLeft, bottomRight } = cameraPadding(detent);
-    const shift = L.point((bottomRight[0] - topLeft[0]) / 2, (bottomRight[1] - topLeft[1]) / 2);
-    map.flyTo(map.unproject(map.project([poi.lat, poi.lon], zoom).add(shift), zoom), zoom, {
-      duration: 0.6,
-    });
+    map.flyTo(visibleCentre(map, [poi.lat, poi.lon], zoom, detent), zoom, { duration: 0.6 });
   }, [poi, map, detent]);
+
+  return null;
+}
+
+/** Consume one-shot pan requests (a tap on the profile): the zoom stays */
+function MapCenter() {
+  const map = useMap();
+  const [centre, setCentre] = useAtom(mapCenterAtom);
+  const detent = useAtomValue(sheetDetentAtom);
+
+  useEffect(() => {
+    if (!centre) return;
+    map.panTo(visibleCentre(map, [centre.lat, centre.lon], map.getZoom(), detent));
+    setCentre(null);
+  }, [centre, map, setCentre, detent]);
 
   return null;
 }
@@ -451,6 +469,7 @@ export function RouteMap() {
 
         <MapViewSync />
         <MapFocus />
+        <MapCenter />
         <FlyToSelected poi={pois.find((p) => p.id === selectedPoiId)} />
 
         {traces.map((trace) => (

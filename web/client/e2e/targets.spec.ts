@@ -13,9 +13,8 @@ function smallTargets(page: Page): Promise<string[]> {
       'button, a[href], input, select, textarea, summary, [role="tab"], [tabindex]:not([tabindex="-1"])';
     const small = new Set<string>();
     for (const el of document.querySelectorAll(controls)) {
-      // The header strip is rebuilt in step 6 (design.md, section 12); the attribution
-      // links are inline text, which WCAG 2.5.8 exempts
-      if (el.closest(".sheet-strip, .leaflet-control-attribution")) continue;
+      // The attribution links are inline text, which WCAG 2.5.8 exempts
+      if (el.closest(".leaflet-control-attribution")) continue;
       const target = (el.matches("input") && el.closest("label")) || el;
       if (!target.checkVisibility()) continue;
       const { width, height } = target.getBoundingClientRect();

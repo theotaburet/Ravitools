@@ -110,30 +110,6 @@ export function slopeBuckets(
   }));
 }
 
-/**
- * Cumulative elevation gain (D+) from the trace start up to `dist`, with
- * linear interpolation inside the last segment.
- * O(n) per call over a ≤300-point downsampled profile: fine for
- * mousemove; prefix sums if a profiler ever disagrees.
- */
-export function gainAt(profile: ProfilePoint[], dist: number): number {
-  let gain = 0;
-  for (let i = 1; i < profile.length; i++) {
-    const a = profile[i - 1];
-    const b = profile[i];
-    if (a.dist >= dist) break;
-    if (b.dist <= dist) {
-      if (b.ele > a.ele) gain += b.ele - a.ele;
-      continue;
-    }
-    const f = b.dist === a.dist ? 0 : (dist - a.dist) / (b.dist - a.dist);
-    const ele = a.ele + (b.ele - a.ele) * f;
-    if (ele > a.ele) gain += ele - a.ele;
-    break;
-  }
-  return gain;
-}
-
 /** Linear interpolation of the profile at a given distance (clamped to ends). */
 export function profileAt(profile: ProfilePoint[], dist: number): ProfilePoint {
   const first = profile[0];

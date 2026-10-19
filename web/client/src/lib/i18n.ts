@@ -100,7 +100,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     en: "Ravito gap alert threshold (km)",
     fr: "Seuil d'alerte désert de ravito (km)",
   },
-  "profile.cluster": { en: "POIs : click to zoom", fr: "POI : cliquer pour zoomer" },
+  "profile.centre": {
+    en: "Centre the map on a kilometre of the route",
+    fr: "Centrer la carte sur un kilomètre du parcours",
+  },
   "session.fresh": { en: "Start fresh", fr: "Recommencer" },
   "status.warning": { en: "Warning:", fr: "Attention :" },
   "status.error": { en: "Error:", fr: "Erreur :" },

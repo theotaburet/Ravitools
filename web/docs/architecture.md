@@ -157,14 +157,14 @@ web/client/src/
 │   ├── Settings.tsx          # Round button + native popover: language, theme, palette, debug
 │   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
 │   ├── RouteMap.tsx          # Leaflet map: traces (tap to select), clustered family pastilles, sheet-aware camera
-│   ├── ElevationProfile.tsx  # Profile strip atop the sheet (floating on desktop), gap alerts, hover sync
+│   ├── HeaderStrip.tsx       # Counter and compact profile atop the sheet (floating on desktop), tap to centre the map
 │   ├── CategoryFilter.tsx    # Category chip grid + max distance slider
 │   ├── PoiList.tsx           # Virtualized POI list
 │   ├── EnrichmentPanel.tsx   # Machine check, model download, batch progress, CAPTCHA pause
 │   ├── EnrichmentDetails.tsx # Shared rendering of an enriched POI
 │   ├── ExportPanel.tsx       # Export cards (6 formats, plan file, roadbook)
 │   ├── Roadbook.tsx          # Printable roadbook
-│   ├── TraceSummary.tsx      # Step 01 result card: per trace name, km, D+, POI count
+│   ├── TraceSummary.tsx      # Step 01 result card: per trace name, km, D+, POI count, gap alerts and their threshold
 │   ├── ErrorBoundary.tsx
 │   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling (the debug view opens from the settings)
 ├── App.tsx                   # Shell (map, sheet, tabs) + session lifecycle

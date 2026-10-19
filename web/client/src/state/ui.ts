@@ -83,5 +83,8 @@ export interface MapViewBounds {
 /** Current map viewport: the elevation profile windows itself to it */
 export const mapViewBoundsAtom = atom<MapViewBounds | null>(null);
 
-/** One-shot zoom request (profile cluster click → map fitBounds, then reset) */
+/** One-shot zoom request (fit the route → map fitBounds, then reset) */
 export const mapFocusAtom = atom<MapViewBounds | null>(null);
+
+/** One-shot pan request, zoom kept (a tap on the profile → that kilometre in the visible map) */
+export const mapCenterAtom = atom<{ lat: number; lon: number } | null>(null);

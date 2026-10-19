@@ -4,10 +4,10 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { DebugPanel } from "./components/DebugPanel";
-import { ElevationProfile } from "./components/ElevationProfile";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
+import { HeaderStrip } from "./components/HeaderStrip";
 import { PoiDetail } from "./components/PoiDetail";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
@@ -117,7 +117,7 @@ export default function App() {
         <RouteMap />
       </main>
       <Settings />
-      <Sheet strip={<ElevationProfile />}>
+      <Sheet strip={<HeaderStrip />}>
         {/* 01: Load a route: upload, resume, pipeline status, errors */}
         <TabPanel tab="trace">
           {showResumePrompt && (
