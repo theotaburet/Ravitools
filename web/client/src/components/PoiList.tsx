@@ -3,9 +3,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { buildGoogleMapsUrl } from "../lib/enrichment";
 import { osmFacts } from "../lib/enrichment/osm-facts";
-import { isRetryableDegradedResult } from "../lib/enrichment/provenance";
 import { getAvailabilityTags } from "../lib/export";
 import { km } from "../lib/format";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
@@ -14,15 +12,6 @@ import { enrichingPoiIdsAtom, enrichmentsAtom } from "../state/enrichment";
 import { filteredPoisAtom } from "../state/route";
 import { selectedPoiIdAtom, targetLanguageAtom } from "../state/ui";
 import type { POI } from "../types";
-import { EnrichmentDetails } from "./EnrichmentDetails";
-
-/** Format confidence as a label */
-function confidenceLabel(c: number): string {
-  if (c >= 0.6) return "high";
-  if (c >= 0.3) return "medium";
-  if (c > 0) return "low";
-  return "none";
-}
 
 /** Sort mode for the POI list */
 type SortMode = "distance" | "category" | "name";
@@ -51,7 +40,6 @@ function PoiListInner() {
   const [selectedPoiId, onSelectPoi] = useAtom(selectedPoiIdAtom);
   const enrichingPoiIds = useAtomValue(enrichingPoiIdsAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
-  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>("distance");
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -64,13 +52,23 @@ function PoiListInner() {
     overscan: 10,
   });
 
-  // Scroll selected item into view when selectedPoiId changes (from map click)
+  // Back from the detail (the list was hidden meanwhile): the POI's row comes into view and
+  // takes the focus, now if it is rendered, else as soon as the scroll renders it
+  const lastSelected = useRef<string | null>(null);
+  const focusWhenRendered = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectedPoiId) return;
-    const idx = sortedPois.findIndex((p) => p.id === selectedPoiId);
-    if (idx >= 0) {
-      virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
+    if (selectedPoiId) {
+      lastSelected.current = selectedPoiId;
+      return;
     }
+    const id = lastSelected.current;
+    lastSelected.current = null;
+    const idx = sortedPois.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    virtualizer.scrollToIndex(idx, { align: "center" });
+    const row = parentRef.current?.querySelector<HTMLElement>(`[data-poi-id="${id}"]`);
+    if (row) row.focus();
+    else focusWhenRendered.current = id;
   }, [selectedPoiId, sortedPois, virtualizer]);
 
   if (pois.length === 0) {
@@ -78,20 +76,8 @@ function PoiListInner() {
     return <div className="neo-box poi-list-empty">{t("poi.empty", targetLanguage)}</div>;
   }
 
-  const toggleSources = (e: React.MouseEvent, poiId: string) => {
-    e.stopPropagation();
-    setExpandedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(poiId)) next.delete(poiId);
-      else next.add(poiId);
-      return next;
-    });
-  };
-
-  const handleRowClick = (poiId: string) => {
-    if (!onSelectPoi) return;
-    onSelectPoi(selectedPoiId === poiId ? null : poiId);
-  };
+  // A row opens its POI detail, which replaces the list
+  const handleRowClick = (poiId: string) => onSelectPoi(poiId);
 
   const cycleSortMode = () => {
     const modes: SortMode[] = ["distance", "category", "name"];
@@ -128,8 +114,6 @@ function PoiListInner() {
             const poi = sortedPois[virtualRow.index];
             const enrichment = enrichments.get(poi.id);
             const facts = osmFacts(poi.tags, targetLanguage);
-            const gmapsUrl = enrichment?.googleMapsUrl ?? buildGoogleMapsUrl(poi);
-            const showSources = expandedSources.has(poi.id);
             const isSelected = selectedPoiId === poi.id;
             const isEnriching = enrichingPoiIds?.has(poi.id) ?? false;
 
@@ -138,7 +122,14 @@ function PoiListInner() {
               <div
                 key={poi.id}
                 data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
+                data-poi-id={poi.id}
+                ref={(el) => {
+                  virtualizer.measureElement(el);
+                  if (el && el.dataset.poiId === focusWhenRendered.current) {
+                    focusWhenRendered.current = null;
+                    el.focus();
+                  }
+                }}
                 className={`poi-list-item${isSelected ? " poi-list-item-selected" : ""}`}
                 style={{
                   position: "absolute",
@@ -189,107 +180,6 @@ function PoiListInner() {
                     <div className="poi-enrichment-meta poi-enriching-indicator">
                       <span className="spinner-sm" /> {t("poi.searching", targetLanguage)}
                     </div>
-                  )}
-
-                  {/* Enrichment data */}
-                  {enrichment && enrichment.status === "done" && (
-                    <>
-                      <EnrichmentDetails
-                        poi={poi}
-                        enrichment={enrichment}
-                        targetLanguage={targetLanguage}
-                      />
-
-                      {/* Confidence + source confirmation + sources */}
-                      {enrichment.sourceCount > 0 && (
-                        <div className="poi-confidence-row">
-                          <span
-                            className={`poi-confidence poi-confidence-${confidenceLabel(enrichment.confidence)}`}
-                          >
-                            {t(
-                              `poi.confidence.${confidenceLabel(enrichment.confidence)}`,
-                              targetLanguage,
-                            )}{" "}
-                            {Math.round(enrichment.confidence * 100)}%
-                          </span>
-                          {enrichment.structured?.sourceConfirmation &&
-                            enrichment.structured.sourceConfirmation !== "none" && (
-                              <span
-                                className={
-                                  enrichment.structured.sourceConfirmation === "reviews-only"
-                                    ? "poi-badge"
-                                    : "poi-badge poi-badge-maps"
-                                }
-                              >
-                                {t(
-                                  enrichment.structured.sourceConfirmation === "both"
-                                    ? "poi.confirm.both"
-                                    : enrichment.structured.sourceConfirmation === "official"
-                                      ? "poi.confirm.official"
-                                      : "poi.confirm.reviewsOnly",
-                                  targetLanguage,
-                                )}
-                              </span>
-                            )}
-                          <button
-                            type="button"
-                            className="poi-sources-toggle"
-                            onClick={(e) => toggleSources(e, poi.id)}
-                            aria-expanded={showSources}
-                          >
-                            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}
-                            {enrichment.sourceCount > 1 ? "s" : ""} {showSources ? "▲" : "▼"}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Sources disclosure */}
-                      {showSources && enrichment.sourceUrls.length > 0 && (
-                        <div className="poi-sources-list">
-                          {enrichment.sourceUrls.map((url) => (
-                            <a
-                              key={url}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="poi-source-link"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {(() => {
-                                try {
-                                  return new URL(url).hostname;
-                                } catch {
-                                  return url;
-                                }
-                              })()}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Skip reason */}
-                  {enrichment && enrichment.status === "skipped" && enrichment.skipReason && (
-                    <div className="poi-skip-reason">
-                      {t(`poi.skip.${enrichment.skipReason}`, targetLanguage)}
-                      {isRetryableDegradedResult(enrichment)
-                        ? t("poi.skipRetryable", targetLanguage)
-                        : ""}
-                    </div>
-                  )}
-
-                  {/* Google Maps link: on the selected row only (the popup has it too) */}
-                  {isSelected && (
-                    <a
-                      href={gmapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="poi-gmaps-link"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Google Maps →
-                    </a>
                   )}
                 </div>
               </div>

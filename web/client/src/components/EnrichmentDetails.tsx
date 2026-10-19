@@ -1,29 +1,73 @@
-// Shared rendering of a "done" enrichment result, used by PoiList rows and the RouteMap popup.
+// A "done" enrichment in the POI detail (design.md 7, 02 POI): the trust badge and the
+// description in sight (EnrichmentSummary), everything else behind its <details> (EnrichmentDetails).
 
 import { BOOKING_KEY } from "../lib/enrichment/osm-facts";
 import { getSynthesisBadgeClass, getSynthesisLabel } from "../lib/enrichment/provenance";
-import { getAvailabilityTags, splitHoursLines } from "../lib/export";
+import { splitHoursLines } from "../lib/export";
 import { priceTier } from "../lib/format";
 import { t, tLabel } from "../lib/i18n";
 import { starString } from "../lib/stars";
-import type { EnrichedData, POI, TargetLanguage } from "../types";
+import type { EnrichedData, TargetLanguage } from "../types";
 
 interface Props {
-  poi: POI;
   enrichment: EnrichedData;
   targetLanguage?: TargetLanguage;
 }
 
-/** Renders nothing unless the enrichment completed (`status === "done"`). */
-export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Props) {
-  if (enrichment.status !== "done") return null;
+/** Format confidence as a label */
+function confidenceLabel(c: number): string {
+  if (c >= 0.6) return "high";
+  if (c >= 0.3) return "medium";
+  if (c > 0) return "low";
+  return "none";
+}
 
-  const avail = getAvailabilityTags(
-    enrichment.hours,
-    poi.tags.opening_hours,
-    targetLanguage as "fr" | "en",
-  );
+/** Trust badge, description and review; renders nothing unless the enrichment completed */
+export function EnrichmentSummary({ enrichment, targetLanguage = "en" }: Props) {
+  if (enrichment.status !== "done") return null;
   const synthesisLabel = getSynthesisLabel(enrichment);
+
+  return (
+    <>
+      {synthesisLabel && (
+        <div className="poi-enrichment-meta">
+          <span
+            className={getSynthesisBadgeClass(enrichment)}
+            title={
+              enrichment.synthesisSource === "llm" || enrichment.synthesisSource === "llm-repaired"
+                ? t("enrich.aiDisclaimer", targetLanguage)
+                : undefined
+            }
+          >
+            {synthesisLabel}
+          </span>
+          {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
+            <span
+              className="poi-badge poi-badge-maps"
+              title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}
+            >
+              Maps
+            </span>
+          )}
+        </div>
+      )}
+      {enrichment.description && (
+        <div className="poi-enrichment-summary">{enrichment.description}</div>
+      )}
+      {enrichment.review && (
+        <div className="poi-enrichment-summary" style={{ fontStyle: "italic" }}>
+          {enrichment.review}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Rating, hours, season, prices, booking, divergences, cautions, confidence and sources */
+export function EnrichmentDetails({ enrichment, targetLanguage = "en" }: Props) {
+  if (enrichment.status !== "done") return null;
+  const confidence = confidenceLabel(enrichment.confidence);
+  const confirmation = enrichment.structured?.sourceConfirmation;
 
   return (
     <>
@@ -66,9 +110,6 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
           {splitHoursLines(enrichment.hours).join("\n")}
         </div>
       ) : null}
-      {avail.length > 0 && (
-        <div className="poi-enrichment-meta poi-enrichment-meta-success">{avail.join(" · ")}</div>
-      )}
       {enrichment.season && (
         <div className="poi-enrichment-meta">
           {tLabel("poi.season", enrichment.season, targetLanguage)}
@@ -84,36 +125,6 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
           {t(BOOKING_KEY[enrichment.booking], targetLanguage)}
         </div>
       )}
-      {enrichment.description && (
-        <div className="poi-enrichment-summary">{enrichment.description}</div>
-      )}
-      {enrichment.review && (
-        <div className="poi-enrichment-summary" style={{ fontStyle: "italic" }}>
-          {enrichment.review}
-        </div>
-      )}
-      {synthesisLabel && (
-        <div className="poi-enrichment-meta">
-          <span
-            className={getSynthesisBadgeClass(enrichment)}
-            title={
-              enrichment.synthesisSource === "llm" || enrichment.synthesisSource === "llm-repaired"
-                ? t("enrich.aiDisclaimer", targetLanguage)
-                : undefined
-            }
-          >
-            {synthesisLabel}
-          </span>
-          {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
-            <span
-              className="poi-badge poi-badge-maps"
-              title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}
-            >
-              Maps
-            </span>
-          )}
-        </div>
-      )}
       {enrichment.structured?.divergences && enrichment.structured.divergences.length > 0 && (
         <div className="poi-enrichment-meta poi-divergences">
           {enrichment.structured.divergences.map((d) => (
@@ -125,6 +136,53 @@ export function EnrichmentDetails({ poi, enrichment, targetLanguage = "en" }: Pr
         <div className="poi-enrichment-meta poi-cautions">
           {enrichment.structured.cautions.slice(0, 2).map((c) => (
             <span key={c}>{c}</span>
+          ))}
+        </div>
+      )}
+      {enrichment.sourceCount > 0 && (
+        <div className="poi-confidence-row">
+          <span className={`poi-confidence poi-confidence-${confidence}`}>
+            {t(`poi.confidence.${confidence}`, targetLanguage)}{" "}
+            {Math.round(enrichment.confidence * 100)}%
+          </span>
+          {confirmation && confirmation !== "none" && (
+            <span
+              className={confirmation === "reviews-only" ? "poi-badge" : "poi-badge poi-badge-maps"}
+            >
+              {t(
+                confirmation === "both"
+                  ? "poi.confirm.both"
+                  : confirmation === "official"
+                    ? "poi.confirm.official"
+                    : "poi.confirm.reviewsOnly",
+                targetLanguage,
+              )}
+            </span>
+          )}
+          <span className="micro">
+            {enrichment.sourceCount} {t("poi.sourceWord", targetLanguage)}
+            {enrichment.sourceCount > 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+      {enrichment.sourceUrls.length > 0 && (
+        <div className="poi-sources-list">
+          {enrichment.sourceUrls.map((url) => (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="poi-source-link"
+            >
+              {(() => {
+                try {
+                  return new URL(url).hostname;
+                } catch {
+                  return url;
+                }
+              })()}
+            </a>
           ))}
         </div>
       )}

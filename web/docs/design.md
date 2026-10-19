@@ -259,13 +259,15 @@ The settings button opens a native popover (`popover` attribute, no JS state) wi
 
 - **Filters**: the family toggles first, always in sight: one `.chip` per family (pastille, name, count; a family partly on is raised on a dashed ring, `aria-pressed="mixed"`), then All/None (None while anything is on, so "only water" is two taps). The distance slider (keeping its approved 150 ms commit) and one row of category chips per family sit behind a `<details>` whose summary reads `DISTANCE 1500 M · CATEGORIES 9/18`. A first version showed every family with its chips: at mid the list started 1 400 px down, under the slider alone.
 - **List**: virtualized, one compact row per POI: 20 px pastille, name, micro `KM 142 · +240 M`, trailing chevron. Enrichment shows only as a small badge (a spinner while searching).
-- **POI detail**: it replaces the list (with a back button) and is the only place the detail appears:
+- **POI detail** (`PoiDetail.tsx`, open while `selectedPoiIdAtom` is set): it replaces the list and its filters, which stay mounted underneath, and is the only place the detail appears. A top bar holds the back button, the position (`12 / 64`) and **◀ ▶**, so they are in sight at mid. Then:
   1. pastille, name, category;
   2. micro `KM 142.3 · 240 M FROM ROUTE`;
-  3. useful state: "Open, closes at 19:00" when hours are known, plus OSM facts (drinking water, etc.);
+  3. useful state: the availability tags (open on Sunday, in the evening) plus OSM facts (drinking water, etc.). "Open, closes at 19:00" needs an `opening_hours` evaluator: not done;
   4. trust badge (AI / AI repaired / deterministic) and the enriched description;
-  5. behind `<details>`: full hours, sources, divergences, cautions;
-  6. actions: Google Maps link, and **◀ ▶** to move to the previous or next POI **in the current filtered list, in route order**. Filtering to Water makes ◀ ▶ walk the water points.
+  5. behind `<details>`: full hours (OSM ones when the enrichment brought none), sources, divergences, cautions, confidence;
+  6. the Google Maps link.
+
+  **◀ ▶** move to the previous or next POI **in the current filtered list, in route order**. Filtering to Water makes ◀ ▶ walk the water points.
 
 ### 03 Enrich and 04 Export
 

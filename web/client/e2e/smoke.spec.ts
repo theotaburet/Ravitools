@@ -19,9 +19,9 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
   // Pipeline done → the POI tab is shown
   await expect(page.getByRole("tab", { name: /POI/ })).toHaveAttribute("aria-selected", "true");
 
-  // Route polyline + both POI markers on the map
+  // Route polyline + every POI marker on the map
   await expect(page.locator(".route-map svg path").first()).toBeVisible();
-  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(2);
+  await expect(page.locator(".leaflet-marker-pane .pastille")).toHaveCount(3);
 
   // POI list shows the named restaurant
   await expect(page.locator(".poi-list-item").first()).toBeVisible();

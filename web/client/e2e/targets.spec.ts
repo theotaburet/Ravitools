@@ -1,5 +1,5 @@
 // E6 (web/docs/design.md, section 10), on the Pixel 7 project: every visible control
-// is a 44 x 44 px target, and the tabs and primary buttons sit in the thumb zone.
+// is a 44 x 44 px target, and the tabs, ◀ ▶ and primary buttons sit in the thumb zone.
 
 import { expect, type Page, test } from "@playwright/test";
 import { loadRoute, stubApi } from "./fixtures";
@@ -30,7 +30,7 @@ function smallTargets(page: Page): Promise<string[]> {
 /** Centres of the tabs and of the primary buttons on screen, as a fraction of the viewport height */
 function thumbCentres(page: Page): Promise<number[]> {
   return page.evaluate(() =>
-    [...document.querySelectorAll('[role="tab"], .neo-btn-primary')]
+    [...document.querySelectorAll('[role="tab"], .neo-btn-primary, .poi-detail-bar .btn')]
       .filter((el) => el.checkVisibility())
       .map((el) => el.getBoundingClientRect())
       .filter((r) => r.bottom > 0 && r.top < innerHeight)
@@ -48,6 +48,10 @@ test("every view keeps 44 px targets and its main actions under the thumb", asyn
   await expectReachable(page);
 
   await loadRoute(page);
+  await page.locator(".poi-list-item").first().click();
+  await expectReachable(page); // the POI detail, ◀ ▶ under the thumb
+  await page.getByRole("button", { name: "List" }).click();
+
   const tabs = page.getByRole("tab");
   for (let i = 0; i < (await tabs.count()); i++) {
     // Tapping the active tab would collapse the sheet: only tap the others

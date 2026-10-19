@@ -113,11 +113,12 @@ test("load, keep the water, open a POI, export: no friction despite a failing ch
 
   await j.tap(page.getByRole("button", { name: "None" }));
   await j.tap(page.getByRole("button", { name: /^Water/ })); // the family toggle
-  await expect(page.locator(".poi-list-item")).toHaveCount(1);
+  await expect(page.locator(".poi-list-item")).toHaveCount(2);
   await j.check("water only");
 
   await j.tap(page.locator(".poi-list-item").first());
-  await j.check("POI selected");
+  await expect(page.locator(".poi-detail h2")).toBeFocused();
+  await j.check("POI detail");
 
   await j.tap(page.getByRole("tab", { name: /Export/ }));
   const download = page.waitForEvent("download");

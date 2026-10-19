@@ -14,8 +14,8 @@ Spec and living reference: `web/docs/design.md`. Branch `designV2` (from `dev`, 
 - [x] Workflow dead ends (user report 2026-10-19, "passer à l'export alors qu'il y a 0 POIs"): 03 and 04 disabled by `lockedTabsAtom` until the run is done with a POI passing the filters (arrow keys skip them); every chunk failed is an error with its retry, not "done, 0 POI"; tab 02 opens only on a clean run with POIs, otherwise 01 shows the message; an error brings the user back to 01; the partial-failure warning gets a retry button; a dropped .fit/.tcx says what loads instead of doing nothing. Failing tests first; smoke e2e checks Export is disabled before upload. Committed (4ec695a)
 - [ ] 5. POI tab: family filters, compact list, POI detail with prev/next
   - [x] 5a. Family filters: one `.chip` toggle per family (mixed = dashed ring), All/None (None while anything is on), distance and category chips behind a `<details>` (the first version, family rows with their chips, pushed the list 1 400 px down at mid). `setCategoriesAtom` replaces `setAllCategoriesAtom`; `POI_FAMILIES`; `.chip`, `.btn-quiet`, `.btn-sm`, `.pastille-sm`
-  - [ ] 5b. Compact list
-  - [ ] 5c. POI detail with prev/next
+  - [x] 5b. POI detail (`PoiDetail.tsx`): replaces the list and filters (kept mounted, `hidden`), top bar with back, position and ◀ ▶ in route order, heading focused on open, the row focused on back (by the list, once the virtualizer renders it: the first try focused body), `EnrichmentSummary` in sight and `EnrichmentDetails` (sources and confidence moved in from the rows) behind `<details>`. E6 walks the detail (◀ ▶ in the thumb zone), E7 opens a POI; the e2e stub gained a second water point
+  - [ ] 5c. Compact list in route order (◀ ▶ order), ▶ in the E7 journey
 - [ ] 6. Header strip: E2, compact profile (tap to centre), counter, profile trace selector deleted
 - [ ] 7. Tabs 01, 03, 04; exports take the palette
 - [ ] 8. Cleanup: dead CSS, neo-*, docs (AGENTS.md, CONTRIBUTING.md, architecture.md, poi-categories.md)

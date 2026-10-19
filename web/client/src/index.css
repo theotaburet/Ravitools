@@ -306,6 +306,13 @@ a {
   transform: translateY(1px);
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
 /* Round floating map button: the only glass in the app (3.7) */
 .fab {
   position: fixed;
@@ -444,6 +451,13 @@ a {
   flex: none;
   width: 20px;
   height: 20px;
+}
+
+/* In the POI detail */
+.pastille-lg {
+  flex: none;
+  width: 36px;
+  height: 36px;
 }
 
 .btn-quiet {
@@ -1065,12 +1079,14 @@ a {
 }
 
 /* Native marker kept: it says the line opens */
-.filter-more summary {
+.filter-more summary,
+.poi-detail-more summary {
   padding: 15px 0;
   cursor: pointer;
 }
 
-.filter-more[open] > :not(summary) {
+.filter-more > :not(summary),
+.poi-detail-more > :not(summary) {
   margin-bottom: var(--space-3);
 }
 
@@ -1078,6 +1094,44 @@ a {
 .chip-row {
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-hairline);
+}
+
+/* ---------------------------------------------------------------------------
+   POI detail (design.md 7, 02 POI): replaces the list and its filters
+   --------------------------------------------------------------------------- */
+
+.poi-browse,
+.poi-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.poi-detail-bar,
+.poi-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The position pushes ◀ ▶ to the right, under the thumb */
+.poi-detail-pos {
+  margin-left: auto;
+}
+
+.poi-detail-head h2 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.poi-detail-category {
+  color: var(--color-ink-muted);
+}
+
+.poi-detail-state {
+  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------------------

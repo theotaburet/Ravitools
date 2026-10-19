@@ -8,6 +8,7 @@ import { ElevationProfile } from "./components/ElevationProfile";
 import { EnrichmentPanel } from "./components/EnrichmentPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { GpxUpload } from "./components/GpxUpload";
+import { PoiDetail } from "./components/PoiDetail";
 import { PoiList } from "./components/PoiList";
 import { RouteMap } from "./components/RouteMap";
 import { Settings } from "./components/Settings";
@@ -214,10 +215,14 @@ export default function App() {
           )}
         </TabPanel>
 
-        {/* 02: the POIs along the route, and the filters (usable before upload) */}
+        {/* 02: the POIs along the route and their filters; a selected POI's detail replaces them,
+            which stay mounted underneath (sort, scroll, open sections survive) */}
         <TabPanel tab="poi">
-          <CategoryFilter />
-          {stage === "done" && <PoiList />}
+          <PoiDetail />
+          <div className="poi-browse" hidden={selectedPoiId !== null}>
+            <CategoryFilter />
+            {stage === "done" && <PoiList />}
+          </div>
         </TabPanel>
 
         {/* 03: Enrich (optional, needs the server: not in the static build) */}

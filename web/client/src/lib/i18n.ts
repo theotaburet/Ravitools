@@ -139,6 +139,11 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     en: "No POIs match the active filters.",
     fr: "Aucun POI ne correspond aux filtres actifs.",
   },
+  "poi.backToList": { en: "List", fr: "Liste" },
+  "poi.prev": { en: "Previous POI", fr: "POI précédent" },
+  "poi.next": { en: "Next POI", fr: "POI suivant" },
+  "poi.fromRoute": { en: "from route", fr: "de l'itinéraire" },
+  "poi.more": { en: "Hours, sources, details", fr: "Horaires, sources, détails" },
   "poi.searching": { en: "Searching...", fr: "Recherche..." },
   // POI list enrichment details
   "poi.reviews": { en: "reviews", fr: "avis" },
