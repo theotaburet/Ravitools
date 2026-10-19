@@ -43,7 +43,7 @@ export function EnrichmentSummary({ enrichment, targetLanguage = "en" }: Props) 
           </span>
           {enrichment.googleMapsFields && enrichment.googleMapsFields.length > 0 && (
             <span
-              className="poi-badge poi-badge-maps"
+              className="badge"
               title={`Google Maps: ${enrichment.googleMapsFields.join(", ")}`}
             >
               Maps
@@ -141,14 +141,12 @@ export function EnrichmentDetails({ enrichment, targetLanguage = "en" }: Props) 
       )}
       {enrichment.sourceCount > 0 && (
         <div className="poi-confidence-row">
-          <span className={`poi-confidence poi-confidence-${confidence}`}>
+          <span className={`badge poi-confidence-${confidence}`}>
             {t(`poi.confidence.${confidence}`, targetLanguage)}{" "}
             {Math.round(enrichment.confidence * 100)}%
           </span>
           {confirmation && confirmation !== "none" && (
-            <span
-              className={confirmation === "reviews-only" ? "poi-badge" : "poi-badge poi-badge-maps"}
-            >
+            <span className="badge">
               {t(
                 confirmation === "both"
                   ? "poi.confirm.both"

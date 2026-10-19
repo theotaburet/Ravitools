@@ -32,19 +32,8 @@
   --color-warning-text: var(--color-warning);
   --color-danger-text: var(--color-danger);
 
-  /* "Carnet de route" names, aliased until their components are replaced (design.md, section 12) */
-  --color-bg: var(--color-paper);
-  --color-surface: var(--color-paper-raised);
-  --color-soft: var(--color-paper-sunk);
-  --color-text: var(--color-ink);
-  --color-muted: var(--color-ink-muted);
-  --color-line: var(--color-hairline);
-  --color-border: var(--color-ink);
-  --color-shadow: var(--color-ink);
-  --color-lime: var(--color-accent);
   --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, var(--color-paper));
   --color-warning-soft: color-mix(in oklab, var(--color-warning) 12%, var(--color-paper));
-  --color-info-soft: color-mix(in oklab, var(--color-accent) 12%, var(--color-paper));
 
   --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, monospace;
@@ -72,8 +61,6 @@
   --tabs-space: 80px; /* the pill tabs and their margins, kept free under tab content */
 
   /* "Carnet de route" shadows, until step 8 */
-  --shadow-hard: 3px 3px 0 var(--color-shadow);
-  --shadow-soft: 2px 2px 0 var(--color-shadow);
 }
 
 [data-theme="dark"] {
@@ -86,7 +73,6 @@
   --color-success: #4ade80;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
-  --color-shadow: #000000;
   --elev-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.4);
   --elev-raised: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
   --elev-pressed: inset 0 2px 4px rgb(0 0 0 / 0.5);
@@ -128,15 +114,15 @@ body,
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.45;
 }
 
 input[type="range"],
 input[type="checkbox"] {
-  accent-color: var(--color-text);
+  accent-color: var(--color-ink);
 }
 
 :focus-visible {
@@ -167,7 +153,7 @@ a {
 /* Hints under a control: one style, everywhere */
 .hint {
   font-size: 0.8rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   line-height: 1.4;
 }
 
@@ -905,7 +891,7 @@ a {
   display: inline-block;
   width: 1rem;
   height: 1rem;
-  border: 2.5px solid var(--color-border);
+  border: 2.5px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
   flex-shrink: 0;
@@ -1021,7 +1007,7 @@ a {
 
 .filter-distance-value {
   font-weight: 600;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
 .filter-distance input[type="range"] {
@@ -1154,7 +1140,7 @@ a {
 /* Enrichment details inside a row or a popup */
 .poi-enrichment-meta {
   font-size: 0.75rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   line-height: 1.4;
   margin-top: 0.125rem;
 }
@@ -1165,7 +1151,7 @@ a {
 
 .poi-enrichment-summary {
   font-size: 0.8rem;
-  color: var(--color-text);
+  color: var(--color-ink);
   line-height: 1.4;
   margin-top: 0.25rem;
 }
@@ -1188,48 +1174,39 @@ a {
 }
 
 .poi-hours-time {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   white-space: nowrap;
 }
 
 .poi-rating {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   font-weight: 700;
 }
 
 .poi-skip-reason {
   font-size: 0.7rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   font-style: italic;
   margin-top: 0.125rem;
 }
 
-.poi-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.05rem 0.4rem;
-  border: 1.5px solid var(--color-line);
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--color-text);
-  background: var(--color-surface);
-}
-
+/* Trust and confidence badges: the state says it in its text colour (4.5:1 on paper, E3) */
 .poi-badge-ai {
-  background: var(--color-info-soft);
+  color: var(--color-accent-text);
 }
 
-.poi-badge-ai-repaired {
-  background: var(--color-warning-soft);
+.poi-badge-ai-repaired,
+.poi-confidence-medium {
+  color: var(--color-warning-text);
 }
 
-.poi-badge-fallback {
-  background: var(--color-danger-soft);
+.poi-badge-fallback,
+.poi-confidence-low {
+  color: var(--color-danger-text);
 }
 
-.poi-badge-maps {
-  background: var(--color-soft);
-  margin-left: 0.3rem;
+.poi-confidence-high {
+  color: var(--color-success-text);
 }
 
 .poi-confidence-row {
@@ -1241,40 +1218,13 @@ a {
   font-size: 0.7rem;
 }
 
-.poi-confidence {
-  display: inline-flex;
-  padding: 0 0.4rem;
-  border: 1.5px solid var(--color-border);
-  font-weight: 700;
-  color: var(--color-ink);
-}
-
-.poi-confidence-high {
-  background: var(--color-lime);
-}
-
-.poi-confidence-medium {
-  background: var(--color-warning-soft);
-  color: var(--color-text);
-}
-
-.poi-confidence-low {
-  background: var(--color-danger-soft);
-  color: var(--color-text);
-}
-
-.poi-confidence-none {
-  background: var(--color-soft);
-  color: var(--color-muted);
-}
-
 .poi-sources-list {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
   margin-top: 0.25rem;
   padding-left: 0.4rem;
-  border-left: 2px solid var(--color-line);
+  border-left: 2px solid var(--color-hairline);
 }
 
 .poi-source-link {
@@ -1578,14 +1528,14 @@ div.tally,
 
 .export-notes {
   font-size: 0.8rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   line-height: 1.45;
 }
 
 .export-notes summary {
   cursor: pointer;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-ink);
 }
 
 .export-notes p {
@@ -1593,7 +1543,7 @@ div.tally,
 }
 
 .export-notes strong {
-  color: var(--color-text);
+  color: var(--color-ink);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1780,12 +1730,12 @@ div.tally,
   line-height: 14px;
   text-align: center;
   font-size: 11px;
-  color: var(--color-text);
+  color: var(--color-ink);
   text-shadow:
-    -1px -1px 0 var(--color-surface),
-    1px -1px 0 var(--color-surface),
-    -1px 1px 0 var(--color-surface),
-    1px 1px 0 var(--color-surface);
+    -1px -1px 0 var(--color-paper-raised),
+    1px -1px 0 var(--color-paper-raised),
+    -1px 1px 0 var(--color-paper-raised),
+    1px 1px 0 var(--color-paper-raised);
   pointer-events: none;
 }
 
@@ -1833,14 +1783,14 @@ div.tally,
 .leaflet-bar a:first-child,
 .leaflet-bar a:last-child {
   border-radius: 0;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border-bottom-color: var(--color-line);
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+  border-bottom-color: var(--color-hairline);
 }
 
 .leaflet-bar a:hover {
-  background: var(--color-soft);
-  color: var(--color-text);
+  background: var(--color-paper-sunk);
+  color: var(--color-ink);
 }
 
 .leaflet-tooltip {
@@ -1870,8 +1820,9 @@ div.tally,
    --------------------------------------------------------------------------- */
 
 .debug-panel-body {
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
 }
 
 .debug-panel-toolbar {
@@ -1879,7 +1830,7 @@ div.tally,
   align-items: center;
   justify-content: space-between;
   padding: 0.375rem 0.6rem;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-hairline);
 }
 
 .debug-panel-log {
@@ -1892,7 +1843,7 @@ div.tally,
 }
 
 .debug-panel-empty {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   padding: 0.75rem;
   font-style: italic;
   text-align: center;
@@ -1906,11 +1857,11 @@ div.tally,
 }
 
 .debug-log-line:hover {
-  background: var(--color-soft);
+  background: var(--color-paper-sunk);
 }
 
 .debug-log-ts {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   flex-shrink: 0;
 }
 
@@ -1921,7 +1872,7 @@ div.tally,
 }
 
 .debug-log-level-debug {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
 .debug-log-level-info {
@@ -1937,12 +1888,12 @@ div.tally,
 }
 
 .debug-log-source {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   flex-shrink: 0;
 }
 
 .debug-log-data {
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   font-size: 0.62rem;
 }
 
@@ -1951,8 +1902,9 @@ div.tally,
    --------------------------------------------------------------------------- */
 
 .sandbox-panel {
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
   padding: 0.9rem;
 }
 
@@ -1975,7 +1927,7 @@ div.tally,
 .sandbox-subtitle,
 .sandbox-muted {
   font-size: 0.75rem;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
 .sandbox-controls {
@@ -1991,9 +1943,10 @@ div.tally,
 }
 
 .sandbox-field select {
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-paper-sunk);
+  color: var(--color-ink);
   padding: 0.5rem;
   font-size: 0.75rem;
 }
@@ -2014,9 +1967,9 @@ div.tally,
 }
 
 .sandbox-card {
-  border: 1.5px solid var(--color-line);
+  border: 1.5px solid var(--color-hairline);
   padding: 0.75rem;
-  background: var(--color-bg);
+  background: var(--color-paper);
 }
 
 .sandbox-card-wide {
@@ -2070,7 +2023,7 @@ div.tally,
 .sandbox-platform {
   font-size: 0.65rem;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
 }
 
 /* ---------------------------------------------------------------------------

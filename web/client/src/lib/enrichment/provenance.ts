@@ -14,13 +14,13 @@ export function getSynthesisLabel(enrichment: EnrichedData): string | null {
 export function getSynthesisBadgeClass(enrichment: EnrichedData): string {
   switch (enrichment.synthesisSource) {
     case "llm":
-      return "poi-badge poi-badge-ai";
+      return "badge poi-badge-ai";
     case "llm-repaired":
-      return "poi-badge poi-badge-ai-repaired";
+      return "badge poi-badge-ai-repaired";
     case "deterministic":
-      return "poi-badge poi-badge-fallback";
+      return "badge poi-badge-fallback";
     default:
-      return "poi-badge";
+      return "badge";
   }
 }
 
