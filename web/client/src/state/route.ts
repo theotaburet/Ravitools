@@ -104,9 +104,18 @@ export const toggleCategoryAtom = atom(null, (get, set, cat: PoiCategory) => {
   set(activeCategoriesAtom, next);
 });
 
-export const setAllCategoriesAtom = atom(null, (_get, set, on: boolean) => {
-  set(activeCategoriesAtom, on ? new Set<PoiCategory>(ALL_CATEGORIES) : new Set<PoiCategory>());
-});
+/** Turn several categories on or off at once: a family, or all of them */
+export const setCategoriesAtom = atom(
+  null,
+  (get, set, categories: readonly PoiCategory[], on: boolean) => {
+    const next = new Set(get(activeCategoriesAtom));
+    for (const c of categories) {
+      if (on) next.add(c);
+      else next.delete(c);
+    }
+    set(activeCategoriesAtom, next);
+  },
+);
 
 /** Keep the POIs within `maxDistanceM` and say how many */
 function showPois(get: Getter, set: Setter, pois: POI[], maxDistanceM: number): void {

@@ -163,7 +163,7 @@ These replace every `neo-*` class. Step 3 brought what the shell uses (`.micro`,
 | `.btn-quiet`          | Secondary action                        | No fill, hairline, no shadow                                            |
 | `.btn-sm`             | Compact variant                         | Still 44 px tall on `pointer: coarse`                                   |
 | `.fab`                | Round floating map button               | 44 px, glass, `elev-float`, lucide icon, `aria-label`                   |
-| `.chip`               | Pill toggle (filters)                   | Off: `paper-sunk` and hairline. On: `paper-raised`, `elev-raised`, filled family dot |
+| `.chip`               | Pill toggle (filters)                   | Off: `paper-sunk` and hairline. On: `paper-raised`, `elev-raised`, filled family dot. A checkbox label, or a button with `aria-pressed` (family toggle; `mixed` adds a dashed ring) |
 | `.switch`             | Tactile switch                          | Native `<input type="checkbox" role="switch">`, styled                  |
 | `.segmented`          | Exclusive choice (FR/EN, light/dark)    | `paper-sunk` track, raised thumb                                        |
 | `.badge`              | Outline pill with micro text            | Trust (AI / AI repaired / deterministic), confidence, state             |
@@ -257,7 +257,7 @@ The settings button opens a native popover (`popover` attribute, no JS state) wi
 
 ### 02 POI
 
-- **Filters**: the distance slider (keeping its approved 150 ms commit), then one group per family. Each group is a row with a family toggle (pastille, name, count) followed by its category chips.
+- **Filters**: the family toggles first, always in sight: one `.chip` per family (pastille, name, count; a family partly on is raised on a dashed ring, `aria-pressed="mixed"`), then All/None (None while anything is on, so "only water" is two taps). The distance slider (keeping its approved 150 ms commit) and one row of category chips per family sit behind a `<details>` whose summary reads `DISTANCE 1500 M · CATEGORIES 9/18`. A first version showed every family with its chips: at mid the list started 1 400 px down, under the slider alone.
 - **List**: virtualized, one compact row per POI: 20 px pastille, name, micro `KM 142 · +240 M`, trailing chevron. Enrichment shows only as a small badge (a spinner while searching).
 - **POI detail**: it replaces the list (with a back button) and is the only place the detail appears:
   1. pastille, name, category;

@@ -426,6 +426,96 @@ a {
   transform: translateX(18px);
 }
 
+/* Family color and glyph inline (palette); a paper ring lifts it off any map */
+.pastille {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--color-paper),
+    var(--elev-float);
+  cursor: pointer;
+}
+
+/* In the list and the filters (design.md 4) */
+.pastille-sm {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.btn-quiet {
+  background: none;
+  box-shadow: none;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  font-size: 14px;
+}
+
+/* Pill toggle (filters): sunk when off; raised, with a filled family dot, when on */
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-sunk);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip:has(:checked),
+.chip[aria-pressed="true"],
+.chip[aria-pressed="mixed"] {
+  background: var(--color-paper-raised);
+  box-shadow: var(--elev-raised);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* Part of the family on: raised, on a dashed ring */
+.chip[aria-pressed="mixed"] {
+  border-style: dashed;
+  border-color: var(--color-ink-muted);
+}
+
+.chip:focus-visible,
+.chip:has(:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+/* The real checkbox covers the chip: screen readers and tests use it, the chip is the target */
+.chip input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Family color inline as currentColor: a ring when off, filled when on */
+.chip-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.chip:has(:checked) .chip-dot {
+  background: currentColor;
+}
+
 /* ---------------------------------------------------------------------------
    Shell (design.md, section 5): full-bleed map, a sheet with detents on
    mobile, a floating panel on desktop, floating pill tabs and round buttons
@@ -960,93 +1050,34 @@ a {
   width: 100%;
 }
 
-.filter-toolbar {
+/* The family toggles and All/None, wrapping */
+.family-row,
+.chip-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-line);
+  gap: var(--space-2);
 }
 
-.filter-section-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted);
+/* Off: faded pastille (aria-pressed carries the state) */
+.family-toggle[aria-pressed="false"] .pastille {
+  opacity: 0.4;
 }
 
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.375rem;
-}
-
-.filter-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2rem;
-  padding: 0.25rem 0.5rem;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-  font-size: 0.8rem;
-  color: var(--color-muted);
+/* Native marker kept: it says the line opens */
+.filter-more summary {
+  padding: 15px 0;
   cursor: pointer;
-  user-select: none;
-  transition:
-    background-color 120ms,
-    border-color 120ms,
-    color 120ms;
 }
 
-.filter-chip:hover {
-  border-color: var(--color-border);
-  color: var(--color-text);
+.filter-more[open] > :not(summary) {
+  margin-bottom: var(--space-3);
 }
 
-.filter-chip:has(input:checked) {
-  border-color: var(--color-border);
-  background: var(--color-soft);
-  color: var(--color-text);
-  font-weight: 700;
-}
-
-.filter-chip:has(input:focus-visible) {
-  outline: 2px solid var(--color-text);
-  outline-offset: 2px;
-}
-
-/* The real checkbox stays for screen readers and tests; the chip is the control */
-.filter-chip input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.filter-chip-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.filter-dot {
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.filter-count {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
+/* One row of category chips per family */
+.chip-row {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-hairline);
 }
 
 /* ---------------------------------------------------------------------------
@@ -2097,19 +2128,6 @@ div.tally,
   cursor: pointer;
 }
 
-/* Family color and glyph inline (palette); a paper ring lifts it off any map */
-.pastille {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 2px var(--color-paper),
-    var(--elev-float);
-  cursor: pointer;
-}
-
 .pastille.is-selected {
   width: 36px;
   height: 36px;
@@ -2531,7 +2549,8 @@ div.tally,
   .neo-btn-secondary,
   .poi-sort-btn,
   .poi-sources-toggle,
-  .filter-chip,
+  .btn-sm,
+  .chip,
   .export-card,
   summary,
   input[type="range"] {

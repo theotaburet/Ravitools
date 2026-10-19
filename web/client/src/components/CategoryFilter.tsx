@@ -1,32 +1,31 @@
-// Category filter: max distance slider + a grid of category chips.
-// Visible both before upload (to choose what to query) and after (to filter).
+// Category filter (design.md 7, 02 POI): the family toggles, always in sight; the distance
+// slider and the category chips one tap away, so the list starts high in the sheet.
 // Each chip wraps a real checkbox (screen readers, tests); the chip is the control.
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { t, translateCategory } from "../lib/i18n";
-import { CORRIDOR_M, POI_CATEGORIES } from "../lib/poi-config";
+import { ALL_CATEGORIES, CORRIDOR_M, FAMILY_COLORS, POI_FAMILIES } from "../lib/poi-config";
 import {
   activeCategoriesAtom,
   poisAtom,
   routeSettingsAtom,
-  setAllCategoriesAtom,
+  setCategoriesAtom,
   setMaxDistanceAtom,
   toggleCategoryAtom,
 } from "../state/route";
-import { targetLanguageAtom } from "../state/ui";
-import type { PoiCategory, TargetLanguage } from "../types";
-
-const essentialCats = POI_CATEGORIES.filter((c) => c.defaultEnabled !== false);
-const optionalCats = POI_CATEGORIES.filter((c) => c.defaultEnabled === false);
+import { paletteAtom, targetLanguageAtom } from "../state/ui";
+import type { PoiCategory } from "../types";
+import { Icon } from "./Icon";
 
 export function CategoryFilter() {
   const activeCategories = useAtomValue(activeCategoriesAtom);
   const pois = useAtomValue(poisAtom);
   const maxDistanceM = useAtomValue(routeSettingsAtom).maxDistanceM;
   const targetLanguage = useAtomValue(targetLanguageAtom);
+  const palette = useAtomValue(paletteAtom);
   const onToggle = useSetAtom(toggleCategoryAtom);
-  const onSelectAll = useSetAtom(setAllCategoriesAtom);
+  const setCategories = useSetAtom(setCategoriesAtom);
   const onMaxDistanceChange = useSetAtom(setMaxDistanceAtom);
   const showCounts = pois.length > 0;
 
@@ -42,81 +41,89 @@ export function CategoryFilter() {
   };
 
   const counts = new Map<PoiCategory, number>();
-  if (showCounts) {
-    for (const poi of pois) {
-      counts.set(poi.category, (counts.get(poi.category) ?? 0) + 1);
-    }
-  }
+  for (const poi of pois) counts.set(poi.category, (counts.get(poi.category) ?? 0) + 1);
 
-  const allOn = activeCategories.size === POI_CATEGORIES.length;
-  const chip = (cat: (typeof POI_CATEGORIES)[number]) => (
-    <CategoryChip
-      key={cat.category}
-      cat={cat}
-      active={activeCategories.has(cat.category)}
-      count={showCounts ? (counts.get(cat.category) ?? 0) : undefined}
-      onToggle={onToggle}
-      targetLanguage={targetLanguage}
-    />
-  );
+  // One tap clears everything (then pick a family); from nothing, one tap brings it all back
+  const noneOn = activeCategories.size === 0;
 
   return (
     <div className="filter-panel">
-      <div className="filter-distance">
-        <div className="filter-distance-row">
-          <span>{t("filter.maxDistance", targetLanguage)}</span>
-          <span className="filter-distance-value">{displayDist} m</span>
-        </div>
-        <input
-          type="range"
-          min={300}
-          max={CORRIDOR_M}
-          step={100}
-          value={displayDist}
-          onChange={(e) => handleDistChange(Number(e.target.value))}
-          aria-label={t("filter.maxDistance", targetLanguage)}
-        />
-        <p className="hint">{t("filter.distanceHint", targetLanguage)}</p>
-      </div>
-
-      <div className="filter-toolbar">
-        <span className="filter-section-label">{t("filter.essential", targetLanguage)}</span>
+      <div className="family-row">
+        {POI_FAMILIES.map(({ family, categories }) => {
+          const on = categories.filter((c) => activeCategories.has(c.category)).length;
+          const familyCount = categories.reduce((n, c) => n + (counts.get(c.category) ?? 0), 0);
+          const { fill, glyph } = FAMILY_COLORS[palette][family];
+          return (
+            <button
+              key={family}
+              type="button"
+              className="chip family-toggle"
+              aria-pressed={on === categories.length ? true : on > 0 ? "mixed" : false}
+              onClick={() =>
+                setCategories(
+                  categories.map((c) => c.category),
+                  on < categories.length,
+                )
+              }
+            >
+              <span className="pastille pastille-sm" style={{ background: fill, color: glyph }}>
+                <Icon node={categories[0].glyph} size={12} />
+              </span>
+              {t(`family.${family}`, targetLanguage)}
+              {showCounts && <span className="micro">{familyCount}</span>}
+            </button>
+          );
+        })}
         <button
           type="button"
-          className="neo-btn-ghost neo-btn-sm"
-          onClick={() => onSelectAll(!allOn)}
+          className="btn btn-quiet btn-sm"
+          onClick={() => setCategories(ALL_CATEGORIES, noneOn)}
         >
-          {allOn ? t("filter.none", targetLanguage) : t("filter.all", targetLanguage)}
+          {noneOn ? t("filter.all", targetLanguage) : t("filter.none", targetLanguage)}
         </button>
       </div>
-      <div className="filter-grid">{essentialCats.map(chip)}</div>
 
-      <span className="filter-section-label">{t("filter.optional", targetLanguage)}</span>
-      <div className="filter-grid">{optionalCats.map(chip)}</div>
+      <details className="filter-more">
+        <summary className="micro">
+          {t("filter.more", targetLanguage, {
+            m: displayDist,
+            on: activeCategories.size,
+            all: ALL_CATEGORIES.length,
+          })}
+        </summary>
+        <div className="filter-distance">
+          <div className="filter-distance-row">
+            <span>{t("filter.maxDistance", targetLanguage)}</span>
+            <span className="filter-distance-value">{displayDist} m</span>
+          </div>
+          <input
+            type="range"
+            min={300}
+            max={CORRIDOR_M}
+            step={100}
+            value={displayDist}
+            onChange={(e) => handleDistChange(Number(e.target.value))}
+            aria-label={t("filter.maxDistance", targetLanguage)}
+          />
+          <p className="hint">{t("filter.distanceHint", targetLanguage)}</p>
+        </div>
+        {POI_FAMILIES.map(({ family, categories }) => (
+          <div key={family} className="chip-row">
+            {categories.map((cat) => (
+              <label key={cat.category} className="chip">
+                <input
+                  type="checkbox"
+                  checked={activeCategories.has(cat.category)}
+                  onChange={() => onToggle(cat.category)}
+                />
+                <span className="chip-dot" style={{ color: FAMILY_COLORS[palette][family].fill }} />
+                {translateCategory(cat.category, targetLanguage)}
+                {showCounts && <span className="micro">{counts.get(cat.category) ?? 0}</span>}
+              </label>
+            ))}
+          </div>
+        ))}
+      </details>
     </div>
-  );
-}
-
-function CategoryChip({
-  cat,
-  active,
-  count,
-  onToggle,
-  targetLanguage = "en",
-}: {
-  cat: (typeof POI_CATEGORIES)[number];
-  active: boolean;
-  count?: number;
-  onToggle: (cat: PoiCategory) => void;
-  targetLanguage?: TargetLanguage;
-}) {
-  const name = translateCategory(cat.category, targetLanguage);
-  return (
-    <label className="filter-chip" title={name}>
-      <input type="checkbox" checked={active} onChange={() => onToggle(cat.category)} />
-      <span className="filter-dot" style={{ backgroundColor: cat.color }} />
-      <span className="filter-chip-name">{name}</span>
-      {count !== undefined && <span className="filter-count">{count}</span>}
-    </label>
   );
 }

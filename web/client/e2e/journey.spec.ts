@@ -111,8 +111,8 @@ test("load, keep the water, open a POI, export: no friction despite a failing ch
   test.info().annotations.push({ type: "first POI", description: `${Date.now() - chosenAt} ms` });
   await j.check("loaded");
 
-  await j.tap(page.getByRole("button", { name: "All" })); // essentials off
-  await j.tap(page.locator(".filter-chip", { hasText: "Water" }));
+  await j.tap(page.getByRole("button", { name: "None" }));
+  await j.tap(page.getByRole("button", { name: /^Water/ })); // the family toggle
   await expect(page.locator(".poi-list-item")).toHaveCount(1);
   await j.check("water only");
 

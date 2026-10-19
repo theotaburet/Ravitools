@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { t, translateCategory, translatePoiName } from "../lib/i18n";
+import { POI_FAMILIES } from "../lib/poi-config";
 import type { PoiCategory } from "../types";
 
 // --- translateCategory ---
@@ -119,6 +120,13 @@ describe("t (UI strings)", () => {
     // @ts-expect-error: testing runtime fallback
     expect(t("session.resume", "de")).toBe("Resume");
     expect(t("does.not.exist", "fr")).toBe("does.not.exist");
+  });
+
+  it("names every POI family in both languages", () => {
+    for (const { family } of POI_FAMILIES) {
+      expect(t(`family.${family}`, "en")).not.toBe(`family.${family}`);
+      expect(t(`family.${family}`, "fr")).not.toBe(`family.${family}`);
+    }
   });
 
   it("has a translation for every dynamic skip-reason key", () => {

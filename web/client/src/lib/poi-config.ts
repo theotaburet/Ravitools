@@ -522,6 +522,12 @@ export const FAMILY_COLORS: Record<Palette, Record<PoiFamily, { fill: string; gl
   },
 };
 
+/** Families in display order (design.md 3.4), each with its categories in config order */
+export const POI_FAMILIES = (Object.keys(FAMILY_COLORS.default) as PoiFamily[]).map((family) => ({
+  family,
+  categories: POI_CATEGORIES.filter((c) => c.family === family),
+}));
+
 /**
  * Per-tag OsmAnd icon overrides.
  * When a POI has specific OSM tags, we can pick a more precise OsmAnd icon.
