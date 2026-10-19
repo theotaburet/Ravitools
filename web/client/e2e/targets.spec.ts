@@ -75,4 +75,7 @@ test("every view keeps 44 px targets and its main actions under the thumb", asyn
   await expectReachable(page);
   await page.getByRole("button", { name: "Debug log" }).click();
   await expectReachable(page);
+  // Out of the debug view in one tap, back to the tab it was opened from
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
 });

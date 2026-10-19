@@ -109,6 +109,7 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "action.retryQuery": { en: "Retry query", fr: "Relancer la requête" },
   "action.startOver": { en: "Start over", fr: "Tout recommencer" },
   "action.tryAgain": { en: "Try again", fr: "Réessayer" },
+  "action.back": { en: "Back", fr: "Retour" },
   "upload.drop": { en: "Load a GPX", fr: "Charger un GPX" },
   "upload.input": { en: "Upload GPX files", fr: "Importer des fichiers GPX" },
   "upload.add": { en: "Add a GPX", fr: "Ajouter un GPX" },
