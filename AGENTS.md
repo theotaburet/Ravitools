@@ -267,7 +267,7 @@ Every enriched POI carries confidence, provenance and `synthesisSource` (AI / AI
 
 The spec and the tests only check what they describe. Before calling a UI change done:
 
-- **Every view has a way out.** Enter each view you touched and leave it (POI detail, debug view, roadbook, settings, any overlay): a visible back or close, in sight at every detent. An e2e step covers leaving, not only entering
+- **Every view has a way out.** Enter each view you touched and leave it (POI detail, debug view, roadbook, settings, any overlay): a visible back or close, in sight at every detent
 - **Every build is checked, not only `just dev`.** The static build (`VITE_STANDALONE=true`, what GitHub Pages serves) has no server: a feature it lacks says why in place, it never vanishes. After a merge to `main`, open the live demo
 - **The rider's questions get an answer.** Walk the main ones on a real GPX: where is water, where can I eat, what is open when I pass (Sunday, evening), what will my GPS show. A question the UI cannot answer is a finding, raised before the step is called done, even if the spec is silent
 
