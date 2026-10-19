@@ -33,9 +33,16 @@ function friction(page: Page): Promise<string[]> {
     const name = (el: Element) =>
       `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${(el.textContent ?? "").trim().slice(0, 30)}"`;
     if (document.documentElement.scrollWidth > innerWidth) found.push("page overflows sideways");
-    // Content scrolls under the floating tabs on purpose: only look above them
-    const floor =
-      document.querySelector('[role="tablist"]')?.getBoundingClientRect().top ?? innerHeight;
+    // Content scrolls under the floating tabs and a docked action on purpose: only look above them
+    const floor = Math.min(
+      ...[
+        document.querySelector('[role="tablist"]'),
+        document.querySelector(".tab-panel:not([hidden]) .dock"),
+      ]
+        .filter((el) => el?.checkVisibility())
+        .map((el) => el?.getBoundingClientRect().top ?? innerHeight),
+      innerHeight,
+    );
     for (const el of document.querySelectorAll(
       'button, a[href], input, select, summary, [role="tab"]',
     )) {
@@ -45,8 +52,8 @@ function friction(page: Page): Promise<string[]> {
       const r = target.getBoundingClientRect();
       const x = r.left + r.width / 2;
       const y = r.top + r.height / 2;
-      const inTabs = target.closest('[role="tablist"]') !== null;
-      if (x < 0 || x > innerWidth || y < 0 || y > (inTabs ? innerHeight : floor)) continue;
+      const docked = target.closest('[role="tablist"], .dock') !== null;
+      if (x < 0 || x > innerWidth || y < 0 || y > (docked ? innerHeight : floor)) continue;
       const scroller = target.closest(".tab-panel")?.getBoundingClientRect();
       if (scroller && (y < scroller.top || y > scroller.bottom)) continue;
       const hit = document.elementFromPoint(x, y);
@@ -127,7 +134,8 @@ test("load, keep the water, open a POI, next, export: no friction despite a fail
 
   await j.tap(page.getByRole("tab", { name: /Export/ }));
   const download = page.waitForEvent("download");
-  await j.tap(page.getByRole("button", { name: /^GPX COROS/ }));
+  await j.tap(page.getByRole("radio", { name: /^GPX COROS/ }));
+  await j.tap(page.getByRole("button", { name: "Download GPX" }));
   await download;
   await j.check("exported");
 

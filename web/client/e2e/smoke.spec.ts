@@ -29,10 +29,10 @@ test("upload GPX → POIs on map → valid GPX export", async ({ page }) => {
 
   // GPX export downloads a file with waypoints and the track
   await page.getByRole("tab", { name: /Export/ }).click();
-  await expect(page.locator(".export-panel")).toBeVisible();
+  await page.getByRole("radio", { name: /^GPX COROS/ }).check();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: /^GPX COROS/ }).click(),
+    page.getByRole("button", { name: "Download GPX" }).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.gpx$/);
   const gpx = readFileSync((await download.path()) as string, "utf8");

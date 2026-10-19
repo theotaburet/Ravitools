@@ -82,8 +82,6 @@ export interface PoiCategoryConfig {
   family: PoiFamily;
   /** Default lucide glyph on the family color (a tag's own glyph wins, see poiGlyph) */
   glyph: IconNode;
-  /** Marker, list dot, KML and OsmAnd color */
-  color: string;
   /** Map marker emoji (a tag's own emoji wins, see poiEmoji) */
   emoji: string;
   /** "full": geocode + search + LLM; "minimal": geocode only; "skip": no network, Google Maps link only */

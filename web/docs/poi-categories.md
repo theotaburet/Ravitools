@@ -118,8 +118,6 @@ Picnic, weather and rock shelters, lean-tos, huts. Bus shelters (`shelter_type=p
 
 Public repair stations with tools and pump. Very valuable for bikepackers.
 
-Color: `#E65100` (distinct from Gears `#CC0000`).
-
 ### Laundry
 
 | OSM key | OSM value |
@@ -207,28 +205,9 @@ For e-bike batteries and device charging.
 
 Libraries often provide free wifi and power outlets.
 
-## Category colors
+## Colors
 
-| Category | Color | Background |
-|---|---|---|
-| Water | `#0066CC` | Blue |
-| Sleeping place | `#1A1A2E` | Dark navy |
-| Restroom | `#FFD700` | Gold |
-| Shelter | `#444444` | Dark gray |
-| Food shop | `#228B22` | Forest green |
-| Restaurant or Bar | `#FF6B35` | Orange |
-| Gears | `#CC0000` | Red |
-| DIY | `#E65100` | Deep orange |
-| Laundry | `#FFB6C1` | Light pink |
-| Medical | `#DC2626` | Red |
-| Pharmacy | `#16A34A` | Green |
-| Bank & ATM | `#1D4ED8` | Blue |
-| Post office | `#CA8A04` | Amber |
-| Viewpoint | `#7C3AED` | Purple |
-| Tourist info | `#38BDF8` | Sky blue |
-| Charging | `#FACC15` | Yellow |
-| Picnic | `#059669` | Emerald |
-| Wifi | `#6366F1` | Indigo |
+A category takes its family's color (`FAMILY_COLORS` in `lib/poi-config.ts`, `web/docs/design.md` 3.4), in the palette the user picked: the map, the list and the exports (KML, KMZ, OsmAnd GPX through `categoryColor`) show the same one. The glyph tells the categories of a family apart.
 
 ## Corridor and filtering
 
@@ -240,7 +219,7 @@ Libraries often provide free wifi and power outlets.
 ## Adding a new category
 
 1. Add the category name to `PoiCategory` type in `types/index.ts`
-2. Add one row to `POI_CATEGORIES` in `lib/poi-config.ts`: OSM tag matchers, `defaultEnabled`, color, emoji, enrichment policy, dedup merge, GPX symbol, FIT course point type, OsmAnd icon and background (the type requires every field)
+2. Add one row to `POI_CATEGORIES` in `lib/poi-config.ts`: OSM tag matchers, `defaultEnabled`, family, glyph, emoji, enrichment policy, dedup merge, GPX symbol, FIT course point type, OsmAnd icon and background (the type requires every field)
 3. Add the fr label in `lib/i18n.ts`; an `ENRICHMENT_CONTRACTS` entry only for a `full` category
 4. `just check`, then test on an example GPX
 

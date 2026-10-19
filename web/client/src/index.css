@@ -726,6 +726,16 @@ a {
   padding: var(--space-2) var(--space-4) calc(100dvh - 64px - var(--sheet-rest) + var(--tabs-space));
 }
 
+/* A main action docked just above the tabs while the content scrolls under it. The inset counts
+   from the panel's content edge, whose bottom padding already keeps the tabs (and, at low and
+   mid, the part of the sheet below the screen) clear */
+.dock {
+  position: sticky;
+  z-index: 1;
+  bottom: var(--space-2);
+  box-shadow: var(--elev-float);
+}
+
 .tab-panel[hidden] {
   display: none;
 }
@@ -1675,97 +1685,64 @@ div.tally,
 }
 
 /* ---------------------------------------------------------------------------
-   Export panel: format cards grouped by target
+   Export panel: radio cards for the formats, one download button
    --------------------------------------------------------------------------- */
 
 .export-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: var(--space-4);
 }
 
-.export-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.export-group-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-}
-
-.export-grid {
+.export-formats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
+.export-formats legend {
+  margin-bottom: var(--space-2);
+}
+
+/* The native radio stays in sight; the chosen card gets the accent selection ring */
 .export-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  padding: 0.5rem 0.65rem;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  text-align: left;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-2);
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
   cursor: pointer;
-  transition:
-    transform 120ms,
-    box-shadow 120ms,
-    background-color 120ms;
 }
 
-.export-card:hover {
-  background: var(--color-soft);
+.export-card input {
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 
-.export-card:active {
-  transform: translate(1px, 1px);
+.export-card:has(:checked) {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
 }
 
-.export-card:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.export-card.is-primary {
-  background: var(--color-lime);
-  color: var(--color-ink);
-  border-color: var(--color-ink);
-  box-shadow: var(--shadow-hard);
-}
-
-.export-card.is-primary:hover {
-  transform: translate(1px, 1px);
-  box-shadow: var(--shadow-soft);
-}
-
-.export-card.is-primary:active {
-  transform: translate(3px, 3px);
-  box-shadow: none;
+.export-card:has(:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
 }
 
 .export-card-format {
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .export-card-target {
-  font-size: 0.72rem;
-  color: var(--color-muted);
+  grid-column: 2;
+  font-size: 14px;
   line-height: 1.3;
-}
-
-.export-card.is-primary .export-card-target {
-  color: var(--color-ink);
+  color: var(--color-ink-muted);
 }
 
 .export-notes {

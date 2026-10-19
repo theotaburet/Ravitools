@@ -186,10 +186,10 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
   "poi.skip.cancelled": { en: "Cancelled", fr: "Annulé" },
   // Export panel
   "action.loadNew": { en: "Load new GPX files", fr: "Charger de nouveaux fichiers GPX" },
-  "export.gps": { en: "Export for GPS", fr: "Export GPS" },
   "export.poisReady": { en: "POIs ready", fr: "POI prêts" },
   "export.enriched": { en: "enriched", fr: "enrichis" },
-  "export.smartphone": { en: "Export for Smartphone", fr: "Export smartphone" },
+  "export.format": { en: "Format", fr: "Format" },
+  "export.download": { en: "Download {format}", fr: "Télécharger le {format}" },
   "export.fitBody": {
     en: "course with typed points (water, food, camp…): Garmin Up Ahead, Wahoo and Karoo alerts. Copy to Garmin/NewFiles over USB or import in the app; older Edge units stop alerting after 200 points.",
     fr: "parcours avec points typés (eau, nourriture, camping…) : Up Ahead Garmin, alertes Wahoo et Karoo. Copie USB dans Garmin/NewFiles ou import dans l'app ; les anciens Edge n'alertent plus au-delà de 200 points.",
@@ -258,7 +258,6 @@ const UI: Record<string, Record<TargetLanguage, string>> = {
     fr: "OsmAnd : icônes et couleurs par catégorie",
   },
   "export.kmzTarget": { en: "Organic Maps, Guru Maps", fr: "Organic Maps, Guru Maps" },
-  "export.files": { en: "Plan and roadbook", fr: "Plan et roadbook" },
   // Elevation strip
   "profile.gapPrefix": { en: "Alert above", fr: "Alerte au-delà de" },
   // Local model capability check

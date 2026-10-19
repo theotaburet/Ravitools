@@ -173,6 +173,7 @@ These replace every `neo-*` class. Step 3 brought what the shell uses (`.micro`,
 | `.counter`            | Screen with 2 to 4 cells                | Value plus micro label per cell                                         |
 | `.progress`           | Pixel bar                               | `.progress-segmented` for done / skipped / remaining                    |
 | `.field`              | Input, select                           | `paper-sunk`, radius-control, 44 px min height, 16 px text (no iOS zoom) |
+| `.dock`               | Main action docked above the tabs       | `position: sticky`, `elev-float`; the content scrolls under it (E7's friction check looks above it) |
 | `.notice`             | State message                           | Soft background, icon in the state color, ink text (the state text colors fall to 3.97 to 4.43 on the soft background in light), optional action |
 
 ## 5. Layout shell
@@ -271,7 +272,9 @@ The settings button opens a native popover (`popover` attribute, no JS state) wi
 
 ### 03 Enrich and 04 Export
 
-Same features, rebuilt from the primitives. Export formats become radio cards; the roadbook and print styles move to the new tokens.
+Same features, rebuilt from the primitives. The roadbook and print styles move to the new tokens.
+
+- **04 Export**: the formats are radio cards (FIT first, the only one with typed alerts; then GPX, GPX OsmAnd, KMZ, KML, GeoJSON) and one "Download FIT" button, docked above the tabs (`.dock`): at mid the six cards run past the fold, and the button below them was out of sight. The plan file and the roadbook are quiet buttons; what each one is goes in "Which format?". KML, KMZ and OsmAnd GPX write the family fill of the current palette; the per-category colours they used to write (different from the map) are gone.
 
 ## 8. Colour-blind mode
 
