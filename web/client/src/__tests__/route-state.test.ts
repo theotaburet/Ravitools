@@ -30,6 +30,7 @@ import {
   lockedTabsAtom,
   poisAtom,
   processFilesAtom,
+  ravitoGapsAtom,
   resetRouteAtom,
   restoreRouteAtom,
   retryQueryAtom,
@@ -41,7 +42,7 @@ import {
   toggleCategoryAtom,
   tracesAtom,
 } from "../state/route";
-import { activeTabAtom } from "../state/ui";
+import { activeTabAtom, gapThresholdKmAtom } from "../state/ui";
 
 const trace: TraceData = {
   name: "Route",
@@ -202,5 +203,22 @@ describe("setMaxDistance after restore", () => {
     // back up within the restored radius: the far POI reappears
     store.set(setMaxDistanceAtom, 1000);
     expect(store.get(poisAtom)).toHaveLength(2);
+  });
+});
+
+describe("stretches without water or food", () => {
+  it("are found per trace from every POI, whatever the filters", () => {
+    const store = createStore();
+    const along = (id: string, category: string, m: number): POI =>
+      ({ ...poi(id, category), traceId: "t1", alongTraceDistance: m }) as POI;
+    store.set(tracesAtom, [{ ...trace, id: "t1", totalDistanceM: 10_000 }]);
+    store.set(poisAtom, [along("w", "Water", 2000), along("f", "Food shop", 9000)]);
+    store.set(toggleCategoryAtom, "Water"); // hidden from the list, still water on the road
+    store.set(gapThresholdKmAtom, 5);
+
+    expect(store.get(ravitoGapsAtom).get("t1")).toEqual({
+      water: [{ startM: 2000, endM: 10_000 }],
+      food: [{ startM: 0, endM: 9000 }],
+    });
   });
 });

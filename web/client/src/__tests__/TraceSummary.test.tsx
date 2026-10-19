@@ -2,11 +2,12 @@
 
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { afterEach, describe, expect, it } from "vitest";
 import { TraceSummary } from "../components/TraceSummary";
 import { activeCategoriesAtom, poisAtom, tracesAtom } from "../state/route";
+import { gapThresholdKmAtom } from "../state/ui";
 import type { POI, PoiCategory, TraceData } from "../types";
 
 afterEach(cleanup);
@@ -45,11 +46,14 @@ function renderWith(traces: TraceData[]) {
   store.set(tracesAtom, traces);
   store.set(poisAtom, [poi]);
   store.set(activeCategoriesAtom, new Set(["Water"] as PoiCategory[]));
-  return render(
-    <Provider store={store}>
-      <TraceSummary />
-    </Provider>,
-  );
+  return {
+    store,
+    ...render(
+      <Provider store={store}>
+        <TraceSummary />
+      </Provider>,
+    ),
+  };
 }
 
 describe("TraceSummary", () => {
@@ -67,6 +71,18 @@ describe("TraceSummary", () => {
     const rows = screen.getAllByRole("listitem");
     expect(rows[0].textContent).toMatch(/1 POI/);
     expect(rows[1].textContent).toMatch(/0 POI/);
+  });
+
+  it("warns about stretches without food past the alert threshold, which can be changed", () => {
+    const { store } = renderWith([makeTrace("trace_1", 45, "Col du Test")]);
+    expect(screen.queryByText(/without food/)).toBeNull(); // 1.1 km is under the 25 km default
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: /alert threshold/ }), {
+      target: { value: "1" },
+    });
+    expect(store.get(gapThresholdKmAtom)).toBe(1);
+    expect(screen.getByText("1 × > 1 km without food")).toBeTruthy();
+    expect(screen.queryByText(/without water/)).toBeNull(); // the fountain sits at 0.5 km
   });
 
   it("renders nothing without a trace", () => {

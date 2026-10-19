@@ -1,7 +1,7 @@
 // ElevationProfile: collapsible strip under the map: elevation curve of one
 // trace with POIs positioned along it. Hover mirrors a marker on the map.
 
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildProfile,
@@ -15,13 +15,12 @@ import {
   svgPath,
 } from "../lib/elevation";
 import { km } from "../lib/format";
-import { findGaps, type Gap } from "../lib/gaps";
+import type { Gap } from "../lib/gaps";
 import { t } from "../lib/i18n";
 import { clusterProfilePois, poiBounds } from "../lib/poi-cluster";
 import { poiEmoji } from "../lib/poi-config";
-import { filteredPoisAtom, poisAtom, tracesAtom } from "../state/route";
+import { filteredPoisAtom, ravitoGapsAtom, tracesAtom } from "../state/route";
 import {
-  gapThresholdKmAtom,
   mapFocusAtom,
   mapTraceHoverAtom,
   mapViewBoundsAtom,
@@ -289,8 +288,6 @@ const ProfileStatic = memo(function ProfileStatic({
 export function ElevationProfile() {
   const traces = useAtomValue(tracesAtom);
   const pois = useAtomValue(filteredPoisAtom);
-  const allPois = useAtomValue(poisAtom);
-  const [gapThresholdKm, setGapThresholdKm] = useAtom(gapThresholdKmAtom);
   const targetLanguage = useAtomValue(targetLanguageAtom);
   const setSelectedPoiId = useSetAtom(selectedPoiIdAtom);
   const setProfileHover = useSetAtom(profileHoverAtom);
@@ -344,21 +341,9 @@ export function ElevationProfile() {
   // Each POI belongs to its nearest trace: dots land on the right profile
   const tracePois = useMemo(() => pois.filter((p) => p.traceId === trace?.id), [trace, pois]);
 
-  // Ravito gaps: computed from ALL POIs (unfiltered): unchecking a category
-  // in the filter must not turn the trace into a fake desert.
-  const { waterGaps, foodGaps } = useMemo(() => {
-    if (!trace) return { waterGaps: [], foodGaps: [] };
-    const mine = allPois.filter((p) => p.traceId === trace.id);
-    const thresholdM = gapThresholdKm * 1000;
-    const water = mine.filter((p) => p.category === "Water").map((p) => p.alongTraceDistance);
-    const food = mine
-      .filter((p) => p.category === "Food shop" || p.category === "Restaurant or Bar")
-      .map((p) => p.alongTraceDistance);
-    return {
-      waterGaps: findGaps(water, trace.totalDistanceM, thresholdM),
-      foodGaps: findGaps(food, trace.totalDistanceM, thresholdM),
-    };
-  }, [trace, allPois, gapThresholdKm]);
+  const gaps = useAtomValue(ravitoGapsAtom).get(trace?.id ?? "");
+  const waterGaps = gaps?.water ?? [];
+  const foodGaps = gaps?.food ?? [];
 
   const winProfile = useMemo(() => {
     if (profile.length === 0) return profile;
@@ -439,32 +424,6 @@ export function ElevationProfile() {
         <span className="elevation-stats">
           {trace.name ?? trace.id} · {km(trace.totalDistanceM)} km · ↑{trace.elevationGainM}m ↓
           {trace.elevationLossM}m
-        </span>
-        <span className="gap-controls">
-          <label className="gap-threshold">
-            {t("profile.gapPrefix", targetLanguage)}
-            <input
-              type="number"
-              min={1}
-              value={gapThresholdKm}
-              aria-label={t("profile.gapThreshold", targetLanguage)}
-              onChange={(e) => setGapThresholdKm(Math.max(1, Number(e.target.value) || 1))}
-            />
-            km
-          </label>
-          {(waterGaps.length > 0 || foodGaps.length > 0) && (
-            <span className="gap-summary" role="status">
-              ⚠{" "}
-              {[
-                waterGaps.length > 0 &&
-                  `${waterGaps.length} × >${gapThresholdKm} km ${t("profile.without", targetLanguage)} 💧`,
-                foodGaps.length > 0 &&
-                  `${foodGaps.length} × >${gapThresholdKm} km ${t("profile.without", targetLanguage)} 🛒`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          )}
         </span>
         {traces.length > 1 && (
           <span className="elevation-chips">

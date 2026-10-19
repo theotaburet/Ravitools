@@ -18,7 +18,7 @@ Spec and living reference: `web/docs/design.md`. Branch `designV2` (from `dev`, 
   - [x] 5c. Compact list: pastille, name, `KM · +M`, chevron, enrichment badge or spinner; real `<button>` rows; route order (sort modes deleted); virtualized in the tab panel's scroll (`scrollMargin`), no nested 440 px scroller. Found by a new E7 long-list case (210 POIs): opening a deep row looped ("Maximum update depth") because hidden rows measured 0 px; no rows while the detail hides the list. ▶ in the E7 journey; `.badge` primitive
 - [ ] 6. Header strip: E2, compact profile (tap to centre), counter, profile trace selector deleted
   - [x] 6a. E2 (throwaway, scratchpad `e2/`): the 3:1 sun criterion is the model's ceiling (3.00); cyan numerals 1.79, white 2.97, ink on paper 2.70. Counter: dark screen, white numerals, 40 px, wdth 62 (user's choice). Pastille dead band (fill luminance 0.25 to 0.52) noted, palettes kept (user's choice). Vitest pins the counter pair at 2.9 in the sun
-  - [ ] 6b. Gaps as a derived atom; the gap threshold and summary move to tab 01
+  - [x] 6b. `ravitoGapsAtom` (per trace, from every POI) replaces the profile's own computation; the alert threshold and the "n × > 25 km without water / food" lines move to tab 01 (`TraceSummary`), one line per trace
   - [ ] 6c. Strip: counter (KM, D+, POI) and compact whole-trace profile (map's visible stretch highlighted, tap centres the map); POI dots, slope legend, flags, off-screen labels, tooltip and trace selector deleted (user's choice, "Minimal")
 - [ ] 7. Tabs 01, 03, 04; exports take the palette
 - [ ] 8. Cleanup: dead CSS, neo-*, docs (AGENTS.md, CONTRIBUTING.md, architecture.md, poi-categories.md)

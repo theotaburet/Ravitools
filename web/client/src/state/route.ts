@@ -4,13 +4,14 @@
 import { atom, type Getter, type Setter } from "jotai";
 import { dlog } from "../lib/debug-log";
 import { km } from "../lib/format";
+import { findGaps } from "../lib/gaps";
 import { parseGpx } from "../lib/gpx-parser";
 import { t } from "../lib/i18n";
 import { type OverpassElement, queryAllPois } from "../lib/overpass";
 import { ALL_CATEGORIES, CORRIDOR_M, DEFAULT_CATEGORIES } from "../lib/poi-config";
 import { processElements } from "../lib/poi-processor";
 import type { PipelineStage, POI, PoiCategory, RouteProcessingSettings, TraceData } from "../types";
-import { showTabAtom, type Tab, targetLanguageAtom } from "./ui";
+import { gapThresholdKmAtom, showTabAtom, type Tab, targetLanguageAtom } from "./ui";
 
 const DEFAULT_ROUTE_SETTINGS: RouteProcessingSettings = {
   maxDistanceM: CORRIDOR_M,
@@ -41,6 +42,32 @@ export const filteredPoisAtom = atom((get) => {
 export const isProcessingAtom = atom((get) =>
   ["parsing", "simplifying", "querying", "processing"].includes(get(stageAtom)),
 );
+
+/** Stretches longer than the alert threshold without water or food, per trace id. From every
+ *  POI, not the filtered ones: hiding a category must not turn the route into a desert */
+export const ravitoGapsAtom = atom((get) => {
+  const thresholdM = get(gapThresholdKmAtom) * 1000;
+  const pois = get(poisAtom);
+  return new Map(
+    get(tracesAtom).map((trace) => {
+      const along = (cats: PoiCategory[]) =>
+        pois
+          .filter((p) => p.traceId === trace.id && cats.includes(p.category))
+          .map((p) => p.alongTraceDistance);
+      return [
+        trace.id,
+        {
+          water: findGaps(along(["Water"]), trace.totalDistanceM, thresholdM),
+          food: findGaps(
+            along(["Food shop", "Restaurant or Bar"]),
+            trace.totalDistanceM,
+            thresholdM,
+          ),
+        },
+      ];
+    }),
+  );
+});
 
 /** Enrich and Export work on POIs: locked while the pipeline runs or when no POI passes the filters */
 export const lockedTabsAtom = atom((get): Tab[] =>
