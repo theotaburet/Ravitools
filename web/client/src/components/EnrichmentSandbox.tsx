@@ -68,7 +68,7 @@ export function EnrichmentSandbox() {
         </div>
         <button
           type="button"
-          className="neo-btn-sm neo-btn-secondary"
+          className="btn btn-sm"
           onClick={runSandbox}
           disabled={!selectedPoi || loading}
         >
@@ -91,7 +91,7 @@ export function EnrichmentSandbox() {
 
       {selectedPoi && (
         <div className="sandbox-poi-meta">
-          <span className="neo-tag">{selectedPoi.category}</span>
+          <span className="badge">{selectedPoi.category}</span>
           <span>{selectedPoi.name}</span>
           <span className="sandbox-muted">
             {selectedPoi.distanceToTrace.toFixed(0)} m from route

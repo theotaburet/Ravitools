@@ -61,18 +61,19 @@ export function DebugPanel() {
     <div className="debug-panel">
       <div className="debug-panel-body">
         <div className="debug-panel-toolbar">
-          <label className="debug-panel-label">
+          <label className="switch">
             <input
               type="checkbox"
+              role="switch"
+              aria-checked={enabled}
               checked={enabled}
               onChange={toggleEnabled}
-              className="neo-checkbox"
             />
             Logging
           </label>
           <button
             type="button"
-            className="neo-btn-sm neo-btn-secondary"
+            className="btn btn-sm"
             onClick={handleClear}
             disabled={entries.length === 0}
           >
