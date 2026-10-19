@@ -27,8 +27,11 @@ Spec and living reference: `web/docs/design.md`. Branch `designV2` (from `dev`, 
   - [x] 7c. Tab 04: formats as radio cards and one download button docked above the tabs (`.dock`; the first try put it below six cards, out of sight at mid; E7's friction floor now stops at the dock); plan and roadbook as quiet buttons, their blurbs in "Which format?". KML, KMZ and OsmAnd GPX take the palette (`categoryColor`; failing test first); the per-category `color` field is gone (it differed from the map). E7 journey: radio then download, still 8 taps
   - [x] 7d. Tab 03 from the primitives: card for the local-model check (state dot), `.switch` for "enrich everything" and the opt-in, `.notice` for warnings and errors, pixel `.progress`, tally as `.progress-segmented`, the action of the moment docked. E6 now wants each tab's primary button in sight (it let the undocked download pass; checked to fail without the dock). Old progress bar, enrichment notices and counts CSS deleted
   - [x] 7e. Roadbook on the tokens (paper and ink on screen, so dark in the dark theme; black on white in print whatever the theme), `.btn` toolbar, micro table heads, cells that wrap (hours overflowed at 360 px)
-- [ ] 8. Cleanup: dead CSS, neo-*, docs (AGENTS.md, CONTRIBUTING.md, architecture.md, poi-categories.md)
-- [ ] E7/E8 loop after each step (E7 permanent from step 3; E8 throwaway script pattern in the session scratchpad)
+- [x] 8. Cleanup: dead CSS, neo-*, docs (AGENTS.md, CONTRIBUTING.md, architecture.md, poi-categories.md)
+  - [x] 8a. No `neo-*` class left (debug view and sandbox on `.switch`, `.btn`, `.badge`); the neo CSS deleted
+  - [x] 8b. "Carnet de route" aliases, `--color-info-soft` and the hard shadows deleted (every use mapped to its charter token); trust and confidence badges on `.badge`, the state in its text colour (the rating used the warning fill as text: 2:1 in colour-blind light); debug and sandbox frames on hairline cards. A word-boundary scan finds no CSS class without a user
+  - [x] 8c. Docs: AGENTS.md (references, stack line, primitives pattern, pipeline line), CONTRIBUTING.md (where things live, category row, UI convention), architecture.md (design line, file map: PoiDetail, tab 01 cards, "Add a GPX", export), design.md (migration done); poi-categories.md was done in 7c
+- [x] E7/E8 loop after each step (E7 permanent from step 3; E8 throwaway script pattern in the session scratchpad)
 - [x] Research: `web/docs/research/similar-tools.md`, `device-poi-transfer.md` (COROS keeps GPX waypoints, under 200 recommended; Karoo drops every Ravitools GPX POI)
 - [ ] Reverse COROS: **paused by the user (2026-10-18)**. When resumed: device test by the user first (250-waypoint GPX), then HAR, then APK
 

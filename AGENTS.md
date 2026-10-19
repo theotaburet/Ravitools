@@ -11,6 +11,7 @@ The core value is relevance: POIs along the actual route, with low noise, not ev
 - `CONTRIBUTING.md`: setup, verification, where things live, how to add a POI category
 - `web/docs/architecture.md`: pipeline, what runs where, file map, server endpoints
 - `web/docs/poi-categories.md`: the 18 categories and their OSM tags
+- `web/docs/design.md`: the "Field instrument" charter: tokens, primitives, layout, tab content, experiments
 - `web/docs/deployment.md`: GitHub Pages demo and VPS deployment
 - `tasks/`: active work tracking (see below)
 
@@ -100,7 +101,7 @@ const { maxDistanceM } = useAtomValue(routeSettingsAtom); // state/route.ts, def
 ```
 Runtime: Bun 1.x
 Framework: React 19 + TypeScript 7 strict + Vite 8 (Rolldown)
-UI: Tailwind v4 + plain CSS tokens (neobrutalist "carnet de route", dark theme via tokens)
+UI: Tailwind v4 + plain CSS tokens ("field instrument", web/docs/design.md; dark theme and colour-blind palette via tokens)
 State: Jotai (atoms + action atoms in src/state/)
 Map: Leaflet 1.9 via react-leaflet 5
 Enrichment: @mlc-ai/web-llm (WebGPU, Qwen2.5-3B), SearXNG + Nominatim through the server proxy
@@ -160,6 +161,8 @@ Do not duplicate schemas here. Source of truth:
 ```typescript
 // Pattern: one component per tab (TabPanel in Sheet.tsx wraps it), explicit props
 // Pattern: shared rendering extracted once (Icon draws a lucide icon for React, iconSvg for Leaflet divIcons)
+// Pattern: build from the primitives in index.css (.btn, .chip, .card, .field, .notice, .progress, .dock...,
+// design.md 4); a colour is a token, a family colour comes inline from FAMILY_COLORS[palette]
 ```
 
 ### Timers (strict)
@@ -224,7 +227,7 @@ Overpass query by chunks (50 pts per trace, 3 pts overlap, around:1500, every ca
     ↓ via server proxy, or directly in the static build (VITE_STANDALONE)
 Tag matching → 18 categories
     ↓ perpendicular distance to trace (< maxDistanceM), dedup 50 m same category, sort along trace
-Map + list + elevation profile (gaps without water/food)
+Map + list + header strip (counter, whole-trace profile, stretches without water/food)
     ↓ optional enrichment: geocode → official site (+1 hop, evidence windows) → SearXNG in the country's language → WebLLM synthesis, deterministic fallback
 Export: GPX, KML, GeoJSON, OsmAnd GPX, KMZ, plan file (.ravitools.json)
 ```

@@ -154,7 +154,7 @@ All numbers use `font-variant-numeric: tabular-nums`. Text is in sentence case e
 
 ## 4. Primitives
 
-These replace every `neo-*` class. Step 3 brought what the shell uses (`.micro`, `.btn`, `.fab`, `.segmented`, `.switch`); each other primitive comes with the step that first uses it.
+They replaced every `neo-*` class (gone since step 8). New UI starts from them.
 
 | Class                 | What                                    | Notes                                                                   |
 | --------------------- | --------------------------------------- | ----------------------------------------------------------------------- |
@@ -353,7 +353,7 @@ Shared setup:
 
 ## 12. Migration order
 
-Each step ends with `just check` and an E6 to E8 pass (fix, re-run, until clean). It is committed on `designV2` only when the user asks.
+Done (2026-10-19): every step below is committed on `designV2`, and no `neo-*` class or alias is left. Each step ends with `just check` and an E6 to E8 pass (fix, re-run, until clean). It is committed on `designV2` only when the user asks.
 
 0. Session routine: `just outdated`, then `just update`.
 1. Overpass recovery (E5 first, then a failing regression test, then the fix).

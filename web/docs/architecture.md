@@ -127,7 +127,7 @@ Ravitools uses a **hybrid client-heavy architecture**:
 - **Server**: Express 5 under Bun, Postgres + PostGIS (optional enrichment cache), Playwright (Google Maps scraper)
 - **Enrichment**: @mlc-ai/web-llm (WebGPU), SearXNG, Nominatim
 - **Quality**: biome (lint + format), vitest, Playwright e2e on desktop and a Pixel 7 (smoke, touch targets, friction journeys), GitHub Actions (typecheck, test, lint, Pages deploy)
-- **Design**: "Field instrument", being migrated step by step (`web/docs/design.md`, sections 5 and 12). A full-bleed map that never resizes; on phones a bottom sheet with three detents (dragged 1:1, or tapped through) and floating pill tabs 01 to 04; on desktop a floating panel. Theme and colour-blind palette are token swaps on `<html>`
+- **Design**: "Field instrument" (`web/docs/design.md`). A full-bleed map that never resizes; on phones a bottom sheet with three detents (dragged 1:1, or tapped through) and floating pill tabs 01 to 04; on desktop a floating panel. Theme and colour-blind palette are token swaps on `<html>`
 
 ## File map
 
@@ -152,19 +152,20 @@ web/client/src/
 │   └── enrichment/           # enricher (batch pipeline), search (SearXNG), vocabulary (country language), websites + evidence (official site, one hop, result pages), osm-facts (tags as facts), llm (WebLLM), geocode,
 │                             # structured/deterministic fallbacks, confidence, provenance, google-fallback
 ├── components/
-│   ├── GpxUpload.tsx         # Drag-and-drop upload, plan file import, example route
+│   ├── GpxUpload.tsx         # Drag-and-drop upload, plan file import, example route; "Add a GPX" (append)
 │   ├── Sheet.tsx             # Bottom sheet (mobile) or panel (desktop), tab panels, pill tabs
 │   ├── Settings.tsx          # Round button + native popover: language, theme, palette, debug
 │   ├── Icon.tsx              # lucide icon as a React element or an SVG string (Leaflet)
 │   ├── RouteMap.tsx          # Leaflet map: traces (tap to select), clustered family pastilles, sheet-aware camera
 │   ├── HeaderStrip.tsx       # Counter and compact profile atop the sheet (floating on desktop), tap to centre the map
-│   ├── CategoryFilter.tsx    # Category chip grid + max distance slider
-│   ├── PoiList.tsx           # Virtualized POI list
+│   ├── CategoryFilter.tsx    # Family toggles, then distance slider and category chips behind "more"
+│   ├── PoiList.tsx           # Virtualized POI list, route order, in the tab panel's scroll
+│   ├── PoiDetail.tsx         # Selected POI in place of the list: ◀ ▶ in route order, trust, sources
 │   ├── EnrichmentPanel.tsx   # Machine check, model download, batch progress, CAPTCHA pause
 │   ├── EnrichmentDetails.tsx # Shared rendering of an enriched POI
-│   ├── ExportPanel.tsx       # Export cards (6 formats, plan file, roadbook)
+│   ├── ExportPanel.tsx       # Formats as radio cards, docked download (palette-aware colours), plan file, roadbook
 │   ├── Roadbook.tsx          # Printable roadbook
-│   ├── TraceSummary.tsx      # Step 01 result card: per trace name, km, D+, POI count, gap alerts and their threshold
+│   ├── TraceSummary.tsx      # Tab 01: one card per trace (legend and selector): km, D+, POI count, gap alerts and their threshold
 │   ├── ErrorBoundary.tsx
 │   └── DebugPanel.tsx, EnrichmentSandbox.tsx   # Dev tooling (the debug view opens from the settings)
 ├── App.tsx                   # Shell (map, sheet, tabs) + session lifecycle
